@@ -19,7 +19,7 @@ import {
   type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
-import { AlertCircle, CheckCircle2, Clock3, Code2, Copy, Loader2, Minus, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Clock3, Code2, Copy, Loader2, Minus, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import type { FlowEdge, FlowNode } from "./types";
 import { NodeIcon } from "./node-icon";
@@ -29,6 +29,8 @@ type NodeActions = {
   onDuplicate: (node: FlowNode) => void;
   onRemove: (nodeId: string) => void;
   onToggleMenu: (nodeId: string) => void;
+  onAddStep: (nodeId: string) => void;
+  onAddBranch: (nodeId: string) => void;
   openMenuId: string | null;
 };
 
@@ -54,6 +56,8 @@ type Props = {
   onDuplicate: (node: FlowNode) => void;
   onRemove: (nodeId: string) => void;
   onToggleMenu: (nodeId: string) => void;
+  onAddStep: (nodeId: string) => void;
+  onAddBranch: (nodeId: string) => void;
   onCreateNode: () => void;
   commandsRef?: MutableRefObject<FlowCanvasCommands | null>;
 };
@@ -73,9 +77,11 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
   }, [data.id, updateNodeInternals]);
 
   const status = data.executionState ?? "idle";
+  const message = data.config.message?.trim();
+  const operation = data.config.operation || (data.kind === "trigger" ? "Start when this event occurs" : data.subtitle);
   return (
     <div
-      className={`n8n-canvas-node ${selected ? "is-selected" : ""} ${data.kind === "trigger" ? "n8n-trigger" : ""} n8n-state-${status}`}
+      className={`intercom-flow-node ${selected ? "is-selected" : ""} ${data.kind === "trigger" ? "is-trigger" : ""} n8n-state-${status}`}
       style={{ "--node-color": data.color } as CSSProperties}
       onClick={(event) => {
         event.stopPropagation();
@@ -103,15 +109,16 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
           <MoreHorizontal size={16} />
         </button>
       </div>
-      <div className="n8n-node-card">
-        <span className="n8n-node-icon"><NodeIcon icon={data.icon} size={28} /></span>
+      <div className="intercom-node-card">
+        <div className="intercom-node-header"><span className="intercom-step-label">{data.kind === "trigger" ? "WHEN" : `${String.fromCharCode(65 + Math.min(data.stepIndex ?? 0, 25))}.`}</span><strong>{data.title}</strong>{data.pathId && data.pathId !== "main" && <span className="intercom-path-chip">{data.pathTitle}</span>}<ChevronDown size={15} /></div>
+        <div className="intercom-node-body">
+          {data.kind === "trigger" ? <><div className="intercom-trigger-icon" style={{ color: data.color, background: `${data.color}18` }}><NodeIcon icon={data.icon} size={24} /></div><p className="intercom-node-copy">{data.subtitle}</p><span className="intercom-pill">Chatty event</span></> : data.kind === "chatty" && message ? <div className="intercom-message-preview">{message}</div> : <div className="intercom-action-chip"><span style={{ color: data.color, background: `${data.color}18` }}><NodeIcon icon={data.icon} size={15} /></span><b>{operation}</b></div>}
+          {data.kind !== "trigger" && <button type="button" className="intercom-add-step" onClick={(event) => { event.stopPropagation(); data.onAddStep(data.id); }}><Plus size={15} /> Add step</button>}
+          {data.kind === "logic" && <button type="button" className="intercom-add-branch" onClick={(event) => { event.stopPropagation(); data.onAddBranch(data.id); }}><Plus size={14} /> Add path</button>}
+        </div>
         <span className="n8n-node-status-icons"><NodeExecutionMark status={status} /></span>
       </div>
-      <div className="n8n-node-description">
-        <div className="n8n-node-title" title={data.title}>{data.title}</div>
-        <div className="n8n-node-subtitle" title={data.subtitle}>{data.subtitle}</div>
-        {data.isImported && <span className="n8n-node-badge">Imported</span>}
-      </div>
+      {data.isImported && <span className="n8n-node-badge">Imported</span>}
       <Handle type="source" position={Position.Right} className="n8n-handle n8n-handle-source" aria-label={`Connect from ${data.title}`} />
       {data.openMenuId === data.id && (
         <div className="n8n-node-context-menu" role="menu" onClick={(event) => event.stopPropagation()}>
@@ -127,13 +134,15 @@ function FlowCanvasInner(props: Props) {
   const reactFlow = useReactFlow<CanvasNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const nodeTypes = useMemo(() => ({ chatty: ChattyCanvasNode }), []);
-  const actionRefs = useRef({ onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu });
-  actionRefs.current = { onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu };
+  const actionRefs = useRef({ onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu, onAddStep: props.onAddStep, onAddBranch: props.onAddBranch });
+  actionRefs.current = { onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu, onAddStep: props.onAddStep, onAddBranch: props.onAddBranch };
   const stableActions = useMemo<NodeActions>(() => ({
     onSelect: (nodeId) => actionRefs.current.onSelect(nodeId),
     onDuplicate: (node) => actionRefs.current.onDuplicate(node),
     onRemove: (nodeId) => actionRefs.current.onRemove(nodeId),
     onToggleMenu: (nodeId) => actionRefs.current.onToggleMenu(nodeId),
+    onAddStep: (nodeId) => actionRefs.current.onAddStep(nodeId),
+    onAddBranch: (nodeId) => actionRefs.current.onAddBranch(nodeId),
     openMenuId: null,
   }), []);
 
@@ -142,10 +151,10 @@ function FlowCanvasInner(props: Props) {
     type: "chatty",
     position: { x: node.x, y: node.y },
     // React Flow keeps nodes hidden until it has dimensions. The card has a
-    // stable n8n-style size, so provide it up front while ResizeObserver
+    // stable Intercom-style size, so provide it up front while ResizeObserver
     // measures the rendered handles.
-    width: 236,
-    height: 146,
+    width: 312,
+    height: 220,
     data: { ...node, ...stableActions, openMenuId: props.nodeMenuId },
     selected: node.id === props.selectedId,
   }), [props.nodeMenuId, props.selectedId, stableActions]);

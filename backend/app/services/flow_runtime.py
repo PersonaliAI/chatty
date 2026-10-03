@@ -14,6 +14,7 @@ from typing import Any
 
 from app.core.db import run_db
 from app.core import ssrf
+from app.core.crypto import decrypt_secret
 import httpx
 
 logger = logging.getLogger("chatty.flow_runtime")
@@ -22,6 +23,45 @@ _MAX_ADAPTER_ATTEMPTS = 3
 _RETRY_DELAYS_SECONDS = (0.2, 0.5)
 _MAX_WIDGET_REPLY_CHARS = 4000
 _TEMPLATE_TOKEN = re.compile(r"\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}")
+
+
+async def _resolve_connection(supabase, bot_id: str, connection_id: str) -> dict[str, Any] | None:
+    """Resolve one connection for a server-side adapter call."""
+    if connection_id in {"google-primary", "microsoft-primary"}:
+        bot_result = await run_db(lambda: supabase.table("chatty_bots").select("user_id").eq("id", bot_id).maybe_single().execute())
+        user_id = (bot_result.data or {}).get("user_id")
+        if not user_id:
+            return None
+        columns = "google_access_token, google_refresh_token, google_email" if connection_id == "google-primary" else "microsoft_access_token, microsoft_refresh_token, microsoft_email"
+        user_result = await run_db(lambda: supabase.table("users").select(columns).eq("id", user_id).maybe_single().execute())
+        row = user_result.data or {}
+        provider = "Google" if connection_id == "google-primary" else "Microsoft"
+        access_key = "google_access_token" if connection_id == "google-primary" else "microsoft_access_token"
+        refresh_key = "google_refresh_token" if connection_id == "google-primary" else "microsoft_refresh_token"
+        if not row.get(access_key):
+            return None
+        return {
+            "provider": provider,
+            "auth_type": "oauth",
+            "metadata": {"email": row.get("google_email" if connection_id == "google-primary" else "microsoft_email") or ""},
+            "credentials": {"access_token": decrypt_secret(str(row.get(access_key) or "")), "refresh_token": decrypt_secret(str(row.get(refresh_key) or ""))},
+        }
+    result = await run_db(lambda: supabase.table("chatty_flow_connections").select("provider, auth_type, status, metadata, encrypted_credentials").eq("id", connection_id).eq("bot_id", bot_id).maybe_single().execute())
+    row = result.data or {}
+    if row.get("status") != "connected" or not row.get("encrypted_credentials"):
+        return None
+    try:
+        credentials = json.loads(decrypt_secret(str(row["encrypted_credentials"])))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(credentials, dict):
+        return None
+    return {
+        "provider": row.get("provider"),
+        "auth_type": row.get("auth_type"),
+        "metadata": row.get("metadata") if isinstance(row.get("metadata"), dict) else {},
+        "credentials": credentials,
+    }
 
 
 def _matches_event(flow_data: dict[str, Any], event: str) -> bool:
@@ -112,6 +152,7 @@ async def _execute_graph(
     by_id, ordered_ids, failed = _graph_order(flow_data)
     trace: list[dict[str, Any]] = []
     replies: list[str] = []
+    connection_cache: dict[str, dict[str, Any] | None] = {}
     for node_id in ordered_ids:
         node = by_id[node_id]
         title = node.get("title") or node_id
@@ -141,6 +182,19 @@ async def _execute_graph(
                 status = "failed"
                 failed = f"{title} has no adapter endpoint configured"
             else:
+                connection_id = str(config.get("connection_id") or "").strip()
+                connection = None
+                if connection_id:
+                    if connection_id not in connection_cache:
+                        connection_cache[connection_id] = await _resolve_connection(supabase, str(inputs.get("bot_id") or ""), connection_id)
+                    connection = connection_cache[connection_id]
+                    if connection is None:
+                        status = "failed"
+                        failed = f"{title} has no usable provider connection"
+                        trace_step["status"] = status
+                        trace_step["error"] = failed
+                        trace.append(trace_step)
+                        break
                 body = {
                     "event": inputs.get("event"),
                     "session_id": inputs.get("session_id"),
@@ -152,6 +206,8 @@ async def _execute_graph(
                     "n8n_parameters": node.get("n8nParameters") if isinstance(node.get("n8nParameters"), dict) else {},
                     "config": config,
                 }
+                if connection:
+                    body["connection"] = connection
                 for attempt in range(_MAX_ADAPTER_ATTEMPTS):
                     try:
                         async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:

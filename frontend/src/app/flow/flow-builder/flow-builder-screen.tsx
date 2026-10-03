@@ -2,32 +2,28 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import Image from "next/image";
-import { AlertCircle, ArrowRight, Check, CheckCircle2, ChevronDown, Download, ExternalLink, History, LayoutGrid, Loader2, Menu, Play, Plus, Redo2, RotateCcw, Save, Search, Settings2, ShieldCheck, Trash2, Undo2, Upload, UserCircle2, X } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronDown, Download, ExternalLink, History, LayoutGrid, Loader2, Menu, Play, Plus, Redo2, RotateCcw, Save, Settings2, Undo2, Upload, UserCircle2, X } from "lucide-react";
 import { chattyRequest, getFlowSession, hasFlowHandoff, supabase } from "./lib";
 import { exportN8nWorkflow } from "./n8n-export";
 import { importN8nWorkflow } from "./n8n-import";
-import { findNodeDefinition, nodeCatalog, type NodeDefinition, type NodeField } from "./node-registry";
+import { findNodeDefinition, nodeCatalog, type NodeDefinition } from "./node-registry";
 import { FlowCanvas, type FlowCanvasCommands } from "./flow-canvas";
-import { NodeIcon } from "./node-icon";
 import { RunHistory } from "./run-history";
 import { createTemplateGraph, flowTemplates, type FlowTemplate } from "./templates";
-import type { FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
+import { FlowLibrary } from "./flow-library";
+import { NodeInspector } from "./node-inspector";
+import { ConnectionModal } from "./connection-modal";
+import { getProviderConnection } from "./connections";
+import type { FlowConnection, FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
 
 type GraphSnapshot = FlowData;
 type BusyAction = "import" | "test" | "save" | "publish" | null;
 type AuthState = "checking" | "session" | "handoff" | "required";
 
-const emptyGraph: FlowData = { nodes: [], edges: [] };
-
-const chattyEvents = [
-  "session.started", "session.ended", "session.assigned", "session.resolved", "session.transferred",
-  "message.user", "message.assistant", "message.agent", "lead.created", "lead.updated", "lead.exported",
-  "meeting.booked", "meeting.cancelled", "meeting.rescheduled", "sla.first_response_breached",
-  "sla.resolution_breached", "csat.submitted", "knowledge.source_added", "knowledge.source_deleted",
-];
+const emptyGraph: FlowData = { nodes: [], edges: [], paths: [] };
 
 function cloneGraph(graph: GraphSnapshot): GraphSnapshot {
-  return { nodes: graph.nodes.map((node) => ({ ...node, config: { ...node.config }, n8nParameters: node.n8nParameters ? { ...node.n8nParameters } : undefined })), edges: graph.edges.map((edge) => ({ ...edge })) };
+  return { nodes: graph.nodes.map((node) => ({ ...node, config: { ...node.config }, n8nParameters: node.n8nParameters ? { ...node.n8nParameters } : undefined })), edges: graph.edges.map((edge) => ({ ...edge })), paths: graph.paths?.map((path) => ({ ...path })) };
 }
 
 function graphKey(graph: GraphSnapshot) {
@@ -38,33 +34,8 @@ function persistedGraph(graph: GraphSnapshot): GraphSnapshot {
   return {
     nodes: graph.nodes.map(({ executionState: _executionState, lastError: _lastError, ...node }) => node),
     edges: graph.edges,
+    paths: graph.paths,
   };
-}
-
-function ModernSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    function close(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, []);
-  useEffect(() => {
-    function close(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", close);
-    return () => document.removeEventListener("keydown", close);
-  }, []);
-  return <div className="modern-select" ref={rootRef}><button type="button" className={`modern-select-trigger ${open ? "open" : ""}`} aria-haspopup="listbox" aria-expanded={open} aria-label={label} onClick={() => setOpen((current) => !current)}><span>{value || "Select an option"}</span><ChevronDown size={14} /></button>{open && <div className="modern-select-menu" role="listbox" aria-label={label}>{options.map((option) => <button type="button" role="option" aria-selected={option === value} className={option === value ? "selected" : ""} key={option} onClick={() => { onChange(option); setOpen(false); }}>{option}{option === value && <Check size={13} />}</button>)}</div>}</div>;
-}
-
-function NodeFieldEditor({ field, value, onChange }: { field: NodeField; value: string; onChange: (value: string) => void }) {
-  if (field.type === "select") return <ModernSelect label={field.label} value={value} options={field.options ?? []} onChange={onChange} />;
-  if (field.type === "textarea" || field.type === "json") return <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} rows={field.type === "json" ? 7 : 4} spellCheck={false} />;
-  return <input type={field.type === "url" ? "url" : field.type === "number" ? "number" : "text"} value={value} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} />;
 }
 
 export default function FlowBuilderPage() {
@@ -97,6 +68,11 @@ export default function FlowBuilderPage() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [refreshingAuth, setRefreshingAuth] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<FlowTemplate | null>(null);
+  const [connections, setConnections] = useState<FlowConnection[]>([]);
+  const [connectionProvider, setConnectionProvider] = useState<ReturnType<typeof getProviderConnection> | null>(null);
+  const [pendingParentId, setPendingParentId] = useState<string | null>(null);
+  const [pendingPathId, setPendingPathId] = useState("main");
+  const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const canvasCommandsRef = useRef<FlowCanvasCommands | null>(null);
   const graphRef = useRef<GraphSnapshot>(emptyGraph);
@@ -106,7 +82,6 @@ export default function FlowBuilderPage() {
   const [futureSize, setFutureSize] = useState(0);
 
   const selected = nodes.find((node) => node.id === selectedId) ?? null;
-  const selectedDefinition = selected ? findNodeDefinition(selected) : undefined;
   const filteredCatalog = useMemo(() => nodeCatalog.filter((item) => {
     const query = `${item.title} ${item.subtitle} ${item.provider} ${item.category}`.toLowerCase();
     const matchesSearch = query.includes(search.toLowerCase());
@@ -123,6 +98,8 @@ export default function FlowBuilderPage() {
       if (ids.has(node.id)) issues.push(`Duplicate node id: ${node.id}.`);
       ids.add(node.id);
       const definition = findNodeDefinition(node);
+      const connectionDefinition = getProviderConnection(node);
+      if (connectionDefinition && node.kind === "action" && !String(node.config.connection_id ?? "").trim()) issues.push(`${node.title}: connect a ${connectionDefinition.provider} account.`);
       for (const field of definition?.fields ?? []) {
         if (field.required && !String(node.config[field.key] ?? "").trim() && !(field.key === "url" && node.n8nParameters?.url)) issues.push(`${node.title}: ${field.label} is required.`);
       }
@@ -190,10 +167,21 @@ export default function FlowBuilderPage() {
       const payload = await response.json() as { versions?: Array<{ id: string; flow_id?: string; flow_name?: string; version: number; flow_data: FlowData; status: string }> };
       const latest = payload.versions?.find((item) => !selectedFlow || item.flow_id === selectedFlow);
       if (!latest?.flow_data) return;
-      const next = { nodes: latest.flow_data.nodes ?? [], edges: latest.flow_data.edges ?? [] };
+       const next = { nodes: latest.flow_data.nodes ?? [], edges: latest.flow_data.edges ?? [], paths: latest.flow_data.paths ?? [] };
       graphRef.current = next; setNodes(next.nodes); setEdges(next.edges); setFlowId(latest.flow_id || selectedFlow); setFlowName(latest.flow_name || "New workflow"); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty"); historyRef.current = []; futureRef.current = []; setHistorySize(0); setFutureSize(0);
     }).catch(() => setSyncState("Unable to sync workflow"));
   }, []);
+
+  useEffect(() => {
+    if (!botId) { setConnections([]); return; }
+    let active = true;
+    void chattyRequest(`/api/flow-builder/connections?bot_id=${encodeURIComponent(botId)}`).then(async (response) => {
+      if (!response.ok) return;
+      const payload = await response.json() as { connections?: FlowConnection[] };
+      if (active) setConnections(payload.connections ?? []);
+    }).catch(() => { if (active) setConnections([]); });
+    return () => { active = false; };
+  }, [botId]);
 
   useEffect(() => {
     if (view !== "history" || !botId) return;
@@ -280,8 +268,14 @@ export default function FlowBuilderPage() {
 
   function addNode(item: NodeDefinition) {
     const id = `${item.type.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${Date.now()}`;
-    const newNode: FlowNode = { id, type: item.type, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: 180 + ((nodes.length * 44) % 360), y: 110 + ((nodes.length * 54) % 300), provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider } };
-    setGraph({ nodes: [...graphRef.current.nodes, newNode], edges: graphRef.current.edges }); setSelectedId(id); setMobilePanel(null);
+    const parent = pendingParentId ? graphRef.current.nodes.find((node) => node.id === pendingParentId) : undefined;
+    const pathId = pendingParentId ? pendingPathId : item.kind === "trigger" ? id : "main";
+    const pathTitle = pendingParentId && pendingPathId !== "main" ? `Path ${String.fromCharCode(65 + graphRef.current.nodes.filter((node) => node.pathId && node.pathId !== "main").length)}` : "Main path";
+    const newNode: FlowNode = { id, type: item.type, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: parent ? parent.x + 380 : 180 + ((nodes.length * 44) % 360), y: parent ? parent.y : 110 + ((nodes.length * 54) % 300), provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider, retry_enabled: "true", idempotency_enabled: "true" }, pathId, pathTitle, stepIndex: parent ? (parent.stepIndex ?? 0) + 1 : 0 };
+    const nextEdges = parent ? [...graphRef.current.edges, { from: parent.id, to: id, label: pendingPathId === "main" ? undefined : pathTitle }] : graphRef.current.edges;
+    const nextPaths = [...(graphRef.current.paths ?? [])];
+    if (!nextPaths.some((path) => path.id === pathId)) nextPaths.push({ id: pathId, title: pathTitle, color: item.color });
+    setGraph({ nodes: [...graphRef.current.nodes, newNode], edges: nextEdges, paths: nextPaths }); setSelectedId(id); setPendingParentId(null); setPendingPathId("main"); setMobilePanel(null);
   }
 
   function replaceWithTemplate(template: FlowTemplate) {
@@ -303,13 +297,14 @@ export default function FlowBuilderPage() {
     replaceWithTemplate(template);
   }
 
-  function updateNode(nodeId: string, update: Partial<FlowNode>) { setGraph({ nodes: graphRef.current.nodes.map((node) => node.id === nodeId ? { ...node, ...update } : node), edges: graphRef.current.edges }); }
+  function updateNode(nodeId: string, update: Partial<FlowNode>) { setGraph({ nodes: graphRef.current.nodes.map((node) => node.id === nodeId ? { ...node, ...update } : node), edges: graphRef.current.edges, paths: graphRef.current.paths }); }
   function updateConfig(key: string, value: string) { if (selected) updateNode(selected.id, { config: { ...selected.config, [key]: value } }); }
-  function removeNode(nodeId: string) { setGraph({ nodes: graphRef.current.nodes.filter((node) => node.id !== nodeId), edges: graphRef.current.edges.filter((edge) => edge.from !== nodeId && edge.to !== nodeId) }); setSelectedId(""); setNodeMenuId(null); }
-  function duplicateNode(node: FlowNode) { const id = `${node.id}-copy-${Date.now()}`; setGraph({ nodes: [...graphRef.current.nodes, { ...node, id, title: `${node.title} copy`, x: node.x + 36, y: node.y + 36, config: { ...node.config } }], edges: graphRef.current.edges }); setSelectedId(id); setNodeMenuId(null); }
-  function connectNodes(sourceId: string, targetId: string) { if (sourceId === targetId || graphRef.current.edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return; setGraph({ nodes: graphRef.current.nodes, edges: [...graphRef.current.edges, { from: sourceId, to: targetId }] }); }
-  function moveNodes(nextNodes: FlowNode[]) { setGraph({ nodes: nextNodes, edges: graphRef.current.edges }); }
-  function changeEdges(nextEdges: FlowEdge[]) { setGraph({ nodes: graphRef.current.nodes, edges: nextEdges }); }
+  function removeNode(nodeId: string) { setGraph({ nodes: graphRef.current.nodes.filter((node) => node.id !== nodeId), edges: graphRef.current.edges.filter((edge) => edge.from !== nodeId && edge.to !== nodeId), paths: graphRef.current.paths }); setSelectedId(""); setNodeMenuId(null); }
+  function duplicateNode(node: FlowNode) { const id = `${node.id}-copy-${Date.now()}`; setGraph({ nodes: [...graphRef.current.nodes, { ...node, id, title: `${node.title} copy`, x: node.x + 36, y: node.y + 36, config: { ...node.config } }], edges: graphRef.current.edges, paths: graphRef.current.paths }); setSelectedId(id); setNodeMenuId(null); }
+  function connectNodes(sourceId: string, targetId: string) { if (sourceId === targetId || graphRef.current.edges.some((edge) => edge.from === sourceId && edge.to === targetId)) return; setGraph({ nodes: graphRef.current.nodes, edges: [...graphRef.current.edges, { from: sourceId, to: targetId }], paths: graphRef.current.paths }); }
+  function moveNodes(nextNodes: FlowNode[]) { setGraph({ nodes: nextNodes, edges: graphRef.current.edges, paths: graphRef.current.paths }); }
+  function changeEdges(nextEdges: FlowEdge[]) { setGraph({ nodes: graphRef.current.nodes, edges: nextEdges, paths: graphRef.current.paths }); }
+  function openAddStep(parentId: string, branch = false) { setPendingParentId(parentId); setPendingPathId(branch ? `path-${Date.now()}` : "main"); setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }
 
   async function handleN8nImport(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; event.target.value = ""; if (!file) return;
@@ -323,7 +318,26 @@ export default function FlowBuilderPage() {
     const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = `${(flowName || "chatty-workflow").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.json`; anchor.click(); URL.revokeObjectURL(url);
   }
 
-  const inspectorFields = selectedDefinition?.fields ?? [{ key: "operation", label: "Operation", type: "text" as const }, { key: "url", label: "Adapter endpoint URL", type: "url" as const, required: selected?.kind === "action", placeholder: "https://..." }];
+  async function startOAuth(provider: string) {
+    if (!botId) { setTestError("Open this editor from a Chatty bot before connecting a provider."); return; }
+    setConnectingProvider(provider);
+    setBusyAction("save");
+    try {
+      const redirectPath = `/flow?bot_id=${encodeURIComponent(botId)}${flowId ? `&flow_id=${encodeURIComponent(flowId)}` : ""}`;
+      const response = await chattyRequest("/api/flow-builder/connections/oauth-start", { method: "POST", body: JSON.stringify({ bot_id: botId, provider, redirect_path: redirectPath }) });
+      const body = await response.json() as { url?: string; detail?: string };
+      if (!response.ok || !body.url) { setTestError(body.detail || "The provider connection could not start."); return; }
+      window.location.assign(body.url);
+    } catch { setTestError("The provider connection could not reach Chatty."); }
+    finally { setBusyAction(null); setConnectingProvider(null); }
+  }
+
+  function saveConnection(connection: FlowConnection) {
+    setConnections((current) => [...current.filter((item) => item.id !== connection.id), connection]);
+    updateConfig("connection_id", connection.id);
+    setConnectionProvider(null);
+    setSyncState(`${connection.provider} connection saved`);
+  }
 
   return <main className="builder-shell">
     <input ref={importRef} className="sr-only" aria-hidden="true" tabIndex={-1} type="file" accept="application/json,.json" onChange={(event) => void handleN8nImport(event)} />
@@ -334,36 +348,35 @@ export default function FlowBuilderPage() {
     </header>
     <div className="workspace">
       {view === "canvas" ? <>
-        <aside className={`palette ${mobilePanel === "palette" ? "mobile-open" : ""}`}>
-          <div className="panel-head"><div><small>BUILD</small><h2>{libraryView === "nodes" ? "Node library" : "Workflow templates"}</h2></div><button className="icon-btn mobile-only" onClick={() => setMobilePanel(null)}><X size={17} /></button></div>
-          <div className="library-tabs" role="tablist" aria-label="Build resources"><button type="button" role="tab" aria-selected={libraryView === "nodes"} className={libraryView === "nodes" ? "active" : ""} onClick={() => setLibraryView("nodes")}>Nodes</button><button type="button" role="tab" aria-selected={libraryView === "templates"} className={libraryView === "templates" ? "active" : ""} onClick={() => setLibraryView("templates")}>Templates</button></div>
-          {libraryView === "nodes" ? <>
-            <div className="search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search nodes" /></div>
-            <div className="source-row"><button className={`source ${sourceFilter === "all" ? "active" : ""}`} onClick={() => setSourceFilter("all")}>All</button><button className={`source ${sourceFilter === "native" ? "active" : ""}`} onClick={() => setSourceFilter("native")}>Built-in</button><button className={`source ${sourceFilter === "apps" ? "active" : ""}`} onClick={() => setSourceFilter("apps")}>Apps</button></div>
-            <div className="catalog">{filteredCatalog.map((item) => <button key={item.type} className="catalog-item" onClick={() => addNode(item)}><span className="catalog-icon" style={{ color: item.color, background: `${item.color}16` }}><NodeIcon icon={item.icon} size={16} /></span><span><b>{item.title}</b><small>{item.subtitle}</small></span><Plus size={14} className="add-icon" /></button>)}</div>
-          </> : <div className="template-list">{flowTemplates.map((template) => <button type="button" key={template.id} className="template-card" onClick={() => applyTemplate(template)}><span className="template-icon" style={{ color: template.color, background: `${template.color}16` }}><NodeIcon icon={template.icon} size={17} /></span><span className="template-copy"><b>{template.title}</b><small>{template.description}</small><em>{template.steps.length} steps · {template.category}</em></span><ArrowRight size={14} className="template-arrow" /></button>)}</div>}
-          <div className="library-foot"><ShieldCheck size={15} /><span>Templates use safe placeholders. Connect your own tenant integrations before publishing.</span></div>
-        </aside>
+       <FlowLibrary
+         libraryView={libraryView}
+         search={search}
+         sourceFilter={sourceFilter}
+         filteredCatalog={filteredCatalog}
+         templates={flowTemplates}
+         mobileOpen={mobilePanel === "palette"}
+         onSetLibraryView={setLibraryView}
+         onSearch={setSearch}
+         onSourceFilter={setSourceFilter}
+         onAddNode={addNode}
+         onApplyTemplate={applyTemplate}
+         onCloseMobile={() => setMobilePanel(null)}
+       />
         <section className="canvas-area">
           <div className="canvas-toolbar"><div className="toolbar-group"><button className="tool-active" onClick={() => setView("canvas")}><LayoutGrid size={15} /> Canvas</button><button onClick={() => setView("history")}><History size={15} /> History</button><span className="toolbar-divider" /><button onClick={undo} disabled={historySize === 0} aria-label="Undo"><Undo2 size={15} /></button><button onClick={redo} disabled={futureSize === 0} aria-label="Redo"><Redo2 size={15} /></button></div><div className="toolbar-group"><button onClick={() => canvasCommandsRef.current?.zoomOut()} aria-label="Zoom out">−</button><button onClick={() => canvasCommandsRef.current?.resetZoom()} className="zoom-reset">100%</button><button onClick={() => canvasCommandsRef.current?.zoomIn()} aria-label="Zoom in">+</button><button onClick={() => canvasCommandsRef.current?.fitView()} aria-label="Fit workflow"><RotateCcw size={14} /></button></div></div>
-          <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onCreateNode={() => { setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }} commandsRef={canvasCommandsRef} />
+           <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onAddStep={(nodeId) => openAddStep(nodeId)} onAddBranch={(nodeId) => openAddStep(nodeId, true)} onCreateNode={() => { setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }} commandsRef={canvasCommandsRef} />
           <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span><span className={`status-right ${validationIssues.length ? "has-issues" : ""}`}>{validationIssues.length ? `${validationIssues.length} validation issue${validationIssues.length === 1 ? "" : "s"}` : published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span></div>
         </section>
-        <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
-          <div className="panel-head"><div><small>CONFIGURE</small><h2>{selected ? selected.title : "Select a node"}</h2></div><button className="icon-btn mobile-only" onClick={() => setMobilePanel(null)}><X size={17} /></button></div>
-          {selected ? <div className="inspector-body"><div className="selected-summary"><span className="summary-icon" style={{ color: selected.color, background: `${selected.color}16` }}><NodeIcon icon={selected.icon} /></span><div><b>{selected.title}</b><span>{selected.subtitle}</span></div></div><label>Node label<input value={selected.title} onChange={(event) => updateNode(selected.id, { title: event.target.value })} /></label>{selected.n8nType && <label>Node type<input value={selected.n8nType} readOnly aria-readonly="true" /></label>}
-            <div className="inspector-section"><div className="section-title">Parameters</div>{inspectorFields.map((field) => <label key={field.key}>{field.label}{field.required && <span className="required-mark"> *</span>}<NodeFieldEditor field={field} value={selected.config[field.key] ?? (field.key === "event" ? chattyEvents[0] : "")} onChange={(value) => updateConfig(field.key, value)} />{field.helpText && <small className="field-help">{field.helpText}</small>}</label>)}</div>
-            {selected.n8nType && <div className="inspector-section"><div className="section-title">n8n parameters</div><textarea className="json-editor" value={JSON.stringify(selected.n8nParameters ?? {}, null, 2)} onChange={(event) => { try { updateNode(selected.id, { n8nParameters: JSON.parse(event.target.value) as Record<string, unknown> }); } catch { /* Keep the last valid JSON until the user finishes typing. */ } }} spellCheck={false} rows={8} /></div>}
-            <div className="inspector-section"><div className="section-title">Reliability</div><div className="toggle-row"><span><b>Retry failed runs</b><small>Three attempts with backoff</small></span><span className="toggle on" /></div><div className="toggle-row"><span><b>Idempotency key</b><small>Prevent duplicate side effects</small></span><span className="toggle on" /></div></div>
-            {selected.kind !== "trigger" && <div className="connect-list"><div className="section-title">Connect to</div>{nodes.filter((node) => node.id !== selected.id).map((node) => <button key={node.id} onClick={() => connectNodes(selected.id, node.id)}><NodeIcon icon={node.icon} size={14} />{node.title}<ArrowRight size={14} /></button>)}</div>}
-            <button className="delete-btn" onClick={() => removeNode(selected.id)}><Trash2 size={14} /> Remove node</button>
-          </div> : <div className="empty-inspector"><Settings2 size={22} /><p>Select a node to configure its parameters, credentials, retries, and outputs.</p></div>}
-          {validationIssues.length > 0 && <div className="validation-box"><div><AlertCircle size={14} /><b>Before publishing</b></div>{validationIssues.slice(0, 4).map((issue) => <p key={issue}>{issue}</p>)}</div>}
-        </aside>
+         <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
+           <div className="panel-head"><div><small>CONFIGURE</small><h2>{selected ? selected.title : "Select a node"}</h2></div><button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel(null)} aria-label="Close inspector"><X size={17} /></button></div>
+           <NodeInspector selected={selected} nodes={nodes} connections={connections} onUpdateNode={updateNode} onUpdateConfig={updateConfig} onConnectNodes={connectNodes} onRemove={removeNode} onOpenConnection={() => { if (selected) setConnectionProvider(getProviderConnection(selected) ?? null); }} onOpenChatty={() => void startOAuth(selected?.provider ?? "")} connectionBusy={Boolean(connectingProvider)} />
+           {validationIssues.length > 0 && <div className="validation-box"><div><AlertCircle size={14} /><b>Before publishing</b></div>{validationIssues.slice(0, 4).map((issue) => <p key={issue}>{issue}</p>)}</div>}
+         </aside>
       </> : <section className="history-area"><RunHistory runs={runs} loading={runsLoading} selectedRun={selectedRun} onSelect={setSelectedRun} onRefresh={() => setRunsRefresh((value) => value + 1)} onBack={() => setView("canvas")} /></section>}
     </div>
     <footer className="mobile-nav"><button onClick={() => setMobilePanel("palette")}><Plus size={17} /><span>Add</span></button><button className="mobile-run" onClick={() => void runTest()}><Play size={17} /><span>Test</span></button><button onClick={() => setMobilePanel("inspector")}><Settings2 size={17} /><span>Inspect</span></button></footer>
     {running && <div className="modal-backdrop"><div className="run-modal"><div className="modal-title"><div><small>VALIDATION RUN</small><h2>Flow test</h2></div><button className="icon-btn" onClick={() => setRunning(false)}><X size={18} /></button></div>{testError ? <div className="run-error">{testError}</div> : testTrace.length ? testTrace.map((step) => <div className="run-progress" key={step.node_id}><span className="run-icon"><CheckCircle2 size={16} /></span><div><b>{step.title}</b><small>{step.status} · no external side effects</small></div></div>) : <div className="run-progress active"><span className="spinner" /><div><b>Validating graph</b><small>Checking connections and execution order…</small></div></div>}<button className="secondary full" onClick={() => setRunning(false)}>Close test run</button></div></div>}
     {pendingTemplate && <div className="modal-backdrop"><div className="template-confirm"><div className="modal-title"><div><small>USE TEMPLATE</small><h2>Replace this workflow?</h2></div><button type="button" className="icon-btn" onClick={() => setPendingTemplate(null)}><X size={18} /></button></div><p>This replaces the current canvas with “{pendingTemplate.title}”. Unsaved changes will be removed.</p><div className="template-confirm-actions"><button type="button" className="secondary" onClick={() => setPendingTemplate(null)}>Cancel</button><button type="button" className="primary" onClick={() => replaceWithTemplate(pendingTemplate)}>Replace workflow</button></div></div></div>}
+    {connectionProvider && <ConnectionModal botId={botId} definition={connectionProvider} onClose={() => setConnectionProvider(null)} onSaved={saveConnection} onStartOAuth={() => void startOAuth(connectionProvider.provider)} />}
   </main>;
 }

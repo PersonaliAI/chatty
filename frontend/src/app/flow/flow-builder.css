@@ -200,6 +200,48 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .canvas-empty-state button { margin-top: 5px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink-soft); background: var(--paper); font-size: 10px; font-weight: 700; }
 .canvas-empty-state button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
+/* Intercom-style workflow cards on the n8n-grade interaction canvas. */
+.n8n-flow-canvas .react-flow__node { width: 312px; min-height: 220px; overflow: visible; }
+.intercom-flow-node { position: relative; width: 312px; min-height: 220px; color: var(--ink); cursor: pointer; }
+.intercom-node-card { position: relative; min-height: 220px; overflow: hidden; border: 1px solid #d8dee8; border-radius: 14px; background: var(--paper); box-shadow: 0 7px 18px rgba(15, 23, 42, .08); transition: border-color .16s ease, box-shadow .16s ease; }
+.intercom-flow-node:hover .intercom-node-card { border-color: #aeb9c8; box-shadow: 0 12px 26px rgba(15, 23, 42, .12); }
+.intercom-flow-node.is-selected .intercom-node-card { border-color: var(--node-color); box-shadow: 0 0 0 5px color-mix(in srgb, var(--node-color) 16%, transparent), 0 12px 26px rgba(15, 23, 42, .12); }
+.intercom-flow-node.is-trigger .intercom-node-card { border-top: 3px solid var(--node-color); }
+.intercom-node-header { display: flex; align-items: center; gap: 8px; min-height: 47px; padding: 0 14px; border-bottom: 1px solid #edf0f4; color: var(--ink); }
+.intercom-node-header strong { flex: 1; overflow: hidden; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.intercom-step-label { color: #8793a4; font-size: 10px; font-weight: 800; letter-spacing: .07em; }
+.intercom-path-chip { max-width: 74px; overflow: hidden; padding: 3px 6px; border-radius: 999px; color: #9a6418; background: #fff4d6; font-size: 8px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.intercom-node-header svg { color: #8b97a7; }
+.intercom-node-body { display: grid; gap: 12px; padding: 15px; }
+.intercom-trigger-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; }
+.intercom-node-copy { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
+.intercom-pill { justify-self: start; padding: 5px 9px; border: 1px solid #e0e5ec; border-radius: 999px; color: #556274; background: #f8fafc; font-size: 10px; font-weight: 700; }
+.intercom-message-preview { padding: 12px; border-radius: 9px; color: #283548; background: #f4f6f9; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.intercom-action-chip { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 10px; border: 1px solid #e1e6ed; border-radius: 9px; background: #fbfcfe; }
+.intercom-action-chip span { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; }
+.intercom-action-chip b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.intercom-add-step, .intercom-add-branch { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; border: 1px solid #e1e6ed; border-radius: 999px; color: #475569; background: #fff; font-size: 11px; font-weight: 700; }
+.intercom-add-step:hover, .intercom-add-branch:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.intercom-add-branch { border-style: dashed; color: #b7791f; background: #fffbeb; }
+.intercom-flow-node .n8n-node-status-icons { position: absolute; right: 10px; top: 14px; display: flex; align-items: center; }
+.intercom-flow-node .n8n-handle { width: 10px; height: 10px; border: 2px solid #aebdcd; background: var(--paper); }
+.connection-section .connection-help { margin: -4px 0 9px; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.connection-empty { padding: 9px 10px; border: 1px dashed #d5dce5; border-radius: 8px; color: var(--muted); background: #fbfcfe; font-size: 10px; }
+.connection-action { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; color: var(--accent); font-size: 10px; font-weight: 700; }
+.toggle-button { width: 100%; color: inherit; text-align: left; }
+.toggle-button:hover { color: var(--ink); }
+.connection-modal { width: min(470px, 100%); max-height: min(720px, 92vh); overflow: auto; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: 0 20px 60px rgba(17, 24, 39, .20); }
+.connection-modal-copy { margin: -3px 0 18px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.connection-modal label { display: block; margin: 13px 0; color: #59667a; font-size: 10px; font-weight: 700; }
+.connection-modal input { display: block; width: 100%; margin-top: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; outline: 0; color: var(--ink); background: var(--paper); font-size: 11px; }
+.connection-modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(249, 115, 22, .10); }
+.oauth-connect-card { display: flex; align-items: center; gap: 10px; padding: 13px; border: 1px solid #e1e6ed; border-radius: 12px; background: #fbfcfe; }
+.oauth-connect-icon { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border-radius: 9px; color: #2563eb; background: #eff6ff; }
+.oauth-connect-card div:nth-child(2) { display: grid; gap: 3px; flex: 1; }
+.oauth-connect-card b { font-size: 11px; }
+.oauth-connect-card span { color: var(--muted); font-size: 9px; line-height: 1.4; }
+.connection-error { margin: 13px 0 0; padding: 9px 10px; border: 1px solid #fecaca; border-radius: 8px; color: #be123c; background: #fff1f2; font-size: 10px; line-height: 1.4; }
+
 .inspector-body { height: calc(100% - 60px); padding: 0 16px 20px; overflow: auto; scrollbar-color: #cbd5e1 transparent; scrollbar-width: thin; }
 .selected-summary { gap: 9px; padding: 10px 0 16px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
 .summary-icon { display: grid; width: 31px; height: 31px; place-items: center; border-radius: 9px; }

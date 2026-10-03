@@ -22,11 +22,33 @@ export type FlowNode = {
   n8nParameters?: Record<string, unknown>;
   executionState?: NodeExecutionState;
   lastError?: string;
+  pathId?: string;
+  pathTitle?: string;
+  stepIndex?: number;
 };
 
 export type FlowEdge = { from: string; to: string; sourceHandle?: string; targetHandle?: string; label?: string };
 
-export type FlowData = { nodes: FlowNode[]; edges: FlowEdge[] };
+export type FlowPath = {
+  id: string;
+  title: string;
+  description?: string;
+  color?: string;
+};
+
+export type FlowData = { nodes: FlowNode[]; edges: FlowEdge[]; paths?: FlowPath[] };
+
+export type FlowConnection = {
+  id: string;
+  bot_id: string;
+  provider: string;
+  name: string;
+  auth_type: "oauth" | "api_key" | "token" | "basic" | "webhook";
+  status: "connected" | "disconnected" | "error";
+  metadata?: Record<string, string>;
+  created_at?: string;
+  updated_at?: string;
+};
 
 export type FlowRunTrace = {
   node_id: string;
