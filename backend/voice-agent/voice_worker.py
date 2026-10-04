@@ -1067,6 +1067,30 @@ async def entrypoint(ctx: JobContext) -> None:
             ),
         )
 
+    async def _handle_text_input(sess: AgentSession, ev: room_io.TextInputEvent) -> None:
+        """Route composer text through the same turn state machine as speech.
+
+        LiveKit's default callback already does this, but keeping the callback
+        here makes the typed path observable and gives us a clear failure log.
+        It also makes the input modality explicit so a typed message cannot be
+        mistaken for an audio turn by a realtime provider.
+        """
+        text = (getattr(ev, "text", "") or "").strip()
+        if not text:
+            return
+        started_at = time.monotonic()
+        try:
+            async with sess._claim_user_turn():
+                await sess.interrupt()
+                sess.generate_reply(user_input=text, input_modality="text")
+            logger.info(
+                "voice worker: typed input accepted chars=%d elapsed_ms=%d",
+                len(text), round((time.monotonic() - started_at) * 1000),
+            )
+        except Exception:
+            logger.exception("voice worker: typed input failed chars=%d", len(text))
+            raise
+
     # Keep the conversation human-like when a visitor pauses after the
     # greeting. The client still receives this through LiveKit's normal
     # transcription stream, so it appears as a real agent turn (and is saved
@@ -1273,7 +1297,7 @@ async def entrypoint(ctx: JobContext) -> None:
             # Accept visitor text sent from the voice composer as a normal
             # user turn. This keeps typed and spoken messages in one context
             # and routes typed turns through the same LLM/TTS response path.
-            text_input=True,
+            text_input=room_io.TextInputOptions(text_input_cb=_handle_text_input),
             text_output=room_io.TextOutputOptions(sync_transcription=True),
         ),
     )

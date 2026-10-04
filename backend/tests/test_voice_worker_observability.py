@@ -128,7 +128,17 @@ def test_pipeline_accepts_typed_voice_input():
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert "text_input=True" in source
+    assert "TextInputOptions(text_input_cb=_handle_text_input)" in source
+    assert "sess.generate_reply(user_input=text, input_modality=\"text\")" in source
+
+
+def test_typed_voice_input_has_failure_observability():
+    """Typed composer failures must be visible instead of silently dropping."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert '"voice worker: typed input accepted chars=%d elapsed_ms=%d"' in source
+    assert '"voice worker: typed input failed chars=%d"' in source
 
 
 def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
