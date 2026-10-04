@@ -709,6 +709,11 @@ function IdentifiedChatWidget({
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>("home");
+  // The Chat tab has a lightweight history view of its own. Opening Chat from
+  // the bottom nav shows prior conversations; selecting one (or Ask a question)
+  // enters the actual composer. This keeps history out of the Home tab and
+  // makes the header back button return to the Chat history first.
+  const [chatView, setChatView] = useState<"history" | "conversation">("history");
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -881,6 +886,7 @@ function IdentifiedChatWidget({
 
   const askAboutArticle = (art: WidgetKbArticle) => {
     setActiveArticle(null);
+    setChatView("conversation");
     setTab("messages");
     setInputValue(`I have a question about the guide "${art.title}": `);
   };
@@ -2600,11 +2606,12 @@ function IdentifiedChatWidget({
               whileTap={{ scale: 0.85 }}
               onClick={() => {
                 if (activeArticle) setActiveArticle(null);
+                else if (tab === "messages" && chatView === "conversation") setChatView("history");
                 else setTab("home");
               }}
               className="p-1 -ml-1 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
               style={{ opacity: 0.9 }}
-              aria-label="Back to home"
+              aria-label={tab === "messages" && chatView === "conversation" ? "Back to conversation history" : "Back to home"}
               title="Back"
             >
               <ArrowLeft className="size-4" />
@@ -2885,6 +2892,7 @@ function IdentifiedChatWidget({
                   whileTap={{ scale: 0.985 }}
                   transition={{ type: "spring", stiffness: 450, damping: 25 }}
                   onClick={() => {
+                    setChatView("conversation");
                     setTab("messages");
                   }}
                   className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
@@ -2908,8 +2916,6 @@ function IdentifiedChatWidget({
                   />
                 </motion.button>
 
-                {/* RECENT MESSAGE */}
-                <VisitorHistory identity={identity} onSelect={session => { setMessages([]); setSessionId(session); setTab("messages"); }} />
                 {messages.length > 0 && (
                   <div className="space-y-1 pt-0.5">
                     <span className="text-[11px] font-semibold opacity-75 px-1">
@@ -2920,7 +2926,7 @@ function IdentifiedChatWidget({
                       whileHover={{ scale: 1.01, y: -1 }}
                       whileTap={{ scale: 0.985 }}
                       transition={{ type: "spring", stiffness: 450, damping: 25 }}
-                      onClick={() => setTab("messages")}
+                      onClick={() => { setChatView("conversation"); setTab("messages"); }}
                       className="widget-card w-full flex items-center justify-between p-3.5 text-left group cursor-pointer shadow-xs"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -3043,6 +3049,15 @@ function IdentifiedChatWidget({
                 transition={{ duration: 0.2, ease: "easeOut" }}
                 className="flex-1 flex flex-col min-h-0"
               >
+                {chatView === "history" ? (
+                  <div className="p-4 flex-1">
+                    <VisitorHistory
+                      identity={identity}
+                      onSelect={session => { setMessages([]); setSessionId(session); setChatView("conversation"); }}
+                      onNew={() => { setMessages([]); setChatView("conversation"); void identity.newConversation().catch(() => showToast("Could not start a conversation", "error")); }}
+                    />
+                  </div>
+                ) : (
                 <div className="p-4 space-y-4 text-xs">
                 <AnimatePresence initial={false}>
                   {messages.map((msg, i) => {
@@ -3301,6 +3316,7 @@ function IdentifiedChatWidget({
                 )}
                 <div ref={messagesEndRef} />
               </div>
+                )}
             </motion.div>
           )}
 
@@ -3479,6 +3495,7 @@ function IdentifiedChatWidget({
                                 if (matchingArt) {
                                   openKbArticle(matchingArt);
                                 } else {
+                                  setChatView("conversation");
                                   setTab("messages");
                                   setInputValue(`I have a question about ${col.title}: `);
                                 }
@@ -3808,6 +3825,7 @@ function IdentifiedChatWidget({
                           whileTap={{ scale: 0.90 }}
                           onClick={() => {
                             setActiveArticle(null);
+                            if (id === "messages") setChatView("history");
                             setTab(id);
                           }}
                           className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative isolate ${isActive ? "active" : ""} ${
