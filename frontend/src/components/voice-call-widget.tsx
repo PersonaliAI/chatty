@@ -581,7 +581,7 @@ export default function VoiceCallWidget({
         // configured Pipeline or Realtime response, including audio output.
         const room = roomRef.current;
         if (room && room.state === ConnectionState.Connected) {
-          await room.localParticipant.sendText(text, { reliable: true, topic: "lk.chat" });
+          await room.localParticipant.sendText(text, { topic: "lk.chat" });
           setSendingMessage(false);
           return;
         }
