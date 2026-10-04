@@ -1192,9 +1192,18 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def _speak(text: str):
         """Speak text through the correct LiveKit API for this session mode."""
-        if voice_mode == "realtime":
-            return await session.generate_reply(instructions=text, input_modality="text")
-        return await session.say(text)
+        try:
+            if voice_mode == "realtime":
+                return await session.generate_reply(instructions=text, input_modality="text")
+            return await session.say(text)
+        except RuntimeError as exc:
+            # A browser can disconnect between an idle/max-duration timer
+            # waking up and the LiveKit session finishing its shutdown. Do not
+            # turn that normal race into a noisy worker error.
+            if "AgentSession isn't running" in str(exc):
+                logger.debug("voice worker: skipped speech after session shutdown")
+                return None
+            raise
 
     if voice_mode != "realtime":
         # Greet with the bot's own configured welcome message (same field text
