@@ -132,6 +132,16 @@ def test_pipeline_accepts_typed_voice_input():
     assert "sess.generate_reply(user_input=text, input_modality=\"text\")" in source
 
 
+def test_pipeline_mode_fails_closed_instead_of_switching_to_realtime():
+    """A missing pipeline credential must not change the selected product mode."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "Google pipeline selected but GOOGLE_APPLICATION_CREDENTIALS" in source
+    assert "refusing to fall back to realtime" in source
+    assert "if voice_mode == \"realtime\":" in source
+
+
 def test_typed_voice_input_has_failure_observability():
     """Typed composer failures must be visible instead of silently dropping."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
