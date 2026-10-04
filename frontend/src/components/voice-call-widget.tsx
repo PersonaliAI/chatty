@@ -27,6 +27,16 @@ import { parseRichContent } from "@/lib/rich-content";
 
 const WAVE_BAR_COUNT = 14;
 const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
+// Use the browser's WebRTC audio processing before audio reaches VAD/STT.
+// These constraints are supported by Chromium, Firefox, and Safari and are
+// the safe baseline for echo cancellation, fan/traffic suppression, and stable
+// mic levels in an embedded widget. LiveKit forwards them to getUserMedia.
+const MICROPHONE_CAPTURE_OPTIONS = {
+  autoGainControl: true,
+  echoCancellation: true,
+  noiseSuppression: true,
+  channelCount: 1,
+} as const;
 
 type CallStatus = "connecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
 
@@ -370,7 +380,7 @@ export default function VoiceCallWidget({
           // embedded widget). Bound the wait so the visitor gets an actionable
           // error and can retry after changing the browser permission.
           await Promise.race([
-            room.localParticipant.setMicrophoneEnabled(true),
+            room.localParticipant.setMicrophoneEnabled(true, MICROPHONE_CAPTURE_OPTIONS),
             new Promise<never>((_, reject) => {
               microphoneTimeout = window.setTimeout(
                 () => reject(new Error("MICROPHONE_PERMISSION_TIMEOUT")),
@@ -528,7 +538,7 @@ export default function VoiceCallWidget({
     const room = roomRef.current;
     if (!room) return;
     const next = !muted;
-    await room.localParticipant.setMicrophoneEnabled(!next);
+    await room.localParticipant.setMicrophoneEnabled(!next, next ? undefined : MICROPHONE_CAPTURE_OPTIONS);
     setMuted(next);
   };
 

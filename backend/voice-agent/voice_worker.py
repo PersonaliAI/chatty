@@ -55,6 +55,7 @@ from livekit.agents import (
     JobProcess,
     ModelSettings,
     RunContext,
+    TurnHandlingOptions,
     cli,
     function_tool,
     inference,
@@ -199,6 +200,29 @@ class ChattyVoiceAgent(Agent):
 
         queue: asyncio.Queue = asyncio.Queue()
         _SENTINEL = object()
+        # Do not hand individual model-token fragments to TTS.  Doing that
+        # makes providers start/stop synthesis repeatedly, which sounds like
+        # stuttering, clipped words, and rushed speech.  Keep a short natural
+        # phrase in the buffer and release it at sentence/ clause boundaries
+        # (or at a safe upper bound so long answers still begin promptly).
+        speech_buffer: list[str] = []
+        speech_buffer_length = 0
+
+        def _flush_speech_buffer(*, force: bool = False) -> None:
+            nonlocal speech_buffer_length
+            if not speech_buffer:
+                return
+            text = "".join(speech_buffer).strip()
+            if not text:
+                speech_buffer.clear()
+                speech_buffer_length = 0
+                return
+            # Keep whitespace between adjacent provider chunks, but avoid a
+            # leading space when a provider already includes punctuation.
+            if force or len(text) >= 120 or re.search(r"[.!?;:]\s*$", text):
+                queue.put_nowait(text)
+                speech_buffer.clear()
+                speech_buffer_length = 0
 
         # widget_brain._gemini_stream does `await on_token(part.text)` - on_token
         # MUST be an async callable (a fire-and-forget sync lambda would crash
@@ -209,7 +233,9 @@ class ChattyVoiceAgent(Agent):
             clean_tok = tok.replace("[BOOKING_WIDGET]", "")
             clean_tok = re.sub(r"\[(?:PRODUCT_CARD|VIDEO_CLIP):\{.*?\}\]", "", clean_tok)
             if clean_tok:
-                queue.put_nowait(clean_tok)
+                speech_buffer.append(clean_tok)
+                speech_buffer_length += len(clean_tok)
+                _flush_speech_buffer()
 
         task = asyncio.create_task(widget_brain.run_widget_assistant(
             bot_id=self._bot_id,
@@ -222,7 +248,13 @@ class ChattyVoiceAgent(Agent):
             voice_mode=True,
             on_token=_on_token,
         ))
-        task.add_done_callback(lambda t: queue.put_nowait(_SENTINEL))
+        def _finish_stream(task: asyncio.Task) -> None:
+            # Flush the final fragment before ending the generator.  The
+            # callback runs on the event loop, so queue ordering is stable.
+            _flush_speech_buffer(force=True)
+            queue.put_nowait(_SENTINEL)
+
+        task.add_done_callback(_finish_stream)
 
         while True:
             item = await queue.get()
@@ -825,8 +857,8 @@ class ChattyRealtimeAgent(Agent):
             + "You are having a live voice conversation with a website visitor. Keep replies "
             "conversational, warm, and concise - this is speech, not a chat window. Use brief "
             "natural acknowledgements, ask one clear follow-up question at a time, and if the "
-            "visitor pauses, wait patiently rather than filling the silence. You can gently "
-            "check in after a long silence. Use the "
+            "visitor pauses, wait patiently rather than filling the silence. Never emit a "
+            "generic 'are you still there?' prompt during normal silence. Use the "
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing. When a visitor wants to book, always use the availability and "
             "calendar tools; never invent a time, and collect the required name and email. "
@@ -979,13 +1011,29 @@ async def entrypoint(ctx: JobContext) -> None:
             stt=_build_stt(bot),
             tts=_build_tts(bot),
             vad=vad,
-            # Semantic turn detection (LiveKit's hosted inference - no local
-            # model to load, keeps this worker's cold-start light) rather than
-            # relying on VAD silence-timeout alone: distinguishes "visitor
-            # paused mid-thought" from "visitor is actually done talking", so
-            # the agent replies as soon as it's really the agent's turn instead
-            # of waiting out a fixed silence window every time.
-            turn_detection=inference.TurnDetector(),
+            # Industrial turn-taking: semantic endpointing avoids cutting
+            # visitors off mid-thought; adaptive interruption filtering ignores
+            # backchannels/noise; false interruptions resume cleanly. TTS is
+            # deliberately not preemptive, so half-finished thoughts never
+            # become rushed audio.
+            turn_handling=TurnHandlingOptions(
+                turn_detection=inference.TurnDetector(),
+                endpointing={"mode": "dynamic", "min_delay": 0.65, "max_delay": 3.0, "alpha": 0.75},
+                interruption={
+                    "mode": "adaptive",
+                    "min_duration": 0.5,
+                    "min_words": 1,
+                    "false_interruption_timeout": 1.5,
+                    "resume_false_interruption": True,
+                    "backchannel_boundary": (0.8, 1.5),
+                },
+                preemptive_generation={
+                    "enabled": True,
+                    "preemptive_tts": False,
+                    "max_speech_duration": 10.0,
+                    "max_retries": 1,
+                },
+            ),
         )
 
     # Keep the conversation human-like when a visitor pauses after the
@@ -1191,6 +1239,10 @@ async def entrypoint(ctx: JobContext) -> None:
         # a production voice experience. User interim transcription remains
         # live; only assistant output is paced to its spoken audio.
         room_options=room_io.RoomOptions(
+            # Accept visitor text sent from the voice composer as a normal
+            # user turn. This keeps typed and spoken messages in one context
+            # and routes typed turns through the same LLM/TTS response path.
+            text_input=True,
             text_output=room_io.TextOutputOptions(sync_transcription=True),
         ),
     )
@@ -1263,6 +1315,12 @@ async def entrypoint(ctx: JobContext) -> None:
                 if idle_nudge_count >= 3:
                     await asyncio.sleep(5)
                     continue
+                # Never prompt during the initial greeting or before the
+                # visitor has completed a real turn. Silence at that point is
+                # normal listening behavior, not abandonment.
+                if turn_count == 0:
+                    await asyncio.sleep(5)
+                    continue
                 idle_for = time.monotonic() - last_user_activity
                 threshold = 18 if idle_nudge_count == 0 else 35
                 if idle_for >= threshold:
@@ -1286,10 +1344,18 @@ async def entrypoint(ctx: JobContext) -> None:
         except Exception:
             logger.exception("voice worker: idle follow-up failed")
 
-    idle_nudge_task = asyncio.create_task(_nudge_when_idle(), name=f"voice-idle-nudge:{session_id}")
+    # Silence is not proof that a visitor needs a scripted prompt.  The old
+    # default fired the same "are you still there?" line during startup and
+    # after short pauses, making the agent sound automated.  Keep nudges as an
+    # explicit opt-in for deployments that want them, and only start monitoring
+    # after a real user turn has occurred.
+    idle_nudge_task = None
+    if os.environ.get("VOICE_IDLE_NUDGES_ENABLED", "false").strip().lower() in {"1", "true", "yes"}:
+        idle_nudge_task = asyncio.create_task(_nudge_when_idle(), name=f"voice-idle-nudge:{session_id}")
 
     async def _cancel_idle_nudge() -> None:
-        idle_nudge_task.cancel()
+        if idle_nudge_task is not None:
+            idle_nudge_task.cancel()
 
     ctx.add_shutdown_callback(_cancel_idle_nudge)
 
