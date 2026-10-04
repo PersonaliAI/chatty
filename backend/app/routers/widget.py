@@ -267,11 +267,11 @@ async def widget_verify_origin(body: WidgetVerifyOriginRequest):
 
 @router.post("/api/widget/contact")
 async def widget_contact(body: WidgetContactRequest, request: Request):
-    """Store a visitor-provided email on an existing widget session.
+    """Save visitor contact details and create/update the session lead.
 
-    This endpoint deliberately updates only the session record; it does not
-    create a lead or send email by itself. The normal chat/lead flow can then
-    use the verified, explicitly supplied address for follow-up.
+    Support follow-up and marketing permission are separate signals: every
+    saved address can be used to continue the current conversation, while
+    campaigns can only target rows with explicit marketing consent.
     """
     email = body.email.strip().lower()[:160]
     if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
@@ -288,7 +288,31 @@ async def widget_contact(body: WidgetContactRequest, request: Request):
     if not existing.data:
         return {"saved": False, "reason": "session_not_started"}
     await run_db(lambda: supabase.table("chatty_sessions").update({"visitor_email": email}).eq("id", existing.data["id"]).execute())
-    return {"saved": True}
+
+    # Upsert by bot + session so later name/phone/company capture enriches the
+    # same lead rather than creating another row. Do not revoke an existing
+    # opt-in from a save request that simply omitted the checkbox.
+    lead_result = await run_db(lambda: supabase.table("chatty_leads").select("id,marketing_consent").eq(
+        "bot_id", body.bot_id).eq("session_id", body.session_id).order("created_at", desc=True).limit(1).execute())
+    consent = bool(body.marketing_consent)
+    lead_update: dict[str, Any] = {"email": email}
+    if consent:
+        lead_update.update({"marketing_consent": True, "marketing_consent_at": datetime.now(timezone.utc).isoformat()})
+    if lead_result.data:
+        lead_id = lead_result.data[0].get("id")
+        await run_db(lambda: supabase.table("chatty_leads").update(lead_update).eq("id", lead_id).execute())
+        return {"saved": True, "lead_id": lead_id, "lead_created": False, "marketing_consent": consent or bool(lead_result.data[0].get("marketing_consent"))}
+
+    lead_insert = {
+        "bot_id": body.bot_id,
+        "session_id": body.session_id,
+        "email": email,
+        "marketing_consent": consent,
+        "marketing_consent_at": datetime.now(timezone.utc).isoformat() if consent else None,
+    }
+    created = await run_db(lambda: supabase.table("chatty_leads").insert(lead_insert).execute())
+    lead_id = (created.data or [{}])[0].get("id") if created.data else None
+    return {"saved": True, "lead_id": lead_id, "lead_created": bool(lead_id), "marketing_consent": consent}
 
 
 @router.post("/api/widget/campaign-events")

@@ -727,6 +727,7 @@ function IdentifiedChatWidget({
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
   const [supportEmail, setSupportEmail] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [supportEmailSaved, setSupportEmailSaved] = useState(false);
   const [supportEmailSaving, setSupportEmailSaving] = useState(false);
   const [supportEmailError, setSupportEmailError] = useState("");
@@ -1460,6 +1461,7 @@ function IdentifiedChatWidget({
         setSupportEmail(stored);
         setSupportEmailSaved(true);
       }
+      setMarketingConsent(localStorage.getItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`) === "1");
     } catch {}
   }, [botId, hostKey, sessionId, capturedLeadData.email]);
 
@@ -1475,12 +1477,13 @@ function IdentifiedChatWidget({
     setCapturedLeadData((prev) => ({ ...prev, email }));
     try {
       localStorage.setItem(`chatty_support_email_${botId}_${hostKey}_${sessionId}`, email);
+      localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, marketingConsent ? "1" : "0");
     } catch {}
     try {
       const response = await fetch(`${BACKEND_URL}/api/widget/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-        body: JSON.stringify({ bot_id: botId, session_id: sessionId, email }),
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId, email, marketing_consent: marketingConsent }),
       });
       if (!response.ok && response.status !== 404) throw new Error("Unable to save email");
       setSupportEmailSaved(true);
@@ -1491,7 +1494,7 @@ function IdentifiedChatWidget({
     } finally {
       setSupportEmailSaving(false);
     }
-  }, [supportEmail, botId, hostKey, sessionId, widgetTokenHeader]);
+  }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader]);
 
   // Restore prior messages from localStorage
   useEffect(() => {
@@ -3574,6 +3577,17 @@ function IdentifiedChatWidget({
                 {supportEmailSaving ? "Saving…" : supportEmailSaved ? "Saved" : "Save"}
               </button>
             </div>
+          )}
+          {!showOfflineForm && (
+            <label className="mb-2 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={(e) => setMarketingConsent(e.target.checked)}
+                className="mt-0.5 size-3.5 shrink-0 accent-current"
+              />
+              <span>Email me product updates and offers. You can unsubscribe anytime.</span>
+            </label>
           )}
           {supportEmailError && <p id="chatty-support-email-error" className="mb-1.5 px-1 text-[11px] text-red-600 dark:text-red-400" role="alert">{supportEmailError}</p>}
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />

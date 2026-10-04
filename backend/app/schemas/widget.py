@@ -31,6 +31,7 @@ class WidgetContactRequest(BaseModel):
     bot_id: str
     session_id: str
     email: str
+    marketing_consent: bool = False
 
 
 class WidgetChatResponse(BaseModel):
