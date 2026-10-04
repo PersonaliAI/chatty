@@ -421,7 +421,18 @@ def _google_pipeline_credentials_available() -> bool:
 # Live API model ids are passed through to the provider plugin. Keep the
 # default aligned with the dashboard and the provider's current recommended
 # low-latency model; explicitly configured bot values remain supported.
-REALTIME_DEFAULT_MODEL = {"google": "gemini-3.8-live", "openai": "gpt-realtime"}
+# Keep this aligned with the models supported by the pinned LiveKit Google
+# plugin.  ``gemini-3.8-live`` was never a valid Gemini Live model; it allowed
+# the room to connect but left the model with no active generation, producing a
+# silent call in the widget.
+REALTIME_DEFAULT_MODEL = {
+    "google": "gemini-2.5-flash-native-audio-preview-12-2025",
+    "openai": "gpt-realtime",
+}
+GOOGLE_REALTIME_MODELS = frozenset({
+    "gemini-3.1-flash-live-preview",
+    "gemini-2.5-flash-native-audio-preview-12-2025",
+})
 REALTIME_DEFAULT_VOICE = {"google": "Puck", "openai": "marin"}
 # The dashboard stores the selected Google TTS voice in `voice_tts_voice`.
 # Cloud TTS/Chirp ids are not valid Gemini Live voices, so normalize those
@@ -446,6 +457,13 @@ def build_realtime(provider: str, model: Optional[str], voice: Optional[str], ap
     exactly like a regular LLM. Mirrors kin-voice-worker/worker.py's
     build_realtime() (same two providers, same LiveKit plugin classes)."""
     model = model or REALTIME_DEFAULT_MODEL.get(provider, "")
+    if provider == "google" and model not in GOOGLE_REALTIME_MODELS:
+        logger.warning(
+            "voice worker: unsupported Google Live model %r; using %s",
+            model,
+            REALTIME_DEFAULT_MODEL["google"],
+        )
+        model = REALTIME_DEFAULT_MODEL["google"]
     voice = voice or REALTIME_DEFAULT_VOICE.get(provider)
     if provider == "google" and voice not in GOOGLE_REALTIME_VOICES:
         if voice:

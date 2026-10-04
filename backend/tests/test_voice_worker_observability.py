@@ -63,7 +63,7 @@ def test_google_realtime_enables_input_and_output_transcription(monkeypatch):
             calls.update(kwargs)
 
     monkeypatch.setattr(worker.google.realtime, "RealtimeModel", FakeRealtimeModel)
-    worker.build_realtime("google", "gemini-3.8-live", None, "test-key")
+    worker.build_realtime("google", worker.REALTIME_DEFAULT_MODEL["google"], None, "test-key")
 
     assert calls["input_audio_transcription"] is not None
     assert calls["output_audio_transcription"] is not None
@@ -72,7 +72,21 @@ def test_google_realtime_enables_input_and_output_transcription(monkeypatch):
 def test_google_realtime_default_tracks_current_live_model():
     worker = _load_worker()
 
-    assert worker.REALTIME_DEFAULT_MODEL["google"] == "gemini-3.8-live"
+    assert worker.REALTIME_DEFAULT_MODEL["google"] in worker.GOOGLE_REALTIME_MODELS
+
+
+def test_google_realtime_replaces_unsupported_saved_model(monkeypatch):
+    worker = _load_worker()
+    calls = {}
+
+    class FakeRealtimeModel:
+        def __init__(self, **kwargs):
+            calls.update(kwargs)
+
+    monkeypatch.setattr(worker.google.realtime, "RealtimeModel", FakeRealtimeModel)
+    worker.build_realtime("google", "gemini-3.8-live", None, "test-key")
+
+    assert calls["model"] == worker.REALTIME_DEFAULT_MODEL["google"]
 
 
 def test_realtime_usage_uses_cumulative_session_totals():
