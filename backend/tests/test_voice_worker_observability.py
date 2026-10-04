@@ -141,6 +141,27 @@ def test_typed_voice_input_has_failure_observability():
     assert '"voice worker: typed input failed chars=%d"' in source
 
 
+def test_typed_voice_input_claims_turn_and_requests_text_reply():
+    """The composer callback must interrupt and schedule a text-modality turn."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    callback = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "_handle_text_input"
+    )
+    calls = [
+        node for node in ast.walk(callback)
+        if isinstance(node, ast.Call)
+    ]
+    assert any(isinstance(call.func, ast.Attribute) and call.func.attr == "interrupt" for call in calls)
+    assert any(
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr == "generate_reply"
+        and any(keyword.arg == "input_modality" for keyword in call.keywords)
+        for call in calls
+    )
+
+
 def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
     """The token callback must remain safe when a provider streams a turn."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
