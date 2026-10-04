@@ -4076,7 +4076,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         </>
       )}
 
-      {!isOfficialWebsite && !hideBranding && (
+      {!hideBranding && (
         <div className="text-center pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
           Powered by{" "}
           <a

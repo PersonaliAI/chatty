@@ -5001,6 +5001,7 @@ export default function Dashboard() {
           {/* TAB: VOICE AGENT */}
           {activeTab === "voice_agent" && (
             <VoiceAgentTab
+              botId={botId || ""}
               voiceEnabled={voiceEnabled}
               setVoiceEnabled={setVoiceEnabled}
               handleAutoSaveVoiceField={handleAutoSaveVoiceField}

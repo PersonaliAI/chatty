@@ -95,16 +95,60 @@
   .inbox-shell .inbox-workspace,
   .inbox-shell[data-details-open=true] .inbox-workspace,
   .inbox-shell[data-navigation-collapsed=true] .inbox-workspace,
-  .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace { grid-template-columns: minmax(0, 1fr); height: calc(100dvh - 170px); min-height: 520px; border-radius: 10px; }
-  .inbox-shell .inbox-navigation { display: none; }
+  .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace { display: flex; flex-direction: column; grid-template-columns: minmax(0, 1fr); height: calc(100dvh - 170px); min-height: 520px; border-radius: 10px; }
+  /* Keep the inbox section switcher visible on phones. It is a compact,
+     swipeable strip above the queue instead of disappearing completely. */
+  .inbox-shell .inbox-navigation {
+    display: block;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--inbox-line);
+  }
+  .inbox-shell .inbox-navigation .inbox-pane-title {
+    min-height: 48px;
+    padding: 10px 12px;
+  }
+  .inbox-shell .inbox-nav-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 9px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .inbox-shell .inbox-nav-content::-webkit-scrollbar { display: none; }
+  .inbox-shell .inbox-nav-content h3 {
+    display: none;
+  }
+  .inbox-shell .inbox-nav-content > button {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 36px;
+    padding: 8px 11px;
+    gap: 7px;
+    white-space: nowrap;
+    border: 1px solid var(--inbox-line);
+    border-radius: 999px;
+    font-size: 12px;
+  }
+  .inbox-shell .inbox-nav-content > button[aria-pressed=true] {
+    border-color: #f97316;
+    background: #f9731614;
+  }
   .inbox-shell .inbox-conversation { display: none; border: 0; }
   .inbox-shell[data-conversation-open=true] .inbox-conversation { display: flex; }
   .inbox-shell[data-conversation-open=true] .inbox-queue { display: none; }
   .inbox-shell .inbox-pane-title { min-height: 48px; padding: 10px; }
   .inbox-shell .inbox-pane-title h2 { font-size: 14px; }
-  .inbox-shell .inbox-queue-sort { padding: 6px 10px; }
+  .inbox-shell .inbox-queue-sort { padding: 8px 10px; }
   .inbox-shell .inbox-conversation-tools { min-height: 42px; padding-inline: 8px; }
   .inbox-shell .inbox-message { max-width: 96%; }
-  .inbox-shell .inbox-message-bubble { padding: 10px 12px; font-size: 13px; }
+  .inbox-shell .inbox-message-bubble { padding: 12px 14px; font-size: 14px; }
+  .inbox-shell .inbox-queue > div:last-child > [role=button] { padding: 14px 12px; }
+  .inbox-shell .inbox-conversation { min-height: 0; }
+  .inbox-shell[data-conversation-open=true] .inbox-conversation { min-height: calc(100dvh - 300px); }
   .inbox-shell .inbox-reply-textarea { min-height: 66px; max-height: 150px; }
 }

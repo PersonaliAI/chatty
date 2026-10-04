@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioWaveform, Mic, Check, Sparkles } from "lucide-react";
+import { AudioWaveform, Mic, Check, Sparkles, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ModernSelect } from "@/components/ui/modern-select";
 
@@ -38,6 +38,7 @@ const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: s
 };
 
 interface VoiceAgentTabProps {
+  botId: string;
   voiceEnabled: boolean;
   setVoiceEnabled: (b: boolean) => void;
   handleAutoSaveVoiceField: (patch: Record<string, unknown>) => Promise<void>;
@@ -79,6 +80,7 @@ interface VoiceAgentTabProps {
 }
 
 export function VoiceAgentTab({
+  botId,
   voiceEnabled,
   setVoiceEnabled,
   handleAutoSaveVoiceField,
@@ -141,6 +143,16 @@ export function VoiceAgentTab({
           <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
             Real-time voice agents use secure WebRTC with live transcription, booking tools, and a continuous conversation loop. Choose pipeline mode for provider flexibility or realtime mode for speech-to-speech latency.
           </p>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">Dedicated voice agent view</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">Open the standalone call experience in a new tab or embed it separately from the chat widget.</p>
+          </div>
+          <a href={`/voice/${botId}`} target="_blank" rel="noopener noreferrer" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[#f97316] px-3 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-[#ea580c]">
+            Open voice view <ExternalLink className="size-3.5" />
+          </a>
         </div>
 
         <div className="p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-4">
