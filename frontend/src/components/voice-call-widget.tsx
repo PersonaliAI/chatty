@@ -576,22 +576,18 @@ export default function VoiceCallWidget({
         body.append("file", file, file.name);
         response = await fetch(`${backendUrl}/api/widget/chat/media`, { method: "POST", headers: authHeaders, body });
       } else {
-        // Typed messages in the voice window must enter the same LiveKit
-        // session as microphone turns so the active voice agent can answer
-        // with audio. Keep the HTTP endpoint as a fallback when the room has
-        // not connected yet.
+        // Typed messages in the voice window use LiveKit's standard text
+        // stream. AgentSession consumes the `lk.chat` topic and runs the
+        // configured Pipeline or Realtime response, including audio output.
         const room = roomRef.current;
         if (room && room.state === ConnectionState.Connected) {
-          const payload = new TextEncoder().encode(JSON.stringify({ type: "typed_message", text }));
-          await room.localParticipant.publishData(payload, { reliable: true, topic: "chatty.voice.text" });
+          await room.localParticipant.sendText(text, { reliable: true, topic: "lk.chat" });
           setSendingMessage(false);
           return;
         }
-        response = await fetch(`${backendUrl}/api/widget/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: visitorTimezone }),
-        });
+        setErrorMessage("Voice connection is still starting. Please try again in a moment.");
+        setSendingMessage(false);
+        return;
       }
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.detail || "Message could not be sent");
