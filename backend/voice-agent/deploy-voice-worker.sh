@@ -16,7 +16,10 @@
 # project — a proven config for the exact same kind of workload, not a guess.
 set -euo pipefail
 
-PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-playvoid-280b1}"
+# This script is retained only for operators who intentionally choose a
+# managed worker. The production worker is normally deployed on the VPS;
+# never default a Chatty deployment to the legacy playvoid project.
+PROJECT_ID="${GOOGLE_CLOUD_PROJECT:-personaliai}"
 REGION="${GOOGLE_CLOUD_DEPLOY_REGION:-us-central1}"
 SERVICE_NAME="chatty-voice-worker"
 IMAGE="us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/${SERVICE_NAME}"
