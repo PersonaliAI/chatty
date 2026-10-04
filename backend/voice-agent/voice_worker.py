@@ -410,26 +410,24 @@ def _google_pipeline_credentials_available() -> bool:
     """Return whether Google Cloud ADC is explicitly mounted for the worker.
 
     Google STT/TTS use service-account ADC, while Gemini realtime uses the
-    server's Gemini API key. A normal VPS has no metadata-server ADC, so the
-    explicit file check lets the worker choose the realtime path without
-    mutating the bot's saved settings or crashing a LiveKit job.
+    server's Gemini API key. The explicit file check lets Pipeline mode fail
+    clearly when its required credential has not been mounted.
     """
     credentials_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
     return bool(credentials_file and Path(credentials_file).is_file())
 
 
 # Live API model ids are passed through to the provider plugin. Keep the
-# default aligned with the dashboard and the provider's current recommended
-# low-latency model; explicitly configured bot values remain supported.
-# Keep this aligned with the models supported by the pinned LiveKit Google
-# plugin.  ``gemini-3.8-live`` was never a valid Gemini Live model; it allowed
-# the room to connect but left the model with no active generation, producing a
-# silent call in the widget.
+# default aligned with Google's current recommended low-latency model; the
+# explicit allowlist also prevents stale dashboard values from silently
+# creating a broken session.
 REALTIME_DEFAULT_MODEL = {
-    "google": "gemini-2.5-flash-native-audio-preview-12-2025",
+    "google": "gemini-3.8-live",
     "openai": "gpt-realtime",
 }
 GOOGLE_REALTIME_MODELS = frozenset({
+    "gemini-3.8-live",
+    "gemini-3.8-live-extended-thinking",
     "gemini-3.1-flash-live-preview",
     "gemini-2.5-flash-native-audio-preview-12-2025",
 })
@@ -954,21 +952,21 @@ async def entrypoint(ctx: JobContext) -> None:
     idle_nudge_task: Optional[asyncio.Task] = None
     call_logged = False
 
-    # A Google pipeline needs service-account ADC for both STT and TTS. The
-    # managed worker image intentionally carries only the Gemini API key, so
-    # promote this specific unusable configuration to Gemini realtime in
-    # memory. The saved dashboard settings remain unchanged and a VPS owner
-    # can opt back into the pipeline by mounting ADC later.
+    # A Google pipeline needs service-account ADC for both STT and TTS. Never
+    # silently change the user's selected mode: a pipeline configuration with
+    # missing ADC must fail clearly rather than becoming a different realtime
+    # product with different latency, billing, and transcript behavior.
     if (
         voice_mode == "pipeline"
         and (bot.get("voice_stt_provider") or "google").strip().lower() == "google"
         and (bot.get("voice_tts_provider") or "google").strip().lower() == "google"
-        and realtime_provider == "google"
-        and GEMINI_API_KEY
         and not _google_pipeline_credentials_available()
     ):
-        logger.warning("voice worker: Google pipeline selected without ADC; using Gemini realtime for this session")
-        voice_mode = "realtime"
+        logger.error(
+            "voice worker: Google pipeline selected but GOOGLE_APPLICATION_CREDENTIALS "
+            "is not available; refusing to fall back to realtime"
+        )
+        return
 
     if voice_mode == "realtime":
         # No stt/tts/vad/turn_detection at all - the RealtimeModel handles
