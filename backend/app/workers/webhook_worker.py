@@ -213,7 +213,14 @@ async def _process_campaign_dispatch(payload: dict, *, redis_client=None) -> Non
             if not email:
                 raise PermanentJobError("email campaign requires recipient.email")
             from app.services.email_service import send_campaign_email
-            result = await send_campaign_email(to_email=email, subject=str(payload.get("subject") or "Update from Chatty"), body_text=message, bot_name=str(payload.get("bot_name") or "Chatty"))
+            unsubscribe_url = ""
+            lead_id = str(recipient.get("id") or "").strip()
+            if lead_id:
+                from app.core.config import CHATTY_BACKEND_URL
+                from app.services.marketing_consent import make_unsubscribe_token
+                token = make_unsubscribe_token(lead_id, email)
+                unsubscribe_url = f"{CHATTY_BACKEND_URL.rstrip('/')}/api/marketing/unsubscribe?token={token}"
+            result = await send_campaign_email(to_email=email, subject=str(payload.get("subject") or "Update from Chatty"), body_text=message, bot_name=str(payload.get("bot_name") or "Chatty"), unsubscribe_url=unsubscribe_url)
             if not result.get("sent"):
                 raise RuntimeError(result.get("error") or result.get("reason") or "email campaign delivery failed")
         elif channel == "sms":

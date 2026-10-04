@@ -138,7 +138,7 @@ def render_ticket_email_html(
 </html>"""
 
 
-def render_campaign_email_html(bot_name: str, body_text: str) -> str:
+def render_campaign_email_html(bot_name: str, body_text: str, unsubscribe_url: str = "") -> str:
     """Render a small, safe transactional campaign email.
 
     Campaigns must not reuse ticket wording or ticket identifiers.  Keep the
@@ -147,16 +147,18 @@ def render_campaign_email_html(bot_name: str, body_text: str) -> str:
     """
     escaped_body = _html.escape(body_text).replace("\n", "<br/>")
     escaped_bot = _html.escape(bot_name or "Chatty")
+    unsubscribe = f'<p style="margin:22px 0 0;font-size:11px;color:#64748b"><a href="{_html.escape(unsubscribe_url, quote=True)}" style="color:#64748b">Unsubscribe from marketing emails</a></p>' if unsubscribe_url else ""
     return f"""<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>
 <body style=\"margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1e293b\">
   <main style=\"max-width:600px;margin:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;line-height:1.6\">
     <p style=\"margin:0 0 18px;font-weight:700\">{escaped_bot}</p>
     <div>{escaped_body}</div>
+    {unsubscribe}
   </main>
 </body></html>"""
 
 
-async def send_campaign_email(*, to_email: str, subject: str, body_text: str, bot_name: str = "Chatty") -> dict[str, Any]:
+async def send_campaign_email(*, to_email: str, subject: str, body_text: str, bot_name: str = "Chatty", unsubscribe_url: str = "") -> dict[str, Any]:
     """Deliver a consent-checked campaign through configured email providers.
 
     The worker owns consent/frequency checks. This provider boundary only
@@ -167,7 +169,7 @@ async def send_campaign_email(*, to_email: str, subject: str, body_text: str, bo
     clean_subject = str(subject or "Update from Chatty").strip()[:200]
     if not clean_to or "@" not in clean_to:
         return {"sent": False, "error": "invalid campaign recipient email"}
-    html_content = render_campaign_email_html(bot_name, body_text)
+    html_content = render_campaign_email_html(bot_name, body_text, unsubscribe_url)
 
     if RESEND_API_KEY:
         try:

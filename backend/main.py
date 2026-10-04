@@ -582,11 +582,13 @@ from app.routers import widget as _router_widget  # noqa: E402
 from app.routers import email_inbound as _router_email_inbound  # noqa: E402
 from app.routers import affiliate as _router_affiliate  # noqa: E402
 from app.routers import multimodal as _router_multimodal  # noqa: E402
+from app.routers import marketing as _router_marketing  # noqa: E402
 from app.routers import woocommerce as _router_woocommerce  # noqa: E402
 
 from app.routers import contact_identity as _router_contact_identity
 from app.services.contact_identity import guard_widget_session
 app.include_router(_router_contact_identity.router)
+app.include_router(_router_marketing.router)
 app.include_router(_router_widget.router, dependencies=[Depends(guard_widget_session)])
 app.include_router(_router_voice.router, dependencies=[Depends(guard_widget_session)])
 app.include_router(_router_webhooks.router)
