@@ -3551,7 +3551,7 @@ function IdentifiedChatWidget({
       </div>
 
       {/* Composer (Messages tab only) */}
-      {tab === "messages" && !voiceCallOpen && (
+      {tab === "messages" && chatView === "conversation" && !voiceCallOpen && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           {!showOfflineForm && !emailCaptureDismissed && (
             <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/70 px-2.5 py-1.5">
@@ -3857,7 +3857,7 @@ function IdentifiedChatWidget({
                           whileTap={{ scale: 0.90 }}
                           onClick={() => {
                             setActiveArticle(null);
-                            if (id === "messages") setChatView("history");
+                            if (id === "messages") setChatView("conversation");
                             setTab(id);
                           }}
                           className={`chat-bottom-nav-item flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-semibold tracking-wide uppercase transition-colors cursor-pointer relative isolate ${isActive ? "active" : ""} ${

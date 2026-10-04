@@ -913,6 +913,12 @@ export default function VoiceCallWidget({
           </div>
         </>
       )}
+      <div className="shrink-0 border-t border-neutral-100/70 pt-1 text-center text-[10px] tracking-wide text-neutral-400 dark:border-neutral-800/70 dark:text-neutral-500">
+        Powered by{" "}
+        <a href="https://chatty.personaliai.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">
+          Chatty
+        </a>
+      </div>
     </div>
   );
 }
