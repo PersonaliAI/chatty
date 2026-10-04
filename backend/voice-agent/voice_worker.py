@@ -297,7 +297,7 @@ def _build_stt(bot: dict[str, Any]):
     provider = (bot.get("voice_stt_provider") or "google").strip().lower()
     if provider == "google":
         try:
-            return google.STT(languages="en-US", model="latest_long")
+            return google.STT(languages="en-US", model="latest_long", interim_results=True)
         except Exception as exc:
             # Google STT requires Application Default Credentials, which are
             # not present on a normal VPS. Keep Google as the preferred path,
@@ -326,14 +326,14 @@ def _build_stt(bot: dict[str, Any]):
                 "voice worker: soniox STT selected but no BYOK/SONIOX_API_KEY configured "
                 "- falling back to google"
             )
-            return google.STT(languages="en-US", model="latest_long")
+            return google.STT(languages="en-US", model="latest_long", interim_results=True)
         return soniox.STT(api_key=key)
     if provider == "openai":
         key = key or OPENAI_API_KEY or None
         return openai.STT(api_key=key) if key else openai.STT()
 
     logger.warning("voice worker: unknown voice_stt_provider %r - falling back to google", provider)
-    return google.STT(languages="en-US", model="latest_long")
+    return google.STT(languages="en-US", model="latest_long", interim_results=True)
 
 
 def _build_tts(bot: dict[str, Any]):

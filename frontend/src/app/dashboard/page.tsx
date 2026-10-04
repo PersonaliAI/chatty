@@ -3625,6 +3625,7 @@ export default function Dashboard() {
   // handleSaveChanges uses), so there's no reason to make the user hunt for
   // a save button just for a toggle/dropdown.
   const [savingVoiceField, setSavingVoiceField] = useState(false);
+  const [generatingVoiceWelcome, setGeneratingVoiceWelcome] = useState(false);
   const handleAutoSaveVoiceField = async (fields: {
     voice_enabled?: boolean;
     voice_mode?: "pipeline" | "realtime";
@@ -3635,6 +3636,7 @@ export default function Dashboard() {
     voice_max_duration_minutes?: number;
     voice_realtime_provider?: "google" | "openai";
     voice_realtime_model?: string | null;
+    welcome_message?: string;
   }) => {
     if (!botId) return;
     setSavingVoiceField(true);
@@ -3660,6 +3662,26 @@ export default function Dashboard() {
       showToast("Failed to save voice setting.", "error");
     } finally {
       setSavingVoiceField(false);
+    }
+  };
+
+  const generateVoiceWelcome = async () => {
+    if (!botId || generatingVoiceWelcome) return;
+    setGeneratingVoiceWelcome(true);
+    try {
+      const response = await fetchWithFallback(`/api/bots/${botId}/generate-voice-welcome`, { method: "POST" });
+      if (!response.ok) throw new Error(`Welcome generation failed (${response.status})`);
+      const data = await response.json();
+      const message = String(data?.welcome_message || "").trim();
+      if (!message) throw new Error("Empty generated welcome");
+      setWelcomeMsg(message);
+      await handleAutoSaveVoiceField({ welcome_message: message });
+      showToast("Voice welcome generated from your knowledge base.", "success");
+    } catch (err) {
+      console.error("Failed to generate voice welcome:", err);
+      showToast("Could not generate a voice welcome.", "error");
+    } finally {
+      setGeneratingVoiceWelcome(false);
     }
   };
 
@@ -5013,6 +5035,10 @@ export default function Dashboard() {
               savingVoiceTts={savingVoiceTts}
               voiceMaxDurationMinutes={voiceMaxDurationMinutes}
               setVoiceMaxDurationMinutes={setVoiceMaxDurationMinutes}
+              welcomeMsg={welcomeMsg}
+              setWelcomeMsg={setWelcomeMsg}
+              generateVoiceWelcome={generateVoiceWelcome}
+              generatingVoiceWelcome={generatingVoiceWelcome}
             />
           )}
 

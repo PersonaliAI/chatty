@@ -888,6 +888,56 @@ async def generate_business(
         raise HTTPException(status_code=502, detail="Could not generate. Please try again.")
 
 
+@router.post("/api/bots/{bot_id}/generate-voice-welcome")
+async def generate_voice_welcome(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Generate a short voice greeting from the bot's current profile and KB."""
+    await verify_bot_permission(bot_id, user, "settings")
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select(
+        "name, description, system_instructions, welcome_message"
+    ).eq("id", bot_id).limit(1).execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = bot_res.data[0]
+    source_res = await run_db(lambda: supabase.table("chatty_sources").select(
+        "name, content"
+    ).eq("bot_id", bot_id).eq("status", "trained").order("created_at", desc=False).limit(20).execute())
+    sources = source_res.data or []
+    knowledge = "\n\n".join(
+        f"[{s.get('name', 'Knowledge source')}]\n{str(s.get('content') or '')[:5000]}"
+        for s in sources
+    )[:30000]
+    prompt = (
+        "Write one concise, natural welcome message for a website voice assistant. "
+        "Use the business profile and knowledge below. It must sound good when spoken aloud, "
+        "be no more than two short sentences, invite the visitor to ask a question, and never "
+        "claim capabilities that are not supported. Return only the message text.\n\n"
+        f"Business: {bot.get('name') or 'the business'}\n"
+        f"Description: {bot.get('description') or ''}\n"
+        f"Instructions: {bot.get('system_instructions') or ''}\n"
+        f"Knowledge base:\n{knowledge or '(no trained sources yet)'}"
+    )
+    try:
+        response = await ai_client.chat(
+            model=ai_client.resolve_gemini_model(MODEL_NAME),
+            messages=[{"role": "user", "content": prompt}],
+            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
+            temperature=0.5,
+            max_tokens=180,
+            bot_id=bot_id,
+            call_type="generate_voice_welcome",
+        )
+        message = (response.choices[0].message.content or "").strip().strip('"')[:300]
+        if not message:
+            raise ValueError("empty generated welcome")
+        return {"welcome_message": message}
+    except Exception as exc:
+        logger.exception("generate voice welcome failed")
+        raise HTTPException(status_code=502, detail="Could not generate a voice welcome right now.") from exc
+
+
 @router.get("/api/bots/{bot_id}/byok")
 async def get_byok_status(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Never returns the decrypted key - only whether one is configured.

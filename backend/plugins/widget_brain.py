@@ -811,6 +811,7 @@ async def run_widget_assistant(
         "- Professional and confident tone: NEVER say 'I am sorry', 'My apologies', or 'Unfortunately' when gathering contact details, confirming dates or times, or asking for email or name. There is nothing to apologize for. Always be positive, welcoming, and helpful.\n"
         f"{language_line}"
         "- Be proactive: ask a brief clarifying question when the request is ambiguous.\n"
+        "- Keep the conversation open while the visitor is still asking questions. NEVER say goodbye, bye, or imply the conversation is over unless the visitor explicitly says they are leaving or says goodbye.\n"
         + ("- LEAD CAPTURE IS ON: whenever you answer a question about the product, features, pricing or capabilities AND "
            "you have not yet collected the visitor's name and email in this conversation, append a short friendly sentence "
            "offering to have the team follow up and ASK for their name (then their email). Call the create_lead tool as soon "

@@ -158,12 +158,27 @@ export default function VoiceCallWidget({
 
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
           if (track.kind === Track.Kind.Audio) {
+            // A newly subscribed WebRTC audio track can contain a short codec
+            // warm-up transient. Start silent and ramp in quickly so the
+            // first spoken syllable is clean instead of a click/pop.
+            if (audioElRef.current) audioElRef.current.remove();
             const el = track.attach();
             el.autoplay = true;
             el.setAttribute("playsinline", "true");
+            el.volume = 0;
             audioElRef.current = el;
             document.body.appendChild(el);
-            void el.play().then(() => setAudioBlocked(false)).catch(() => {
+            void el.play().then(() => {
+              setAudioBlocked(false);
+              const startedAt = performance.now();
+              const ramp = (now: number) => {
+                if (audioElRef.current !== el) return;
+                const progress = Math.min(1, (now - startedAt) / 140);
+                el.volume = progress;
+                if (progress < 1) requestAnimationFrame(ramp);
+              };
+              requestAnimationFrame(ramp);
+            }).catch(() => {
               if (!cancelled && mountedRef.current) setAudioBlocked(true);
             });
             void participant;

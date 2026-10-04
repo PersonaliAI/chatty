@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioWaveform, Mic, Check } from "lucide-react";
+import { AudioWaveform, Mic, Check, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ModernSelect } from "@/components/ui/modern-select";
 
@@ -72,6 +72,10 @@ interface VoiceAgentTabProps {
   savingVoiceTts: boolean;
   voiceMaxDurationMinutes: number;
   setVoiceMaxDurationMinutes: (n: number) => void;
+  welcomeMsg: string;
+  setWelcomeMsg: (message: string) => void;
+  generateVoiceWelcome: () => Promise<void>;
+  generatingVoiceWelcome: boolean;
 }
 
 export function VoiceAgentTab({
@@ -109,6 +113,10 @@ export function VoiceAgentTab({
   savingVoiceTts,
   voiceMaxDurationMinutes,
   setVoiceMaxDurationMinutes,
+  welcomeMsg,
+  setWelcomeMsg,
+  generateVoiceWelcome,
+  generatingVoiceWelcome,
 }: VoiceAgentTabProps) {
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
@@ -184,6 +192,35 @@ export function VoiceAgentTab({
                 className="space-y-4 overflow-hidden"
               >
                 {/* Agent role / persona */}
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
+                      Voice welcome message
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void generateVoiceWelcome()}
+                      disabled={generatingVoiceWelcome}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#f97316]/25 bg-[#f97316]/8 px-2.5 py-1.5 text-[10px] font-semibold text-[#ea580c] transition-colors hover:bg-[#f97316]/15 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <Sparkles className="size-3" />
+                      {generatingVoiceWelcome ? "Generating…" : "Generate from knowledge"}
+                    </button>
+                  </div>
+                  <textarea
+                    value={welcomeMsg}
+                    onChange={(e) => setWelcomeMsg(e.target.value)}
+                    onBlur={(e) => handleAutoSaveVoiceField({ welcome_message: e.target.value.slice(0, 300) })}
+                    rows={2}
+                    maxLength={300}
+                    className="w-full resize-none rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs leading-relaxed focus:border-neutral-350 focus:outline-none dark:border-neutral-800 dark:bg-neutral-950"
+                    placeholder="Hello! I'm here to help. What would you like to know?"
+                  />
+                  <p className="mt-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
+                    This greeting is spoken when the call connects and is also used by the chat widget.
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
                     Call Persona
