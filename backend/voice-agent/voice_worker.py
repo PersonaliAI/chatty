@@ -45,7 +45,7 @@ import litellm
 from google.genai import types as genai_types
 from litellm.types.utils import Usage as LitellmUsage
 
-from livekit import api
+from livekit import api, rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -814,6 +814,11 @@ class ChattyRealtimeAgent(Agent):
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing. When a visitor wants to book, always use the availability and "
             "calendar tools; never invent a time, and collect the required name and email. "
+            "Lead capture is part of every qualified conversation: after answering the "
+            "visitor's main question or when they show buying interest, naturally ask for "
+            "their name and best email one field at a time, without interrupting support "
+            "or asking again after a clear refusal. Call create_lead as soon as either a "
+            "real name or email is available, and call it again when another field arrives. "
             "When knowledge search returns products, images, or videos, describe them naturally "
             "and let the interface render rich cards; never read JSON or card markers aloud.\n\n"
             "BOOKING WORKFLOW (follow this exact state machine):\n"
@@ -976,10 +981,37 @@ async def entrypoint(ctx: JobContext) -> None:
 
     def _record_user_input(ev) -> None:
         nonlocal last_user_activity, idle_nudge_count, turn_count
-        if getattr(ev, "is_final", False) and (getattr(ev, "transcript", "") or "").strip():
+        transcript = (getattr(ev, "transcript", "") or "").strip()
+        is_final = bool(getattr(ev, "is_final", False))
+        if is_final and transcript:
             last_user_activity = time.monotonic()
             idle_nudge_count = 0
             turn_count += 1
+        # LiveKit's built-in output transcription only covers the agent side.
+        # Publish visitor STT explicitly so the widget can render interim text
+        # while the visitor is still speaking, then replace it with the final
+        # segment using the same stable item id.
+        if transcript and getattr(ctx.room, "local_participant", None):
+            try:
+                item_id = str(getattr(ev, "item_id", None) or f"user-{int(time.time() * 1000)}")
+                start_ms = int(float(getattr(ev, "created_at", time.time())) * 1000)
+                segment = rtc.TranscriptionSegment(
+                    id=item_id,
+                    text=transcript,
+                    start_time=start_ms,
+                    end_time=start_ms + max(1, len(transcript.split()) * 280),
+                    language=str(getattr(ev, "language", None) or ""),
+                    final=is_final,
+                )
+                ctx.room.local_participant.publish_transcription(
+                    rtc.Transcription(
+                        participant_identity=ctx.room.local_participant.identity,
+                        track_sid="",
+                        segments=[segment],
+                    )
+                )
+            except Exception:
+                logger.exception("voice worker: failed to publish visitor transcript")
         logger.info(
             "voice worker: transcript (final=%s) %r",
             getattr(ev, "is_final", False),

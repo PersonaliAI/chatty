@@ -815,10 +815,9 @@ export default function VoiceCallWidget({
                           </>
                         ) : (
                           !hasBookingOnEntry && !hasRichCards && (
-                            <span className="flex items-center gap-1 py-0.5" aria-label="typing">
-                              <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce" />
-                              <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:150ms]" />
-                              <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:300ms]" />
+                            <span className="flex items-center gap-2 py-0.5" aria-label="typing">
+                              <span className="h-4 w-0.5 rounded-full bg-current opacity-70 animate-pulse" />
+                              <span className="text-[10px] opacity-55">Listening…</span>
                             </span>
                           )
                         )}

@@ -618,9 +618,8 @@ export default function VoiceCallWidget({
             </button>
           )}
 
-          {/* Live transcript - auto-scrolls to the newest line; interim
-              (not-yet-final) segments render with a bouncy typing indicator
-              instead of raw text jitter, then settle into place once final. */}
+          {/* Live transcript - auto-scrolls to the newest line. Interim text
+              uses a subtle caret so it stays readable while speech arrives. */}
           <div className="min-h-[7rem] flex-1 w-full overflow-y-auto overscroll-contain chatty-voice-scrollbar space-y-2 py-2">
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
@@ -665,18 +664,13 @@ export default function VoiceCallWidget({
                             {rich.cleanContent}
                           </ReactMarkdown>
                           {!entry.final && (
-                            <span className="ml-1 inline-flex items-center gap-0.5 align-middle" aria-label="still transcribing">
-                              <span className="size-1 rounded-full bg-current opacity-70 animate-bounce" />
-                              <span className="size-1 rounded-full bg-current opacity-70 animate-bounce [animation-delay:120ms]" />
-                              <span className="size-1 rounded-full bg-current opacity-70 animate-bounce [animation-delay:240ms]" />
-                            </span>
+                            <span className="ml-1 inline-block h-3 w-0.5 align-[-2px] rounded-full bg-current opacity-70 animate-pulse" aria-label="still transcribing" />
                           )}
                         </>
                       ) : !hasRichCards ? (
-                        <span className="flex items-center gap-1 py-0.5" aria-label="typing">
-                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce" />
-                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:150ms]" />
-                          <span className="size-1.5 rounded-full bg-current opacity-60 animate-bounce [animation-delay:300ms]" />
+                        <span className="flex items-center gap-2 py-0.5" aria-label="typing">
+                          <span className="h-4 w-0.5 rounded-full bg-current opacity-70 animate-pulse" />
+                          <span className="text-[10px] opacity-55">Listening…</span>
                         </span>
                       ) : null}
                       {hasRichCards && <div className="mt-1.5 w-full space-y-1">

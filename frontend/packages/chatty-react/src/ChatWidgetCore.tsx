@@ -536,20 +536,22 @@ export interface WidgetThemeData {
 export default function ChatWidgetCore(props: ChatWidgetCoreProps) {
   const identity = useVisitorIdentity(props.botId, BACKEND_URL);
   if (!identity.value) {
-    const message = identity.error ? "We couldn't start the chat. Please reload." : "Loading chat…";
+    const message = identity.error ? "We couldn't start the chat. Please try again." : "Getting your chat ready…";
     return (
       <div
         role="status"
         aria-live="polite"
         style={{
-          boxSizing: "border-box", minHeight: 96, width: "100%", display: "flex", alignItems: "center",
-          justifyContent: "center", gap: 10, padding: "24px", borderRadius: 16,
-          background: "#fffaf5", border: "1px solid #f1e6db", color: "#6b5c50",
-          fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: 14, lineHeight: 1.4,
+          boxSizing: "border-box", minHeight: 152, width: "100%", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 10, padding: "24px", borderRadius: 16,
+          background: "linear-gradient(145deg,#fffaf5,#fff 70%)", border: "1px solid #f1e6db", color: "#6b5c50",
+          fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: 13, lineHeight: 1.4,
         }}
       >
-        <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: identity.error ? "#c56a42" : "#f97316", boxShadow: identity.error ? "none" : "0 0 0 4px rgba(249,115,22,.12)" }} />
-        <span>{message}</span>
+        <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: 999, border: `3px solid ${identity.error ? "#f1d4c5" : "#fbd3b8"}`, borderTopColor: identity.error ? "#c56a42" : "#f97316", animation: identity.error ? undefined : "chatty-widget-spin .8s linear infinite" }} />
+        <span style={{ fontWeight: 600 }}>{message}</span>
+        {!identity.error && <span style={{ fontSize: 11, color: "#9a8475" }}>This only takes a moment.</span>}
+        <style>{"@keyframes chatty-widget-spin{to{transform:rotate(360deg)}}"}</style>
       </div>
     );
   }
