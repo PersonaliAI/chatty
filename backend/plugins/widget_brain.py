@@ -1101,6 +1101,15 @@ async def run_widget_assistant(
     is_audio_req = bool(media_bytes and media_mime and media_mime.startswith("audio/"))
     primary_model = ai_client.resolve_gemini_model(GEMINI_VOICE_MODEL if (voice_mode or is_audio_req) else MODEL_NAME)
     fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
+    # Gemini 3 explicitly recommends temperature=1.0; lower values can cause
+    # infinite loops and degraded reasoning. Voice turns are latency-sensitive
+    # and use GEMINI_VOICE_MODEL by default, so do not carry the text-chat
+    # determinism setting into the speech pipeline.
+    generation_temperature = (
+        1.0
+        if voice_mode and primary_model.lower().startswith("gemini-3")
+        else 0.2
+    )
 
     # 6. Tool-calling Loop.
     # Every model call goes through ai_client.chat_stream. When on_token is
@@ -1128,7 +1137,7 @@ async def run_widget_assistant(
             fallback_models=fallback_models,
             tools=tools,
             max_tokens=4096,
-            temperature=0.2,
+            temperature=generation_temperature,
             on_token=stream_live,
             bot_id=bot_id,
             session_id=session_id,

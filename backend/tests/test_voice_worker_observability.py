@@ -123,6 +123,22 @@ def test_assistant_transcript_is_synchronized_with_tts_audio():
     assert "TextOutputOptions(sync_transcription=False)" not in source
 
 
+def test_pipeline_accepts_typed_voice_input():
+    """Typed turns must enter the same AgentSession context as speech."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "text_input=True" in source
+
+
+def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
+    """The token callback must remain safe when a provider streams a turn."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "speech_buffer_length" not in source
+
+
 def test_idle_nudge_closure_declares_metric_counter_nonlocal():
     """Prevent the old UnboundLocalError from returning in a worker image."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
