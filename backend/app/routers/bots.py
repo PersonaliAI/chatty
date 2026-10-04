@@ -895,8 +895,11 @@ async def generate_voice_welcome(
 ):
     """Generate a short voice greeting from the bot's current profile and KB."""
     await verify_bot_permission(bot_id, user, "settings")
+    # Keep this endpoint compatible with installations that predate the optional
+    # profile-description column.  The welcome prompt already works without it,
+    # and selecting a missing column would fail before generation starts.
     bot_res = await run_db(lambda: supabase.table("chatty_bots").select(
-        "name, description, system_instructions, welcome_message"
+        "name, system_instructions, welcome_message"
     ).eq("id", bot_id).limit(1).execute())
     if not bot_res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
