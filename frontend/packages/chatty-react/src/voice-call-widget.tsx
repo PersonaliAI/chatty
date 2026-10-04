@@ -665,7 +665,11 @@ export default function VoiceCallWidget({
                             {rich.cleanContent}
                           </ReactMarkdown>
                           {!entry.final && (
-                            <span className="inline-block w-1 h-3 ml-0.5 -mb-0.5 bg-current opacity-60 animate-pulse" />
+                            <span className="ml-1 inline-flex items-center gap-0.5 align-middle" aria-label="still transcribing">
+                              <span className="size-1 rounded-full bg-current opacity-70 animate-bounce" />
+                              <span className="size-1 rounded-full bg-current opacity-70 animate-bounce [animation-delay:120ms]" />
+                              <span className="size-1 rounded-full bg-current opacity-70 animate-bounce [animation-delay:240ms]" />
+                            </span>
                           )}
                         </>
                       ) : !hasRichCards ? (
