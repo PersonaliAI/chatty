@@ -3990,11 +3990,10 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                           onClick={() => {
                             setActiveArticle(null);
                             if (id === "messages") {
-                              if (conversationsList.length > 1) {
-                                setChatView("list");
-                              } else {
-                                setChatView("chat");
-                              }
+                              // Chat always opens the active thread. Conversation
+                              // history is intentionally a secondary view reached
+                              // with the thread back arrow, never the default Chat tab.
+                              setChatView("chat");
                             }
                             setTab(id);
                           }}
