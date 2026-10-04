@@ -1,6 +1,8 @@
 # Chatty voice worker and optional self-hosted LiveKit
 
-The voice deployment has two interchangeable media transports:
+The production voice worker has one deployment target: the dedicated VPS.
+LiveKit Cloud may be used as a media transport when explicitly configured,
+but the persistent Chatty worker itself remains on the VPS.
 
 ```text
                          ┌── LiveKit Cloud ─────────┐
@@ -14,9 +16,7 @@ Supabase remains the source of truth for Auth, Postgres, Storage, and
 Realtime. Self-hosting here replaces only the LiveKit media/signaling layer;
 it does not bring back a second database, object store, auth server, or API.
 
-## Option A: LiveKit Cloud
-
-Use this when you do not want to operate a media server:
+## Production: VPS worker
 
 ```bash
 cd voice-agent
@@ -28,8 +28,10 @@ docker compose up -d --build
 docker compose logs -f voice-worker
 ```
 
-The worker makes outbound connections to LiveKit Cloud, Supabase, and the
-configured model providers. It does not accept internet requests.
+The worker makes outbound connections to LiveKit (self-hosted or explicitly
+configured Cloud), Supabase, and the configured model providers. It does not
+accept internet requests. Do not use the legacy `deploy-voice-worker.sh`
+Cloud Run command; that script now fails closed.
 
 ## Option B: self-host LiveKit on an Ubuntu VPS
 

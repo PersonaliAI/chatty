@@ -206,23 +206,19 @@ class ChattyVoiceAgent(Agent):
         # phrase in the buffer and release it at sentence/ clause boundaries
         # (or at a safe upper bound so long answers still begin promptly).
         speech_buffer: list[str] = []
-        speech_buffer_length = 0
 
         def _flush_speech_buffer(*, force: bool = False) -> None:
-            nonlocal speech_buffer_length
             if not speech_buffer:
                 return
             text = "".join(speech_buffer).strip()
             if not text:
                 speech_buffer.clear()
-                speech_buffer_length = 0
                 return
             # Keep whitespace between adjacent provider chunks, but avoid a
             # leading space when a provider already includes punctuation.
             if force or len(text) >= 120 or re.search(r"[.!?;:]\s*$", text):
                 queue.put_nowait(text)
                 speech_buffer.clear()
-                speech_buffer_length = 0
 
         # widget_brain._gemini_stream does `await on_token(part.text)` - on_token
         # MUST be an async callable (a fire-and-forget sync lambda would crash
@@ -234,7 +230,6 @@ class ChattyVoiceAgent(Agent):
             clean_tok = re.sub(r"\[(?:PRODUCT_CARD|VIDEO_CLIP):\{.*?\}\]", "", clean_tok)
             if clean_tok:
                 speech_buffer.append(clean_tok)
-                speech_buffer_length += len(clean_tok)
                 _flush_speech_buffer()
 
         task = asyncio.create_task(widget_brain.run_widget_assistant(
@@ -377,8 +372,35 @@ def _build_tts(bot: dict[str, Any]):
     voice = bot.get("voice_tts_voice") or None
 
     if provider == "google":
+        # Google streaming synthesis keeps a single RPC open for the whole
+        # assistant turn.  Long support answers can exceed that RPC's
+        # deadline after partial audio has already played, which sounds like
+        # a cut-off or stuck voice.  Non-streaming mode lets LiveKit's
+        # sentence adapter synthesize each bounded phrase independently while
+        # preserving natural turn pacing and clean retry boundaries.
+        use_streaming = os.environ.get("GOOGLE_TTS_STREAMING", "false").strip().lower() in {
+            "1", "true", "yes", "on"
+        }
         try:
-            return google.TTS(language="en-US", voice_name=voice) if voice else google.TTS(language="en-US")
+            speaking_rate = max(0.75, min(1.1, float(os.environ.get("GOOGLE_TTS_SPEAKING_RATE", "0.95"))))
+        except ValueError:
+            logger.warning("voice worker: invalid GOOGLE_TTS_SPEAKING_RATE; using 0.95")
+            speaking_rate = 0.95
+        try:
+            # Cloud Text-to-Speech's unary synthesis endpoint returns Ogg Opus
+            # cleanly for LiveKit's browser audio path; the plugin's PCM enum
+            # is only supported by its streaming RPC.
+            from google.cloud import texttospeech as google_cloud_texttospeech
+
+            kwargs: dict[str, Any] = {
+                "language": "en-US",
+                "use_streaming": use_streaming,
+                "speaking_rate": speaking_rate,
+                "audio_encoding": google_cloud_texttospeech.AudioEncoding.OGG_OPUS,
+            }
+            if voice:
+                kwargs["voice_name"] = voice
+            return google.TTS(**kwargs)
         except Exception as exc:
             if OPENAI_API_KEY:
                 # A Google voice id is not valid for OpenAI TTS, so let the
@@ -1007,6 +1029,15 @@ async def entrypoint(ctx: JobContext) -> None:
         session = AgentSession()
         session.on("session_usage_updated", realtime_usage.replace_from_session_usage)
     else:
+        adaptive_interruption_enabled = os.environ.get(
+            "LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED", "false"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        interruption_mode = "adaptive" if adaptive_interruption_enabled else "vad"
+        if not adaptive_interruption_enabled:
+            logger.info(
+                "voice worker: adaptive interruption disabled; using local VAD interruption "
+                "(set LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=true only when LiveKit inference is authorized)"
+            )
         session = AgentSession(
             stt=_build_stt(bot),
             tts=_build_tts(bot),
@@ -1020,7 +1051,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 turn_detection=inference.TurnDetector(),
                 endpointing={"mode": "dynamic", "min_delay": 0.65, "max_delay": 3.0, "alpha": 0.75},
                 interruption={
-                    "mode": "adaptive",
+                    "mode": interruption_mode,
                     "min_duration": 0.5,
                     "min_words": 1,
                     "false_interruption_timeout": 1.5,
@@ -1249,10 +1280,17 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def _speak(text: str):
         """Speak text through the correct LiveKit API for this session mode."""
+        started_at = time.monotonic()
         try:
             if voice_mode == "realtime":
-                return await session.generate_reply(instructions=text, input_modality="text")
-            return await session.say(text)
+                result = await session.generate_reply(instructions=text, input_modality="text")
+            else:
+                result = await session.say(text)
+            logger.info(
+                "voice worker: speech completed mode=%s chars=%d elapsed_ms=%d",
+                voice_mode, len(text), round((time.monotonic() - started_at) * 1000),
+            )
+            return result
         except RuntimeError as exc:
             # A browser can disconnect between an idle/max-duration timer
             # waking up and the LiveKit session finishing its shutdown. Do not
@@ -1260,6 +1298,10 @@ async def entrypoint(ctx: JobContext) -> None:
             if "AgentSession isn't running" in str(exc):
                 logger.debug("voice worker: skipped speech after session shutdown")
                 return None
+            logger.exception("voice worker: speech failed mode=%s chars=%d", voice_mode, len(text))
+            raise
+        except Exception:
+            logger.exception("voice worker: speech failed mode=%s chars=%d", voice_mode, len(text))
             raise
 
     if voice_mode != "realtime":

@@ -1,6 +1,6 @@
 # Chatty Backend API Google Cloud Run Deployment Guide
 
-This guide details how to deploy the Chatty FastAPI Backend service to Google Cloud Run (`playvoid-280b1`).
+This guide details how to deploy the Chatty FastAPI Backend service to Google Cloud Run (`personaliai`).
 
 ---
 
@@ -9,7 +9,7 @@ This guide details how to deploy the Chatty FastAPI Backend service to Google Cl
 1. Google Cloud SDK (`gcloud`) installed and authenticated:
    ```bash
    gcloud auth login
-   gcloud config set project playvoid-280b1
+   gcloud config set project personaliai
    ```
 2. Cloud Run & Artifact Registry APIs enabled:
    ```bash
@@ -31,7 +31,7 @@ Deploy directly using source build to Cloud Run:
 gcloud run deploy chatty-backend \
   --source . \
   --region us-central1 \
-  --project playvoid-280b1 \
+  --project personaliai \
   --env-vars-file env.yaml \
   --allow-unauthenticated \
   --min-instances 1 \
@@ -51,6 +51,6 @@ gcloud beta run domain-mappings create \
   --service chatty-backend \
   --domain api.chatty.personaliai.com \
   --region us-central1 \
-  --project playvoid-280b1
+  --project personaliai
 ```
 Follow the DNS records provided in the output to configure your CNAME/A records.

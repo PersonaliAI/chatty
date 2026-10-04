@@ -2,8 +2,8 @@
 
 This runbook describes the supported production path. Chatty keeps the
 application portable across Docker hosts while Supabase remains the managed
-data service. Realtime voice can use LiveKit Cloud or the optional self-hosted
-LiveKit profile documented in `voice-agent/README.md`.
+data service. The production Chatty voice worker runs on the dedicated VPS
+Compose stack documented in `voice-agent/DEPLOY_VPS.md`.
 
 ## Environments
 
@@ -11,7 +11,7 @@ LiveKit profile documented in `voice-agent/README.md`.
 |---|---|---|---|---|
 | Local | Next.js dev server | FastAPI/Uvicorn | Managed Supabase project | Developer |
 | Hosted | Firebase App Hosting | Cloud Run | Managed PostgreSQL/Supabase | PersonaliAI |
-| Voice worker | Any Ubuntu Docker host | LiveKit worker container | Managed Supabase + LiveKit Cloud, or self-hosted LiveKit + private Redis | Operator |
+| Voice worker | Production VPS | Docker Compose worker + LiveKit | Managed Supabase + Gemini/AI providers + private LiveKit/Redis | Operator |
 
 Never copy production secrets into `.env.example`, a Docker image, a browser
 bundle, or a GitHub repository. Use Secret Manager, an equivalent vault, or a
@@ -34,15 +34,14 @@ repository scanner.
 
 ## Cloud Run release checklist
 
-The production services are `chatty-api` and `chatty-voice-worker` in project
-`personaliai`, region `us-central1`. Capture the current revisions before every
-release; those names are the rollback handles, not a mutable image tag.
+The production Cloud Run service is `chatty-api` in project `personaliai`,
+region `us-central1`. The voice worker is intentionally not a Cloud Run
+service; capture its current VPS image/container before every release.
 
 ```powershell
 $project = "personaliai"
 $region = "us-central1"
 $apiPrevious = gcloud run services describe chatty-api --project $project --region $region --format="value(status.latestReadyRevisionName)"
-$voicePrevious = gcloud run services describe chatty-voice-worker --project $project --region $region --format="value(status.latestReadyRevisionName)"
 git rev-parse HEAD
 python -m compileall -q .
 pytest -q
@@ -58,15 +57,16 @@ git diff --check
    gcloud run deploy chatty-api --source . --region $region --project $project --clear-base-image --quiet
    ```
 
-3. Deploy the voice worker from an immutable Artifact Registry digest. Keep
-   `LIVEKIT_NUM_IDLE_PROCESSES=2` for the production 4-vCPU/4-GiB worker:
+3. Deploy the voice worker to the VPS, never Cloud Run:
 
-   ```powershell
-   gcloud run deploy chatty-voice-worker `
-     --image us-central1-docker.pkg.dev/personaliai/cloud-run-source-deploy/chatty-voice-worker@sha256:<digest> `
-     --project $project --region $region --update-env-vars LIVEKIT_NUM_IDLE_PROCESSES=2 `
-     --min-instances=1 --max-instances=3 --memory=4Gi --cpu=4 `
-     --no-cpu-throttling --timeout=300 --no-allow-unauthenticated --quiet
+   ```bash
+   cd /opt/chatty/backend/voice-agent
+   git fetch origin
+   git checkout --detach <reviewed-commit-sha>
+   docker compose --profile self-hosted config --quiet
+   docker compose --profile self-hosted build --pull voice-worker
+   docker compose --profile self-hosted up -d --no-deps voice-worker
+   docker inspect --format '{{.State.Health.Status}}' chatty-voice-voice-worker-1
    ```
 
 4. Verify readiness and traffic before considering the release successful:
@@ -75,7 +75,7 @@ git diff --check
    Invoke-WebRequest "https://api.chatty.personaliai.com/health" -UseBasicParsing
    Invoke-WebRequest "https://api.chatty.personaliai.com/ready" -UseBasicParsing
    gcloud run services describe chatty-api --project $project --region $region --format="value(status.latestReadyRevisionName,status.traffic)"
-   gcloud run services describe chatty-voice-worker --project $project --region $region --format="value(status.latestReadyRevisionName,status.traffic)"
+   ssh <vps-host> 'cd /opt/chatty/backend/voice-agent && docker compose --profile self-hosted ps'
    ```
 
    The API smoke should return HTTP 200 with `status=ready`; protected catalog
@@ -94,8 +94,7 @@ Use the revision names captured before deployment:
 ```powershell
 gcloud run services update-traffic chatty-api `
   --to-revisions ${apiPrevious}=100 --project $project --region $region --quiet
-gcloud run services update-traffic chatty-voice-worker `
-  --to-revisions ${voicePrevious}=100 --project $project --region $region --quiet
+ssh <vps-host> 'cd /opt/chatty/backend/voice-agent && docker compose --profile self-hosted up -d --no-deps voice-worker'
 ```
 
 Re-run `/health`, `/ready`, the voice connect smoke, and the relevant authenticated flow
