@@ -1019,11 +1019,16 @@ async def entrypoint(ctx: JobContext) -> None:
                     language=str(getattr(ev, "language", None) or ""),
                     final=is_final,
                 )
-                ctx.room.local_participant.publish_transcription(
-                    rtc.Transcription(
-                        participant_identity=ctx.room.local_participant.identity,
-                        track_sid="",
-                        segments=[segment],
+                # LiveKit's Python API returns a coroutine here. Schedule it
+                # from this synchronous STT callback so interim/final visitor
+                # text reaches the widget without an un-awaited coroutine.
+                asyncio.create_task(
+                    ctx.room.local_participant.publish_transcription(
+                        rtc.Transcription(
+                            participant_identity=ctx.room.local_participant.identity,
+                            track_sid="",
+                            segments=[segment],
+                        )
                     )
                 )
             except Exception:
@@ -1189,6 +1194,35 @@ async def entrypoint(ctx: JobContext) -> None:
             text_output=room_io.TextOutputOptions(sync_transcription=True),
         ),
     )
+
+    # The voice window also has a typed composer. Route those messages into
+    # this same AgentSession so Pipeline mode answers with Pipeline TTS (and
+    # Realtime mode answers with the selected Live model) instead of sending
+    # the text to an unrelated HTTP chat turn.
+    @ctx.room.on("data_received")
+    def _on_typed_message(packet: rtc.DataPacket) -> None:
+        if packet.topic != "chatty.voice.text":
+            return
+        try:
+            payload = json.loads(packet.data.decode("utf-8"))
+            text = str(payload.get("text") or "").strip()
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError):
+            return
+        if not text:
+            return
+
+        async def _reply_to_typed_message() -> None:
+            try:
+                if voice_mode == "realtime":
+                    await session.generate_reply(instructions=text, input_modality="text")
+                else:
+                    await session.generate_reply(user_input=text)
+            except Exception:
+                logger.exception("voice worker: typed message reply failed")
+
+        asyncio.create_task(_reply_to_typed_message(), name=f"voice-typed-message:{session_id}")
+
+    ctx.add_shutdown_callback(lambda: ctx.room.off("data_received", _on_typed_message))
 
     async def _speak(text: str):
         """Speak text through the correct LiveKit API for this session mode."""

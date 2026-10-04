@@ -576,6 +576,17 @@ export default function VoiceCallWidget({
         body.append("file", file, file.name);
         response = await fetch(`${backendUrl}/api/widget/chat/media`, { method: "POST", headers: authHeaders, body });
       } else {
+        // Typed messages in the voice window must enter the same LiveKit
+        // session as microphone turns so the active voice agent can answer
+        // with audio. Keep the HTTP endpoint as a fallback when the room has
+        // not connected yet.
+        const room = roomRef.current;
+        if (room && room.state === ConnectionState.Connected) {
+          const payload = new TextEncoder().encode(JSON.stringify({ type: "typed_message", text }));
+          await room.localParticipant.publishData(payload, { reliable: true, topic: "chatty.voice.text" });
+          setSendingMessage(false);
+          return;
+        }
         response = await fetch(`${backendUrl}/api/widget/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders },

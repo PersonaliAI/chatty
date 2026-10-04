@@ -727,6 +727,7 @@ function IdentifiedChatWidget({
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
   const [supportEmail, setSupportEmail] = useState("");
+  const [emailCaptureDismissed, setEmailCaptureDismissed] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [supportEmailSaved, setSupportEmailSaved] = useState(false);
   const [supportEmailSaving, setSupportEmailSaving] = useState(false);
@@ -1462,6 +1463,7 @@ function IdentifiedChatWidget({
         setSupportEmailSaved(true);
       }
       setMarketingConsent(localStorage.getItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`) === "1");
+      setEmailCaptureDismissed(localStorage.getItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`) === "1");
     } catch {}
   }, [botId, hostKey, sessionId, capturedLeadData.email]);
 
@@ -3551,7 +3553,7 @@ function IdentifiedChatWidget({
       {/* Composer (Messages tab only) */}
       {tab === "messages" && !voiceCallOpen && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
-          {!showOfflineForm && (
+          {!showOfflineForm && !emailCaptureDismissed && (
             <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/70 px-2.5 py-1.5">
               <Mail className="size-4 shrink-0 text-neutral-400" aria-hidden="true" />
               <label className="sr-only" htmlFor="chatty-support-email">Email for follow-up</label>
@@ -3576,14 +3578,30 @@ function IdentifiedChatWidget({
               >
                 {supportEmailSaving ? "Saving…" : supportEmailSaved ? "Saved" : "Save"}
               </button>
+              <button
+                type="button"
+                aria-label="Hide email follow-up field"
+                title="Hide email field"
+                onClick={() => {
+                  setEmailCaptureDismissed(true);
+                  try { localStorage.setItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`, "1"); } catch {}
+                }}
+                className="grid size-6 shrink-0 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
           )}
-          {!showOfflineForm && (
+          {!showOfflineForm && !emailCaptureDismissed && (
             <label className="mb-2 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
               <input
                 type="checkbox"
                 checked={marketingConsent}
-                onChange={(e) => setMarketingConsent(e.target.checked)}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setMarketingConsent(next);
+                  try { localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, next ? "1" : "0"); } catch {}
+                }}
                 className="mt-0.5 size-3.5 shrink-0 accent-current"
               />
               <span>Email me product updates and offers. You can unsubscribe anytime.</span>
