@@ -310,7 +310,7 @@ export function VoiceAgentTab({
                   </p>
                   {voiceMode === "pipeline" && voiceSttProvider === "google" && voiceTtsProvider === "google" && (
                     <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
-                      Google Pipeline STT/TTS needs Google Application Default Credentials on a VPS. For a key-only deployment, select Realtime (Google Gemini Live), or mount <code className="font-mono">GOOGLE_APPLICATION_CREDENTIALS</code> in the worker.
+                      Google Pipeline STT/TTS requires Google Application Default Credentials in the worker. Pipeline will stop with a clear setup error if <code className="font-mono">GOOGLE_APPLICATION_CREDENTIALS</code> is not mounted; it never silently switches to Realtime.
                     </div>
                   )}
                 </div>
@@ -327,7 +327,7 @@ export function VoiceAgentTab({
                         onChange={(v) => {
                           const provider = v as "google" | "openai";
                           const defaultModel =
-                            provider === "google" ? "gemini-3.1-flash-live-preview" : "gpt-realtime";
+                            provider === "google" ? "gemini-3.8-live" : "gpt-realtime";
                           setVoiceRealtimeProvider(provider);
                           setVoiceRealtimeModel(defaultModel);
                           handleAutoSaveVoiceField({
@@ -336,7 +336,7 @@ export function VoiceAgentTab({
                           });
                         }}
                         options={[
-                          { value: "google", label: "Google Gemini Live", hint: "gemini-3.1-flash-live-preview" },
+                          { value: "google", label: "Google Gemini Live", hint: "gemini-3.8-live" },
                           { value: "openai", label: "OpenAI Realtime", hint: "gpt-realtime" },
                         ]}
                       />
@@ -355,7 +355,7 @@ export function VoiceAgentTab({
                         }
                         placeholder={
                           voiceRealtimeProvider === "google"
-                            ? "gemini-3.1-flash-live-preview"
+                            ? "gemini-3.8-live"
                             : "gpt-realtime"
                         }
                         className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
