@@ -280,3 +280,14 @@ def test_browser_voice_capture_requests_echo_noise_and_gain_processing():
     assert "echoCancellation: true" in source
     assert "noiseSuppression: true" in source
     assert "autoGainControl: true" in source
+
+
+def test_interim_user_transcripts_keep_one_id_and_tolerate_missing_timestamps():
+    """Interim STT updates must replace one line even with sparse provider events."""
+    source_path = Path(__file__).resolve().parents[2] / "backend" / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "active_transcript_id: Optional[str] = None" in source
+    assert "if active_transcript_id is None:" in source
+    assert "raw_created_at = getattr(ev, \"created_at\", None)" in source
+    assert "if start_seconds > 100_000_000_000:" in source

@@ -1214,8 +1214,10 @@ async def entrypoint(ctx: JobContext) -> None:
             ),
         )
 
+    active_transcript_id: Optional[str] = None
+
     def _record_user_input(ev) -> None:
-        nonlocal turn_count
+        nonlocal turn_count, active_transcript_id
         transcript = (getattr(ev, "transcript", "") or "").strip()
         is_final = bool(getattr(ev, "is_final", False))
         if is_final and transcript:
@@ -1226,8 +1228,27 @@ async def entrypoint(ctx: JobContext) -> None:
         # segment using the same stable item id.
         if transcript and getattr(ctx.room, "local_participant", None):
             try:
-                item_id = str(getattr(ev, "item_id", None) or f"user-{int(time.time() * 1000)}")
-                start_ms = int(float(getattr(ev, "created_at", time.time())) * 1000)
+                event_item_id = getattr(ev, "item_id", None)
+                if event_item_id:
+                    item_id = str(event_item_id)
+                else:
+                    # Some STT providers omit item_id on interim events. Keep
+                    # one stable ID for the current utterance so the widget
+                    # replaces the live transcript instead of appending a new
+                    # line for every partial result.
+                    if active_transcript_id is None:
+                        active_transcript_id = f"user-{time.time_ns()}"
+                    item_id = active_transcript_id
+                raw_created_at = getattr(ev, "created_at", None)
+                try:
+                    start_seconds = float(raw_created_at)
+                    # Accept providers that report Unix milliseconds as well as
+                    # the LiveKit event's normal Unix-seconds timestamp.
+                    if start_seconds > 100_000_000_000:
+                        start_seconds /= 1000
+                except (TypeError, ValueError):
+                    start_seconds = time.time()
+                start_ms = int(start_seconds * 1000)
                 segment = rtc.TranscriptionSegment(
                     id=item_id,
                     text=transcript,
@@ -1248,6 +1269,8 @@ async def entrypoint(ctx: JobContext) -> None:
                         )
                     )
                 )
+                if is_final and not event_item_id:
+                    active_transcript_id = None
             except Exception:
                 logger.exception("voice worker: failed to publish visitor transcript")
         logger.info(
