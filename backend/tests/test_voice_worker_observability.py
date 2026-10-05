@@ -153,6 +153,28 @@ def test_pipeline_mode_fails_closed_instead_of_switching_to_realtime():
     assert "if voice_mode == \"realtime\":" in source
 
 
+def test_elevenlabs_is_a_first_class_pipeline_stt_provider():
+    """ElevenLabs Scribe v2 realtime must be selectable without a mode switch."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 'if provider == "elevenlabs":' in source
+    assert 'model="scribe_v2_realtime"' in source
+    assert 'ELEVENLABS_API_KEY' in source
+    assert "ElevenLabs STT selected but no BYOK/ElevenLabs API key is configured" in source
+
+
+def test_selected_tts_provider_errors_are_not_reported_as_success():
+    """SpeechHandle background failures must be surfaced to the widget."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 'speech_error = None' in source
+    assert 'speech_error = exception_fn()' in source
+    assert '"type": "voice_error"' in source
+    assert "speech provider failed" in source
+
+
 def test_voice_session_logs_selected_mode_and_providers_without_secrets():
     """Production logs must make pipeline/realtime selection diagnosable."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"

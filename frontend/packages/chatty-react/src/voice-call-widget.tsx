@@ -217,6 +217,14 @@ export default function VoiceCallWidget({
                 richPacketIdsRef.current.add(`product:${id}`);
                 setTranscript((prev) => [...prev, { id: `voice-product-${id}`, speaker: "agent", text: `[PRODUCT_CARD:${JSON.stringify(data.product)}]`, final: true }]);
               }
+            } else if (data?.type === "voice_error") {
+              const message = String(data.message || "Voice audio failed. Please reconnect and try again.");
+              setErrorMessage(message);
+              setStatus("error");
+              setTranscript((prev) => [
+                ...prev,
+                { id: `voice-error-${Date.now()}`, speaker: "agent", text: message, final: true },
+              ]);
             } else if (data?.type === "video_clip" && data.clip) {
               const id = String(data.clip.video_url || data.clip.title || "video");
               if (!richPacketIdsRef.current.has(`video:${id}`)) {

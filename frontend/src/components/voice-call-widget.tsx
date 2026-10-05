@@ -298,6 +298,14 @@ export default function VoiceCallWidget({
                   text: `[VIDEO_CLIP:${JSON.stringify(data.clip)}]`, final: true,
                 }]);
               }
+            } else if (data?.type === "voice_error") {
+              const message = String(data.message || "Voice audio failed. Please reconnect and try again.");
+              setErrorMessage(message);
+              setStatus("error");
+              setTranscript((prev) => [
+                ...prev,
+                { id: `voice-error-${Date.now()}`, speaker: "agent", text: message, final: true },
+              ]);
             }
           } catch {
             // Ignore non-JSON or unrelated packets

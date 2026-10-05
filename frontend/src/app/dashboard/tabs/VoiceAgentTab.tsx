@@ -441,6 +441,7 @@ export function VoiceAgentTab({
                           { value: "deepgram", label: "Deepgram", hint: "Requires your own API key" },
                           { value: "assemblyai", label: "AssemblyAI", hint: "Requires your own API key" },
                           { value: "soniox", label: "Soniox", hint: "Requires your own API key" },
+                          { value: "elevenlabs", label: "ElevenLabs Scribe", hint: "Scribe v2 realtime · Requires your own API key" },
                           { value: "openai", label: "OpenAI Whisper", hint: "Requires your own API key" },
                         ]}
                       />

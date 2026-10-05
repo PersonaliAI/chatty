@@ -374,13 +374,14 @@ def _build_stt(bot: dict[str, Any]):
     """Construct the STT plugin for a bot's `voice_stt_provider`.
 
     Falls back to a server-side shared key (app.core.config) when the bot has
-    no BYOK key of its own, and falls back to Google entirely for unknown
-    providers. Azure was dropped from the option set - azure.STT needs
+    no BYOK key of its own, and fails clearly when a selected provider has no
+    usable credential. Azure was dropped from the option set - azure.STT needs
     speech_key + speech_region, not a single api_key, which didn't fit the
     single-encrypted-key BYOK column; soniox.STT() takes a clean single
     api_key (verified via source, not import - see _build_tts's fishaudio
     note for why) and is a well-regarded realtime STT provider, so it
-    replaced azure as the 5th option.
+    replaced azure as the 5th option. ElevenLabs Scribe v2 realtime is also
+    supported for teams that want one provider for both STT and TTS.
     """
     provider = (bot.get("voice_stt_provider") or "google").strip().lower()
     if provider == "google":
@@ -416,6 +417,21 @@ def _build_stt(bot: dict[str, Any]):
             )
             return google.STT(languages="en-US", model="latest_long", interim_results=True)
         return soniox.STT(api_key=key)
+    if provider == "elevenlabs":
+        key = key or ELEVENLABS_API_KEY or None
+        if not key:
+            raise RuntimeError(
+                "ElevenLabs STT selected but no BYOK/ElevenLabs API key is configured"
+            )
+        # Scribe v2 realtime streams interim and final transcript events and
+        # lets LiveKit's native VAD/turn detector remain the source of truth
+        # for endpointing and interruption behavior.
+        return elevenlabs.STT(
+            api_key=key,
+            model="scribe_v2_realtime",
+            language_code="en",
+            no_verbatim=True,
+        )
     if provider == "openai":
         key = key or OPENAI_API_KEY or None
         return openai.STT(api_key=key) if key else openai.STT()
@@ -427,7 +443,8 @@ def _build_stt(bot: dict[str, Any]):
 def _build_tts(bot: dict[str, Any]):
     """Construct the TTS plugin for a bot's `voice_tts_provider`.
 
-    Same server-side-shared-key / google-fallback behavior as `_build_stt`.
+    Same server-side-shared-key behavior as `_build_stt`; a selected provider
+    is never silently replaced with another provider.
     """
     provider = (bot.get("voice_tts_provider") or "google").strip().lower()
     # The dashboard's supported Google voice list is Chirp 3.  Keep pipeline
@@ -490,6 +507,10 @@ def _build_tts(bot: dict[str, Any]):
         return cartesia.TTS(**kwargs)
     if provider == "elevenlabs":
         key = key or ELEVENLABS_API_KEY or None
+        if not key:
+            raise RuntimeError(
+                "ElevenLabs TTS selected but no BYOK/ElevenLabs API key is configured"
+            )
         kwargs = {"api_key": key} if key else {}
         if voice:
             kwargs["voice_id"] = voice
@@ -1149,16 +1170,39 @@ async def entrypoint(ctx: JobContext) -> None:
     realtime_provider = (bot.get("voice_realtime_provider") or "google").strip().lower()
     realtime_model = bot.get("voice_realtime_model") or REALTIME_DEFAULT_MODEL.get(realtime_provider, "")
     configured_realtime_model = realtime_model if voice_mode == "realtime" else "not-used"
+    stt_provider = (bot.get("voice_stt_provider") or "google").strip().lower()
+    tts_provider = (bot.get("voice_tts_provider") or "google").strip().lower()
+    shared_provider_keys = {
+        "deepgram": DEEPGRAM_API_KEY,
+        "assemblyai": ASSEMBLYAI_API_KEY,
+        "soniox": SONIOX_API_KEY,
+        "elevenlabs": ELEVENLABS_API_KEY,
+        "openai": OPENAI_API_KEY,
+        "cartesia": CARTESIA_API_KEY,
+        "fishaudio": FISH_API_KEY,
+    }
+    stt_key_configured = (
+        _google_pipeline_credentials_available() if stt_provider == "google"
+        else bool(bot.get("voice_stt_byok_key_encrypted") or shared_provider_keys.get(stt_provider))
+    )
+    tts_key_configured = (
+        _google_pipeline_credentials_available() if tts_provider == "google"
+        else bool(bot.get("voice_tts_byok_key_encrypted") or shared_provider_keys.get(tts_provider))
+    )
     logger.info(
         "voice worker: session configuration mode=%s stt_provider=%s tts_provider=%s "
-        "realtime_provider=%s realtime_model=%s vad_backend=%s denoise_enabled=%s",
+        "realtime_provider=%s realtime_model=%s vad_backend=%s denoise_enabled=%s "
+        "stt_key_configured=%s tts_key_configured=%s tts_voice=%s",
         voice_mode,
-        (bot.get("voice_stt_provider") or "google").strip().lower(),
-        (bot.get("voice_tts_provider") or "google").strip().lower(),
+        stt_provider,
+        tts_provider,
         realtime_provider,
         configured_realtime_model or "default",
         os.environ.get("VOICE_VAD_BACKEND", "native").strip().lower(),
         denoiser is not None,
+        stt_key_configured,
+        tts_key_configured,
+        str(bot.get("voice_tts_voice") or "default"),
     )
     realtime_usage = _RealtimeUsageTotals()
     call_start = time.monotonic()
@@ -1496,6 +1540,24 @@ async def entrypoint(ctx: JobContext) -> None:
                 "continuing with input denoise only"
             )
 
+    async def _publish_voice_error(message: str) -> None:
+        """Tell the widget why audio could not be produced.
+
+        Provider failures otherwise happen in LiveKit's background speech
+        task and look like a healthy but silent call.  The packet is safe to
+        expose because it contains no provider credentials or raw exceptions.
+        """
+        participant = getattr(ctx.room, "local_participant", None)
+        if participant is None:
+            return
+        try:
+            await participant.publish_data(
+                json.dumps({"type": "voice_error", "message": message}).encode("utf-8"),
+                reliable=True,
+            )
+        except Exception:
+            logger.exception("voice worker: failed to publish voice error packet")
+
     async def _speak(text: str):
         """Speak text through the correct LiveKit API for this session mode."""
         started_at = time.monotonic()
@@ -1504,6 +1566,29 @@ async def entrypoint(ctx: JobContext) -> None:
                 result = await session.generate_reply(instructions=text, input_modality="text")
             else:
                 result = await session.say(text)
+            # SpeechHandle.__await__ waits for playout but intentionally does
+            # not raise its background provider error.  Inspect it explicitly;
+            # otherwise an ElevenLabs zero-frame response is logged as a false
+            # success and leaves the visitor staring at a silent call.
+            speech_error = None
+            exception_fn = getattr(result, "exception", None)
+            if callable(exception_fn):
+                speech_error = exception_fn()
+            if speech_error is not None:
+                provider = (
+                    bot.get("voice_tts_provider") if voice_mode != "realtime"
+                    else bot.get("voice_realtime_provider")
+                ) or "selected voice provider"
+                safe_message = (
+                    f"Voice audio failed for the selected {str(provider).strip()} provider. "
+                    "Check its API key, voice, and provider status, then reconnect."
+                )
+                logger.error(
+                    "voice worker: speech provider failed mode=%s provider=%s chars=%d error=%s",
+                    voice_mode, provider, len(text), speech_error,
+                )
+                await _publish_voice_error(safe_message)
+                raise RuntimeError(safe_message) from speech_error
             logger.info(
                 "voice worker: speech completed mode=%s chars=%d elapsed_ms=%d",
                 voice_mode, len(text), round((time.monotonic() - started_at) * 1000),
