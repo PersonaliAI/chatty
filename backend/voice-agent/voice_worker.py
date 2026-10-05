@@ -1131,6 +1131,17 @@ async def entrypoint(ctx: JobContext) -> None:
     voice_mode = (bot.get("voice_mode") or "pipeline").strip().lower()
     realtime_provider = (bot.get("voice_realtime_provider") or "google").strip().lower()
     realtime_model = bot.get("voice_realtime_model") or REALTIME_DEFAULT_MODEL.get(realtime_provider, "")
+    logger.info(
+        "voice worker: session configuration mode=%s stt_provider=%s tts_provider=%s "
+        "realtime_provider=%s realtime_model=%s vad_backend=%s denoise_enabled=%s",
+        voice_mode,
+        (bot.get("voice_stt_provider") or "google").strip().lower(),
+        (bot.get("voice_tts_provider") or "google").strip().lower(),
+        realtime_provider,
+        realtime_model or "default",
+        os.environ.get("VOICE_VAD_BACKEND", "native").strip().lower(),
+        denoiser is not None,
+    )
     realtime_usage = _RealtimeUsageTotals()
     call_start = time.monotonic()
     process_cpu_start = time.process_time()

@@ -152,6 +152,18 @@ def test_pipeline_mode_fails_closed_instead_of_switching_to_realtime():
     assert "if voice_mode == \"realtime\":" in source
 
 
+def test_voice_session_logs_selected_mode_and_providers_without_secrets():
+    """Production logs must make pipeline/realtime selection diagnosable."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert '"voice worker: session configuration mode=%s stt_provider=%s tts_provider=%s "' in source
+    assert "realtime_model or \"default\"" in source
+    assert "denoiser is not None" in source
+    # The diagnostic line must not interpolate any API key or credential value.
+    assert "GEMINI_API_KEY" not in source.split('"voice worker: session configuration', 1)[1].split('realtime_usage', 1)[0]
+
+
 def test_typed_voice_input_has_failure_observability():
     """Typed composer failures must be visible instead of silently dropping."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
