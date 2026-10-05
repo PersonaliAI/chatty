@@ -344,7 +344,7 @@ def test_voice_generation_has_a_hard_response_budget():
     """Voice TTS turns must not stay open behind an unbounded chat answer."""
     source_path = Path(__file__).resolve().parents[1] / "plugins" / "widget_brain.py"
     source = source_path.read_text(encoding="utf-8")
-    assert "VOICE_MAX_OUTPUT_TOKENS = 320" in source
+    assert "VOICE_MAX_OUTPUT_TOKENS = 220" in source
     assert "VOICE_LLM_TIMEOUT_SECONDS" in source
     assert 'gemini-3.5-flash-lite' in source
     assert source.count("max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096") == 2

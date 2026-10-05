@@ -42,6 +42,8 @@ async def mint_voice_session(
     bot_id: str,
     session_id: str | None = None,
     visitor_timezone: str = "UTC",
+    visitor_language: str | None = None,
+    visitor_country: str | None = None,
     identity_prefix: str = "visitor",
     display_name: str = "Visitor",
 ) -> dict[str, Any]:
@@ -57,6 +59,8 @@ async def mint_voice_session(
         "bot_id": bot_id,
         "session_id": session_id,
         "visitor_timezone": visitor_timezone or "UTC",
+        "visitor_language": visitor_language or "",
+        "visitor_country": visitor_country or "",
     })
 
     # Explicit dispatch - call agent_dispatch.create_dispatch() server-side

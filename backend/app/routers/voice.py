@@ -59,5 +59,7 @@ async def widget_voice_token(body: VoiceTokenRequest, request: Request):
         bot_id=bot_id,
         session_id=body.session_id,
         visitor_timezone=body.visitor_timezone,
+        visitor_language=body.visitor_language,
+        visitor_country=body.visitor_country,
     )
     return VoiceTokenResponse(**result)

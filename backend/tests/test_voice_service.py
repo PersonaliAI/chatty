@@ -77,6 +77,8 @@ def test_mint_voice_session_dispatches_worker_with_metadata(monkeypatch):
         "bot_id": "bot-1",
         "session_id": "session-1",
         "visitor_timezone": "Asia/Colombo",
+        "visitor_language": "",
+        "visitor_country": "",
     }
     assert closed == [True]
 

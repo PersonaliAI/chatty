@@ -66,6 +66,8 @@ async def test_voice_token_success_passes_session_context(monkeypatch):
         "bot_id": "bot-1",
         "session_id": "session-1",
         "visitor_timezone": "Asia/Colombo",
+        "visitor_language": None,
+        "visitor_country": None,
     }
 
 

@@ -41,6 +41,7 @@ interface TranscriptEntry {
   speaker: "visitor" | "agent";
   text: string;
   final: boolean;
+  updatedAt?: number;
 }
 
 function normalizeTranscriptText(text: string): string {
@@ -170,6 +171,28 @@ export default function VoiceCallWidget({
   // spring feel used for the rest of the widget's motion (bouncy overshoot).
   const orbLevel = useSpring(0, { stiffness: 220, damping: 18, mass: 0.6 });
 
+  // A provider can lose the final packet during a reconnect even though the
+  // interim text was already rendered. Do not leave a caret/spinner stuck in
+  // the conversation forever; after a quiet window the visible text is safe
+  // to treat as the committed transcript.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const cutoff = Date.now() - 4000;
+      setTranscript((prev) => {
+        let changed = false;
+        const next = prev.map((entry) => {
+          if (!entry.final && entry.updatedAt && entry.updatedAt < cutoff) {
+            changed = true;
+            return { ...entry, final: true };
+          }
+          return entry;
+        });
+        return changed ? next : prev;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
 
@@ -198,10 +221,12 @@ export default function VoiceCallWidget({
         }
         const resolvedOriginToken = originToken === undefined ? autoOriginTokenRef.current : originToken;
         const widgetTokenHeader: Record<string, string> = resolvedOriginToken ? { "X-Widget-Token": resolvedOriginToken } : {};
+        const browserLanguage = typeof navigator !== "undefined" ? navigator.language || "" : "";
+        const browserCountry = browserLanguage.split("-")[1]?.toUpperCase() || "";
         const res = await fetch(`${backendUrl}/api/widget/voice/token`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-          body: JSON.stringify({ bot_id: botId, session_id: sessionId, visitor_timezone: visitorTimezone }),
+          body: JSON.stringify({ bot_id: botId, session_id: sessionId, visitor_timezone: visitorTimezone, visitor_language: browserLanguage, visitor_country: browserCountry }),
         });
 
         if (!res.ok) {
@@ -313,16 +338,16 @@ export default function VoiceCallWidget({
         // Live transcript - the agent worker already publishes STT/reply text
         // over LiveKit's built-in transcription stream; each segment updates
         // in place (by id) while interim, then locks in once `final`. LiveKit
-        // resolves the transcribed participant from the packet identity: the
-        // remote participant is the visitor, while the local participant is
-        // the agent. Keep that mapping explicit so visitor speech never gets
-        // rendered as a Chatty reply (or duplicated as both roles).
+        // resolves the transcribed participant from the packet identity. In a
+        // browser call the visitor is local and the worker/agent is remote;
+        // keep that mapping explicit so agent speech is not rendered as a
+        // duplicate "You" bubble.
         room.on(
           RoomEvent.TranscriptionReceived,
           (segments: TranscriptionSegment[], participant?: Participant) => {
             if (cancelled || !mountedRef.current) return;
             const speaker: "visitor" | "agent" =
-              participant && participant.identity !== room?.localParticipant?.identity ? "visitor" : "agent";
+              participant && participant.identity === room?.localParticipant?.identity ? "visitor" : "agent";
             setTranscript((prev) => {
               let next = prev;
               for (const seg of segments) {
@@ -330,7 +355,7 @@ export default function VoiceCallWidget({
                 // VAD closes a short/noisy utterance. Never render that as a
                 // blank visitor message in the conversation.
                 if (!seg.text?.trim()) continue;
-                const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
+                const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final, updatedAt: Date.now() };
                 next = mergeTranscriptSegment(next, entry, Date.now(), recentFinalTranscriptRef.current);
               }
               return next;
@@ -777,7 +802,7 @@ export default function VoiceCallWidget({
                           >
                             {rich.cleanContent}
                           </ReactMarkdown>
-                          {!entry.final && <TranscriptActivityIndicator label="Still transcribing" />}
+                            {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
                         </>
                       ) : !hasRichCards ? (
                         <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">

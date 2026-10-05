@@ -77,7 +77,7 @@ GEMINI_VOICE_MODEL = os.environ.get("GEMINI_VOICE_MODEL", "gemini-3.5-flash-lite
 # answer from holding the TTS turn open and making the agent sound stuck. A
 # concise voice budget leaves room for booking/lead confirmations while keeping
 # first-audio latency predictable; normal text chat keeps its existing budget.
-VOICE_MAX_OUTPUT_TOKENS = 320
+VOICE_MAX_OUTPUT_TOKENS = 220
 # A provider that stops returning stream chunks must not hold the call forever.
 # This timeout is deliberately voice-only; the regular widget keeps its normal
 # retry behavior and response budget.
@@ -134,7 +134,8 @@ _VOICE_LEAD_VERIFICATION_INSTRUCTIONS = (
 
 _VOICE_TEXT_INPUT_INSTRUCTIONS = (
     "VOICE + TEXT INPUT (mandatory): This is one shared conversation, not a voice-only silo. In your opening greeting, tell the visitor: `You can speak or type at any time; typed messages stay in this conversation and I will read my reply aloud.` If the visitor says they would rather type, cannot hear, or cannot speak, acknowledge that choice, stop prompting for speech, and wait for the next typed turn. Treat every typed message from the composer as a complete user turn in the same context. Read and answer typed messages using the same knowledge, booking, and lead workflow, speak the answer through the active voice session, and show the same answer in the text transcript. Never ignore a typed message, answer it only through an unrelated HTTP chat, or start a second conversation.\n\n"
-    "VOICE PACING (mandatory): Keep each spoken answer to about 1-3 short sentences (roughly 70-90 words maximum) unless the visitor explicitly asks for more detail. Give the most useful first part, then offer to continue. Do not read long markdown lists, source URLs, JSON, or every plan feature aloud; summarize naturally and ask one follow-up. This keeps the turn responsive and gives the visitor a clean chance to interrupt or type.\n\n"
+    "VOICE PACING (mandatory): Keep each spoken answer to 1-2 short sentences (65 words maximum) unless the visitor explicitly asks for more detail. Give the most useful first part, then offer to continue. Do not read long markdown lists, source URLs, JSON, or every plan feature aloud; summarize naturally and ask one follow-up. This keeps the turn responsive and gives the visitor a clean chance to interrupt or type. Never repeat the speak/type sentence after the opening greeting. Never say `Are you still there?` during normal silence; wait for the visitor.\n\n"
+    "VOICE LANGUAGE SWITCHING (mandatory): Follow the latest visitor language. If they say `please speak in Chinese` (or any other language), acknowledge the switch and answer in that language from the next sentence onward. Continue in that language until they clearly request another. The browser locale/country is only an opening hint; an explicit spoken or typed request always wins.\n\n"
 )
 
 # Tool calls with a lasting real-world side effect (sends something, creates
@@ -342,6 +343,7 @@ async def run_widget_assistant(
     flow_context: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     visitor_country = (visitor_geo or {}).get("country")
+    visitor_language = (visitor_geo or {}).get("language")
     # 1. Retrieve history
     history = list(await conversation_repository.list_history(bot_id=bot_id, session_id=session_id))
 
@@ -808,10 +810,15 @@ async def run_widget_assistant(
         "zu": "Zulu",
     }
     response_language = bot.get("response_language") or ""
+    browser_language_hint = (
+        f"- The visitor's browser language hint is {visitor_language}. Use it only for the opening greeting; follow the latest spoken or typed language after that.\n"
+        if visitor_language else ""
+    )
     language_line = (
         f"- Always reply in {_LANGUAGE_NAMES.get(response_language, response_language)}, regardless of what language the visitor writes in.\n"
         if response_language else
         "- Mirror the visitor's language (reply in the language they write in).\n"
+        + browser_language_hint
     )
     # Put this guidance at the end of the assembled system prompt as well as
     # in the persona. Long conversations can otherwise drift back to English
@@ -831,6 +838,7 @@ async def run_widget_assistant(
             "- Keep the established conversation language across every turn unless the visitor clearly switches languages.\n"
             "- Never switch to English merely because the knowledge base, tool output, calendar data, internal instructions, or fallback model is in English.\n"
             "- Translate booking confirmations, availability labels, lead-capture questions, error messages, and workflow prompts into the visitor's language.\n\n"
+            + browser_language_hint
         )
 
     # Knowledge source mode: how far beyond the trained knowledge the bot may go.

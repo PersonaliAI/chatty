@@ -121,6 +121,130 @@ _VOICE_TEXT_INPUT_HINT = (
     "and I will read my reply aloud."
 )
 
+# Chirp 3 HD voice names are locale-prefixed. Keep a conservative set of
+# locales whose voice availability is documented by Google; unsupported
+# locales continue to receive the text reply and keep the last working voice
+# instead of breaking an otherwise healthy call.
+_CHIRP_TTS_LOCALES = {
+    "ar-XA", "bn-IN", "bg-BG", "yue-HK", "hr-HR", "cs-CZ", "da-DK",
+    "nl-BE", "nl-NL", "en-AU", "en-IN", "en-GB", "en-US", "et-EE",
+    "fi-FI", "fr-CA", "fr-FR", "de-DE", "el-GR", "gu-IN", "he-IL",
+    "hi-IN", "hu-HU", "id-ID", "it-IT", "ja-JP", "kn-IN", "ko-KR",
+    "lv-LV", "lt-LT", "ml-IN", "cmn-CN", "mr-IN", "nb-NO", "pl-PL",
+    "pt-BR", "pa-IN", "ro-RO", "ru-RU", "sr-RS", "sk-SK", "sl-SI",
+    "es-ES", "es-US", "sw-KE", "sv-SE", "ta-IN", "te-IN", "th-TH",
+    "tr-TR", "uk-UA", "ur-IN", "vi-VN",
+}
+
+_VOICE_LANGUAGE_ALIASES = {
+    "arabic": "ar-XA", "bengali": "bn-IN", "bulgarian": "bg-BG",
+    "catalan": "ca-ES", "chinese": "cmn-CN", "chinease": "cmn-CN",
+    "mandarin": "cmn-CN", "croatian": "hr-HR", "czech": "cs-CZ",
+    "danish": "da-DK", "dutch": "nl-NL", "english": "en-US",
+    "finnish": "fi-FI", "french": "fr-FR", "german": "de-DE",
+    "greek": "el-GR", "gujarati": "gu-IN", "hebrew": "he-IL",
+    "hindi": "hi-IN", "hungarian": "hu-HU", "indonesian": "id-ID",
+    "italian": "it-IT", "japanese": "ja-JP", "kannada": "kn-IN",
+    "korean": "ko-KR", "malayalam": "ml-IN", "marathi": "mr-IN",
+    "norwegian": "nb-NO", "polish": "pl-PL", "portuguese": "pt-BR",
+    "punjabi": "pa-IN", "romanian": "ro-RO", "russian": "ru-RU",
+    "serbian": "sr-RS", "sinhala": "si-LK", "slovak": "sk-SK",
+    "slovenian": "sl-SI", "spanish": "es-ES", "swahili": "sw-KE",
+    "swedish": "sv-SE", "tamil": "ta-IN", "telugu": "te-IN",
+    "thai": "th-TH", "turkish": "tr-TR", "ukrainian": "uk-UA",
+    "urdu": "ur-IN", "vietnamese": "vi-VN",
+}
+
+_VOICE_LANGUAGE_SCRIPT_RULES = (
+    (re.compile(r"[\u4e00-\u9fff]"), "cmn-CN"),
+    (re.compile(r"[\u3040-\u30ff]"), "ja-JP"),
+    (re.compile(r"[\uac00-\ud7af]"), "ko-KR"),
+    (re.compile(r"[\u0600-\u06ff]"), "ar-XA"),
+    (re.compile(r"[\u0900-\u097f]"), "hi-IN"),
+    (re.compile(r"[\u0b80-\u0bff]"), "ta-IN"),
+    (re.compile(r"[\u0c00-\u0c7f]"), "te-IN"),
+    (re.compile(r"[\u0e00-\u0e7f]"), "th-TH"),
+    (re.compile(r"[\u0370-\u03ff]"), "el-GR"),
+    (re.compile(r"[\u0400-\u04ff]"), "ru-RU"),
+)
+
+
+def _voice_language_from_text(text: str) -> str | None:
+    """Infer a requested/output language without blocking the voice turn."""
+    value = (text or "").strip()
+    if not value:
+        return None
+    lowered = value.lower()
+    for name, locale in _VOICE_LANGUAGE_ALIASES.items():
+        if re.search(rf"\b{name}\b", lowered):
+            # Only treat a language word as a switch when it is an instruction,
+            # not when the visitor is asking about a product feature named
+            # "Spanish" or "Chinese".
+            if re.search(r"\b(?:speak|talk|reply|respond|answer|language|use|switch|in)\b", lowered):
+                return locale
+    for pattern, locale in _VOICE_LANGUAGE_SCRIPT_RULES:
+        if pattern.search(value):
+            return locale
+    return None
+
+
+class AdaptiveGoogleTTS(google.TTS):
+    """Google Chirp 3 TTS that follows explicit language switches per turn.
+
+    The LiveKit pipeline owns one TTS object for a call. Updating the locale
+    before each phrase keeps that session warm while still allowing a visitor
+    to say “please speak in Chinese” without reconnecting the room.
+    """
+
+    def __init__(self, *, voice_name: str, **kwargs: Any) -> None:
+        self._base_voice_name = voice_name or "en-US-Chirp3-HD-Charon"
+        self._voice_language = "en-US"
+        suffix = self._base_voice_name.split("-Chirp3-HD-", 1)[-1]
+        self._voice_suffix = suffix if suffix and suffix != self._base_voice_name else "Charon"
+        kwargs.pop("voice_name", None)
+        kwargs.pop("language", None)
+        super().__init__(voice_name=self._base_voice_name, language="en-US", **kwargs)
+
+    @property
+    def voice_language(self) -> str:
+        return self._voice_language
+
+    def set_language(self, language: str | None) -> None:
+        locale = (language or "").strip()
+        if not locale:
+            return
+        base = locale.lower().replace("_", "-")
+        if base in {"zh", "zh-cn", "zh-hans", "zh-hans-cn"}:
+            locale = "cmn-CN"
+        elif base == "en":
+            locale = "en-US"
+        elif len(base) == 2:
+            locale = next((candidate for candidate in _CHIRP_TTS_LOCALES if candidate.lower().startswith(base + "-")), locale)
+        else:
+            locale = locale.split("-")[0].lower() + ("-" + locale.split("-")[1].upper() if "-" in locale else "")
+        if locale not in _CHIRP_TTS_LOCALES:
+            logger.info("voice worker: TTS locale %s is not available in Chirp 3 HD; keeping %s", locale, self._voice_language)
+            return
+        if locale == self._voice_language:
+            return
+        self._voice_language = locale
+        self.update_options(
+            language=locale,
+            voice_name=f"{locale}-Chirp3-HD-{self._voice_suffix}",
+        )
+        logger.info("voice worker: switched pipeline TTS language=%s", locale)
+
+    def set_language_from_text(self, text: str) -> None:
+        locale = _voice_language_from_text(text)
+        if locale:
+            self.set_language(locale)
+
+    def synthesize(self, text: str, **kwargs: Any):
+        # This catches a reply written in a requested language even when the
+        # request itself was spoken in English (for example “speak Chinese”).
+        self.set_language_from_text(text)
+        return super().synthesize(text, **kwargs)
+
 
 def _voice_endpointing_options() -> dict[str, Any]:
     """Return low-latency endpointing for the streaming STT pipeline.
@@ -332,6 +456,7 @@ class ChattyVoiceAgent(Agent):
         visitor_timezone: str,
         visitor_geo: Optional[dict[str, Any]] = None,
         room: Optional[Any] = None,
+        tts_router: Optional[Any] = None,
     ):
         super().__init__(instructions="", llm=_NullLLM())
         self._bot = bot
@@ -341,6 +466,7 @@ class ChattyVoiceAgent(Agent):
         self._visitor_timezone = visitor_timezone
         self._visitor_geo = visitor_geo
         self._room = room
+        self._tts_router = tts_router
 
     async def llm_node(
         self,
@@ -349,6 +475,11 @@ class ChattyVoiceAgent(Agent):
         model_settings: ModelSettings,
     ) -> AsyncIterable[str]:
         user_text = _latest_user_text(chat_ctx)
+        if self._tts_router is not None and hasattr(self._tts_router, "set_language_from_text"):
+            # A visitor can switch languages explicitly (“please speak in
+            # Chinese”) at any point, including when the request itself was
+            # recognized in English. The adaptive TTS keeps the room alive.
+            self._tts_router.set_language_from_text(user_text)
 
         # Persist the visitor turn up front, same shape as widget.py's inserts.
         try:
@@ -558,8 +689,13 @@ def _build_stt(bot: dict[str, Any]):
             # Keep the pipeline on Google's bidirectional streaming STT API;
             # ``interim_results`` alone is not enough if a plugin default ever
             # changes and would otherwise make the UI wait for a whole turn.
+            # Chirp 3 V2 supports language_codes=["auto"] and still emits
+            # interim streaming hypotheses. Pipeline mode remains STT -> LLM
+            # -> TTS, while STT can identify the visitor's language itself.
+            stt_languages = os.environ.get("GOOGLE_STT_LANGUAGES", "auto").strip() or "auto"
             kwargs: dict[str, Any] = {
-                "languages": "en-US",
+                "languages": stt_languages,
+                "detect_language": True,
                 "model": stt_model,
                 "location": stt_location,
                 "interim_results": True,
@@ -657,7 +793,7 @@ def _build_tts(bot: dict[str, Any]):
             }
             if voice:
                 kwargs["voice_name"] = voice
-            return google.TTS(**kwargs)
+            return AdaptiveGoogleTTS(**kwargs)
         except Exception as exc:
             raise RuntimeError(
                 "Google Pipeline TTS requires Google Application Default Credentials; "
@@ -1326,6 +1462,8 @@ async def entrypoint(ctx: JobContext) -> None:
     bot_id = meta.get("bot_id")
     session_id = meta.get("session_id")
     visitor_timezone = meta.get("visitor_timezone") or "UTC"
+    visitor_language = (meta.get("visitor_language") or "").strip()
+    visitor_country = (meta.get("visitor_country") or "").strip().upper()
 
     if not bot_id or not session_id:
         logger.warning("voice worker: job missing bot_id/session_id in metadata (%r) - not connecting", meta)
@@ -1420,6 +1558,7 @@ async def entrypoint(ctx: JobContext) -> None:
     error_count = 0
     max_duration_task: Optional[asyncio.Task] = None
     call_logged = False
+    pipeline_tts: Any = None
 
     # A Google pipeline needs service-account ADC for both STT and TTS. Never
     # silently change the user's selected mode: a pipeline configuration with
@@ -1458,9 +1597,13 @@ async def entrypoint(ctx: JobContext) -> None:
                     "voice worker: adaptive interruption disabled; using local VAD interruption "
                     "(set LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=true only when LiveKit inference is authorized)"
                 )
+            pipeline_stt = _build_stt(bot)
+            pipeline_tts = _build_tts(bot)
+            if isinstance(pipeline_tts, AdaptiveGoogleTTS):
+                pipeline_tts.set_language(visitor_language)
             session = AgentSession(
-                stt=_build_stt(bot),
-                tts=_build_tts(bot),
+                stt=pipeline_stt,
+                tts=pipeline_tts,
                 vad=vad,
                 # Industrial turn-taking: Google STT endpointing avoids cutting
                 # visitors off mid-thought; local VAD handles immediate barge-in.
@@ -1610,7 +1753,9 @@ async def entrypoint(ctx: JobContext) -> None:
             bot_id=bot_id,
             session_id=session_id,
             visitor_timezone=visitor_timezone,
+            visitor_geo={"country": visitor_country, "language": visitor_language},
             room=ctx.room,
+            tts_router=pipeline_tts,
         )
 
     async def _log_call_cost() -> None:
