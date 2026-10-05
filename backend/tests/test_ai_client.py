@@ -91,5 +91,37 @@ def test_chat_stream_deduplicates_fallbacks_and_limits_final_non_stream_retry(mo
     ]
 
 
+def test_chat_stream_does_not_replay_fallback_after_visible_output(monkeypatch):
+    """A mid-stream provider failure must not make voice repeat its answer."""
+    calls = []
+    chunks = []
+
+    async def broken_stream():
+        yield SimpleNamespace(choices=[SimpleNamespace(
+            delta=SimpleNamespace(content="Hello", tool_calls=None),
+        )])
+        raise RuntimeError("connection dropped")
+
+    async def fake_acompletion(*, model, stream=False, **kwargs):
+        calls.append((model, stream))
+        if stream:
+            return broken_stream()
+        raise AssertionError("non-streaming recovery must not replay visible voice text")
+
+    monkeypatch.setattr(ai_client.litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(ai_client, "_log_usage", lambda **kwargs: _async_noop())
+
+    with pytest.raises(ai_client.PartialStreamError):
+        asyncio.run(ai_client.chat_stream(
+            model="gemini/primary",
+            messages=[{"role": "user", "content": "hello"}],
+            fallback_models=["gemini/fallback"],
+            on_token=chunks.append,
+        ))
+
+    assert chunks == ["Hello"]
+    assert calls == [("gemini/primary", True)]
+
+
 async def _async_noop():
     return None

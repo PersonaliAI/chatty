@@ -28,6 +28,21 @@ from app.core.db import run_db
 
 logger = logging.getLogger("chatty.ai")
 
+
+class PartialStreamError(RuntimeError):
+    """A provider failed after text was already delivered to the caller.
+
+    Retrying a stream after audio/UI output has started would replay the same
+    answer from the fallback model. Voice callers hear that as stuttering or a
+    repeated sentence, so callers must surface a recovery state instead.
+    """
+
+    def __init__(self, model: str, emitted_chars: int, cause: Exception):
+        super().__init__(f"{model} stream failed after {emitted_chars} emitted characters")
+        self.model = model
+        self.emitted_chars = emitted_chars
+        self.cause = cause
+
 # Drop kwargs a given provider doesn't support instead of raising - Gemini,
 # Anthropic, and OpenAI don't all accept the same completion params (e.g.
 # not every provider takes response_schema), and the old per-provider code
@@ -256,28 +271,45 @@ async def chat_stream(
         raw_chunks: list = []
         text_parts: list[str] = []
         tool_calls: dict[int, dict] = {}
-        async for chunk in stream:
-            raw_chunks.append(chunk)
-            choice = chunk.choices[0] if chunk.choices else None
-            if choice is None:
-                continue
-            delta = choice.delta
-            if delta and delta.content:
-                text_parts.append(delta.content)
-                if on_token:
-                    await on_token(delta.content)
-            if delta and delta.tool_calls:
-                for tc in delta.tool_calls:
-                    slot = tool_calls.setdefault(tc.index, {
-                        "id": tc.id, "type": "function",
-                        "function": {"name": "", "arguments": ""},
-                    })
-                    if tc.id:
-                        slot["id"] = tc.id
-                    if tc.function and tc.function.name:
-                        slot["function"]["name"] += tc.function.name
-                    if tc.function and tc.function.arguments:
-                        slot["function"]["arguments"] += tc.function.arguments
+        emitted_chars = 0
+        try:
+            async for chunk in stream:
+                raw_chunks.append(chunk)
+                choice = chunk.choices[0] if chunk.choices else None
+                if choice is None:
+                    continue
+                delta = choice.delta
+                if delta and delta.content:
+                    text_parts.append(delta.content)
+                    emitted_chars += len(delta.content)
+                    if on_token:
+                        await on_token(delta.content)
+                if delta and delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        slot = tool_calls.setdefault(tc.index, {
+                            "id": tc.id, "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        })
+                        if tc.id:
+                            slot["id"] = tc.id
+                        if tc.function and tc.function.name:
+                            slot["function"]["name"] += tc.function.name
+                        if tc.function and tc.function.arguments:
+                            slot["function"]["arguments"] += tc.function.arguments
+        except Exception as exc:
+            if on_token and emitted_chars:
+                await _log_usage(
+                    response=None,
+                    litellm_model=m,
+                    call_type=call_type,
+                    bot_id=bot_id,
+                    session_id=session_id,
+                    success=False,
+                    error=str(exc),
+                    latency_ms=int((time.monotonic() - start) * 1000),
+                )
+                raise PartialStreamError(m, emitted_chars, exc) from exc
+            raise
         text = "".join(text_parts).strip()
         ordered_tool_calls = [tool_calls[k] for k in sorted(tool_calls)]
         message = {"role": "assistant", "content": text or None}
@@ -300,6 +332,13 @@ async def chat_stream(
 
     try:
         return await _run(model)
+    except PartialStreamError as exc:
+        logger.error(
+            "stream aborted after visible output on %s; refusing fallback replay chars=%d",
+            exc.model,
+            exc.emitted_chars,
+        )
+        raise
     except Exception:  # noqa: BLE001
         logger.exception("stream failed on %s", model)
         stream_fallbacks: list[str] = []
