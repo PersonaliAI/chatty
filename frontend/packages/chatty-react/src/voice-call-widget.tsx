@@ -270,6 +270,10 @@ export default function VoiceCallWidget({
             setTranscript((prev) => {
               const next = [...prev];
               for (const seg of segments) {
+                // Providers occasionally flush an empty final segment when
+                // VAD closes a short/noisy utterance. Never render that as a
+                // blank visitor message in the conversation.
+                if (!seg.text?.trim()) continue;
                 const idx = next.findIndex((e) => e.id === seg.id);
                 const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
                 if (idx >= 0) {
