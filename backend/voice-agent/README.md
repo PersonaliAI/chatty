@@ -40,6 +40,11 @@ Keep these values explicit in the production VPS `.env`:
 ```dotenv
 LIVEKIT_NUM_IDLE_PROCESSES=1
 VOICE_VAD_BACKEND=native
+# Optional self-hosted WebRTC echo cancellation/noise suppression/AGC.
+# Keep disabled unless livekit-plugins-denoise is installed in the image.
+VOICE_DENOISE_ENABLED=false
+VOICE_DENOISE_ENHANCER=webrtc
+VOICE_DENOISE_STREAM_DELAY_MS=80
 VOICE_IDLE_NUDGES_ENABLED=false
 LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=false
 GOOGLE_TTS_STREAMING=false

@@ -75,6 +75,14 @@ from livekit.plugins import (
     soniox,
 )
 
+try:
+    # Optional, self-hosted AEC/NS/AGC processor.  The worker remains
+    # importable for deployments that have not installed the community plugin;
+    # production VPS images install it and enable it explicitly via env.
+    from livekit.plugins import telephony_denoise
+except ImportError:  # pragma: no cover - exercised only by minimal images
+    telephony_denoise = None
+
 from app.core.clients import supabase
 from app.core.config import (
     ASSEMBLYAI_API_KEY,
@@ -526,6 +534,53 @@ def _google_pipeline_credentials_available() -> bool:
     """
     credentials_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
     return bool(credentials_file and Path(credentials_file).is_file())
+
+
+def _build_call_denoiser():
+    """Build one per-call self-hosted AEC/NS processor when enabled.
+
+    Browser WebRTC echo cancellation is still requested by the widget.  This
+    second reference path protects callers using speakerphone/embedded frames
+    where the browser's reverse-stream reference is incomplete.  It is kept
+    opt-in so older images and non-browser transports can fail open cleanly.
+    """
+    enabled = os.environ.get("VOICE_DENOISE_ENABLED", "false").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+    if not enabled:
+        return None
+    if telephony_denoise is None:
+        logger.warning("voice worker: VOICE_DENOISE_ENABLED=true but telephony_denoise is not installed")
+        return None
+    try:
+        enhancer = os.environ.get("VOICE_DENOISE_ENHANCER", "webrtc").strip().lower()
+        if enhancer not in {"webrtc", "deepfilter"}:
+            logger.warning("voice worker: invalid VOICE_DENOISE_ENHANCER=%r; using webrtc", enhancer)
+            enhancer = "webrtc"
+        try:
+            stream_delay_ms = max(0, min(500, int(os.environ.get("VOICE_DENOISE_STREAM_DELAY_MS", "80"))))
+        except ValueError:
+            logger.warning("voice worker: invalid VOICE_DENOISE_STREAM_DELAY_MS; using 80")
+            stream_delay_ms = 80
+        denoiser = telephony_denoise.TelephonyDenoiser(
+            telephony_denoise.DenoiseOptions(
+                echo_cancellation=True,
+                noise_suppression=True,
+                high_pass_filter=True,
+                auto_gain_control=True,
+                enhancer=enhancer,
+                stream_delay_ms=stream_delay_ms,
+            )
+        )
+        logger.info(
+            "voice worker: self-hosted denoise enabled enhancer=%s stream_delay_ms=%d",
+            enhancer,
+            stream_delay_ms,
+        )
+        return denoiser
+    except Exception:
+        logger.exception("voice worker: failed to initialize self-hosted denoise; using browser processing")
+        return None
 
 
 # Live API model ids are passed through to the provider plugin. Keep the
@@ -1063,6 +1118,15 @@ async def entrypoint(ctx: JobContext) -> None:
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     vad = ctx.proc.userdata.get("vad")
+    # Browser-side WebRTC processing remains enabled by the widget. When the
+    # VPS has the optional self-hosted processor installed, add a second AEC /
+    # noise-suppression path and feed it the agent output as an echo reference.
+    denoiser = _build_call_denoiser()
+    audio_input = room_io.AudioInputOptions(
+        noise_cancellation=denoiser,
+        auto_gain_control=False if denoiser is not None else True,
+        pre_connect_audio=True,
+    )
 
     voice_mode = (bot.get("voice_mode") or "pipeline").strip().lower()
     realtime_provider = (bot.get("voice_realtime_provider") or "google").strip().lower()
@@ -1342,6 +1406,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # a production voice experience. User interim transcription remains
         # live; only assistant output is paced to its spoken audio.
         room_options=room_io.RoomOptions(
+            audio_input=audio_input,
             # Accept visitor text sent from the voice composer as a normal
             # user turn. This keeps typed and spoken messages in one context
             # and routes typed turns through the same LLM/TTS response path.
@@ -1349,6 +1414,26 @@ async def entrypoint(ctx: JobContext) -> None:
             text_output=room_io.TextOutputOptions(sync_transcription=True),
         ),
     )
+
+    if denoiser is not None and telephony_denoise is not None:
+        output_audio = getattr(session.output, "audio", None)
+        if output_audio is not None:
+            try:
+                session.output.audio = telephony_denoise.EchoReferenceTap(
+                    denoiser,
+                    next_in_chain=output_audio,
+                )
+                logger.info("voice worker: echo reference tap installed")
+            except Exception:
+                logger.exception(
+                    "voice worker: failed to install echo reference tap; "
+                    "continuing with input denoise only"
+                )
+        else:
+            logger.warning(
+                "voice worker: denoise enabled but session output audio is unavailable; "
+                "continuing with input denoise only"
+            )
 
     async def _speak(text: str):
         """Speak text through the correct LiveKit API for this session mode."""
