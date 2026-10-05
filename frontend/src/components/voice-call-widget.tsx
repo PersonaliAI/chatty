@@ -78,6 +78,13 @@ function mergeTranscriptSegment(
   const key = `${segment.speaker}:${normalized}`;
   if (segment.final && (recentFinals.get(key) ?? 0) > now - 10000) return next;
 
+  // Typed turns are rendered optimistically before RoomIO echoes them. The
+  // echo may arrive as an interim segment with a different id, so suppress it
+  // when the equivalent final bubble is already visible.
+  if (next.some((entry) => entry.speaker === segment.speaker && entry.final && normalizeTranscriptText(entry.text) === normalized)) {
+    return next;
+  }
+
   // Interim and final packets can use different IDs. Replace the latest
   // open segment from the same speaker when the new text is its continuation
   // (or its final form), instead of appending a second bubble.
@@ -98,11 +105,8 @@ function mergeTranscriptSegment(
 
   if (segment.final) {
     recentFinals.set(key, now);
-    // A final packet may arrive after its legacy/stream twin was already
-    // committed with a different ID.
-    if (next.some((entry) => entry.speaker === segment.speaker && entry.final && normalizeTranscriptText(entry.text) === normalized)) {
-      return next;
-    }
+    // The equivalent-final check above also covers legacy/stream twins that
+    // arrive in either order.
   }
   next.push(segment);
   return next;
