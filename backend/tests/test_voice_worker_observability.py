@@ -180,6 +180,16 @@ def test_typed_voice_input_has_failure_observability():
     assert "audio_input=audio_input" in source
 
 
+def test_optional_denoise_plugin_is_lazy_loaded():
+    """Native audio libraries must not block worker import or test discovery."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 'importlib.import_module("livekit.plugins.telephony_denoise")' in source
+    assert "from livekit.plugins import telephony_denoise" not in source
+    assert "_load_telephony_denoise()" in source
+
+
 def test_typed_voice_input_claims_turn_and_requests_text_reply():
     """The composer callback must interrupt and schedule a text-modality turn."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"

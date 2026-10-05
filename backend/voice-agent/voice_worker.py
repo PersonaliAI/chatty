@@ -23,6 +23,7 @@ Run with e.g.:
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -75,13 +76,12 @@ from livekit.plugins import (
     soniox,
 )
 
-try:
-    # Optional, self-hosted AEC/NS/AGC processor.  The worker remains
-    # importable for deployments that have not installed the community plugin;
-    # production VPS images install it and enable it explicitly via env.
-    from livekit.plugins import telephony_denoise
-except ImportError:  # pragma: no cover - exercised only by minimal images
-    telephony_denoise = None
+# Optional, self-hosted AEC/NS/AGC processor.  Keep this lazy: the plugin
+# loads native audio libraries, and importing those at module-import time can
+# block test discovery or dashboard tooling on hosts that never enable
+# denoise.  Production loads it only when VOICE_DENOISE_ENABLED is true.
+telephony_denoise = None
+_telephony_denoise_loaded = False
 
 from app.core.clients import supabase
 from app.core.config import (
@@ -539,6 +539,19 @@ def _google_pipeline_credentials_available() -> bool:
     return bool(credentials_file and Path(credentials_file).is_file())
 
 
+def _load_telephony_denoise():
+    """Load the optional native audio filter only when a call needs it."""
+    global telephony_denoise, _telephony_denoise_loaded
+    if _telephony_denoise_loaded:
+        return telephony_denoise
+    _telephony_denoise_loaded = True
+    try:
+        telephony_denoise = importlib.import_module("livekit.plugins.telephony_denoise")
+    except ImportError:
+        telephony_denoise = None
+    return telephony_denoise
+
+
 def _build_call_denoiser():
     """Build one per-call self-hosted AEC/NS processor when enabled.
 
@@ -552,6 +565,7 @@ def _build_call_denoiser():
     }
     if not enabled:
         return None
+    _load_telephony_denoise()
     if telephony_denoise is None:
         logger.warning("voice worker: VOICE_DENOISE_ENABLED=true but telephony_denoise is not installed")
         return None
