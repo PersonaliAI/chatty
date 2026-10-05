@@ -900,6 +900,32 @@ def test_execute_dispatches_to_create_lead(monkeypatch):
     create_lead_mock.assert_awaited_once()
 
 
+def test_execute_requires_voice_contact_confirmation_before_create_lead(monkeypatch):
+    create_lead_mock = AsyncMock(return_value={"success": True})
+    monkeypatch.setattr(at, "_create_lead", create_lead_mock)
+    result = asyncio.run(at.execute(
+        "create_lead",
+        {"bot_id": "b1", "name": "Shija", "email": "shija@example.com"},
+        user={}, supabase=MagicMock(),
+        context={"source": "widget", "voice_mode": True, "bot_id": "b1"},
+    ))
+    assert result["needs_confirmation"] is True
+    create_lead_mock.assert_not_awaited()
+
+
+def test_execute_allows_voice_lead_after_explicit_confirmation(monkeypatch):
+    create_lead_mock = AsyncMock(return_value={"success": True})
+    monkeypatch.setattr(at, "_create_lead", create_lead_mock)
+    result = asyncio.run(at.execute(
+        "create_lead",
+        {"bot_id": "b1", "name": "Shija", "email": "shija@example.com", "voice_confirmation": True},
+        user={}, supabase=MagicMock(),
+        context={"source": "widget", "voice_mode": True, "bot_id": "b1"},
+    ))
+    assert result["success"] is True
+    create_lead_mock.assert_awaited_once()
+
+
 def test_execute_overrides_llm_supplied_bot_id_with_trusted_context_bot_id(monkeypatch):
     # A visitor could prompt-inject the model into calling create_lead with
     # someone else's bot_id - the real bot_id for this conversation is known

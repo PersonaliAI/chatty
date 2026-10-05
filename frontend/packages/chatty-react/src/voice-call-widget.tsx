@@ -83,6 +83,10 @@ export default function VoiceCallWidget({
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const richPacketIdsRef = useRef(new Set<string>());
+  // A provider transcript and the worker's explicit visitor transcript can
+  // contain the same final utterance with different segment IDs. Suppress
+  // only near-simultaneous duplicates, not a phrase repeated later.
+  const recentFinalTranscriptRef = useRef(new Map<string, number>());
   // Real mic analyser (not a fake random waveform) - lets us tell, just by
   // watching the bars while talking, whether the browser is actually
   // capturing audio from the mic at all, independent of whether the voice
@@ -251,8 +255,24 @@ export default function VoiceCallWidget({
               for (const seg of segments) {
                 const idx = next.findIndex((e) => e.id === seg.id);
                 const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
-                if (idx >= 0) next[idx] = entry;
-                else next.push(entry);
+                if (idx >= 0) {
+                  next[idx] = entry;
+                  continue;
+                }
+                const normalized = seg.text.trim().replace(/\s+/g, " ").toLowerCase();
+                const dedupeKey = `${speaker}:${normalized}`;
+                const now = Date.now();
+                for (const [key, at] of recentFinalTranscriptRef.current) {
+                  if (now - at > 3000) recentFinalTranscriptRef.current.delete(key);
+                }
+                if (speaker === "visitor" && seg.final && normalized &&
+                    (recentFinalTranscriptRef.current.get(dedupeKey) ?? 0) > now - 3000) {
+                  continue;
+                }
+                if (speaker === "visitor" && seg.final && normalized) {
+                  recentFinalTranscriptRef.current.set(dedupeKey, now);
+                }
+                next.push(entry);
               }
               return next;
             });

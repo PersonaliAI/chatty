@@ -945,6 +945,7 @@ def _build_realtime_tools(
                 "source": "widget",
                 "session_id": session_id,
                 "visitor_timezone": visitor_timezone,
+                "voice_mode": True,
             }
             tool_arguments = dict(raw_arguments or {})
             if _name == "create_lead":
@@ -1051,8 +1052,15 @@ class ChattyRealtimeAgent(Agent):
             "Lead capture is part of every qualified conversation: after answering the "
             "visitor's main question or when they show buying interest, naturally ask for "
             "their name and best email one field at a time, without interrupting support "
-            "or asking again after a clear refusal. Call create_lead as soon as either a "
-            "real name or email is available, and call it again when another field arrives. "
+            "or asking again after a clear refusal. Treat every speech-to-text contact "
+            "value as an uncertain draft: never call create_lead until the visitor has "
+            "explicitly confirmed the spelling. For a name, repeat it character-by-character "
+            "(for example, `I heard S-H-I-J-A. Is that correct?`). For an email, read it "
+            "back slowly (`s h i j a at example dot com`) and ask if it is correct. If they "
+            "correct or reject it, discard the draft, ask them to spell it one character at a "
+            "time, repeat it, and confirm again. Call create_lead only after an explicit yes "
+            "or equivalent confirmation, then keep that confirmed field and merge later fields "
+            "into the same lead rather than creating a duplicate. "
             "When knowledge search returns products, images, or videos, describe them naturally "
             "and let the interface render rich cards; never read JSON or card markers aloud.\n\n"
             "BOOKING WORKFLOW (follow this exact state machine):\n"

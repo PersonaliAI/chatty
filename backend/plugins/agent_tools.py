@@ -300,7 +300,9 @@ DECLARATIONS: list[dict] = [
     _tool(
         "create_lead",
         "Record visitor details (name, email, phone, company, job_title, country, industry, budget, etc.) as a business lead. "
-        "Call this when the visitor shares their contact info, or after booking a meeting.",
+        "Call this when the visitor shares their contact info, or after booking a meeting. "
+        "For voice calls, first repeat every spoken contact value character-by-character and "
+        "get an explicit confirmation; only then set voice_confirmation=true.",
         {
             "bot_id": {"type": "string", "description": "UUID of the chatbot widget."},
             "name": {"type": "string", "description": "Visitor's full name."},
@@ -311,6 +313,10 @@ DECLARATIONS: list[dict] = [
             "country": {"type": "string", "description": "Visitor's country."},
             "industry": {"type": "string", "description": "Visitor's industry."},
             "budget": {"type": "string", "description": "Visitor's budget."},
+            "voice_confirmation": {
+                "type": "boolean",
+                "description": "Voice-only safety gate: set true only after the visitor explicitly confirmed the repeated spelling of the contact details in this turn or earlier in the call.",
+            },
         },
         ["bot_id", "name", "email"],
     ),
@@ -1262,6 +1268,7 @@ async def _create_lead(args: dict, user: dict, supabase) -> dict:
     standard_keys = [
         "bot_id", "session_id", "name", "email", "phone", "company", "company_name",
         "job_title", "country", "city", "region", "lat", "lon", "industry", "budget",
+        "voice_confirmation",
     ]
     custom_fields = {k: v for k, v in args.items() if k not in standard_keys and v is not None}
 
@@ -1692,6 +1699,16 @@ async def execute(
         if name == "cancel_meeting":
             return await _cancel_meeting(args, user, supabase, context=context)
         if name == "create_lead":
+            # Spoken names and emails are high-risk transcription fields. The
+            # voice orchestrators set voice_mode on the tool context; require
+            # the model to acknowledge the explicit spelling confirmation
+            # before anything can be persisted. Text chat keeps its existing
+            # immediate lead-capture behavior.
+            if context and context.get("voice_mode") and not args.get("voice_confirmation"):
+                return {
+                    "error": "Contact details were not saved yet. In a voice call, repeat the name/email spelling and ask the visitor to explicitly confirm it before calling create_lead again with voice_confirmation=true.",
+                    "needs_confirmation": True,
+                }
             return await _create_lead(args, user, supabase)
         if name == "web_search":
             return await _web_search(args, user, supabase)

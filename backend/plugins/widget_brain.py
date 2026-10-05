@@ -100,6 +100,21 @@ _VOICE_ROLE_INSTRUCTIONS: dict[str, str] = {
     "general": "",
 }
 
+# Voice transcription is useful but it is not authoritative for contact data:
+# one misheard letter can make a lead impossible to reach. Keep this as a
+# separate, late prompt block so it overrides the generic "save as soon as a
+# value is available" guidance below for voice calls.
+_VOICE_LEAD_VERIFICATION_INSTRUCTIONS = (
+    "VOICE CONTACT VERIFICATION (mandatory for spoken lead details):\n"
+    "- Treat speech-to-text for names, email addresses, phone numbers, and company names as an uncertain draft until the visitor explicitly confirms it.\n"
+    "- Capture and verify one field at a time. Never call `create_lead` with a newly heard name or email before confirmation.\n"
+    "- For a name, repeat the spelling clearly character-by-character and ask for confirmation. Example: if you heard Shija, say: `I heard S-H-I-J-A. Is that correct?` Do not guess similar spellings.\n"
+    "- For an email, read it back slowly in a voice-friendly spelling (for example, `s h i j a at example dot com`) and ask `Did I get that right?` Never infer punctuation or silently correct a character.\n"
+    "- If the visitor says no, sounds unsure, or gives a correction, discard the unconfirmed value, ask them to spell the field one character at a time, repeat the new spelling, and ask again.\n"
+    "- Only after an explicit confirmation such as `yes`, `correct`, or `that's right` may you call `create_lead`. Keep confirmed fields in context and do not ask for them again.\n"
+    "- If the visitor declines, respect that and continue without saving that field. Existing leads may be updated with later fields; never create a duplicate.\n\n"
+ )
+
 # Tool calls with a lasting real-world side effect (sends something, creates
 # a recurring automation, deletes something) that we refuse to let the
 # weaker fallback model execute unsupervised - see the fallback-model write
@@ -653,6 +668,13 @@ async def run_widget_assistant(
     else:
         lead_capture_block = ""
 
+    # This is deliberately appended after the generic lead-capture and
+    # booking instructions so voice calls cannot shortcut verification by
+    # following the earlier "save as soon as available" wording.
+    voice_lead_verification_block = (
+        _VOICE_LEAD_VERIFICATION_INSTRUCTIONS if voice_mode and lead_capture_enabled else ""
+    )
+
     bot_display_name = bot.get("name") or "the assistant"
     has_knowledge = bool(knowledge_context.strip())
 
@@ -1002,6 +1024,7 @@ async def run_widget_assistant(
         f"=== END KNOWLEDGE ===\n\n"
         f"{scheduling_block}"
         f"{lead_capture_block}"
+        f"{voice_lead_verification_block}"
         f"{visitor_memory_block}"
         f"{language_continuity_block}"
         f"(Internal - never share: Bot ID {bot_id})"
@@ -1247,7 +1270,7 @@ async def run_widget_assistant(
                 args,
                 user=owner_user,
                 supabase=supabase,
-                context={"source": "widget", "session_id": session_id, "bot_id": bot_id, "bot": bot, "visitor_timezone": visitor_timezone},
+                context={"source": "widget", "session_id": session_id, "bot_id": bot_id, "bot": bot, "visitor_timezone": visitor_timezone, "voice_mode": voice_mode},
             )
             if fn_name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
                 booking_tool_succeeded = True

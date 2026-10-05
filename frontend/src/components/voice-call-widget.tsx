@@ -153,6 +153,11 @@ export default function VoiceCallWidget({
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const richPacketIdsRef = useRef(new Set<string>());
+  // STT providers can emit the same final utterance once from their native
+  // stream and once from the worker's explicit visitor transcript packet.
+  // Keep the map short-lived so a visitor can intentionally repeat a phrase
+  // later without it being hidden from the transcript.
+  const recentFinalTranscriptRef = useRef(new Map<string, number>());
   // Real mic analyser (not a fake random waveform) - lets us tell, just by
   // watching the bars while talking, whether the browser is actually
   // capturing audio from the mic at all, independent of whether the voice
@@ -347,6 +352,17 @@ export default function VoiceCallWidget({
                   // transcript). Keep the transcript readable and avoid
                   // making a user think the agent repeated itself.
                   const normalized = seg.text.trim().replace(/\s+/g, " ").toLowerCase();
+                  const dedupeKey = `${speaker}:${normalized}`;
+                  const now = Date.now();
+                  for (const [key, at] of recentFinalTranscriptRef.current) {
+                    if (now - at > 3000) recentFinalTranscriptRef.current.delete(key);
+                  }
+                  const duplicateRecentFinal = speaker === "visitor" && seg.final && normalized &&
+                    (recentFinalTranscriptRef.current.get(dedupeKey) ?? 0) > now - 3000;
+                  if (duplicateRecentFinal) continue;
+                  if (speaker === "visitor" && seg.final && normalized) {
+                    recentFinalTranscriptRef.current.set(dedupeKey, now);
+                  }
                   const duplicateAgentFinal = speaker === "agent" && seg.final && normalized && next.some(
                     (item) => item.speaker === "agent" && item.final &&
                       item.text.trim().replace(/\s+/g, " ").toLowerCase() === normalized,
