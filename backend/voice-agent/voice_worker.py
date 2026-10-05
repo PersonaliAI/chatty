@@ -175,7 +175,32 @@ async def _handle_text_input(sess: AgentSession, ev: room_io.TextInputEvent) -> 
     try:
         async with sess._claim_user_turn():
             await sess.interrupt()
-            sess.generate_reply(user_input=text, input_modality="text")
+            speech_handle = sess.generate_reply(user_input=text, input_modality="text")
+
+            def _log_typed_reply(handle) -> None:
+                """Keep async typed-turn failures visible in worker logs.
+
+                ``generate_reply`` returns a SpeechHandle immediately; the
+                actual LLM/TTS work completes later.  Logging only after the
+                call returns made a failed typed response look successful.
+                """
+                try:
+                    error = handle.exception()
+                except Exception:
+                    logger.exception("voice worker: typed reply completion inspection failed chars=%d", len(text))
+                    return
+                if error is not None:
+                    logger.error(
+                        "voice worker: typed reply failed chars=%d error=%s",
+                        len(text), error,
+                    )
+                else:
+                    logger.info(
+                        "voice worker: typed reply completed chars=%d elapsed_ms=%d",
+                        len(text), round((time.monotonic() - started_at) * 1000),
+                    )
+
+            speech_handle.add_done_callback(_log_typed_reply)
         logger.info(
             "voice worker: typed input accepted chars=%d elapsed_ms=%d",
             len(text), round((time.monotonic() - started_at) * 1000),
