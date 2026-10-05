@@ -38,7 +38,7 @@ Cloud Run command; that script now fails closed.
 Keep these values explicit in the production VPS `.env`:
 
 ```dotenv
-LIVEKIT_NUM_IDLE_PROCESSES=0
+LIVEKIT_NUM_IDLE_PROCESSES=1
 VOICE_VAD_BACKEND=native
 VOICE_IDLE_NUDGES_ENABLED=false
 LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=false
@@ -49,7 +49,9 @@ GOOGLE_TTS_VOICE=en-US-Chirp3-HD-Charon
 
 The widget requests browser echo cancellation, noise suppression, automatic
 gain control, and mono capture before audio reaches VAD/STT. The worker uses
-local Silero VAD with dynamic endpointing and false-interruption recovery.
+LiveKit's native Silero VAD with dynamic endpointing and false-interruption
+recovery; set `VOICE_VAD_BACKEND=plugin` only for older images that lack the
+native inference backend.
 Pipeline mode never silently changes to Realtime mode when its Google ADC
 credential is missing; it fails clearly instead.
 

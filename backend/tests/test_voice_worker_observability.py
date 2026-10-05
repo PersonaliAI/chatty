@@ -111,7 +111,7 @@ def test_realtime_usage_uses_cumulative_session_totals():
 def test_worker_default_idle_pool_matches_realtime_sizing():
     worker = _load_worker()
 
-    assert worker.DEFAULT_IDLE_PROCESSES == 0
+    assert worker.DEFAULT_IDLE_PROCESSES == 1
 
 
 def test_worker_defaults_to_native_vad_with_plugin_fallback():

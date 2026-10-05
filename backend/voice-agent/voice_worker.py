@@ -965,12 +965,11 @@ class ChattyRealtimeAgent(Agent):
 # AgentServer's built-in HTTP port (health/monitoring endpoint, distinct from
 # the outbound WebSocket connection it makes to LIVEKIT_URL for job dispatch).
 # On Docker Compose / VPS, defaults to 8081.
-# Do not keep an extra Silero/VAD process warm by default. A warm process loads
-# its own model and competes with the active call for CPU; on small VPS hosts
-# that can make VAD fall behind realtime and even abort process initialization.
-# Deployments with enough headroom can opt in explicitly via
-# LIVEKIT_NUM_IDLE_PROCESSES.
-DEFAULT_IDLE_PROCESSES = 0
+# Keep one native-VAD process warm so the first call does not pay the 4-5 second
+# process/model cold-start. Native LiveKit VAD shares its model singleton and
+# remains stable on the production 4-vCPU/8-GB VPS; smaller hosts can override
+# LIVEKIT_NUM_IDLE_PROCESSES=0 explicitly.
+DEFAULT_IDLE_PROCESSES = 1
 server = AgentServer(
     port=int(os.environ.get("PORT", 8081)),
     num_idle_processes=int(os.environ.get("LIVEKIT_NUM_IDLE_PROCESSES", str(DEFAULT_IDLE_PROCESSES))),

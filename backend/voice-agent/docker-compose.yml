@@ -41,10 +41,10 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:?Set SUPABASE_URL}
       SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?Set SUPABASE_SECRET_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY:?Set GEMINI_API_KEY}
-      # Keep the small VPS stable by default: each idle process loads its own
-      # Silero model and can starve the active call. Set this to 1+ only after
-      # measuring headroom for the specific host and concurrency target.
-      LIVEKIT_NUM_IDLE_PROCESSES: ${LIVEKIT_NUM_IDLE_PROCESSES:-0}
+      # Native LiveKit VAD shares its model singleton. Keep one process warm on
+      # the production VPS to remove the first-call cold start; smaller hosts
+      # can override this to 0.
+      LIVEKIT_NUM_IDLE_PROCESSES: ${LIVEKIT_NUM_IDLE_PROCESSES:-1}
       LIVEKIT_LOG_LEVEL: ${LIVEKIT_LOG_LEVEL:-INFO}
       BYOK_ENCRYPTION_KEY: ${BYOK_ENCRYPTION_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
