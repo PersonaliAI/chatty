@@ -421,11 +421,11 @@ class _SpeechChunker:
                     self._first_emitted = True
                 continue
 
-            # For the first chunk, split early on clause boundary (e.g. "Sure," or "Yes,")
-            # so user hears voice response immediately without waiting for full sentence.
-            if not self._first_emitted and len(self._buffer) >= 20:
+            # For the first chunk, split early on clause boundary (e.g. "Sure," or "Got it,")
+            # so user hears voice response immediately (<200ms) without waiting for full sentence.
+            if not self._first_emitted:
                 clause = self._CLAUSE_END.search(self._buffer)
-                if clause and clause.end() >= 12:
+                if clause and clause.end() >= 4:
                     phrase = self._buffer[:clause.end()].strip()
                     self._buffer = self._buffer[clause.end():].lstrip()
                     if phrase:
