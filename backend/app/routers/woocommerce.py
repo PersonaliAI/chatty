@@ -374,7 +374,9 @@ async def get_woocommerce_authorize_url(
     frontend_base = (CHATTY_FRONTEND_URL or "").rstrip("/")
     return_url = req.return_url
     if not return_url:
-        return_url = f"{frontend_base}/dashboard?tab=catalog&bot_id={bot_id}&wc_auth=success"
+        # The catalog is rendered inside Knowledge Base. Returning to the old
+        # `catalog` tab mounts only the dashboard shell and leaves a blank page.
+        return_url = f"{frontend_base}/dashboard?tab=knowledge&bot_id={bot_id}&wc_auth=success"
     elif return_url.startswith("/"):
         return_url = f"{frontend_base}{return_url}"
 

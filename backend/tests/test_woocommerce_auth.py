@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import time
+import urllib.parse
 from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
@@ -181,6 +182,25 @@ def test_get_woocommerce_authorize_url():
             assert "scope=read" in data["authorize_url"]
             assert "callback_url=" in data["authorize_url"]
             assert "return_url=" in data["authorize_url"]
+    finally:
+        app.dependency_overrides.pop(require_user, None)
+
+
+def test_get_woocommerce_authorize_url_defaults_to_knowledge_tab():
+    """The OAuth return target must mount Knowledge Base, which owns Catalog."""
+    app.dependency_overrides[require_user] = lambda: {"id": "user-123"}
+    try:
+        with patch("app.routers.woocommerce.verify_bot_permission", new_callable=AsyncMock), \
+             patch("app.routers.woocommerce.ssrf.assert_safe_url_async", new_callable=AsyncMock):
+            resp = client.post(
+                f"/api/bots/{BOT_ID}/integrations/woocommerce/authorize-url",
+                json={"store_url": "https://mystore.com"},
+            )
+            assert resp.status_code == 200
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(resp.json()["authorize_url"]).query)
+            assert query["return_url"] == [
+                f"https://chatty.personaliai.com/dashboard?tab=knowledge&bot_id={BOT_ID}&wc_auth=success"
+            ]
     finally:
         app.dependency_overrides.pop(require_user, None)
 

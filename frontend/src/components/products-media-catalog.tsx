@@ -207,9 +207,7 @@ export function ProductsMediaCatalog({
       if (res.ok) {
         const data: WooCommerceStatus = await res.json();
         setWcStatus(data);
-        if (data.sync_status === "syncing") {
-          setSyncingWc(true);
-        }
+        setSyncingWc(data.sync_status === "syncing");
       }
     } catch (err) {
       console.error("Failed to load WooCommerce status", err);
@@ -315,16 +313,25 @@ export function ProductsMediaCatalog({
     if (wcAuth === "success" || success === "1") {
       setWcSuccessMsg("WooCommerce store connected successfully! Initial product catalog sync started.");
       setWcError(null);
+      if (urlParams.get("tab") === "catalog") {
+        urlParams.set("tab", "knowledge");
+      }
       urlParams.delete("wc_auth");
       urlParams.delete("success");
       urlParams.delete("user_id");
       const newSearch = urlParams.toString();
       const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ""}`;
       window.history.replaceState({}, "", newUrl);
-      loadWcStatus();
+      // The callback has already queued the import. Start polling after the
+      // first status read so an `idle` response during queue hand-off cannot
+      // clear the active state before the worker writes its first heartbeat.
+      void loadWcStatus().finally(() => setSyncingWc(true));
       loadCatalogItems();
     } else if (success === "0") {
       setWcError("WooCommerce connection was cancelled or denied by the store owner.");
+      if (urlParams.get("tab") === "catalog") {
+        urlParams.set("tab", "knowledge");
+      }
       urlParams.delete("success");
       urlParams.delete("user_id");
       const newSearch = urlParams.toString();
@@ -343,7 +350,7 @@ export function ProductsMediaCatalog({
     setAuthorizingWc(true);
     try {
       const returnUrl = typeof window !== "undefined"
-        ? `${window.location.origin}${window.location.pathname}?tab=catalog&bot_id=${botId}&wc_auth=success`
+        ? `${window.location.origin}${window.location.pathname}?tab=knowledge&bot_id=${botId}&wc_auth=success`
         : "";
       const res = await fetchWithFallback(`/api/bots/${botId}/integrations/woocommerce/authorize-url`, {
         method: "POST",
@@ -393,6 +400,10 @@ export function ProductsMediaCatalog({
       }
 
       await loadWcStatus();
+      // Manual API-key connections should behave like the 1-click flow: once
+      // credentials are verified, enqueue the initial catalog import instead
+      // of requiring a second, easy-to-miss button click.
+      await handleTriggerSync();
     } catch (err: any) {
       setWcError(err.message || "Failed to connect WooCommerce store");
     } finally {
@@ -412,7 +423,14 @@ export function ProductsMediaCatalog({
         const err = await res.json();
         throw new Error(err.detail || "Failed to start sync");
       }
+      const result = await res.json().catch(() => ({}));
       await loadWcStatus();
+      // Queue acceptance can briefly precede the worker's first database
+      // heartbeat. Keep polling during that hand-off instead of clearing the
+      // spinner when the status endpoint still reports `idle`.
+      if (result.status === "started" || result.status === "already_syncing") {
+        setSyncingWc(true);
+      }
     } catch (err: any) {
       setWcError(err.message || "Sync failed to start");
       setSyncingWc(false);

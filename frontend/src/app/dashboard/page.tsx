@@ -181,7 +181,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    if (requestedTab) setActiveTab(requestedTab);
+    // WooCommerce used to return to the legacy `catalog` tab. Catalog is
+    // rendered inside the Knowledge Base tab, so normalize old links before
+    // the first render instead of leaving the dashboard with an empty body.
+    if (requestedTab) setActiveTab(requestedTab === "catalog" ? "knowledge" : requestedTab);
   }, []);
 
   useEffect(() => {
@@ -1307,13 +1310,22 @@ export default function Dashboard() {
       // different bot's data whenever the active bot wasn't the newest one,
       // making saves on any other bot look like they hadn't persisted.
       const storedBotId = typeof window !== "undefined" ? window.localStorage.getItem(`chatty_active_bot_${userId}`) : null;
+      const requestedBotId = typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("bot_id")
+        : null;
       // A persisted selection can outlive a role change or an old team
       // membership. Never restore such a bot as the editable dashboard
       // context; prefer the authenticated user's own bot first.
       const ownedBots = bots?.filter((b) => b.user_id === userId) || [];
       const currentBot = botId ? bots?.find((b) => b.id === botId) : undefined;
+      const requestedBot = requestedBotId ? bots?.find((b) => b.id === requestedBotId) : undefined;
       const storedBot = storedBotId ? bots?.find((b) => b.id === storedBotId) : undefined;
-      let activeBot = (currentBot && editableBotIds.has(currentBot.id) ? currentBot : undefined)
+      // OAuth callbacks include the bot that initiated the connection. Honor
+      // that selection before local storage so the catalog status and sync
+      // results are shown for the correct assistant after returning from
+      // WooCommerce.
+      let activeBot = (requestedBot && (SELF_HOST_MODE || editableBotIds.has(requestedBot.id)) ? requestedBot : undefined)
+        || (currentBot && (SELF_HOST_MODE || editableBotIds.has(currentBot.id)) ? currentBot : undefined)
         || (storedBot && editableBotIds.has(storedBot.id) ? storedBot : undefined)
         || bots?.find((candidate) => editableBotIds.has(candidate.id))
         || ownedBots[0]
