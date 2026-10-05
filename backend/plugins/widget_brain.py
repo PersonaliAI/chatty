@@ -239,7 +239,9 @@ async def search_knowledge(
     return knowledge_context, source_refs
 
 
-def scheduling_tool_names(bot: dict[str, Any], owner_user: dict[str, Any]) -> list[str]:
+def scheduling_tool_names(
+    bot: dict[str, Any], owner_user: dict[str, Any], *, include_voice_confirmation: bool = False,
+) -> list[str]:
     """Which calendar/booking tool names (from agent_tools.DECLARATIONS) a
     session should get, given this bot's scheduling config and the owner's
     connected calendar. Single source of truth for both the text/pipeline
@@ -260,6 +262,12 @@ def scheduling_tool_names(bot: dict[str, Any], owner_user: dict[str, Any]) -> li
         elif owner_user.get("google_access_token") or bot.get("google_connected_account_id"):
             names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
+    # Spoken names/emails require an explicit, server-validated read-back
+    # before create_lead may persist them. Keep this tool out of normal text
+    # chat, but expose it to both voice implementations so their prompt and
+    # server-side safety gate are actually reachable.
+    if include_voice_confirmation:
+        names.append("confirm_contact_detail")
     return names
 
 
@@ -1078,7 +1086,9 @@ async def run_widget_assistant(
             )
 
     # 5. Build Tools list
-    allowed_tool_names = scheduling_tool_names(bot, owner_user)
+    allowed_tool_names = scheduling_tool_names(
+        bot, owner_user, include_voice_confirmation=voice_mode,
+    )
 
     # Gate create_calendar_event / create_outlook_event until visitor email is present:
     # A booking cannot succeed without the attendee's real email address. Removing the

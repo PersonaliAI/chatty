@@ -980,7 +980,9 @@ def _build_realtime_tools(
     # - get_available_slots, Outlook/Teams support, and reschedule_meeting all
     # used to be missing here specifically because this list was hand-rolled
     # separately and had quietly drifted out of parity with the text path.
-    allowed_tool_names = widget_brain.scheduling_tool_names(bot, owner_user)
+    allowed_tool_names = widget_brain.scheduling_tool_names(
+        bot, owner_user, include_voice_confirmation=True,
+    )
 
     for tool_name in allowed_tool_names:
         schema = next((d["function"] for d in agent_tools.DECLARATIONS if d["function"]["name"] == tool_name), None)

@@ -339,3 +339,11 @@ def test_scheduling_tool_names_enables_google_via_connected_account():
     assert "create_calendar_event" in names
     assert "get_available_slots" in names
 
+
+def test_scheduling_tool_names_exposes_voice_contact_confirmation_only_for_voice():
+    bot = {"calendar_scheduling_enabled": False}
+    assert "confirm_contact_detail" not in wb.scheduling_tool_names(bot, {})
+    assert "confirm_contact_detail" in wb.scheduling_tool_names(
+        bot, {}, include_voice_confirmation=True,
+    )
+
