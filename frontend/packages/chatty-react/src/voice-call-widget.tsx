@@ -54,17 +54,17 @@ interface VoiceCallWidgetProps {
   onClose: () => void;
 }
 
-/** Calm live-transcription cue; a blinking block looks like a stuck caret. */
+/** Calm live-transcription cue; an audio pulse reads as active listening rather than a stuck caret. */
 function TranscriptActivityIndicator({ label = "Live transcription" }: { label?: string }) {
   return (
-    <span className="ml-2 inline-flex items-center gap-1 align-middle" aria-label={label} role="status">
+    <span className="ml-2 inline-flex h-3 items-center gap-[2px] align-middle" aria-label={label} role="status">
       <span className="sr-only">{label}</span>
-      {[0, 1, 2].map((index) => (
+      {[0, 1, 2, 3, 4].map((index) => (
         <motion.span
           key={index}
-          className="size-1.5 rounded-full bg-current opacity-40"
-          animate={{ y: [0, -2, 0], opacity: [0.35, 0.95, 0.35], scale: [0.85, 1, 0.85] }}
-          transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut", delay: index * 0.14 }}
+          className="h-1.5 w-[2px] origin-center rounded-full bg-current opacity-50"
+          animate={{ scaleY: [0.55, 1.9, 0.7, 1.45, 0.55], opacity: [0.35, 0.9, 0.5, 0.8, 0.35] }}
+          transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut", delay: index * 0.1 }}
         />
       ))}
     </span>
