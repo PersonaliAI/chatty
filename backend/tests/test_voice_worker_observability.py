@@ -206,3 +206,22 @@ def test_idle_nudge_closure_declares_metric_counter_nonlocal():
         for name in node.names
     }
     assert {"idle_nudge_count", "nudge_count"}.issubset(nonlocal_names)
+
+
+def test_idle_nudges_are_explicitly_opt_in():
+    """Silence must not produce the recurring scripted follow-up by default."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 'os.environ.get("VOICE_IDLE_NUDGES_ENABLED", "false")' in source
+    assert "idle_nudge_task = asyncio.create_task" in source
+
+
+def test_browser_voice_capture_requests_echo_noise_and_gain_processing():
+    """The embedded widget must request the browser's audio safety baseline."""
+    source_path = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "voice-call-widget.tsx"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "echoCancellation: true" in source
+    assert "noiseSuppression: true" in source
+    assert "autoGainControl: true" in source

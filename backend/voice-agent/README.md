@@ -33,6 +33,25 @@ configured Cloud), Supabase, and the configured model providers. It does not
 accept internet requests. Do not use the legacy `deploy-voice-worker.sh`
 Cloud Run command; that script now fails closed.
 
+### Voice-quality defaults
+
+Keep these values explicit in the production VPS `.env`:
+
+```dotenv
+LIVEKIT_NUM_IDLE_PROCESSES=0
+VOICE_IDLE_NUDGES_ENABLED=false
+LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=false
+GOOGLE_TTS_STREAMING=false
+GOOGLE_TTS_SPEAKING_RATE=0.95
+GOOGLE_TTS_VOICE=en-US-Chirp3-HD-Charon
+```
+
+The widget requests browser echo cancellation, noise suppression, automatic
+gain control, and mono capture before audio reaches VAD/STT. The worker uses
+local Silero VAD with dynamic endpointing and false-interruption recovery.
+Pipeline mode never silently changes to Realtime mode when its Google ADC
+credential is missing; it fails clearly instead.
+
 ## Option B: self-host LiveKit on an Ubuntu VPS
 
 ### 1. DNS and firewall prerequisites
