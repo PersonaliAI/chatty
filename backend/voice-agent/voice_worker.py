@@ -84,6 +84,7 @@ telephony_denoise = None
 _telephony_denoise_loaded = False
 
 from app.core.clients import supabase
+from app.core.db import run_db
 from app.core.config import (
     ASSEMBLYAI_API_KEY,
     CARTESIA_API_KEY,
@@ -536,14 +537,17 @@ class ChattyVoiceAgent(Agent):
             # recognized in English. The adaptive TTS keeps the room alive.
             self._tts_router.set_language_from_text(user_text)
 
-        # Persist the visitor turn up front, same shape as widget.py's inserts.
-        try:
-            supabase.table("chatty_conversations").insert({
-                "bot_id": self._bot_id, "session_id": self._session_id,
-                "role": "user", "sender": "voice", "content": user_text,
-            }).execute()
-        except Exception:
-            logger.exception("voice worker: failed to save user conversation message")
+        # Persist the visitor turn in background so database latency does not block audio streaming.
+        async def _save_user_turn() -> None:
+            try:
+                await run_db(lambda: supabase.table("chatty_conversations").insert({
+                    "bot_id": self._bot_id, "session_id": self._session_id,
+                    "role": "user", "sender": "voice", "content": user_text,
+                }).execute())
+            except Exception:
+                logger.exception("voice worker: failed to save user conversation message")
+
+        asyncio.create_task(_save_user_turn())
 
         queue: asyncio.Queue = asyncio.Queue()
         _SENTINEL = object()
@@ -678,13 +682,16 @@ class ChattyVoiceAgent(Agent):
                 except Exception:
                     logger.exception("voice worker: failed to publish pipeline video clip")
 
-        try:
-            supabase.table("chatty_conversations").insert({
-                "bot_id": self._bot_id, "session_id": self._session_id,
-                "role": "assistant", "sender": "voice", "content": reply,
-            }).execute()
-        except Exception:
-            logger.exception("voice worker: failed to save assistant conversation message")
+        async def _save_assistant_turn() -> None:
+            try:
+                await run_db(lambda: supabase.table("chatty_conversations").insert({
+                    "bot_id": self._bot_id, "session_id": self._session_id,
+                    "role": "assistant", "sender": "voice", "content": reply,
+                }).execute())
+            except Exception:
+                logger.exception("voice worker: failed to save assistant conversation message")
+
+        asyncio.create_task(_save_assistant_turn())
 
 
 def _decrypt_byok(enc: Optional[str]) -> Optional[str]:
@@ -1817,16 +1824,19 @@ async def entrypoint(ctx: JobContext) -> None:
             ).strip()
             if not content:
                 return
-            try:
-                supabase.table("chatty_conversations").insert({
-                    "bot_id": bot_id,
-                    "session_id": session_id,
-                    "role": role,
-                    "sender": "voice",
-                    "content": content,
-                }).execute()
-            except Exception:
-                logger.exception("voice worker: failed to persist realtime %s conversation item", role)
+            async def _save_realtime_item() -> None:
+                try:
+                    await run_db(lambda: supabase.table("chatty_conversations").insert({
+                        "bot_id": bot_id,
+                        "session_id": session_id,
+                        "role": role,
+                        "sender": "voice",
+                        "content": content,
+                    }).execute())
+                except Exception:
+                    logger.exception("voice worker: failed to persist realtime %s conversation item", role)
+
+            asyncio.create_task(_save_realtime_item())
 
         session.on("conversation_item_added", _persist_realtime_item)
 
