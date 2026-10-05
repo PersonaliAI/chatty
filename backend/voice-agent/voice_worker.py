@@ -437,16 +437,9 @@ def _build_stt(bot: dict[str, Any]):
         try:
             return google.STT(languages="en-US", model="latest_long", interim_results=True)
         except Exception as exc:
-            # Google STT requires Application Default Credentials, which are
-            # not present on a normal VPS. Keep Google as the preferred path,
-            # but fail over to the configured server key instead of crashing
-            # the entire LiveKit job before it can transcribe anything.
-            if OPENAI_API_KEY:
-                logger.warning("voice worker: Google STT credentials unavailable; falling back to OpenAI STT: %s", exc)
-                return openai.STT(api_key=OPENAI_API_KEY)
             raise RuntimeError(
                 "Google Pipeline STT requires Google Application Default Credentials; "
-                "choose Realtime mode or configure GOOGLE_APPLICATION_CREDENTIALS"
+                "configure GOOGLE_APPLICATION_CREDENTIALS or select a different STT provider"
             ) from exc
 
     key = _decrypt_byok(bot.get("voice_stt_byok_key_encrypted"))
@@ -460,11 +453,9 @@ def _build_stt(bot: dict[str, Any]):
     if provider == "soniox":
         key = key or SONIOX_API_KEY or None
         if not key:
-            logger.warning(
-                "voice worker: soniox STT selected but no BYOK/SONIOX_API_KEY configured "
-                "- falling back to google"
+            raise RuntimeError(
+                "Soniox STT selected but no BYOK/SONIOX_API_KEY is configured"
             )
-            return google.STT(languages="en-US", model="latest_long", interim_results=True)
         return soniox.STT(api_key=key)
     if provider == "elevenlabs":
         key = key or ELEVENLABS_API_KEY or None
@@ -485,8 +476,7 @@ def _build_stt(bot: dict[str, Any]):
         key = key or OPENAI_API_KEY or None
         return openai.STT(api_key=key) if key else openai.STT()
 
-    logger.warning("voice worker: unknown voice_stt_provider %r - falling back to google", provider)
-    return google.STT(languages="en-US", model="latest_long", interim_results=True)
+    raise RuntimeError(f"Unsupported voice_stt_provider: {provider or 'empty'}")
 
 
 def _build_tts(bot: dict[str, Any]):
@@ -536,21 +526,20 @@ def _build_tts(bot: dict[str, Any]):
                 kwargs["voice_name"] = voice
             return google.TTS(**kwargs)
         except Exception as exc:
-            if OPENAI_API_KEY:
-                # A Google voice id is not valid for OpenAI TTS, so let the
-                # OpenAI plugin select its configured default voice.
-                logger.warning("voice worker: Google TTS credentials unavailable; falling back to OpenAI TTS: %s", exc)
-                return openai.TTS(api_key=OPENAI_API_KEY)
             raise RuntimeError(
                 "Google Pipeline TTS requires Google Application Default Credentials; "
-                "choose Realtime mode or configure GOOGLE_APPLICATION_CREDENTIALS"
+                "configure GOOGLE_APPLICATION_CREDENTIALS or select a different TTS provider"
             ) from exc
 
     key = _decrypt_byok(bot.get("voice_tts_byok_key_encrypted"))
 
     if provider == "cartesia":
         key = key or CARTESIA_API_KEY or None
-        kwargs: dict[str, Any] = {"api_key": key} if key else {}
+        if not key:
+            raise RuntimeError(
+                "Cartesia TTS selected but no BYOK/CARTESIA_API_KEY is configured"
+            )
+        kwargs: dict[str, Any] = {"api_key": key}
         if voice:
             kwargs["voice"] = voice
         return cartesia.TTS(**kwargs)
@@ -568,7 +557,11 @@ def _build_tts(bot: dict[str, Any]):
         return elevenlabs.TTS(**kwargs)
     if provider == "openai":
         key = key or OPENAI_API_KEY or None
-        kwargs = {"api_key": key} if key else {}
+        if not key:
+            raise RuntimeError(
+                "OpenAI TTS selected but no BYOK/OPENAI_API_KEY is configured"
+            )
+        kwargs = {"api_key": key}
         if voice:
             kwargs["voice"] = voice
         return openai.TTS(**kwargs)
@@ -586,18 +579,15 @@ def _build_tts(bot: dict[str, Any]):
         # the source was sufficient to confirm the real constructor.
         key = key or FISH_API_KEY or None
         if not key:
-            logger.warning(
-                "voice worker: fishaudio TTS selected but no BYOK/FISH_API_KEY configured "
-                "- falling back to google"
+            raise RuntimeError(
+                "Fish Audio TTS selected but no BYOK/FISH_API_KEY is configured"
             )
-            return google.TTS(language="en-US")
         kwargs: dict[str, Any] = {"api_key": key}
         if voice:
             kwargs["voice_id"] = voice
         return fishaudio.TTS(**kwargs)
 
-    logger.warning("voice worker: unknown voice_tts_provider %r - falling back to google", provider)
-    return google.TTS(language="en-US")
+    raise RuntimeError(f"Unsupported voice_tts_provider: {provider or 'empty'}")
 
 
 def _google_pipeline_credentials_available() -> bool:
@@ -1220,6 +1210,19 @@ async def entrypoint(ctx: JobContext) -> None:
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
+    async def _publish_setup_error(message: str) -> None:
+        """Surface configuration failures instead of leaving a silent call."""
+        participant = getattr(ctx.room, "local_participant", None)
+        if participant is None:
+            return
+        try:
+            await participant.publish_data(
+                json.dumps({"type": "voice_error", "message": message}).encode("utf-8"),
+                reliable=True,
+            )
+        except Exception:
+            logger.exception("voice worker: failed to publish setup error packet")
+
     vad = ctx.proc.userdata.get("vad")
     # Browser-side WebRTC processing remains enabled by the widget. When the
     # VPS has the optional self-hosted processor installed, add a second AEC /
@@ -1289,56 +1292,71 @@ async def entrypoint(ctx: JobContext) -> None:
         and (bot.get("voice_tts_provider") or "google").strip().lower() == "google"
         and not _google_pipeline_credentials_available()
     ):
+        await _publish_setup_error(
+            "Google Pipeline STT/TTS is not configured on the voice worker. "
+            "Ask the administrator to mount GOOGLE_APPLICATION_CREDENTIALS or select another provider."
+        )
         logger.error(
             "voice worker: Google pipeline selected but GOOGLE_APPLICATION_CREDENTIALS "
             "is not available; refusing to fall back to realtime"
         )
         return
 
-    if voice_mode == "realtime":
-        # No stt/tts/vad/turn_detection at all - the RealtimeModel handles
-        # listening, thinking, and speaking as one speech-to-speech session
-        # (set on the Agent itself below, not here).
-        session = AgentSession()
-        session.on("session_usage_updated", realtime_usage.replace_from_session_usage)
-    else:
-        adaptive_interruption_enabled = os.environ.get(
-            "LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED", "false"
-        ).strip().lower() in {"1", "true", "yes", "on"}
-        interruption_mode = "adaptive" if adaptive_interruption_enabled else "vad"
-        if not adaptive_interruption_enabled:
-            logger.info(
-                "voice worker: adaptive interruption disabled; using local VAD interruption "
-                "(set LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=true only when LiveKit inference is authorized)"
+    try:
+        if voice_mode == "realtime":
+            # No stt/tts/vad/turn_detection at all - the RealtimeModel handles
+            # listening, thinking, and speaking as one speech-to-speech session
+            # (set on the Agent itself below, not here).
+            session = AgentSession()
+            session.on("session_usage_updated", realtime_usage.replace_from_session_usage)
+        else:
+            adaptive_interruption_enabled = os.environ.get(
+                "LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED", "false"
+            ).strip().lower() in {"1", "true", "yes", "on"}
+            interruption_mode = "adaptive" if adaptive_interruption_enabled else "vad"
+            if not adaptive_interruption_enabled:
+                logger.info(
+                    "voice worker: adaptive interruption disabled; using local VAD interruption "
+                    "(set LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=true only when LiveKit inference is authorized)"
+                )
+            session = AgentSession(
+                stt=_build_stt(bot),
+                tts=_build_tts(bot),
+                vad=vad,
+                # Industrial turn-taking: semantic endpointing avoids cutting
+                # visitors off mid-thought; adaptive interruption filtering ignores
+                # backchannels/noise; false interruptions resume cleanly. TTS is
+                # deliberately not preemptive, so half-finished thoughts never
+                # become rushed audio.
+                turn_handling=TurnHandlingOptions(
+                    turn_detection=inference.TurnDetector(),
+                    endpointing={"mode": "dynamic", "min_delay": 0.65, "max_delay": 3.0, "alpha": 0.75},
+                    interruption={
+                        "mode": interruption_mode,
+                        "min_duration": 0.5,
+                        "min_words": 1,
+                        "false_interruption_timeout": 1.5,
+                        "resume_false_interruption": True,
+                        "backchannel_boundary": (0.8, 1.5),
+                    },
+                    preemptive_generation={
+                        "enabled": True,
+                        "preemptive_tts": False,
+                        "max_speech_duration": 10.0,
+                        "max_retries": 1,
+                    },
+                ),
             )
-        session = AgentSession(
-            stt=_build_stt(bot),
-            tts=_build_tts(bot),
-            vad=vad,
-            # Industrial turn-taking: semantic endpointing avoids cutting
-            # visitors off mid-thought; adaptive interruption filtering ignores
-            # backchannels/noise; false interruptions resume cleanly. TTS is
-            # deliberately not preemptive, so half-finished thoughts never
-            # become rushed audio.
-            turn_handling=TurnHandlingOptions(
-                turn_detection=inference.TurnDetector(),
-                endpointing={"mode": "dynamic", "min_delay": 0.65, "max_delay": 3.0, "alpha": 0.75},
-                interruption={
-                    "mode": interruption_mode,
-                    "min_duration": 0.5,
-                    "min_words": 1,
-                    "false_interruption_timeout": 1.5,
-                    "resume_false_interruption": True,
-                    "backchannel_boundary": (0.8, 1.5),
-                },
-                preemptive_generation={
-                    "enabled": True,
-                    "preemptive_tts": False,
-                    "max_speech_duration": 10.0,
-                    "max_retries": 1,
-                },
-            ),
+    except Exception:
+        logger.exception(
+            "voice worker: selected provider setup failed mode=%s stt=%s tts=%s",
+            voice_mode, stt_provider, tts_provider,
         )
+        await _publish_setup_error(
+            f"Voice setup failed for the selected {stt_provider} speech-to-text and "
+            f"{tts_provider} text-to-speech providers. Check their credentials and reconnect."
+        )
+        return
 
     active_transcript_id: Optional[str] = None
 

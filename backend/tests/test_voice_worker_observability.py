@@ -153,6 +153,19 @@ def test_pipeline_mode_fails_closed_instead_of_switching_to_realtime():
     assert "if voice_mode == \"realtime\":" in source
 
 
+def test_selected_provider_failures_are_not_silently_rerouted():
+    """A configured provider must fail visibly rather than changing engines."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "Unsupported voice_stt_provider" in source
+    assert "Unsupported voice_tts_provider" in source
+    assert "selected provider setup failed" in source
+    assert "_publish_setup_error" in source
+    assert "falling back to google" not in source.lower()
+    assert "falling back to openai" not in source.lower()
+
+
 def test_elevenlabs_is_a_first_class_pipeline_stt_provider():
     """ElevenLabs Scribe v2 realtime must be selectable without a mode switch."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
