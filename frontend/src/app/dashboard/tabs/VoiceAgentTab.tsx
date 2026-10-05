@@ -404,11 +404,7 @@ export function VoiceAgentTab({
                       ? "Speech-to-speech - the model listens and speaks directly, no separate transcription/synthesis step. Faster and more natural, still uses your knowledge base and booking/lead-capture tools."
                       : "Classic pipeline - pick a speech-to-text and text-to-speech provider independently."}
                   </p>
-                  {voiceMode === "pipeline" && voiceSttProvider === "google" && voiceTtsProvider === "google" && (
-                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
-                      Google Pipeline STT/TTS requires Google Application Default Credentials in the worker. Pipeline will stop with a clear setup error if <code className="font-mono">GOOGLE_APPLICATION_CREDENTIALS</code> is not mounted; it never silently switches to Realtime.
-                    </div>
-                  )}
+
                 </div>
 
                 {voiceMode === "realtime" ? (
