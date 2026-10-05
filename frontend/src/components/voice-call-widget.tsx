@@ -222,7 +222,14 @@ export default function VoiceCallWidget({
         });
 
         room.on(RoomEvent.Disconnected, () => {
-          if (!cancelled && mountedRef.current) setStatus((s) => (s === "error" ? s : "ended"));
+          // A deliberate hangup clears roomRef before disconnecting. Any
+          // remaining disconnect is an unexpected transport failure and
+          // should offer recovery instead of leaving the visitor at a dead
+          // "Call ended" screen.
+          if (!cancelled && mountedRef.current && roomRef.current === room) {
+            setErrorMessage("The voice connection was lost. Reconnect to continue.");
+            setStatus("error");
+          }
         });
 
         room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
@@ -696,18 +703,16 @@ export default function VoiceCallWidget({
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-[220px] leading-relaxed">{errorMessage}</p>
           <div className="flex items-center gap-2">
-            {(errorMessage || "").toLowerCase().includes("microphone") && (
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.85 }}
-                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                onClick={retryVoiceConnection}
-                className="px-4 py-2 rounded-full text-xs font-semibold text-white"
-                style={{ background: primaryColor }}
-              >
-                Try microphone again
-              </motion.button>
-            )}
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.85 }}
+              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+              onClick={retryVoiceConnection}
+              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+              style={{ background: primaryColor }}
+            >
+              {(errorMessage || "").toLowerCase().includes("microphone") ? "Try microphone again" : "Reconnect voice"}
+            </motion.button>
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}
