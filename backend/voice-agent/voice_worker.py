@@ -116,11 +116,6 @@ ELEVENLABS_VOICE_ALIASES = {
     "adam": "pNInz6obpgDQGcFmaJgB",
 }
 
-_VOICE_TEXT_INPUT_HINT = (
-    "You can speak or type at any time; typed messages stay in this conversation "
-    "and I will read my reply aloud."
-)
-
 # Chirp 3 HD voice names are locale-prefixed. Keep a conservative set of
 # locales whose voice availability is documented by Google; unsupported
 # locales continue to receive the text reply and keep the last working voice
@@ -246,6 +241,54 @@ class AdaptiveGoogleTTS(google.TTS):
         return super().synthesize(text, **kwargs)
 
 
+_ELEVENLABS_TTS_LANGUAGES = {
+    "ar", "bg", "bn", "cs", "da", "de", "el", "en", "es", "fi", "fr",
+    "he", "hi", "hu", "id", "it", "ja", "ko", "ms", "nl", "pl", "pt",
+    "ro", "ru", "sk", "sv", "ta", "tr", "uk", "vi", "zh",
+}
+
+
+class AdaptiveElevenLabsTTS(elevenlabs.TTS):
+    """ElevenLabs multilingual TTS that follows explicit language switches."""
+
+    def __init__(self, *, voice_id: str, **kwargs: Any) -> None:
+        kwargs.setdefault("model", os.environ.get("ELEVENLABS_TTS_MODEL", "eleven_turbo_v2_5"))
+        kwargs.setdefault("language", "en")
+        self._voice_language = "en"
+        super().__init__(voice_id=voice_id, **kwargs)
+
+    @property
+    def voice_language(self) -> str:
+        return self._voice_language
+
+    def set_language(self, language: str | None) -> None:
+        value = (language or "").strip().lower().replace("_", "-")
+        if not value:
+            return
+        base = value.split("-", 1)[0]
+        if base not in _ELEVENLABS_TTS_LANGUAGES:
+            logger.info(
+                "voice worker: TTS locale %s is not available in ElevenLabs multilingual v2; keeping %s",
+                language,
+                self._voice_language,
+            )
+            return
+        if base == self._voice_language:
+            return
+        self._voice_language = base
+        self.update_options(language=base)
+        logger.info("voice worker: switched pipeline ElevenLabs TTS language=%s", base)
+
+    def set_language_from_text(self, text: str) -> None:
+        locale = _voice_language_from_text(text)
+        if locale:
+            self.set_language(locale)
+
+    def synthesize(self, text: str, **kwargs: Any):
+        self.set_language_from_text(text)
+        return super().synthesize(text, **kwargs)
+
+
 def _voice_endpointing_options() -> dict[str, Any]:
     """Return low-latency endpointing for the streaming STT pipeline.
 
@@ -268,13 +311,11 @@ def _voice_endpointing_options() -> dict[str, Any]:
 
 
 def _voice_greeting(bot: dict[str, Any]) -> str:
-    """Return a configured greeting that makes the text fallback discoverable."""
+    """Return only the configured greeting; keep the opening voice turn natural."""
     greeting = (bot.get("welcome_message") or "").strip() or (
         "Hi, I'm Chatty. I'm here and ready to help. What would you like to do today?"
     )
-    if re.search(r"\b(?:type|typing|text|write|message box|keyboard)\b", greeting, re.IGNORECASE):
-        return greeting
-    return f"{greeting} {_VOICE_TEXT_INPUT_HINT}"
+    return greeting
 
 
 def _process_rss_mb() -> Optional[float]:
@@ -343,21 +384,20 @@ def _latest_user_text(chat_ctx: llm.ChatContext) -> str:
 class _SpeechChunker:
     """Turn streamed assistant text into stable, speakable phrases.
 
-    Feeding every model token directly to a TTS provider causes repeated
-    synthesis starts, clipped words, and an unnaturally fast cadence.  This
-    small buffer releases complete sentences first, then uses a whitespace
-    boundary for long answers that do not contain punctuation.  It never
-    cuts through a word and keeps the final fragment for an explicit flush.
+    Feeds audio smoothly to TTS without clipping words or stalling playout.
+    Releases the first clause quickly so first-word latency is minimal,
+    then streams subsequent phrases at natural pause boundaries to prevent
+    audio buffer underruns (eliminating signal drop / stuttering).
     """
 
-    # Release a punctuation-free phrase early enough for first audio to start
-    # while still keeping complete words and natural clauses together.
-    _MAX_CHARS = 120
-    _MIN_SPLIT_CHARS = 50
+    _MAX_CHARS = 80
+    _MIN_SPLIT_CHARS = 35
     _SENTENCE_END = re.compile(r"[.!?](?:[\"'\u2019\u201d)]*)(?=\s|$)")
+    _CLAUSE_END = re.compile(r"[,;:\u2014-](?=\s|$)")
 
     def __init__(self) -> None:
         self._buffer = ""
+        self._first_emitted = False
 
     def add(self, text: str) -> list[str]:
         if text:
@@ -377,7 +417,20 @@ class _SpeechChunker:
                 self._buffer = self._buffer[end:].lstrip()
                 if phrase:
                     chunks.append(phrase)
+                    self._first_emitted = True
                 continue
+
+            # For the first chunk, split early on clause boundary (e.g. "Sure," or "Yes,")
+            # so user hears voice response immediately without waiting for full sentence.
+            if not self._first_emitted and len(self._buffer) >= 20:
+                clause = self._CLAUSE_END.search(self._buffer)
+                if clause and clause.end() >= 12:
+                    phrase = self._buffer[:clause.end()].strip()
+                    self._buffer = self._buffer[clause.end():].lstrip()
+                    if phrase:
+                        chunks.append(phrase)
+                        self._first_emitted = True
+                    continue
 
             if len(self._buffer) >= self._MAX_CHARS:
                 boundary = self._buffer.rfind(" ", 0, self._MAX_CHARS + 1)
@@ -386,12 +439,14 @@ class _SpeechChunker:
                     self._buffer = self._buffer[boundary + 1:].lstrip()
                     if phrase:
                         chunks.append(phrase)
+                        self._first_emitted = True
                     continue
             break
 
         if force and self._buffer.strip():
             chunks.append(self._buffer.strip())
             self._buffer = ""
+            self._first_emitted = True
         return chunks
 
 
@@ -642,6 +697,17 @@ def _decrypt_byok(enc: Optional[str]) -> Optional[str]:
         return None
 
 
+def _provider_error_guidance(stt_provider: str | None = None, tts_provider: str | None = None) -> str:
+    """Return actionable provider guidance without exposing credentials."""
+    providers = [str(value or "").strip().lower() for value in (stt_provider, tts_provider)]
+    guidance = "Check the selected provider API key, voice ID, account quota, and provider status, then reconnect."
+    if "elevenlabs" in providers:
+        guidance += " ElevenLabs free API accounts cannot synthesize Voice Library IDs; use a voice you own/create or a paid ElevenLabs plan."
+    if "fishaudio" in providers:
+        guidance += " Fish Audio HTTP 402 means the account needs active billing/credits and access to the selected voice model; verify the Fish Audio plan, balance, and voice ID."
+    return guidance
+
+
 def _build_stt(bot: dict[str, Any]):
     """Construct the STT plugin for a bot's `voice_stt_provider`.
 
@@ -715,10 +781,27 @@ def _build_stt(bot: dict[str, Any]):
 
     if provider == "deepgram":
         key = key or DEEPGRAM_API_KEY or None
-        return deepgram.STT(api_key=key) if key else deepgram.STT()
+        if not key:
+            raise RuntimeError("Deepgram STT selected but no BYOK/DEEPGRAM_API_KEY is configured")
+        return deepgram.STT(
+            api_key=key,
+            model=os.environ.get("DEEPGRAM_STT_MODEL", "nova-3"),
+            detect_language=True,
+            interim_results=True,
+            no_delay=True,
+            vad_events=True,
+        )
     if provider == "assemblyai":
         key = key or ASSEMBLYAI_API_KEY or None
-        return assemblyai.STT(api_key=key) if key else assemblyai.STT()
+        if not key:
+            raise RuntimeError("AssemblyAI STT selected but no BYOK/ASSEMBLYAI_API_KEY is configured")
+        return assemblyai.STT(
+            api_key=key,
+            model="universal-streaming-multilingual",
+            language_detection=True,
+            continuous_partials=True,
+            mode="min_latency",
+        )
     if provider == "soniox":
         key = key or SONIOX_API_KEY or None
         if not key:
@@ -738,12 +821,13 @@ def _build_stt(bot: dict[str, Any]):
         return elevenlabs.STT(
             api_key=key,
             model="scribe_v2_realtime",
-            language_code="en",
             no_verbatim=True,
         )
     if provider == "openai":
         key = key or OPENAI_API_KEY or None
-        return openai.STT(api_key=key) if key else openai.STT()
+        if not key:
+            raise RuntimeError("OpenAI STT selected but no BYOK/OPENAI_API_KEY is configured")
+        return openai.STT(api_key=key, detect_language=True)
 
     raise RuntimeError(f"Unsupported voice_stt_provider: {provider or 'empty'}")
 
@@ -818,12 +902,12 @@ def _build_tts(bot: dict[str, Any]):
             raise RuntimeError(
                 "ElevenLabs TTS selected but no BYOK/ElevenLabs API key is configured"
             )
-        kwargs = {"api_key": key} if key else {}
+        kwargs = {"api_key": key, "voice_id": "hpp4J3VqNfWAUOO0d1Us"}
         if voice:
             kwargs["voice_id"] = ELEVENLABS_VOICE_ALIASES.get(
                 str(voice).strip().lower(), str(voice).strip()
             )
-        return elevenlabs.TTS(**kwargs)
+        return AdaptiveElevenLabsTTS(**kwargs)
     if provider == "openai":
         key = key or OPENAI_API_KEY or None
         if not key:
@@ -851,9 +935,17 @@ def _build_tts(bot: dict[str, Any]):
             raise RuntimeError(
                 "Fish Audio TTS selected but no BYOK/FISH_API_KEY is configured"
             )
-        kwargs: dict[str, Any] = {"api_key": key}
-        if voice:
-            kwargs["voice_id"] = voice
+        target_voice = voice.strip() if (voice and voice.strip() != "custom") else "933563129e564b19a115bedd57b7406a"
+        kwargs: dict[str, Any] = {
+            "api_key": key,
+            "model": os.environ.get("FISH_AUDIO_MODEL", "s2.1-pro"),
+            "voice_id": target_voice,
+            # LiveKit's browser transport is Opus/48 kHz; using Fish's Opus
+            # stream avoids a second server-side WAV resample on every turn.
+            "output_format": "opus",
+            "sample_rate": 48000,
+            "latency_mode": "balanced",
+        }
         return fishaudio.TTS(**kwargs)
 
     raise RuntimeError(f"Unsupported voice_tts_provider: {provider or 'empty'}")
@@ -1341,16 +1433,13 @@ class ChattyRealtimeAgent(Agent):
         system_instructions = (bot.get("system_instructions") or "").strip()
         instructions = (
             (system_instructions + "\n\n" if system_instructions else "")
-            + "You are having a live voice conversation with a website visitor. Keep replies "
-            "conversational, warm, and concise - this is speech, not a chat window. Use brief "
-            "natural acknowledgements, ask one clear follow-up question at a time, and if the "
-            "visitor pauses, wait patiently rather than filling the silence. Never emit "
-            "an automatic silence prompt during normal silence. Use the "
-            "same conversation for voice and typed input. In the opening greeting, explicitly "
-            "tell the visitor they can speak or type at any time; if they choose typing, wait "
-            "for the typed turn without asking if they are still there. Accept typed messages "
+            + "You are having a live, natural voice conversation with a website visitor. Keep replies "
+            "conversational, warm, and concise (1-2 sentences) - this is speech like a real phone call, not a chat window. Use brief "
+            "natural acknowledgements and ask one helpful follow-up question at a time to keep the conversation engaging. Never announce "
+            "that the visitor can speak or type, or that you will read replies aloud - converse naturally. Use the "
+            "same conversation for voice and typed input. Accept typed messages "
             "from the composer and answer them with the same context while speaking the response "
-            "and showing the text transcript. Never ignore a typed message or start a second conversation. "
+            "and showing the text transcript. Always call the "
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing. When a visitor wants to book, always use the availability and "
             "calendar tools; never invent a time, and collect the required name and email. "
@@ -1557,6 +1646,9 @@ async def entrypoint(ctx: JobContext) -> None:
     nudge_count = 0
     error_count = 0
     max_duration_task: Optional[asyncio.Task] = None
+    silence_engagement_task: Optional[asyncio.Task] = None
+    last_interaction_at = time.monotonic()
+    silence_nudge_stage = 0
     call_logged = False
     pipeline_tts: Any = None
 
@@ -1600,6 +1692,8 @@ async def entrypoint(ctx: JobContext) -> None:
             pipeline_stt = _build_stt(bot)
             pipeline_tts = _build_tts(bot)
             if isinstance(pipeline_tts, AdaptiveGoogleTTS):
+                pipeline_tts.set_language(visitor_language)
+            elif isinstance(pipeline_tts, AdaptiveElevenLabsTTS):
                 pipeline_tts.set_language(visitor_language)
             session = AgentSession(
                 stt=pipeline_stt,
@@ -1649,12 +1743,15 @@ async def entrypoint(ctx: JobContext) -> None:
         )
         await _publish_setup_error(
             f"Voice setup failed for the selected {stt_provider} speech-to-text and "
-            f"{tts_provider} text-to-speech providers. Check their credentials and reconnect."
+            f"{tts_provider} text-to-speech providers. "
+            f"{_provider_error_guidance(stt_provider, tts_provider)}"
         )
         return
 
     def _record_user_input(ev) -> None:
-        nonlocal turn_count
+        nonlocal turn_count, last_interaction_at, silence_nudge_stage
+        last_interaction_at = time.monotonic()
+        silence_nudge_stage = 0
         transcript = (getattr(ev, "transcript", "") or "").strip()
         is_final = bool(getattr(ev, "is_final", False))
         if is_final and transcript:
@@ -1674,18 +1771,21 @@ async def entrypoint(ctx: JobContext) -> None:
     # is versus isn't producing signal - was previously impossible to tell
     # apart "visitor never spoke" from "VAD/STT saw speech but no transcript
     # resulted" from "agent speech got falsely interrupted and auto-resumed".
-    session.on(
-        "user_state_changed",
-        lambda ev: logger.info("voice worker: user_state %s -> %s", ev.old_state, ev.new_state),
-    )
+    def _on_user_state(ev) -> None:
+        nonlocal last_interaction_at, silence_nudge_stage
+        logger.info("voice worker: user_state %s -> %s", ev.old_state, ev.new_state)
+        if str(getattr(ev, "new_state", "")).lower() == "speaking":
+            last_interaction_at = time.monotonic()
+            silence_nudge_stage = 0
+    session.on("user_state_changed", _on_user_state)
     session.on("user_input_transcribed", _record_user_input)
     def _record_agent_state(ev) -> None:
-        nonlocal first_response_at
+        nonlocal first_response_at, last_interaction_at
         state = str(getattr(ev, "new_state", "") or "").lower()
-        # Listening is the normal initial state and must not make first
-        # response latency appear to be zero. Record only actual agent speech.
-        if first_response_at is None and state == "speaking":
-            first_response_at = time.monotonic()
+        if state == "speaking":
+            last_interaction_at = time.monotonic()
+            if first_response_at is None:
+                first_response_at = time.monotonic()
     session.on("agent_state_changed", _record_agent_state)
     def _record_close(ev) -> None:
         nonlocal error_count
@@ -1803,7 +1903,7 @@ async def entrypoint(ctx: JobContext) -> None:
     async def _cancel_background_tasks() -> None:
         current_task = asyncio.current_task()
         tasks = [
-            task for task in (max_duration_task,)
+            task for task in (max_duration_task, silence_engagement_task)
             if task is not None and task is not current_task
         ]
         for task in tasks:
@@ -1893,7 +1993,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 ) or "selected voice provider"
                 safe_message = (
                     f"Voice audio failed for the selected {str(provider).strip()} provider. "
-                    "Check its API key, voice, and provider status, then reconnect."
+                    f"{_provider_error_guidance(tts_provider=str(provider).strip())}"
                 )
                 logger.error(
                     "voice worker: speech provider failed mode=%s provider=%s chars=%d error=%s",
@@ -1954,6 +2054,71 @@ async def entrypoint(ctx: JobContext) -> None:
             pass
 
     max_duration_task = asyncio.create_task(_enforce_max_duration(), name=f"voice-max-duration:{session_id}")
+
+    async def _monitor_silence_and_engage() -> None:
+        nonlocal silence_nudge_stage, last_interaction_at, nudge_count
+        await asyncio.sleep(8.0)
+        try:
+            while True:
+                await asyncio.sleep(2.0)
+                elapsed = time.monotonic() - last_interaction_at
+                agent_speaking = False
+                try:
+                    if hasattr(session, "is_speaking"):
+                        agent_speaking = bool(session.is_speaking)
+                except Exception:
+                    pass
+                if agent_speaking:
+                    last_interaction_at = time.monotonic()
+                    continue
+
+                # Stage 1: visitor quiet for 18 seconds
+                if elapsed >= 18.0 and silence_nudge_stage == 0:
+                    silence_nudge_stage = 1
+                    nudge_count += 1
+                    logger.info("voice worker: silence re-engagement stage 1 elapsed=%.1fs", elapsed)
+                    if voice_mode == "realtime":
+                        await session.generate_reply(
+                            instructions="The visitor has been quiet for a moment. In one short, warm sentence (under 12 words), gently check in, e.g. 'I'm right here whenever you're ready—let me know if you have any questions!'",
+                            input_modality="text",
+                        )
+                    else:
+                        await _speak("Take your time, I'm right here whenever you're ready.")
+                    last_interaction_at = time.monotonic()
+
+                # Stage 2: still quiet 35s after Stage 1
+                elif elapsed >= 35.0 and silence_nudge_stage == 1:
+                    silence_nudge_stage = 2
+                    nudge_count += 1
+                    logger.info("voice worker: silence re-engagement stage 2 elapsed=%.1fs", elapsed)
+                    if voice_mode == "realtime":
+                        await session.generate_reply(
+                            instructions="The visitor has been quiet for a while. In one concise sentence, remind them what you can help with or offer to help with pricing, features, or scheduling.",
+                            input_modality="text",
+                        )
+                    else:
+                        await _speak("Feel free to ask about our pricing, features, or scheduling a demo whenever you'd like!")
+                    last_interaction_at = time.monotonic()
+
+                # Stage 3: still quiet 60s after Stage 2
+                elif elapsed >= 60.0 and silence_nudge_stage == 2:
+                    silence_nudge_stage = 3
+                    nudge_count += 1
+                    logger.info("voice worker: silence re-engagement stage 3 elapsed=%.1fs", elapsed)
+                    if voice_mode == "realtime":
+                        await session.generate_reply(
+                            instructions="The visitor has been quiet for a long time. In one very brief sentence, let them know you'll stay right on the line.",
+                            input_modality="text",
+                        )
+                    else:
+                        await _speak("Just let me know if you need anything, otherwise I'll stay right here on the line.")
+                    last_interaction_at = time.monotonic()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("voice worker: silence engagement monitor error")
+
+    silence_engagement_task = asyncio.create_task(_monitor_silence_and_engage(), name=f"voice-silence-monitor:{session_id}")
 
 server.setup_fnc = prewarm_fnc
 

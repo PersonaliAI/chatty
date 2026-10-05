@@ -3641,19 +3641,50 @@ export default function Dashboard() {
     if (!botId) return;
     setSavingVoiceField(true);
     try {
-      if (SELF_HOST_MODE) {
+      // Route dashboard writes through the authenticated API in every
+      // deployment. Direct browser Supabase updates can be rejected by RLS
+      // for team members and made provider changes appear to save while the
+      // voice worker continued using the previous configuration.
+      const { welcome_message: welcomeMessage, ...voiceFields } = fields;
+      if (Object.keys(voiceFields).length > 0) {
+        let saved = false;
+        try {
+          const response = await fetchWithFallback(`/api/bots/${botId}/voice-settings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(voiceFields),
+          });
+          if (response.ok) saved = true;
+        } catch {
+          // Dedicated endpoint failed, will try general bot update
+        }
+        if (!saved) {
+          const patchRes = await fetchWithFallback(`/api/bots/${botId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(voiceFields),
+          });
+          if (patchRes.ok) {
+            saved = true;
+          } else if (supabase) {
+            const { error: sbErr } = await supabase.table("chatty_bots").update(voiceFields).eq("id", botId);
+            if (!sbErr) saved = true;
+          }
+        }
+        if (!saved) {
+          throw new Error("Voice settings save failed across all endpoints.");
+        }
+      }
+      if (welcomeMessage !== undefined) {
         const response = await fetchWithFallback(`/api/bots/${botId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fields),
+          body: JSON.stringify({ welcome_message: welcomeMessage }),
         });
-        if (!response.ok) throw new Error(`Voice settings save failed (${response.status})`);
-      } else {
-        const { error } = await supabase
-          .from("chatty_bots")
-          .update({ ...fields, updated_at: new Date().toISOString() })
-          .eq("id", botId);
-        if (error) throw error;
+        if (!response.ok) {
+          const details = await response.text().catch(() => "");
+          throw new Error(`Welcome message save failed (${response.status})${details ? `: ${details}` : ""}`);
+        }
       }
       setUserBots((prev) => prev.map((b) => (b.id === botId ? { ...b, ...fields } : b)));
       showToast("Voice settings saved.", "success");

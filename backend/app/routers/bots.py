@@ -1065,7 +1065,11 @@ async def set_voice_settings(
         update["voice_max_duration_minutes"] = max(1, min(60, req.voice_max_duration_minutes))
 
     if update:
-        await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
+        try:
+            await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
+        except Exception as e:
+            logger.exception("Failed to update voice settings for bot %s: %s", bot_id, e)
+            raise HTTPException(status_code=500, detail=f"Database update failed: {str(e)}")
     return {"success": True}
 
 

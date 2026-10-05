@@ -1,10 +1,11 @@
 "use client";
 
-import { AudioWaveform, Mic, Check, Sparkles, ExternalLink } from "lucide-react";
+import { useState, useMemo } from "react";
+import { AudioWaveform, Mic, Check, Sparkles, ExternalLink, KeyRound } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ModernSelect } from "@/components/ui/modern-select";
 
-const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
+export const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: string }[]> = {
   google: [
     { value: "en-US-Chirp3-HD-Aoede", label: "Aoede · expressive female" },
     { value: "en-US-Chirp3-HD-Charon", label: "Charon · warm male" },
@@ -14,27 +15,76 @@ const TTS_VOICE_OPTIONS: Record<string, { value: string; label: string; hint?: s
     { value: "en-US-Chirp3-HD-Orus", label: "Orus · natural male" },
     { value: "en-US-Chirp3-HD-Puck", label: "Puck · friendly male" },
     { value: "en-US-Chirp3-HD-Zephyr", label: "Zephyr · bright female" },
+    { value: "custom", label: "Custom Voice ID (Enter your own)..." },
   ],
   cartesia: [
-    { value: "694f9389-aac1-45b6-b726-9d9369183238", label: "English · natural (Cartesia preset)" },
+    { value: "694f9389-aac1-45b6-b726-9d9369183238", label: "Sonic English · natural male" },
+    { value: "a167e0f3-df7e-4d52-a9c3-f949145efdab", label: "British Narrator · articulate female" },
+    { value: "79a125e8-cd45-4c13-8a67-188112f4dd22", label: "Australian · warm female" },
+    { value: "2ee87190-8f84-4925-97da-e52547f9462c", label: "Sidekick · energetic male" },
+    { value: "f9836c6e-a0bd-460e-9d3c-f7299fa60f94", label: "Helpful Assistant · balanced neutral" },
+    { value: "c45bc5ec-5968-4f11-8930-109ff62e5be5", label: "Customer Support · friendly female" },
+    { value: "846d35e9-dc05-4526-ba35-9c27704a5004", label: "Polite Consultant · professional male" },
+    { value: "e9035768-f7bc-4fef-ac75-77f6f1947230", label: "Calm Meditative · soft female" },
+    { value: "custom", label: "Custom Voice ID (Enter your own)..." },
   ],
   elevenlabs: [
-    { value: "21m00Tcm4TlvDq8ikWAM", label: "Rachel · calm female" },
-    { value: "EXAVITQu4vr4xnSDxMaL", label: "Bella · warm female" },
-    { value: "ErXwobaYiN019PkySvjV", label: "Antoni · expressive male" },
-    { value: "MF3mGyEYCl7XYWbV9V6O", label: "Elli · friendly female" },
-    { value: "TxGEqnHWrfWFTfGW9XjX", label: "Josh · deep male" },
-    { value: "pNInz6obpgDQGcFmaJgB", label: "Adam · confident male" },
+    { value: "21m00Tcm4TlvDq8ikWAM", label: "Rachel · calm, natural female" },
+    { value: "EXAVITQu4vr4xnSDxMaL", label: "Bella · warm, expressive female" },
+    { value: "ErXwobaYiN019PkySvjV", label: "Antoni · expressive, pleasant male" },
+    { value: "MF3mGyEYCl7XYWbV9V6O", label: "Elli · friendly, young female" },
+    { value: "TxGEqnHWrfWFTfGW9XjX", label: "Josh · deep, resonant male" },
+    { value: "pNInz6obpgDQGcFmaJgB", label: "Adam · confident, versatile male" },
+    { value: "yoZ06aMxZJJ28mfd3POQ", label: "Sam · reliable, American male" },
+    { value: "AZnzlk1XvdvUeBnXmlld", label: "Domi · energetic, upbeat female" },
+    { value: "CYw3kZ78EjZGQKq6n86E", label: "Dave · conversational British male" },
+    { value: "D38z5RcWu1voky8WS1ja", label: "Fin · charming Irish male" },
+    { value: "ThT5KcBeYPX3keUQqHPh", label: "Dorothy · pleasant British female" },
+    { value: "piTKgcLEGmPE4e6mEKli", label: "Nicole · whisper, soft female" },
+    { value: "flq6f7yk4E4fJM5XTYuZ", label: "Michael · natural narrator male" },
+    { value: "2EiwWnXFnvU5JabPnv8n", label: "Clyde · character veteran male" },
+    { value: "jsCqWAovK2LkecY7zXl4", label: "Freya · expressive Nordic female" },
+    { value: "oWAxZDx7w5VEj9dCyTzz", label: "Grace · Southern warm female" },
+    { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel · deep British male" },
+    { value: "pFZP5JQG7iQjIQuC4Bku", label: "Lily · warm British female" },
+    { value: "pMsXgVXv3BLzUgSXRplE", label: "Serena · pleasant corporate female" },
+    { value: "nPczCjzI2devNBz1zQrb", label: "Brian · deep narrator male" },
+    { value: "JBFqnCBsd6RMkjVDRZzb", label: "George · warm British gentleman" },
+    { value: "N2lVS1w4EtoT3dr4eOWO", label: "Callum · intense Scottish male" },
+    { value: "IKne3meq5aSn9XLyUdCD", label: "Charlie · casual Australian male" },
+    { value: "XB0fDUnXU5powFXDhCwa", label: "Charlotte · pleasant Swedish female" },
+    { value: "Xb7hH8MSUJpSbSDYk0k2", label: "Alice · confident British female" },
+    { value: "TX3LPaxmHKxFdv7VOQHJ", label: "Liam · young, dynamic American male" },
+    { value: "bIHbv24MWmeRgasZH58o", label: "Will · friendly, approachable male" },
+    { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica · expressive American female" },
+    { value: "cjVigY5qzO86Huf0OWal", label: "Eric · conversational American male" },
+    { value: "iP95p4xoKVk53GoZ742B", label: "Chris · casual American male" },
+    { value: "pqHfZKP75CvOlQylNhV4", label: "Bill · trustworthy, mature male" },
+    { value: "XrExE9yKIg1WjnnlVkGX", label: "Matilda · warm Australian female" },
+    { value: "custom", label: "Custom Voice ID (Enter your own)..." },
   ],
   openai: [
-    { value: "alloy", label: "Alloy · balanced" },
-    { value: "echo", label: "Echo · clear male" },
-    { value: "fable", label: "Fable · expressive" },
-    { value: "nova", label: "Nova · warm female" },
-    { value: "onyx", label: "Onyx · deep male" },
-    { value: "shimmer", label: "Shimmer · bright female" },
+    { value: "alloy", label: "Alloy · balanced, neutral" },
+    { value: "echo", label: "Echo · clear, smooth male" },
+    { value: "fable", label: "Fable · expressive British" },
+    { value: "nova", label: "Nova · warm, friendly female" },
+    { value: "onyx", label: "Onyx · deep, authoritative male" },
+    { value: "shimmer", label: "Shimmer · bright, clear female" },
+    { value: "ash", label: "Ash · confident, conversational male" },
+    { value: "ballad", label: "Ballad · warm, emotive male" },
+    { value: "coral", label: "Coral · friendly, warm female" },
+    { value: "sage", label: "Sage · thoughtful, professional female" },
+    { value: "verse", label: "Verse · dynamic, conversational" },
+    { value: "custom", label: "Custom Voice ID (Enter your own)..." },
   ],
-  fishaudio: [{ value: "", label: "Custom voice ID" }],
+  fishaudio: [
+    { value: "933563129e564b19a115bedd57b7406a", label: "Default Assistant · clear neutral" },
+    { value: "7f92f8afb8ec43bf81429cc1c9199cb1", label: "Natural English · conversational male" },
+    { value: "54a58d528b1448888062d9894e330a11", label: "Warm Support · friendly female" },
+    { value: "ad584e03aa324c4384a29a435a96055c", label: "Professional · business voice" },
+    { value: "5f347581db22431f9ee2ae73e659b8eb", label: "Friendly Casual · upbeat voice" },
+    { value: "custom", label: "Custom Voice ID (Enter your own)..." },
+  ],
 };
 
 interface VoiceAgentTabProps {
@@ -120,6 +170,52 @@ export function VoiceAgentTab({
   generateVoiceWelcome,
   generatingVoiceWelcome,
 }: VoiceAgentTabProps) {
+  const [unifiedElevenLabsKeyInput, setUnifiedElevenLabsKeyInput] = useState("");
+  const [savingUnifiedElevenLabs, setSavingUnifiedElevenLabs] = useState(false);
+  const [isCustomVoiceSelected, setIsCustomVoiceSelected] = useState(false);
+
+  const availableVoices = useMemo(() => {
+    return TTS_VOICE_OPTIONS[voiceTtsProvider] || [];
+  }, [voiceTtsProvider]);
+
+  const isCurrentVoicePreset = useMemo(() => {
+    return availableVoices.some((opt) => opt.value === voiceTtsVoice && opt.value !== "custom");
+  }, [availableVoices, voiceTtsVoice]);
+
+  const selectedSelectValue = useMemo(() => {
+    if (isCustomVoiceSelected) return "custom";
+    if (isCurrentVoicePreset) return voiceTtsVoice;
+    if (!voiceTtsVoice) return availableVoices[0]?.value || "";
+    return "custom";
+  }, [isCustomVoiceSelected, isCurrentVoicePreset, voiceTtsVoice, availableVoices]);
+
+  const showCustomVoiceInput = isCustomVoiceSelected || (!isCurrentVoicePreset && !!voiceTtsVoice);
+
+  const isDualElevenLabs = voiceMode === "pipeline" && voiceSttProvider === "elevenlabs" && voiceTtsProvider === "elevenlabs";
+
+  const handleSaveUnifiedElevenLabs = async (remove: boolean) => {
+    setSavingUnifiedElevenLabs(true);
+    try {
+      if (remove) {
+        await Promise.all([
+          handleSaveVoiceByok("stt", true),
+          handleSaveVoiceByok("tts", true),
+        ]);
+        setUnifiedElevenLabsKeyInput("");
+      } else {
+        setVoiceSttApiKeyInput(unifiedElevenLabsKeyInput);
+        setVoiceTtsApiKeyInput(unifiedElevenLabsKeyInput);
+        await Promise.all([
+          handleSaveVoiceByok("stt", false),
+          handleSaveVoiceByok("tts", false),
+        ]);
+        setUnifiedElevenLabsKeyInput("");
+      }
+    } finally {
+      setSavingUnifiedElevenLabs(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
       <div className="w-full max-w-2xl space-y-6">
@@ -306,7 +402,7 @@ export function VoiceAgentTab({
                   <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mb-1">
                     {voiceMode === "realtime"
                       ? "Speech-to-speech - the model listens and speaks directly, no separate transcription/synthesis step. Faster and more natural, still uses your knowledge base and booking/lead-capture tools."
-                    : "Classic pipeline - pick a speech-to-text and text-to-speech provider independently."}
+                      : "Classic pipeline - pick a speech-to-text and text-to-speech provider independently."}
                   </p>
                   {voiceMode === "pipeline" && voiceSttProvider === "google" && voiceTtsProvider === "google" && (
                     <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
@@ -447,55 +543,6 @@ export function VoiceAgentTab({
                       />
                     </div>
 
-                    {voiceSttProvider !== "google" && (
-                      <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                            Speech-to-Text API Key
-                          </span>
-                          {voiceSttConfigured && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
-                              <Check className="size-2.5" /> Configured
-                            </span>
-                          )}
-                          {!voiceSttConfigured && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
-                              Not configured
-                            </span>
-                          )}
-                        </div>
-                        <input
-                          type="password"
-                          value={voiceSttApiKeyInput}
-                          onChange={(e) => setVoiceSttApiKeyInput(e.target.value)}
-                          placeholder={
-                            voiceSttConfigured
-                              ? "•••••••••••••••• (saved - enter a new key to replace)"
-                              : "API key"
-                          }
-                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleSaveVoiceByok("stt", false)}
-                            disabled={savingVoiceStt || !voiceSttApiKeyInput.trim()}
-                            className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
-                          >
-                            {savingVoiceStt ? "Saving…" : "Save key"}
-                          </button>
-                          {voiceSttConfigured && (
-                            <button
-                              onClick={() => handleSaveVoiceByok("stt", true)}
-                              disabled={savingVoiceStt}
-                              className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
-                            >
-                              Remove key
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Text-to-Speech provider */}
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
@@ -506,109 +553,244 @@ export function VoiceAgentTab({
                         onChange={(v) => {
                           setVoiceTtsProvider(v);
                           const firstVoice = TTS_VOICE_OPTIONS[v]?.[0]?.value || "";
+                          setIsCustomVoiceSelected(false);
                           setVoiceTtsVoice(firstVoice);
                           handleAutoSaveVoiceField({ voice_tts_provider: v, voice_tts_voice: firstVoice || null });
                         }}
                         options={[
                           { value: "google", label: "Google", hint: "ADC required on VPS" },
-                          { value: "cartesia", label: "Cartesia", hint: "Requires your own API key" },
                           { value: "elevenlabs", label: "ElevenLabs", hint: "Requires your own API key" },
                           { value: "openai", label: "OpenAI", hint: "Requires your own API key" },
                           { value: "fishaudio", label: "Fish Audio", hint: "Requires your own API key" },
+                          { value: "cartesia", label: "Cartesia", hint: "Requires your own API key" },
                         ]}
                       />
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
-                          {voiceTtsProvider === "google" ? "Google" : voiceTtsProvider === "cartesia" ? "Cartesia" : voiceTtsProvider === "elevenlabs" ? "ElevenLabs" : voiceTtsProvider === "fishaudio" ? "Fish Audio" : "OpenAI"} TTS Voice
-                        </label>
-                        <ModernSelect
-                          value={voiceTtsVoice}
-                          searchable
-                          onChange={(v) => {
+                    {/* Voice Selection & Custom Voice ID */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
+                        {voiceTtsProvider === "google"
+                          ? "Google"
+                          : voiceTtsProvider === "cartesia"
+                          ? "Cartesia"
+                          : voiceTtsProvider === "elevenlabs"
+                          ? "ElevenLabs"
+                          : voiceTtsProvider === "fishaudio"
+                          ? "Fish Audio"
+                          : "OpenAI"}{" "}
+                        TTS Voice
+                      </label>
+                      <ModernSelect
+                        value={selectedSelectValue}
+                        searchable
+                        onChange={(v) => {
+                          if (v === "custom") {
+                            setIsCustomVoiceSelected(true);
+                          } else {
+                            setIsCustomVoiceSelected(false);
                             setVoiceTtsVoice(v);
                             handleAutoSaveVoiceField({ voice_tts_voice: v || null });
-                          }}
-                          options={TTS_VOICE_OPTIONS[voiceTtsProvider] || []}
-                          placeholder="Select a voice"
-                        />
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
-                          Choose a voice preset for this provider. The voice ID is stored with this assistant.
-                        </p>
+                          }
+                        }}
+                        options={availableVoices}
+                        placeholder="Select a voice"
+                      />
+
+                      {showCustomVoiceInput && (
+                        <div className="p-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg space-y-1.5 mt-2">
+                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
+                            Custom Voice ID
+                          </label>
+                          <input
+                            type="text"
+                            value={voiceTtsVoice === "custom" ? "" : voiceTtsVoice}
+                            onChange={(e) => setVoiceTtsVoice(e.target.value)}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              handleAutoSaveVoiceField({ voice_tts_voice: val || null });
+                            }}
+                            placeholder={
+                              voiceTtsProvider === "elevenlabs"
+                                ? "Paste your ElevenLabs Voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
+                                : voiceTtsProvider === "fishaudio"
+                                ? "Paste your Fish Audio Voice ID from your library"
+                                : "Paste your custom voice identifier"
+                            }
+                            className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                          />
+                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                            Enter any voice model or cloned voice ID from your provider dashboard.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
-                    {voiceTtsProvider === "fishaudio" && (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">
-                          Fish Audio Voice ID
-                        </label>
-                        <input
-                          type="text"
-                          value={voiceTtsVoice}
-                          onChange={(e) => setVoiceTtsVoice(e.target.value)}
-                          onBlur={(e) => handleAutoSaveVoiceField({ voice_tts_voice: e.target.value || null })}
-                          placeholder="Paste your Fish Audio voice ID"
-                          className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
-                          Fish Audio voices are account-specific, so enter the voice ID from your Fish Audio library.
-                        </p>
+                    {/* ── UNIFIED API KEYS SECTION ── */}
+                    <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="size-3.5 text-[#f97316]" />
+                        <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">
+                          Provider API Keys
+                        </h4>
                       </div>
-                    )}
 
-                    {voiceTtsProvider !== "google" && (
-                      <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                            Text-to-Speech API Key
-                          </span>
-                          {voiceTtsConfigured && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
-                              <Check className="size-2.5" /> Configured
+                      {/* Unified ElevenLabs Key when both STT and TTS are ElevenLabs */}
+                      {isDualElevenLabs ? (
+                        <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                              ElevenLabs API Key
+                              <span className="text-[9px] font-normal text-[#f97316] bg-[#f97316]/10 px-1.5 py-0.5 rounded">
+                                Powers both Scribe STT & TTS
+                              </span>
                             </span>
-                          )}
-                          {!voiceTtsConfigured && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
-                              Not configured
-                            </span>
-                          )}
-                        </div>
-                        <input
-                          type="password"
-                          value={voiceTtsApiKeyInput}
-                          onChange={(e) => setVoiceTtsApiKeyInput(e.target.value)}
-                          placeholder={
-                            voiceTtsConfigured
-                              ? "•••••••••••••••• (saved - enter a new key to replace)"
-                              : "API key"
-                          }
-                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleSaveVoiceByok("tts", false)}
-                            disabled={savingVoiceTts || !voiceTtsApiKeyInput.trim()}
-                            className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
-                          >
-                            {savingVoiceTts ? "Saving…" : "Save key"}
-                          </button>
-                          {voiceTtsConfigured && (
+                            {voiceSttConfigured && voiceTtsConfigured ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                                <Check className="size-2.5" /> Configured
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
+                                Not configured
+                              </span>
+                            )}
+                          </div>
+                          <input
+                            type="password"
+                            value={unifiedElevenLabsKeyInput}
+                            onChange={(e) => setUnifiedElevenLabsKeyInput(e.target.value)}
+                            placeholder={
+                              voiceSttConfigured || voiceTtsConfigured
+                                ? "•••••••••••••••• (saved - enter a new key to replace for both STT & TTS)"
+                                : "Paste your ElevenLabs API key"
+                            }
+                            className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                          />
+                          <div className="flex gap-2">
                             <button
-                              onClick={() => handleSaveVoiceByok("tts", true)}
-                              disabled={savingVoiceTts}
-                              className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                              onClick={() => handleSaveUnifiedElevenLabs(false)}
+                              disabled={savingUnifiedElevenLabs || !unifiedElevenLabsKeyInput.trim()}
+                              className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
                             >
-                              Remove key
+                              {savingUnifiedElevenLabs ? "Saving…" : "Save ElevenLabs Key"}
                             </button>
-                          )}
+                            {(voiceSttConfigured || voiceTtsConfigured) && (
+                              <button
+                                onClick={() => handleSaveUnifiedElevenLabs(true)}
+                                disabled={savingUnifiedElevenLabs}
+                                className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                              >
+                                Remove key
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      ) : (
+                        <>
+                          {/* STT Key (if not Google and not dual ElevenLabs) */}
+                          {voiceSttProvider !== "google" && (
+                            <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                  {voiceSttProvider === "elevenlabs"
+                                    ? "ElevenLabs Scribe STT API Key"
+                                    : `${voiceSttProvider.charAt(0).toUpperCase() + voiceSttProvider.slice(1)} STT API Key`}
+                                </span>
+                                {voiceSttConfigured ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                                    <Check className="size-2.5" /> Configured
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
+                                    Not configured
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="password"
+                                value={voiceSttApiKeyInput}
+                                onChange={(e) => setVoiceSttApiKeyInput(e.target.value)}
+                                placeholder={
+                                  voiceSttConfigured
+                                    ? "•••••••••••••••• (saved - enter a new key to replace)"
+                                    : "API key"
+                                }
+                                className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleSaveVoiceByok("stt", false)}
+                                  disabled={savingVoiceStt || !voiceSttApiKeyInput.trim()}
+                                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
+                                >
+                                  {savingVoiceStt ? "Saving…" : "Save key"}
+                                </button>
+                                {voiceSttConfigured && (
+                                  <button
+                                    onClick={() => handleSaveVoiceByok("stt", true)}
+                                    disabled={savingVoiceStt}
+                                    className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                                  >
+                                    Remove key
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
 
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                      Voice uses the same AI Foundation Model and key configured above.
-                    </p>
+                          {/* TTS Key (if not Google and not dual ElevenLabs) */}
+                          {voiceTtsProvider !== "google" && (
+                            <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                                  {voiceTtsProvider === "elevenlabs"
+                                    ? "ElevenLabs TTS API Key"
+                                    : `${voiceTtsProvider.charAt(0).toUpperCase() + voiceTtsProvider.slice(1)} TTS API Key`}
+                                </span>
+                                {voiceTtsConfigured ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                                    <Check className="size-2.5" /> Configured
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-400">
+                                    Not configured
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="password"
+                                value={voiceTtsApiKeyInput}
+                                onChange={(e) => setVoiceTtsApiKeyInput(e.target.value)}
+                                placeholder={
+                                  voiceTtsConfigured
+                                    ? "•••••••••••••••• (saved - enter a new key to replace)"
+                                    : "API key"
+                                }
+                                className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleSaveVoiceByok("tts", false)}
+                                  disabled={savingVoiceTts || !voiceTtsApiKeyInput.trim()}
+                                  className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
+                                >
+                                  {savingVoiceTts ? "Saving…" : "Save key"}
+                                </button>
+                                {voiceTtsConfigured && (
+                                  <button
+                                    onClick={() => handleSaveVoiceByok("tts", true)}
+                                    disabled={savingVoiceTts}
+                                    className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                                  >
+                                    Remove key
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
 

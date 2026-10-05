@@ -176,6 +176,9 @@ def test_selected_provider_failures_are_not_silently_rerouted():
     assert "_publish_setup_error" in source
     assert "falling back to google" not in source.lower()
     assert "falling back to openai" not in source.lower()
+    assert "Deepgram STT selected but no BYOK/DEEPGRAM_API_KEY is configured" in source
+    assert "AssemblyAI STT selected but no BYOK/ASSEMBLYAI_API_KEY is configured" in source
+    assert "OpenAI STT selected but no BYOK/OPENAI_API_KEY is configured" in source
 
 
 def test_pipeline_brain_failures_publish_recovery_guidance():
@@ -196,6 +199,8 @@ def test_elevenlabs_is_a_first_class_pipeline_stt_provider():
 
     assert 'if provider == "elevenlabs":' in source
     assert 'model="scribe_v2_realtime"' in source
+    assert "AdaptiveElevenLabsTTS" in source
+    assert 'language_code="en"' not in source[source.index('if provider == "elevenlabs":'):source.index('if provider == "openai":')]
     assert 'ELEVENLABS_API_KEY' in source
     assert "ElevenLabs STT selected but no BYOK/ElevenLabs API key is configured" in source
 
