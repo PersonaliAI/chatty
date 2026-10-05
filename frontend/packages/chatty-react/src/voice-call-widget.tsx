@@ -666,7 +666,7 @@ export default function VoiceCallWidget({
   })();
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-3 sm:p-4">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-2.5 sm:p-3.5">
       {status === "error" ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
           <div className="size-12 rounded-full flex items-center justify-center bg-red-50 dark:bg-red-950/40">
@@ -728,20 +728,20 @@ export default function VoiceCallWidget({
         <>
           {/* Animated voice stage: the orb reacts to the remote speaker while
               the bars prove that the visitor's microphone is live. */}
-          <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-4 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-5">
+          <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-2.5 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-3.5">
             <div className="absolute -right-10 -top-12 size-32 rounded-full blur-3xl opacity-20" style={{ background: primaryColor }} />
-            <div className="relative flex flex-col items-center gap-3">
+            <div className="relative flex flex-col items-center gap-1.5 sm:gap-2">
               <Orb status={status} level={orbLevel} primaryColor={primaryColor} />
-              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
-                <AudioWaveform className="size-3.5" style={{ color: primaryColor }} />
+              <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                <AudioWaveform className="size-3" style={{ color: primaryColor }} />
                 {status === "listening" ? "Listening" : statusLabel}
               </div>
-              <div className="flex items-center justify-center gap-[3px] h-5" aria-label="Microphone activity">
+              <div className="flex items-center justify-center gap-[2px] h-3.5" aria-label="Microphone activity">
                 {localLevels.map((level, i) => (
-                  <span key={i} className="w-1 rounded-full transition-[height] duration-[50ms] ease-out" style={{ height: `${Math.max(3, level * 20)}px`, background: primaryColor, opacity: status === "listening" ? 0.9 : 0.25 }} />
+                  <span key={i} className="w-1 rounded-full transition-[height] duration-[50ms] ease-out" style={{ height: `${Math.max(2, level * 14)}px`, background: primaryColor, opacity: status === "listening" ? 0.9 : 0.25 }} />
                 ))}
               </div>
-              <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
+              <span className="text-center text-[9px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
             </div>
           </div>
 
@@ -758,7 +758,7 @@ export default function VoiceCallWidget({
 
           {/* Live transcript - auto-scrolls to the newest line. Interim text
               uses a subtle caret so it stays readable while speech arrives. */}
-          <div className="min-h-[7rem] flex-1 w-full overflow-y-auto overscroll-contain chatty-voice-scrollbar space-y-2 py-2">
+          <div className="min-h-[3rem] flex-1 w-full overflow-y-auto overscroll-contain chatty-voice-scrollbar space-y-1.5 py-1">
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
@@ -827,17 +827,17 @@ export default function VoiceCallWidget({
             <div ref={transcriptEndRef} />
           </div>
 
-          <form onSubmit={sendComposerMessage} className="mb-2 flex min-w-0 shrink-0 items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/80 p-1.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 sm:mb-3 sm:gap-2 sm:p-2">
+          <form onSubmit={sendComposerMessage} className="mb-1.5 flex min-w-0 shrink-0 items-center gap-1 rounded-2xl border border-neutral-200 bg-white/80 p-1 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 sm:mb-2 sm:p-1.5">
               <input type="file" className="hidden" id="chatty-voice-attachment" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setPendingFile(event.target.files?.[0] || null)} />
-              <button type="button" onClick={() => document.getElementById("chatty-voice-attachment")?.click()} aria-label="Attach a file" title="Attach a file" className="grid size-9 shrink-0 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"><Paperclip className="size-4" /></button>
+              <button type="button" onClick={() => document.getElementById("chatty-voice-attachment")?.click()} aria-label="Attach a file" title="Attach a file" className="grid size-8 shrink-0 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"><Paperclip className="size-3.5" /></button>
               <div className="min-w-0 flex-1">
                 <input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder={pendingFile ? pendingFile.name : "Send a message while you talk…"} disabled={sendingMessage} className="w-full bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200" />
                 {pendingFile && <p className="truncate px-1 text-[9px] text-neutral-400">Attachment ready · click send to share</p>}
               </div>
-              <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-9 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-4" /></button>
+              <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-8 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-3.5" /></button>
           </form>
 
-          <div className="flex shrink-0 items-center justify-center gap-3 pb-1 pt-1 sm:gap-4 sm:pb-2">
+          <div className="flex shrink-0 items-center justify-center gap-3 pb-0.5 pt-0.5 sm:gap-4 sm:pb-1">
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}
@@ -845,10 +845,10 @@ export default function VoiceCallWidget({
               onClick={toggleMute}
               disabled={status === "connecting" || status === "requesting-mic"}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
-              className="flex size-11 items-center justify-center rounded-2xl border transition-colors disabled:opacity-40 sm:size-12"
-              style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 8px 20px ${primaryColor}35` }}
+              className="flex size-10 items-center justify-center rounded-2xl border transition-colors disabled:opacity-40 sm:size-11"
+              style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 6px 16px ${primaryColor}35` }}
             >
-              {muted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
+              {muted ? <MicOff className="size-4 sm:size-5" /> : <Mic className="size-4 sm:size-5" />}
             </motion.button>
             <motion.button
               type="button"
@@ -857,10 +857,10 @@ export default function VoiceCallWidget({
               onClick={handleHangup}
               aria-label="Close voice call"
               title="Close voice call"
-              className="flex size-11 items-center justify-center rounded-2xl text-white shadow-lg transition-transform hover:scale-105 sm:size-12"
+              className="flex size-10 items-center justify-center rounded-2xl text-white shadow-lg transition-transform hover:scale-105 sm:size-11"
               style={{ background: "#1f2937" }}
             >
-              <X className="size-5" />
+              <X className="size-4 sm:size-5" />
             </motion.button>
           </div>
         </>
@@ -897,7 +897,7 @@ function Orb({
   return (
     <motion.div
       animate={{ scale: 1 }}
-      className={`relative isolate shrink-0 overflow-hidden rounded-full flex items-center justify-center ${compact ? "size-9" : "size-28"}`}
+      className={`relative isolate shrink-0 overflow-hidden rounded-full flex items-center justify-center ${compact ? "size-9" : "size-16 sm:size-20"}`}
       style={{
         background: "linear-gradient(145deg, #062b42 0%, #087e98 48%, #6caa78 100%)",
         boxShadow: `0 0 ${(compact ? 8 : 20) + (isActive ? glow * (compact ? 20 : 60) : compact ? 4 : 10)}px ${primaryColor}${isActive ? "aa" : "55"}`,

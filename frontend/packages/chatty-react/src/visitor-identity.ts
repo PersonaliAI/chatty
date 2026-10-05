@@ -27,8 +27,9 @@ export class VisitorIdentityClient {
   private async exchange(identityToken?: string, newConversation = false) {
     const generation = this.generation;
     const old = this.value;
-    if (old && identityToken) this.retirement.add(old.visitor_token);
-    this.clear(Boolean(identityToken) || !old); // Unmount before changing identities.
+    if (!newConversation) {
+      this.clear(Boolean(identityToken) || !old); // Unmount before changing identities.
+    }
     const response = await globalThis.fetch(`${this.backend}/api/widget/identity`, {
       method: "POST", headers: { "Content-Type": "application/json", ...(old ? { "X-Chatty-Visitor": old.visitor_token } : {}) },
       body: JSON.stringify({ bot_id: this.botId, ...(identityToken ? { identity_token: identityToken } : {}), ...(newConversation ? { new_conversation: true } : {}) }),

@@ -542,13 +542,13 @@ export default function ChatWidgetCore(props: ChatWidgetCoreProps) {
         role="status"
         aria-live="polite"
         style={{
-          boxSizing: "border-box", minHeight: 152, width: "100%", display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", gap: 10, padding: "24px", borderRadius: 16,
-          background: "linear-gradient(145deg,#fffaf5,#fff 70%)", border: "1px solid #f1e6db", color: "#6b5c50",
+          boxSizing: "border-box", width: "100%", height: "100%", minHeight: "100%", flex: 1, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 12, padding: "24px",
+          background: "linear-gradient(145deg,#fffaf5,#ffffff 70%)", color: "#6b5c50",
           fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: 13, lineHeight: 1.4,
         }}
       >
-        <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: 999, border: `3px solid ${identity.error ? "#f1d4c5" : "#fbd3b8"}`, borderTopColor: identity.error ? "#c56a42" : "#f97316", animation: identity.error ? undefined : "chatty-widget-spin .8s linear infinite" }} />
+        <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: 999, border: `3px solid ${identity.error ? "#f1d4c5" : "#fbd3b8"}`, borderTopColor: identity.error ? "#c56a42" : "#f97316", animation: identity.error ? undefined : "chatty-widget-spin .8s linear infinite" }} />
         <span style={{ fontWeight: 600 }}>{message}</span>
         {!identity.error && <span style={{ fontSize: 11, color: "#9a8475" }}>This only takes a moment.</span>}
         <style>{"@keyframes chatty-widget-spin{to{transform:rotate(360deg)}}"}</style>
@@ -2689,28 +2689,30 @@ function IdentifiedChatWidget({
               <AudioWaveform className="size-4" />
             </motion.button>
           )}
-          <button
-            onClick={pushGranted ? toggleMute : requestPushPermission}
-            className={`${voiceEnabled || (tab === "home" && teamProfiles.length > 0) ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
-            style={{ opacity: 0.8 }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
-            title={
-              !pushGranted
-                ? "Enable browser notifications"
-                : pushMuted
-                  ? "Notifications muted - tap to unmute"
-                  : "Browser notifications enabled - tap to mute"
-            }
-          >
-            {pushGranted && pushMuted ? (
-              <BellOff className="size-4" />
-            ) : (
-              <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
-            )}
-          </button>
-          {tab === "messages" && (
+          {!voiceCallOpen && (
+            <button
+              onClick={pushGranted ? toggleMute : requestPushPermission}
+              className={`${voiceEnabled || (tab === "home" && teamProfiles.length > 0) ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
+              style={{ opacity: 0.8 }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
+              title={
+                !pushGranted
+                  ? "Enable browser notifications"
+                  : pushMuted
+                    ? "Notifications muted - tap to unmute"
+                    : "Browser notifications enabled - tap to mute"
+              }
+            >
+              {pushGranted && pushMuted ? (
+                <BellOff className="size-4" />
+              ) : (
+                <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
+              )}
+            </button>
+          )}
+          {!voiceCallOpen && tab === "messages" && (
             <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -2729,7 +2731,7 @@ function IdentifiedChatWidget({
       </div>
 
       {/* Body */}
-      <div ref={chatBodyRef} className="flex-1 overflow-y-auto scrollbar-thin widget-panel flex flex-col relative">
+      <div ref={chatBodyRef} className={`flex-1 widget-panel flex flex-col relative ${voiceCallOpen ? "overflow-hidden" : "overflow-y-auto scrollbar-thin"}`}>
         {voiceCallOpen ? (
           <VoiceCallWidget
             botId={botId}

@@ -515,6 +515,7 @@ export function ChattyStandaloneApp({
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
+          backgroundColor: "#ffffff",
           boxShadow: "0 12px 48px rgba(0,0,0,.28)",
           transition: "opacity 0.2s ease, transform 0.2s ease",
           opacity: open ? 1 : 0,
