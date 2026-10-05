@@ -254,6 +254,15 @@ def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
     assert "speech_buffer_length" not in source
 
 
+def test_streamed_voice_reply_flushes_on_sentences_not_short_clauses():
+    """TTS buffering should not turn punctuation inside a sentence into a new burst."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 're.search(r"[.!?]\\s*$", text)' in source
+    assert 're.search(r"[.!?;:]\\s*$", text)' not in source
+
+
 def test_pipeline_google_tts_uses_chirp_default_not_gemini_flash():
     """Pipeline TTS must not silently consume the Gemini Flash TTS quota."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"

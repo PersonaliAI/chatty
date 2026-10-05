@@ -274,7 +274,10 @@ class ChattyVoiceAgent(Agent):
                 return
             # Keep whitespace between adjacent provider chunks, but avoid a
             # leading space when a provider already includes punctuation.
-            if force or len(text) >= 120 or re.search(r"[.!?;:]\s*$", text):
+            # Colons and semicolons are clause boundaries, not reliable TTS
+            # turn boundaries. Waiting for a sentence terminator prevents
+            # short clause-sized audio bursts that sound rushed or clipped.
+            if force or len(text) >= 120 or re.search(r"[.!?]\s*$", text):
                 queue.put_nowait(text)
                 speech_buffer.clear()
 
