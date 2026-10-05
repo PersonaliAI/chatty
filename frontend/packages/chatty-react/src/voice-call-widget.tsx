@@ -25,8 +25,16 @@ import { parseRichContent } from "./rich-content";
 
 const WAVE_BAR_COUNT = 14;
 const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
+// Ask the browser/WebRTC stack to perform the safety processing that keeps
+// customer calls intelligible before audio reaches VAD/STT.
+const MICROPHONE_CAPTURE_OPTIONS = {
+  autoGainControl: true,
+  echoCancellation: true,
+  noiseSuppression: true,
+  channelCount: 1,
+} as const;
 
-type CallStatus = "connecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
+type CallStatus = "connecting" | "reconnecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
 
 interface TranscriptEntry {
   id: string;
@@ -146,11 +154,21 @@ export default function VoiceCallWidget({
         roomRef.current = room;
 
         room.on(RoomEvent.Disconnected, () => {
-          if (!cancelled && mountedRef.current) setStatus((s) => (s === "error" ? s : "ended"));
+          // Deliberate hangup clears roomRef before disconnecting. Any other
+          // disconnect is a recoverable transport failure, not a completed
+          // conversation.
+          if (!cancelled && mountedRef.current && roomRef.current === room) {
+            setErrorMessage("The voice connection was lost. Reconnect to continue.");
+            setStatus("error");
+          }
         });
 
         room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
           if (cancelled || !mountedRef.current) return;
+          if (state === ConnectionState.Reconnecting) {
+            setStatus("reconnecting");
+            return;
+          }
           if (state === ConnectionState.Connected) {
             setStatus((s) => (s === "agent-speaking" ? s : "connected"));
           }
@@ -250,7 +268,7 @@ export default function VoiceCallWidget({
           }
           orbLevel.set(Math.min(1, remoteLevel * 3.5));
           setStatus((prev) => {
-            if (prev === "connecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
+            if (prev === "connecting" || prev === "reconnecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
             if (remoteLevel > 0.01) return "agent-speaking";
             if (localSpeaking) return "listening";
             return "connected";
@@ -270,7 +288,7 @@ export default function VoiceCallWidget({
         let microphoneTimeout: number | undefined;
         try {
           await Promise.race([
-            room.localParticipant.setMicrophoneEnabled(true),
+            room.localParticipant.setMicrophoneEnabled(true, MICROPHONE_CAPTURE_OPTIONS),
             new Promise<never>((_, reject) => {
               microphoneTimeout = window.setTimeout(
                 () => reject(new Error("MICROPHONE_PERMISSION_TIMEOUT")),
@@ -416,7 +434,7 @@ export default function VoiceCallWidget({
     const room = roomRef.current;
     if (!room) return;
     const next = !muted;
-    await room.localParticipant.setMicrophoneEnabled(!next);
+    await room.localParticipant.setMicrophoneEnabled(!next, next ? undefined : MICROPHONE_CAPTURE_OPTIONS);
     setMuted(next);
   };
 
@@ -453,11 +471,19 @@ export default function VoiceCallWidget({
         body.append("file", file, file.name);
         response = await fetch(`${backendUrl}/api/widget/chat/media`, { method: "POST", headers: authHeaders, body });
       } else {
-        response = await fetch(`${backendUrl}/api/widget/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders },
-          body: JSON.stringify({ bot_id: botId, session_id: sessionId, text, visitor_timezone: visitorTimezone }),
-        });
+        // Keep typed messages inside the same LiveKit AgentSession as speech.
+        // The worker then uses the configured Pipeline/Realtime mode, emits
+        // the assistant transcript, and speaks the response over the active
+        // call instead of returning a text-only HTTP reply.
+        const room = roomRef.current;
+        if (room && room.state === ConnectionState.Connected) {
+          await room.localParticipant.sendText(text, { topic: "lk.chat" });
+          setSendingMessage(false);
+          return;
+        }
+        setErrorMessage("Voice connection is still starting. Please try again in a moment.");
+        setSendingMessage(false);
+        return;
       }
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.detail || "Message could not be sent");
@@ -515,6 +541,7 @@ export default function VoiceCallWidget({
   const statusLabel = (() => {
     switch (status) {
       case "connecting": return "Connecting…";
+      case "reconnecting": return "Reconnecting…";
       case "requesting-mic": return "Please allow microphone access…";
       case "connected": return fmtDuration(duration);
       case "listening": return "Listening…";
@@ -533,17 +560,15 @@ export default function VoiceCallWidget({
             <AlertCircle className="size-6 text-red-500" />
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-[220px] leading-relaxed">{errorMessage}</p>
-          {(errorMessage || "").toLowerCase().includes("microphone") && (
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.95 }}
-              onClick={retryMicrophone}
-              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
-              style={{ background: primaryColor }}
-            >
-              Try microphone again
-            </motion.button>
-          )}
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.95 }}
+            onClick={retryMicrophone}
+            className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+            style={{ background: primaryColor }}
+          >
+            {(errorMessage || "").toLowerCase().includes("microphone") ? "Try microphone again" : "Reconnect voice"}
+          </motion.button>
           <motion.button
             type="button"
             whileTap={{ scale: 0.85 }}

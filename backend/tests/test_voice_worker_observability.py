@@ -301,6 +301,19 @@ def test_browser_voice_capture_requests_echo_noise_and_gain_processing():
     assert "autoGainControl: true" in source
 
 
+def test_published_voice_widget_uses_livekit_for_typed_replies_and_recovery():
+    """The shipped React package must keep typed input in the active voice turn."""
+    source_path = Path(__file__).resolve().parents[2] / "frontend" / "packages" / "chatty-react" / "src" / "voice-call-widget.tsx"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 'topic: "lk.chat"' in source
+    assert "echoCancellation: true" in source
+    assert "noiseSuppression: true" in source
+    assert "autoGainControl: true" in source
+    assert 'The voice connection was lost. Reconnect to continue.' in source
+    assert "case \"reconnecting\": return \"Reconnecting…\";" in source
+
+
 def test_interim_user_transcripts_keep_one_id_and_tolerate_missing_timestamps():
     """Interim STT updates must replace one line even with sparse provider events."""
     source_path = Path(__file__).resolve().parents[2] / "backend" / "voice-agent" / "voice_worker.py"
