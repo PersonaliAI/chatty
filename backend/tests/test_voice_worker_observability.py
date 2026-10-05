@@ -291,3 +291,13 @@ def test_interim_user_transcripts_keep_one_id_and_tolerate_missing_timestamps():
     assert "if active_transcript_id is None:" in source
     assert "raw_created_at = getattr(ev, \"created_at\", None)" in source
     assert "if start_seconds > 100_000_000_000:" in source
+
+
+def test_voice_widget_offers_recovery_after_unexpected_disconnect():
+    """A transport loss must be recoverable without pretending it was a clean hangup."""
+    source_path = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "voice-call-widget.tsx"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "roomRef.current === room" in source
+    assert "The voice connection was lost. Reconnect to continue." in source
+    assert "Reconnect voice" in source
