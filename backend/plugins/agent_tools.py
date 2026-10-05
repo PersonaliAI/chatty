@@ -55,6 +55,30 @@ def _normalize_voice_contact_value(field: str, value: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", text)
 
 
+def _voice_spelling_matches(field: str, value: Any, spelling: Any) -> bool:
+    """Validate that the value was actually read back to the visitor.
+
+    Voice STT is not authoritative for contact details. Requiring a second,
+    explicitly spoken-back representation gives the model a deterministic
+    retry path when names such as ``Shija``/``Shiga`` are easy to confuse.
+    """
+    canonical = _normalize_voice_contact_value(field, value)
+    repeated = _normalize_voice_contact_value(field, spelling)
+    if not canonical or not repeated or canonical != repeated:
+        return False
+    if field == "name":
+        raw = str(spelling or "").strip()
+        parts = [part for part in re.split(r"[-\s]+", raw) if part]
+        # Every token must be one character: this rejects a plain copied
+        # value such as "Shiga" and forces the agent to surface S-H-I-J-A
+        # versus S-H-I-G-A to the visitor.
+        return bool(parts) and all(len(part) == 1 for part in parts)
+    if field == "email":
+        raw = str(spelling or "").casefold()
+        return bool(re.search(r"\bat\b|\bdot\b|\s", raw))
+    return True
+
+
 def _voice_confirmation_key(context: Optional[dict]) -> Optional[tuple[str, str]]:
     if not context or not context.get("voice_mode"):
         return None
@@ -375,7 +399,8 @@ DECLARATIONS: list[dict] = [
     _tool(
         "confirm_contact_detail",
         "Mark one spoken contact detail as explicitly confirmed by the visitor. "
-        "Voice calls must repeat the spelling and ask for a clear yes before calling this; "
+        "Voice calls must repeat the spelling and ask for a clear yes before calling this. "
+        "Pass the exact character-by-character or voice-friendly read-back in spelling; "
         "this tool never saves a lead by itself.",
         {
             "field": {
@@ -384,8 +409,12 @@ DECLARATIONS: list[dict] = [
                 "description": "The single contact field the visitor just confirmed.",
             },
             "value": {"type": "string", "description": "The exact spelling/value the visitor confirmed."},
+            "spelling": {
+                "type": "string",
+                "description": "Exact read-back used for confirmation: e.g. S-H-I-J-A for a name, or s h i j a at example dot com for an email.",
+            },
         },
-        ["field", "value"],
+        ["field", "value", "spelling"],
     ),
     _tool(
         "reschedule_meeting",
@@ -1771,6 +1800,24 @@ async def execute(
                 return {"error": "field must be one of name, email, phone, company, or job_title"}
             if not context or not context.get("voice_mode"):
                 return {"error": "confirm_contact_detail is only available during a voice call"}
+            if not args.get("spelling"):
+                return {
+                    "error": (
+                        f"Do not save this {field} yet. Repeat it explicitly and pass the exact read-back in "
+                        "spelling (for example S-H-I-J-A or s h i j a at example dot com), then ask the visitor "
+                        "to confirm."
+                    ),
+                    "needs_confirmation": True,
+                }
+            if not _voice_spelling_matches(field, args.get("value"), args.get("spelling")):
+                return {
+                    "error": (
+                        f"The spoken spelling does not match the captured {field}. Discard the draft, ask the "
+                        "visitor to spell it one character at a time, repeat the new spelling, and ask again. "
+                        "Do not call create_lead yet."
+                    ),
+                    "needs_confirmation": True,
+                }
             if not _register_voice_confirmation(context, field, args.get("value")):
                 return {"error": "A non-empty contact value is required"}
             return {"success": True, "field": field, "message": "Contact detail confirmed; it may now be saved when all required fields are present."}
