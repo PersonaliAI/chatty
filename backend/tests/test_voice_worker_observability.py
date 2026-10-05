@@ -440,6 +440,16 @@ def test_pipeline_endpointing_allows_slow_google_finals():
     assert "endpointing=_voice_endpointing_options()" in source
 
 
+def test_pipeline_interruption_accepts_short_barge_in():
+    """A short natural stop/wait must be able to interrupt TTS promptly."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert '"min_duration": 0.35' in source
+    assert '"min_words": 1' in source
+    assert '"resume_false_interruption": True' in source
+
+
 def test_voice_widget_offers_recovery_after_unexpected_disconnect():
     """A transport loss must be recoverable without pretending it was a clean hangup."""
     source_path = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "voice-call-widget.tsx"
