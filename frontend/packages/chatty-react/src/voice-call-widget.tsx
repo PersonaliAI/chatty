@@ -54,6 +54,23 @@ interface VoiceCallWidgetProps {
   onClose: () => void;
 }
 
+/** Calm live-transcription cue; a blinking block looks like a stuck caret. */
+function TranscriptActivityIndicator({ label = "Live transcription" }: { label?: string }) {
+  return (
+    <span className="ml-2 inline-flex items-center gap-1 align-middle" aria-label={label} role="status">
+      <span className="sr-only">{label}</span>
+      {[0, 1, 2].map((index) => (
+        <motion.span
+          key={index}
+          className="size-1.5 rounded-full bg-current opacity-40"
+          animate={{ y: [0, -2, 0], opacity: [0.35, 0.95, 0.35], scale: [0.85, 1, 0.85] }}
+          transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut", delay: index * 0.14 }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export default function VoiceCallWidget({
   botId,
   sessionId,
@@ -265,11 +282,16 @@ export default function VoiceCallWidget({
                 for (const [key, at] of recentFinalTranscriptRef.current) {
                   if (now - at > 3000) recentFinalTranscriptRef.current.delete(key);
                 }
-                if (speaker === "visitor" && seg.final && normalized &&
-                    (recentFinalTranscriptRef.current.get(dedupeKey) ?? 0) > now - 3000) {
+                // RoomIO publishes legacy and stream transcription packets for
+                // compatibility. Some LiveKit clients surface both with new
+                // segment IDs, so suppress an exact final duplicate for the
+                // short window in which those two packets can arrive.
+                const duplicateRecentFinal = seg.final && normalized &&
+                  (recentFinalTranscriptRef.current.get(dedupeKey) ?? 0) > now - 5000;
+                if (duplicateRecentFinal) {
                   continue;
                 }
-                if (speaker === "visitor" && seg.final && normalized) {
+                if (seg.final && normalized) {
                   recentFinalTranscriptRef.current.set(dedupeKey, now);
                 }
                 next.push(entry);
@@ -484,6 +506,10 @@ export default function VoiceCallWidget({
     const visitorText = text || `Attachment: ${file?.name || "file"}`;
     setMessageText("");
     setPendingFile(null);
+    recentFinalTranscriptRef.current.set(
+      `visitor:${visitorText.trim().replace(/\s+/g, " ").toLowerCase()}`,
+      Date.now(),
+    );
     setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
     setSendingMessage(true);
     try {
@@ -717,14 +743,12 @@ export default function VoiceCallWidget({
                           >
                             {rich.cleanContent}
                           </ReactMarkdown>
-                          {!entry.final && (
-                            <span className="ml-1 inline-block h-3 w-0.5 align-[-2px] rounded-full bg-current opacity-70 animate-pulse" aria-label="still transcribing" />
-                          )}
+                          {!entry.final && <TranscriptActivityIndicator label="Still transcribing" />}
                         </>
                       ) : !hasRichCards ? (
-                        <span className="flex items-center gap-2 py-0.5" aria-label="typing">
-                          <span className="h-4 w-0.5 rounded-full bg-current opacity-70 animate-pulse" />
-                          <span className="text-[10px] opacity-55">Listening…</span>
+                        <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
+                          <span className="text-[10px] opacity-55">Listening</span>
+                          <TranscriptActivityIndicator label="Listening for speech" />
                         </span>
                       ) : null}
                       {hasRichCards && <div className="mt-1.5 w-full space-y-1">

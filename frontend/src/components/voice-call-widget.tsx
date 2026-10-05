@@ -58,6 +58,23 @@ interface VoiceCallWidgetProps {
   previewMode?: boolean;
 }
 
+/** Calm live-transcription cue; a blinking block looks like a stuck caret. */
+function TranscriptActivityIndicator({ label = "Live transcription" }: { label?: string }) {
+  return (
+    <span className="ml-2 inline-flex items-center gap-1 align-middle" aria-label={label} role="status">
+      <span className="sr-only">{label}</span>
+      {[0, 1, 2].map((index) => (
+        <motion.span
+          key={index}
+          className="size-1.5 rounded-full bg-current opacity-40"
+          animate={{ y: [0, -2, 0], opacity: [0.35, 0.95, 0.35], scale: [0.85, 1, 0.85] }}
+          transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut", delay: index * 0.14 }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export default function VoiceCallWidget({
   botId,
   sessionId,
@@ -623,6 +640,10 @@ export default function VoiceCallWidget({
     const visitorText = text || `Attachment: ${file?.name || "file"}`;
     setMessageText("");
     setPendingFile(null);
+    recentFinalTranscriptRef.current.set(
+      `visitor:${visitorText.trim().replace(/\s+/g, " ").toLowerCase()}`,
+      Date.now(),
+    );
     setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
     setSendingMessage(true);
     try {
@@ -825,8 +846,7 @@ export default function VoiceCallWidget({
           </div>
 
           {/* Live transcript - auto-scrolls to the newest line; interim
-              (not-yet-final) segments render with a bouncy typing indicator
-              instead of raw text jitter, then settle into place once final. */}
+              (not-yet-final) segments show a calm live cue and settle once final. */}
           <div className={`min-h-[7rem] flex-1 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto overscroll-contain"} chatty-voice-scrollbar space-y-2 py-2`}>
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
@@ -877,15 +897,13 @@ export default function VoiceCallWidget({
                             >
                               {cleanText}
                             </ReactMarkdown>
-                            {!entry.final && (
-                              <span className="inline-block w-1 h-3 ml-0.5 -mb-0.5 bg-current opacity-60 animate-pulse" />
-                            )}
+                            {!entry.final && <TranscriptActivityIndicator label="Still transcribing" />}
                           </>
                         ) : (
                           !hasBookingOnEntry && !hasRichCards && (
-                            <span className="flex items-center gap-2 py-0.5" aria-label="typing">
-                              <span className="h-4 w-0.5 rounded-full bg-current opacity-70 animate-pulse" />
-                              <span className="text-[10px] opacity-55">Listening…</span>
+                            <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
+                              <span className="text-[10px] opacity-55">Listening</span>
+                              <TranscriptActivityIndicator label="Listening for speech" />
                             </span>
                           )
                         )}
