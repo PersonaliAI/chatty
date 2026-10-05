@@ -123,25 +123,24 @@ _VOICE_TEXT_INPUT_HINT = (
 
 
 def _voice_endpointing_options() -> dict[str, Any]:
-    """Return conservative, configurable endpointing for slower STT streams.
+    """Return low-latency endpointing for the streaming STT pipeline.
 
-    Google pipeline STT can deliver the final transcript shortly after the
-    semantic turn detector commits a turn. A too-small minimum delay makes
-    the UI appear non-realtime and can create a second transcript when the
-    late final arrives. Keep production defaults forgiving while allowing a
-    deployment to tune them without rebuilding the worker.
+    Pipeline mode uses Google's bidirectional STT stream as the turn source;
+    adding a second semantic turn-inference hop makes responses feel stuck
+    and can delay a barge-in. Keep a short speech-end grace period for natural
+    pauses while allowing operators to tune it without rebuilding the worker.
     """
     try:
-        min_delay = float(os.environ.get("VOICE_ENDPOINTING_MIN_DELAY", "1.2"))
+        min_delay = float(os.environ.get("VOICE_ENDPOINTING_MIN_DELAY", "0.45"))
     except (TypeError, ValueError):
-        min_delay = 1.2
+        min_delay = 0.45
     try:
-        max_delay = float(os.environ.get("VOICE_ENDPOINTING_MAX_DELAY", "3.5"))
+        max_delay = float(os.environ.get("VOICE_ENDPOINTING_MAX_DELAY", "2.0"))
     except (TypeError, ValueError):
-        max_delay = 3.5
-    min_delay = max(0.75, min(2.5, min_delay))
-    max_delay = max(min_delay, min(5.0, max_delay))
-    return {"mode": "dynamic", "min_delay": min_delay, "max_delay": max_delay, "alpha": 0.75}
+        max_delay = 2.0
+    min_delay = max(0.25, min(1.5, min_delay))
+    max_delay = max(min_delay, min(3.5, max_delay))
+    return {"mode": "fixed", "min_delay": min_delay, "max_delay": max_delay}
 
 
 def _voice_greeting(bot: dict[str, Any]) -> str:
@@ -1261,9 +1260,9 @@ def prewarm_fnc(proc: JobProcess) -> None:
     # visitor must go quiet before VAD reports speech-end. The previous 0.35s
     # (tuned down for snappier turn-taking) was cutting visitor speech short
     # on real mobile mics - brief silence blips from network jitter/handling
-    # noise read as "done talking". inference.TurnDetector (semantic, not
-    # just silence-based) remains the primary turn-taking signal below, so
-    # this only needs to be conservative enough not to mis-trigger.
+    # noise read as "done talking". Google Chirp 3 endpointing is the primary
+    # turn-taking signal in pipeline mode, so this only needs to be
+    # conservative enough not to mis-trigger.
     # LiveKit's bundled native inference VAD keeps the Silero model singleton
     # in the worker and gives each call a lightweight stream executor. This
     # avoids ONNX Runtime thread contention that made the 4-vCPU VPS fall
@@ -1434,8 +1433,12 @@ async def entrypoint(ctx: JobContext) -> None:
                 # backchannels/noise; false interruptions resume cleanly. TTS is
                 # deliberately not preemptive, so half-finished thoughts never
                 # become rushed audio.
+                # Google Chirp 3 already provides streaming interim/final
+                # hypotheses and endpointing events. Using the STT turn mode
+                # avoids an additional semantic-inference hop that can lag
+                # behind realtime and prevents timely barge-in.
                 turn_handling=TurnHandlingOptions(
-                    turn_detection=inference.TurnDetector(),
+                    turn_detection="stt",
                     endpointing=_voice_endpointing_options(),
                     interruption={
                         "mode": interruption_mode,
@@ -1443,8 +1446,8 @@ async def entrypoint(ctx: JobContext) -> None:
                         # 500 ms. Let a real one-word barge-in clear TTS
                         # promptly while min_words and the denoised VAD still
                         # reject most clicks and background noise.
-                        "min_duration": 0.35,
-                        "min_words": 1,
+                        "min_duration": 0.25,
+                        "min_words": 0,
                         "false_interruption_timeout": 2.0,
                         "resume_false_interruption": True,
                         "backchannel_boundary": (0.8, 1.5),

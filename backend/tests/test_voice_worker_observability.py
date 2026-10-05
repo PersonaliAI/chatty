@@ -427,17 +427,16 @@ def test_room_io_owns_visitor_transcript_publication():
     assert "publish_transcription" not in source
 
 
-def test_pipeline_endpointing_allows_slow_google_finals():
-    """Pipeline endpointing should leave time for Google interim/final STT."""
+def test_pipeline_endpointing_is_low_latency_for_streaming_google_stt():
+    """Pipeline endpointing should use a short fixed STT grace period."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
     worker = _load_worker()
     assert worker._voice_endpointing_options() == {
-        "mode": "dynamic",
-        "min_delay": 1.2,
-        "max_delay": 3.5,
-        "alpha": 0.75,
+        "mode": "fixed",
+        "min_delay": 0.45,
+        "max_delay": 2.0,
     }
     assert "endpointing=_voice_endpointing_options()" in source
 
@@ -447,8 +446,8 @@ def test_pipeline_interruption_accepts_short_barge_in():
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert '"min_duration": 0.35' in source
-    assert '"min_words": 1' in source
+    assert '"min_duration": 0.25' in source
+    assert '"min_words": 0' in source
     assert '"resume_false_interruption": True' in source
 
 
