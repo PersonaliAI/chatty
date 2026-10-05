@@ -69,6 +69,12 @@ from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS  # noq
 # Model tried first for voice-mode requests (run_widget_assistant(voice_mode=True))
 # before falling through to the same GEMINI_FALLBACK_MODELS chain used by text.
 GEMINI_VOICE_MODEL = os.environ.get("GEMINI_VOICE_MODEL", "gemini-3.1-flash-lite")
+# Keep a voice turn bounded at the model boundary as well as in the prompt. A
+# prompt-only limit is advisory; this hard cap prevents a long knowledge-base
+# answer from holding the TTS turn open and making the agent sound stuck. 512
+# tokens still leaves room for booking/lead confirmations and tool arguments,
+# while normal text chat keeps its existing 4096-token budget.
+VOICE_MAX_OUTPUT_TOKENS = 512
 
 # Dashboard-configured persona/focus lean for voice calls (chatty_bots.
 # voice_agent_role) - shapes tone/emphasis only, does NOT gate which tools
@@ -1177,7 +1183,7 @@ async def run_widget_assistant(
             messages=[{"role": "system", "content": system_instruction}] + messages,
             fallback_models=fallback_models,
             tools=tools,
-            max_tokens=4096,
+            max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096,
             temperature=generation_temperature,
             on_token=stream_live,
             bot_id=bot_id,

@@ -319,6 +319,14 @@ def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
     assert "speech_buffer_length" not in source
 
 
+def test_voice_generation_has_a_hard_response_budget():
+    """Voice TTS turns must not stay open behind an unbounded chat answer."""
+    source_path = Path(__file__).resolve().parents[1] / "plugins" / "widget_brain.py"
+    source = source_path.read_text(encoding="utf-8")
+    assert "VOICE_MAX_OUTPUT_TOKENS = 512" in source
+    assert "max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096" in source
+
+
 def test_streamed_voice_reply_flushes_on_sentences_not_short_clauses():
     """TTS buffering should not turn punctuation inside a sentence into a new burst."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
