@@ -405,25 +405,29 @@ def test_published_voice_widget_uses_livekit_for_typed_replies_and_recovery():
     assert "case \"reconnecting\": return \"Reconnecting…\";" in source
 
 
-def test_interim_user_transcripts_keep_one_id_and_tolerate_missing_timestamps():
-    """Interim STT updates must replace one line even with sparse provider events."""
+def test_room_io_owns_visitor_transcript_publication():
+    """RoomIO must be the single publisher for interim and final user STT."""
     source_path = Path(__file__).resolve().parents[2] / "backend" / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert "active_transcript_id: Optional[str] = None" in source
-    assert "if active_transcript_id is None:" in source
-    assert "raw_created_at = getattr(ev, \"created_at\", None)" in source
-    assert "if start_seconds > 100_000_000_000:" in source
+    assert "TextOutputOptions(sync_transcription=True)" in source
+    assert "RoomIO's _ParticipantTranscriptionOutput already forwards both" in source
+    assert "publish_transcription" not in source
 
 
-def test_visitor_transcripts_use_remote_participant_identity():
-    """Published visitor STT must not be attributed to the worker agent."""
+def test_pipeline_endpointing_allows_slow_google_finals():
+    """Pipeline endpointing should leave time for Google interim/final STT."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert "def _visitor_identity() -> Optional[str]:" in source
-    assert "participant_identity=visitor_identity" in source
-    assert "participant_identity=ctx.room.local_participant.identity" not in source
+    worker = _load_worker()
+    assert worker._voice_endpointing_options() == {
+        "mode": "dynamic",
+        "min_delay": 1.2,
+        "max_delay": 3.5,
+        "alpha": 0.75,
+    }
+    assert "endpointing=_voice_endpointing_options()" in source
 
 
 def test_voice_widget_offers_recovery_after_unexpected_disconnect():

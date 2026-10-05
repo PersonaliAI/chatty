@@ -46,7 +46,7 @@ import litellm
 from google.genai import types as genai_types
 from litellm.types.utils import Usage as LitellmUsage
 
-from livekit import api, rtc
+from livekit import api
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -120,6 +120,28 @@ _VOICE_TEXT_INPUT_HINT = (
     "You can speak or type at any time; typed messages stay in this conversation "
     "and I will read my reply aloud."
 )
+
+
+def _voice_endpointing_options() -> dict[str, Any]:
+    """Return conservative, configurable endpointing for slower STT streams.
+
+    Google pipeline STT can deliver the final transcript shortly after the
+    semantic turn detector commits a turn. A too-small minimum delay makes
+    the UI appear non-realtime and can create a second transcript when the
+    late final arrives. Keep production defaults forgiving while allowing a
+    deployment to tune them without rebuilding the worker.
+    """
+    try:
+        min_delay = float(os.environ.get("VOICE_ENDPOINTING_MIN_DELAY", "1.2"))
+    except (TypeError, ValueError):
+        min_delay = 1.2
+    try:
+        max_delay = float(os.environ.get("VOICE_ENDPOINTING_MAX_DELAY", "3.5"))
+    except (TypeError, ValueError):
+        max_delay = 3.5
+    min_delay = max(0.75, min(2.5, min_delay))
+    max_delay = max(min_delay, min(5.0, max_delay))
+    return {"mode": "dynamic", "min_delay": min_delay, "max_delay": max_delay, "alpha": 0.75}
 
 
 def _voice_greeting(bot: dict[str, Any]) -> str:
@@ -1371,12 +1393,16 @@ async def entrypoint(ctx: JobContext) -> None:
                 # become rushed audio.
                 turn_handling=TurnHandlingOptions(
                     turn_detection=inference.TurnDetector(),
-                    endpointing={"mode": "dynamic", "min_delay": 0.65, "max_delay": 3.0, "alpha": 0.75},
+                    endpointing=_voice_endpointing_options(),
                     interruption={
                         "mode": interruption_mode,
-                        "min_duration": 0.5,
+                        # A natural "stop" / "wait" is often shorter than
+                        # 500 ms. Let a real one-word barge-in clear TTS
+                        # promptly while min_words and the denoised VAD still
+                        # reject most clicks and background noise.
+                        "min_duration": 0.35,
                         "min_words": 1,
-                        "false_interruption_timeout": 1.5,
+                        "false_interruption_timeout": 2.0,
                         "resume_false_interruption": True,
                         "backchannel_boundary": (0.8, 1.5),
                     },
@@ -1399,87 +1425,19 @@ async def entrypoint(ctx: JobContext) -> None:
         )
         return
 
-    active_transcript_id: Optional[str] = None
-
-    def _visitor_identity() -> Optional[str]:
-        """Return the remote visitor identity for published STT segments.
-
-        The worker is the room's local participant, but visitor transcripts
-        must carry the visitor's identity or clients classify them as agent
-        output. Voice rooms currently have one remote visitor; selecting the
-        first remote participant also keeps this safe for future supervisors.
-        """
-        remote_participants = getattr(ctx.room, "remote_participants", None)
-        if isinstance(remote_participants, dict):
-            for identity in remote_participants:
-                if identity:
-                    return str(identity)
-        return None
-
     def _record_user_input(ev) -> None:
-        nonlocal turn_count, active_transcript_id
+        nonlocal turn_count
         transcript = (getattr(ev, "transcript", "") or "").strip()
         is_final = bool(getattr(ev, "is_final", False))
         if is_final and transcript:
             turn_count += 1
-        # LiveKit's built-in output transcription only covers the agent side.
-        # Publish visitor STT explicitly so the widget can render interim text
-        # while the visitor is still speaking, then replace it with the final
-        # segment using the same stable item id.
-        if transcript and getattr(ctx.room, "local_participant", None):
-            try:
-                visitor_identity = _visitor_identity()
-                if not visitor_identity:
-                    logger.warning("voice worker: visitor transcript has no remote participant identity")
-                    return
-                event_item_id = getattr(ev, "item_id", None)
-                if event_item_id:
-                    item_id = str(event_item_id)
-                else:
-                    # Some STT providers omit item_id on interim events. Keep
-                    # one stable ID for the current utterance so the widget
-                    # replaces the live transcript instead of appending a new
-                    # line for every partial result.
-                    if active_transcript_id is None:
-                        active_transcript_id = f"user-{time.time_ns()}"
-                    item_id = active_transcript_id
-                raw_created_at = getattr(ev, "created_at", None)
-                try:
-                    start_seconds = float(raw_created_at)
-                    # Accept providers that report Unix milliseconds as well as
-                    # the LiveKit event's normal Unix-seconds timestamp.
-                    if start_seconds > 100_000_000_000:
-                        start_seconds /= 1000
-                except (TypeError, ValueError):
-                    start_seconds = time.time()
-                start_ms = int(start_seconds * 1000)
-                segment = rtc.TranscriptionSegment(
-                    id=item_id,
-                    text=transcript,
-                    start_time=start_ms,
-                    end_time=start_ms + max(1, len(transcript.split()) * 280),
-                    language=str(getattr(ev, "language", None) or ""),
-                    final=is_final,
-                )
-                # LiveKit's Python API returns a coroutine here. Schedule it
-                # from this synchronous STT callback so interim/final visitor
-                # text reaches the widget without an un-awaited coroutine.
-                asyncio.create_task(
-                    ctx.room.local_participant.publish_transcription(
-                        rtc.Transcription(
-                            participant_identity=visitor_identity,
-                            track_sid="",
-                            segments=[segment],
-                        )
-                    )
-                )
-                if is_final and not event_item_id:
-                    active_transcript_id = None
-            except Exception:
-                logger.exception("voice worker: failed to publish visitor transcript")
+        # RoomIO's _ParticipantTranscriptionOutput already forwards both
+        # interim and final user_input_transcribed events with one stable
+        # segment id and the remote visitor identity. Publishing a second
+        # segment here made every spoken turn appear twice in the widget.
         logger.info(
-            "voice worker: transcript (final=%s) %r",
-            getattr(ev, "is_final", False),
+            "voice worker: transcript (final=%s, room_io_published=true) %r",
+            is_final,
             (getattr(ev, "transcript", "") or "")[:120],
         )
 
