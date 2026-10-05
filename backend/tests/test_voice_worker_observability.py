@@ -204,32 +204,13 @@ def test_pipeline_google_tts_uses_chirp_default_not_gemini_flash():
     assert '"en-US-Chirp3-HD-Charon"' in source
 
 
-def test_idle_nudge_closure_declares_metric_counter_nonlocal():
-    """Prevent the old UnboundLocalError from returning in a worker image."""
-    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
-    tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    nudge_functions = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.AsyncFunctionDef) and node.name == "_nudge_when_idle"
-    ]
-    assert len(nudge_functions) == 1
-    nonlocal_names = {
-        name
-        for node in ast.walk(nudge_functions[0])
-        if isinstance(node, ast.Nonlocal)
-        for name in node.names
-    }
-    assert {"idle_nudge_count", "nudge_count"}.issubset(nonlocal_names)
-
-
-def test_idle_nudges_are_explicitly_opt_in():
-    """Silence must not produce the recurring scripted follow-up by default."""
+def test_idle_nudges_are_removed():
+    """Silence must stay quiet instead of producing scripted follow-ups."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert 'os.environ.get("VOICE_IDLE_NUDGES_ENABLED", "false")' in source
-    assert "idle_nudge_task = asyncio.create_task" in source
+    assert "_nudge_when_idle" not in source
+    assert "are you still there" not in source.lower()
 
 
 def test_browser_voice_capture_requests_echo_noise_and_gain_processing():

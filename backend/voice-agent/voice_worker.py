@@ -991,8 +991,8 @@ class ChattyRealtimeAgent(Agent):
             + "You are having a live voice conversation with a website visitor. Keep replies "
             "conversational, warm, and concise - this is speech, not a chat window. Use brief "
             "natural acknowledgements, ask one clear follow-up question at a time, and if the "
-            "visitor pauses, wait patiently rather than filling the silence. Never emit a "
-            "generic 'are you still there?' prompt during normal silence. Use the "
+            "visitor pauses, wait patiently rather than filling the silence. Never emit "
+            "an automatic silence prompt during normal silence. Use the "
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing. When a visitor wants to book, always use the availability and "
             "calendar tools; never invent a time, and collect the required name and email. "
@@ -1139,7 +1139,6 @@ async def entrypoint(ctx: JobContext) -> None:
     nudge_count = 0
     error_count = 0
     max_duration_task: Optional[asyncio.Task] = None
-    idle_nudge_task: Optional[asyncio.Task] = None
     call_logged = False
 
     # A Google pipeline needs service-account ADC for both STT and TTS. Never
@@ -1203,20 +1202,11 @@ async def entrypoint(ctx: JobContext) -> None:
             ),
         )
 
-    # Keep the conversation human-like when a visitor pauses after the
-    # greeting. The client still receives this through LiveKit's normal
-    # transcription stream, so it appears as a real agent turn (and is saved
-    # with the rest of the call transcript), rather than a browser-only hint.
-    last_user_activity = time.monotonic()
-    idle_nudge_count = 0
-
     def _record_user_input(ev) -> None:
-        nonlocal last_user_activity, idle_nudge_count, turn_count
+        nonlocal turn_count
         transcript = (getattr(ev, "transcript", "") or "").strip()
         is_final = bool(getattr(ev, "is_final", False))
         if is_final and transcript:
-            last_user_activity = time.monotonic()
-            idle_nudge_count = 0
             turn_count += 1
         # LiveKit's built-in output transcription only covers the agent side.
         # Publish visitor STT explicitly so the widget can render interim text
@@ -1386,7 +1376,7 @@ async def entrypoint(ctx: JobContext) -> None:
     async def _cancel_background_tasks() -> None:
         current_task = asyncio.current_task()
         tasks = [
-            task for task in (max_duration_task, idle_nudge_task)
+            task for task in (max_duration_task,)
             if task is not None and task is not current_task
         ]
         for task in tasks:
@@ -1473,10 +1463,6 @@ async def entrypoint(ctx: JobContext) -> None:
         )
         await _speak(greeting)
 
-    # Start idle monitoring after the greeting has finished so a long first
-    # response cannot trigger a follow-up over the top of the introduction.
-    last_user_activity = time.monotonic()
-
     # Cost/abuse circuit-breaker: no per-minute quota exists yet (a known,
     # explicitly-accepted gap - usage is tracked, not gated), but an
     # abandoned open call (visitor closes the tab without hanging up) must
@@ -1502,62 +1488,6 @@ async def entrypoint(ctx: JobContext) -> None:
             pass
 
     max_duration_task = asyncio.create_task(_enforce_max_duration(), name=f"voice-max-duration:{session_id}")
-
-    async def _nudge_when_idle() -> None:
-        """Monitor silence and re-engage a few times without spamming visitors."""
-        nonlocal last_user_activity, idle_nudge_count, nudge_count
-        try:
-            await asyncio.sleep(8)
-            while True:
-                # Three nudges is enough to recover an attentive visitor. Keep
-                # monitoring after that, but stay quiet until they speak again.
-                if idle_nudge_count >= 3:
-                    await asyncio.sleep(5)
-                    continue
-                # Never prompt during the initial greeting or before the
-                # visitor has completed a real turn. Silence at that point is
-                # normal listening behavior, not abandonment.
-                if turn_count == 0:
-                    await asyncio.sleep(5)
-                    continue
-                idle_for = time.monotonic() - last_user_activity
-                threshold = 18 if idle_nudge_count == 0 else 35
-                if idle_for >= threshold:
-                    idle_nudge_count += 1
-                    nudge_count += 1
-                    if idle_nudge_count == 1:
-                        nudge = "Hey, are you still there? I'm here if you'd like help with anything."
-                    elif idle_nudge_count == 2:
-                        nudge = "I'm still here. You can ask a question, share a time to book, or type a message below."
-                    else:
-                        nudge = "No problem if you need a moment. I'll keep this call open quietly until you're ready."
-                    await _speak(
-                        nudge
-                    )
-                    last_user_activity = time.monotonic()
-                    await asyncio.sleep(5)
-                else:
-                    await asyncio.sleep(min(10, max(1, threshold - idle_for)))
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            logger.exception("voice worker: idle follow-up failed")
-
-    # Silence is not proof that a visitor needs a scripted prompt.  The old
-    # default fired the same "are you still there?" line during startup and
-    # after short pauses, making the agent sound automated.  Keep nudges as an
-    # explicit opt-in for deployments that want them, and only start monitoring
-    # after a real user turn has occurred.
-    idle_nudge_task = None
-    if os.environ.get("VOICE_IDLE_NUDGES_ENABLED", "false").strip().lower() in {"1", "true", "yes"}:
-        idle_nudge_task = asyncio.create_task(_nudge_when_idle(), name=f"voice-idle-nudge:{session_id}")
-
-    async def _cancel_idle_nudge() -> None:
-        if idle_nudge_task is not None:
-            idle_nudge_task.cancel()
-
-    ctx.add_shutdown_callback(_cancel_idle_nudge)
-
 
 server.setup_fnc = prewarm_fnc
 
