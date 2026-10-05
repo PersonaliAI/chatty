@@ -116,6 +116,21 @@ ELEVENLABS_VOICE_ALIASES = {
     "adam": "pNInz6obpgDQGcFmaJgB",
 }
 
+_VOICE_TEXT_INPUT_HINT = (
+    "You can speak or type at any time; typed messages stay in this conversation "
+    "and I will read my reply aloud."
+)
+
+
+def _voice_greeting(bot: dict[str, Any]) -> str:
+    """Return a configured greeting that makes the text fallback discoverable."""
+    greeting = (bot.get("welcome_message") or "").strip() or (
+        "Hi, I'm Chatty. I'm here and ready to help. What would you like to do today?"
+    )
+    if re.search(r"\b(?:type|typing|text|write|message box|keyboard)\b", greeting, re.IGNORECASE):
+        return greeting
+    return f"{greeting} {_VOICE_TEXT_INPUT_HINT}"
+
 
 def _process_rss_mb() -> Optional[float]:
     """Return this worker process' peak resident memory in MiB when available."""
@@ -1097,10 +1112,11 @@ class ChattyRealtimeAgent(Agent):
             "natural acknowledgements, ask one clear follow-up question at a time, and if the "
             "visitor pauses, wait patiently rather than filling the silence. Never emit "
             "an automatic silence prompt during normal silence. Use the "
-            "same conversation for voice and typed input: proactively tell the visitor "
-            "they can type whenever that is easier, accept typed messages from the composer, "
-            "and answer them with the same context while speaking the response and showing "
-            "the text transcript. Never ignore a typed message or start a second conversation. "
+            "same conversation for voice and typed input. In the opening greeting, explicitly "
+            "tell the visitor they can speak or type at any time; if they choose typing, wait "
+            "for the typed turn without asking if they are still there. Accept typed messages "
+            "from the composer and answer them with the same context while speaking the response "
+            "and showing the text transcript. Never ignore a typed message or start a second conversation. "
             "search_knowledge_base tool for any question about this specific business rather "
             "than guessing. When a visitor wants to book, always use the availability and "
             "calendar tools; never invent a time, and collect the required name and email. "
@@ -1150,9 +1166,7 @@ class ChattyRealtimeAgent(Agent):
                 visitor_timezone=visitor_timezone,
             ),
         )
-        self._greeting = (bot.get("welcome_message") or "").strip() or (
-            "Hi, I'm Chatty. I'm here and ready to help. What would you like to do today?"
-        )
+        self._greeting = _voice_greeting(bot)
 
     async def on_enter(self) -> None:
         # Realtime sessions synthesize through the model; AgentSession.say()
@@ -1722,9 +1736,7 @@ async def entrypoint(ctx: JobContext) -> None:
         # (not generate_reply) since there's no user turn yet - this doesn't
         # route through llm_node/run_widget_assistant at all. Realtime mode's
         # own ChattyRealtimeAgent.on_enter already does this greeting itself.
-        greeting = (bot.get("welcome_message") or "").strip() or (
-            "Hi, I'm Chatty. I'm here and ready to help. What would you like to do today?"
-        )
+        greeting = _voice_greeting(bot)
         await _speak(greeting)
 
     # Cost/abuse circuit-breaker: no per-minute quota exists yet (a known,

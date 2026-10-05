@@ -116,8 +116,8 @@ _VOICE_LEAD_VERIFICATION_INSTRUCTIONS = (
  )
 
 _VOICE_TEXT_INPUT_INSTRUCTIONS = (
-    "VOICE + TEXT INPUT: This is one shared conversation, not a voice-only silo. Tell the visitor they can type whenever that is easier (for example, `You can also type your question here if you prefer`). Read and answer typed messages using the same context, knowledge, booking, and lead workflow, and speak the answer through the active voice session while also showing the text transcript. Never ignore a typed message or start a second unrelated conversation.\n\n"
- )
+    "VOICE + TEXT INPUT (mandatory): This is one shared conversation, not a voice-only silo. In your opening greeting, tell the visitor: `You can speak or type at any time; typed messages stay in this conversation and I will read my reply aloud.` If the visitor says they would rather type, cannot hear, or cannot speak, acknowledge that choice, stop prompting for speech, and wait for the next typed turn. Treat every typed message from the composer as a complete user turn in the same context. Read and answer typed messages using the same knowledge, booking, and lead workflow, speak the answer through the active voice session, and show the same answer in the text transcript. Never ignore a typed message, answer it only through an unrelated HTTP chat, or start a second conversation.\n\n"
+)
 
 # Tool calls with a lasting real-world side effect (sends something, creates
 # a recurring automation, deletes something) that we refuse to let the

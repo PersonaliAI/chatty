@@ -810,6 +810,7 @@ export default function VoiceCallWidget({
                 ))}
               </div>
               <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
+              <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Speak or type anytime · typed messages are spoken back</span>
               {audioBlocked && (
                 <button
                   type="button"
