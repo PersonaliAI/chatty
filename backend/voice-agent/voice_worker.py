@@ -357,6 +357,28 @@ class ChattyVoiceAgent(Agent):
             # callback runs on the event loop, so queue ordering is stable.
             for phrase in speech_chunker.flush():
                 queue.put_nowait(phrase)
+            try:
+                task_error = task.exception()
+            except asyncio.CancelledError:
+                task_error = None
+            except Exception as exc:  # pragma: no cover - defensive callback guard
+                task_error = exc
+            if task_error is not None:
+                logger.error(
+                    "voice worker: assistant turn failed mode=pipeline error_type=%s",
+                    type(task_error).__name__,
+                )
+                participant = getattr(self._room, "local_participant", None)
+                if participant is not None:
+                    asyncio.create_task(
+                        participant.publish_data(
+                            json.dumps({
+                                "type": "voice_error",
+                                "message": "The assistant could not complete that turn. Please try again or type your message instead.",
+                            }).encode("utf-8"),
+                            reliable=True,
+                        )
+                    )
             queue.put_nowait(_SENTINEL)
 
         task.add_done_callback(_finish_stream)

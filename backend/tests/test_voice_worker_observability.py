@@ -166,6 +166,17 @@ def test_selected_provider_failures_are_not_silently_rerouted():
     assert "falling back to openai" not in source.lower()
 
 
+def test_pipeline_brain_failures_publish_recovery_guidance():
+    """A brain/provider exception must not leave a connected call silent."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert '"type": "voice_error"' in source
+    assert "assistant turn failed mode=pipeline" in source
+    assert "try again or type your message instead" in source
+    assert "task_error = task.exception()" in source
+
+
 def test_elevenlabs_is_a_first_class_pipeline_stt_provider():
     """ElevenLabs Scribe v2 realtime must be selectable without a mode switch."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
