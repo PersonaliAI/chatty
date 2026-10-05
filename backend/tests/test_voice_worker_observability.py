@@ -300,8 +300,26 @@ def test_streamed_voice_reply_flushes_on_sentences_not_short_clauses():
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert 're.search(r"[.!?]\\s*$", text)' in source
-    assert 're.search(r"[.!?;:]\\s*$", text)' not in source
+    assert "class _SpeechChunker" in source
+    assert "_SENTENCE_END = re.compile" in source
+    assert "_MIN_SPLIT_CHARS" in source
+    assert "[.!?;:]" not in source
+
+
+def test_speech_chunker_never_splits_words_and_flushes_sentences():
+    """Streaming TTS chunks must be complete phrases, not token fragments."""
+    worker = _load_worker()
+    chunker = worker._SpeechChunker()
+
+    assert chunker.add("The first answer is ready. ") == ["The first answer is ready."]
+    long_text = "This is a long sentence without punctuation " * 6
+    chunks = chunker.add(long_text)
+    tail = chunker.flush()
+    assert chunks
+    assert tail
+    assert all(not chunk.endswith(" ") for chunk in [*chunks, *tail])
+    assert all(len(chunk) <= worker._SpeechChunker._MAX_CHARS for chunk in [*chunks, *tail])
+    assert " ".join([*chunks, *tail]).replace("  ", " ") == long_text.strip()
 
 
 def test_pipeline_google_tts_uses_chirp_default_not_gemini_flash():

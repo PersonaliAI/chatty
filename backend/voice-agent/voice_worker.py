@@ -180,6 +180,59 @@ def _latest_user_text(chat_ctx: llm.ChatContext) -> str:
     return ""
 
 
+class _SpeechChunker:
+    """Turn streamed assistant text into stable, speakable phrases.
+
+    Feeding every model token directly to a TTS provider causes repeated
+    synthesis starts, clipped words, and an unnaturally fast cadence.  This
+    small buffer releases complete sentences first, then uses a whitespace
+    boundary for long answers that do not contain punctuation.  It never
+    cuts through a word and keeps the final fragment for an explicit flush.
+    """
+
+    _MAX_CHARS = 180
+    _MIN_SPLIT_CHARS = 80
+    _SENTENCE_END = re.compile(r"[.!?](?:[\"'\u2019\u201d)]*)(?=\s|$)")
+
+    def __init__(self) -> None:
+        self._buffer = ""
+
+    def add(self, text: str) -> list[str]:
+        if text:
+            self._buffer += text
+        return self._drain(force=False)
+
+    def flush(self) -> list[str]:
+        return self._drain(force=True)
+
+    def _drain(self, *, force: bool) -> list[str]:
+        chunks: list[str] = []
+        while self._buffer:
+            sentence = self._SENTENCE_END.search(self._buffer)
+            if sentence:
+                end = sentence.end()
+                phrase = self._buffer[:end].strip()
+                self._buffer = self._buffer[end:].lstrip()
+                if phrase:
+                    chunks.append(phrase)
+                continue
+
+            if len(self._buffer) >= self._MAX_CHARS:
+                boundary = self._buffer.rfind(" ", 0, self._MAX_CHARS + 1)
+                if boundary >= self._MIN_SPLIT_CHARS:
+                    phrase = self._buffer[:boundary].strip()
+                    self._buffer = self._buffer[boundary + 1:].lstrip()
+                    if phrase:
+                        chunks.append(phrase)
+                    continue
+            break
+
+        if force and self._buffer.strip():
+            chunks.append(self._buffer.strip())
+            self._buffer = ""
+        return chunks
+
+
 async def _handle_text_input(sess: AgentSession, ev: room_io.TextInputEvent) -> None:
     """Route composer text through the same turn state machine as speech.
 
@@ -270,28 +323,11 @@ class ChattyVoiceAgent(Agent):
 
         queue: asyncio.Queue = asyncio.Queue()
         _SENTINEL = object()
-        # Do not hand individual model-token fragments to TTS.  Doing that
-        # makes providers start/stop synthesis repeatedly, which sounds like
-        # stuttering, clipped words, and rushed speech.  Keep a short natural
-        # phrase in the buffer and release it at sentence/ clause boundaries
-        # (or at a safe upper bound so long answers still begin promptly).
-        speech_buffer: list[str] = []
-
-        def _flush_speech_buffer(*, force: bool = False) -> None:
-            if not speech_buffer:
-                return
-            text = "".join(speech_buffer).strip()
-            if not text:
-                speech_buffer.clear()
-                return
-            # Keep whitespace between adjacent provider chunks, but avoid a
-            # leading space when a provider already includes punctuation.
-            # Colons and semicolons are clause boundaries, not reliable TTS
-            # turn boundaries. Waiting for a sentence terminator prevents
-            # short clause-sized audio bursts that sound rushed or clipped.
-            if force or len(text) >= 120 or re.search(r"[.!?]\s*$", text):
-                queue.put_nowait(text)
-                speech_buffer.clear()
+        # Do not hand individual model-token fragments to TTS.  The chunker
+        # keeps one natural phrase per synthesis request and only splits long
+        # punctuation-free answers at whitespace, which prevents stuttering
+        # without delaying the first complete sentence.
+        speech_chunker = _SpeechChunker()
 
         # widget_brain._gemini_stream does `await on_token(part.text)` - on_token
         # MUST be an async callable (a fire-and-forget sync lambda would crash
@@ -302,8 +338,8 @@ class ChattyVoiceAgent(Agent):
             clean_tok = tok.replace("[BOOKING_WIDGET]", "")
             clean_tok = re.sub(r"\[(?:PRODUCT_CARD|VIDEO_CLIP):\{.*?\}\]", "", clean_tok)
             if clean_tok:
-                speech_buffer.append(clean_tok)
-                _flush_speech_buffer()
+                for phrase in speech_chunker.add(clean_tok):
+                    queue.put_nowait(phrase)
 
         task = asyncio.create_task(widget_brain.run_widget_assistant(
             bot_id=self._bot_id,
@@ -319,7 +355,8 @@ class ChattyVoiceAgent(Agent):
         def _finish_stream(task: asyncio.Task) -> None:
             # Flush the final fragment before ending the generator.  The
             # callback runs on the event loop, so queue ordering is stable.
-            _flush_speech_buffer(force=True)
+            for phrase in speech_chunker.flush():
+                queue.put_nowait(phrase)
             queue.put_nowait(_SENTINEL)
 
         task.add_done_callback(_finish_stream)
