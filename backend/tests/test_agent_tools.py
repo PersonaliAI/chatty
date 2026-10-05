@@ -916,11 +916,20 @@ def test_execute_requires_voice_contact_confirmation_before_create_lead(monkeypa
 def test_execute_allows_voice_lead_after_explicit_confirmation(monkeypatch):
     create_lead_mock = AsyncMock(return_value={"success": True})
     monkeypatch.setattr(at, "_create_lead", create_lead_mock)
+    context = {"source": "widget", "voice_mode": True, "bot_id": "b1", "session_id": "s1"}
+    asyncio.run(at.execute(
+        "confirm_contact_detail", {"field": "name", "value": "Shija"},
+        user={}, supabase=MagicMock(), context=context,
+    ))
+    asyncio.run(at.execute(
+        "confirm_contact_detail", {"field": "email", "value": "shija@example.com"},
+        user={}, supabase=MagicMock(), context=context,
+    ))
     result = asyncio.run(at.execute(
         "create_lead",
         {"bot_id": "b1", "name": "Shija", "email": "shija@example.com", "voice_confirmation": True},
         user={}, supabase=MagicMock(),
-        context={"source": "widget", "voice_mode": True, "bot_id": "b1"},
+        context=context,
     ))
     assert result["success"] is True
     create_lead_mock.assert_awaited_once()

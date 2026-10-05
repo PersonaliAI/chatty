@@ -36,6 +36,58 @@ from app.adapters.supabase_audit import SupabaseAuditLogRepository
 
 logger = logging.getLogger("chatty.tools")
 
+# Confirmed spoken contact values are kept briefly in the worker process. This
+# is an additional server-side check behind the model's `voice_confirmation`
+# flag: a model cannot persist a voice name/email unless it first calls the
+# non-persisting confirmation tool for the same session and value.
+_VOICE_CONFIRMATION_TTL_SECONDS = 3600
+_voice_contact_confirmations: dict[tuple[str, str], dict[str, tuple[str, float]]] = {}
+
+
+def _normalize_voice_contact_value(field: str, value: Any) -> str:
+    text = " ".join(str(value or "").strip().split()).casefold()
+    if field == "email":
+        text = re.sub(r"\s+at\s+", "@", text)
+        text = re.sub(r"\s+dot\s+", ".", text)
+        text = re.sub(r"\s+", "", text)
+        return text
+    # Names are commonly repeated with pauses or hyphens (S-H-I-J-A).
+    return re.sub(r"[^a-z0-9]", "", text)
+
+
+def _voice_confirmation_key(context: Optional[dict]) -> Optional[tuple[str, str]]:
+    if not context or not context.get("voice_mode"):
+        return None
+    bot_id = str(context.get("bot_id") or "").strip()
+    session_id = str(context.get("session_id") or "").strip()
+    return (bot_id, session_id) if bot_id and session_id else None
+
+
+def _register_voice_confirmation(context: Optional[dict], field: str, value: Any) -> bool:
+    key = _voice_confirmation_key(context)
+    canonical = _normalize_voice_contact_value(field, value)
+    if not key or not canonical:
+        return False
+    now = time.monotonic()
+    state = _voice_contact_confirmations.setdefault(key, {})
+    state[field] = (canonical, now)
+    # Opportunistically prune expired sessions so long-lived workers do not
+    # grow this intentionally small in-memory cache without bound.
+    for old_key, old_state in list(_voice_contact_confirmations.items()):
+        if not old_state or all(now - ts > _VOICE_CONFIRMATION_TTL_SECONDS for _, ts in old_state.values()):
+            _voice_contact_confirmations.pop(old_key, None)
+    return True
+
+
+def _voice_value_was_confirmed(context: Optional[dict], field: str, value: Any) -> bool:
+    key = _voice_confirmation_key(context)
+    canonical = _normalize_voice_contact_value(field, value)
+    if not key or not canonical:
+        return False
+    state = _voice_contact_confirmations.get(key) or {}
+    stored = state.get(field)
+    return bool(stored and stored[0] == canonical and time.monotonic() - stored[1] <= _VOICE_CONFIRMATION_TTL_SECONDS)
+
 
 # ---------------------------------------------------------------------------
 # Anti-fake-meeting defenses: Domain blocklists & OTP cache
@@ -319,6 +371,21 @@ DECLARATIONS: list[dict] = [
             },
         },
         ["bot_id", "name", "email"],
+    ),
+    _tool(
+        "confirm_contact_detail",
+        "Mark one spoken contact detail as explicitly confirmed by the visitor. "
+        "Voice calls must repeat the spelling and ask for a clear yes before calling this; "
+        "this tool never saves a lead by itself.",
+        {
+            "field": {
+                "type": "string",
+                "enum": ["name", "email", "phone", "company", "job_title"],
+                "description": "The single contact field the visitor just confirmed.",
+            },
+            "value": {"type": "string", "description": "The exact spelling/value the visitor confirmed."},
+        },
+        ["field", "value"],
     ),
     _tool(
         "reschedule_meeting",
@@ -1698,17 +1765,32 @@ async def execute(
             return await _reschedule_meeting(args, user, supabase, context=context)
         if name == "cancel_meeting":
             return await _cancel_meeting(args, user, supabase, context=context)
+        if name == "confirm_contact_detail":
+            field = str(args.get("field") or "").strip().lower()
+            if field not in {"name", "email", "phone", "company", "job_title"}:
+                return {"error": "field must be one of name, email, phone, company, or job_title"}
+            if not context or not context.get("voice_mode"):
+                return {"error": "confirm_contact_detail is only available during a voice call"}
+            if not _register_voice_confirmation(context, field, args.get("value")):
+                return {"error": "A non-empty contact value is required"}
+            return {"success": True, "field": field, "message": "Contact detail confirmed; it may now be saved when all required fields are present."}
         if name == "create_lead":
             # Spoken names and emails are high-risk transcription fields. The
             # voice orchestrators set voice_mode on the tool context; require
             # the model to acknowledge the explicit spelling confirmation
             # before anything can be persisted. Text chat keeps its existing
             # immediate lead-capture behavior.
-            if context and context.get("voice_mode") and not args.get("voice_confirmation"):
-                return {
-                    "error": "Contact details were not saved yet. In a voice call, repeat the name/email spelling and ask the visitor to explicitly confirm it before calling create_lead again with voice_confirmation=true.",
-                    "needs_confirmation": True,
-                }
+            if context and context.get("voice_mode"):
+                unconfirmed = [
+                    field for field in ("name", "email")
+                    if args.get(field) and not _voice_value_was_confirmed(context, field, args.get(field))
+                ]
+                if unconfirmed or not args.get("voice_confirmation"):
+                    fields = ", ".join(unconfirmed) or "the spoken contact details"
+                    return {
+                        "error": f"Contact details were not saved yet. Explicitly repeat and confirm {fields}, call confirm_contact_detail for each confirmed value, then call create_lead with voice_confirmation=true.",
+                        "needs_confirmation": True,
+                    }
             return await _create_lead(args, user, supabase)
         if name == "web_search":
             return await _web_search(args, user, supabase)

@@ -111,7 +111,7 @@ _VOICE_LEAD_VERIFICATION_INSTRUCTIONS = (
     "- For a name, repeat the spelling clearly character-by-character and ask for confirmation. Example: if you heard Shija, say: `I heard S-H-I-J-A. Is that correct?` Do not guess similar spellings.\n"
     "- For an email, read it back slowly in a voice-friendly spelling (for example, `s h i j a at example dot com`) and ask `Did I get that right?` Never infer punctuation or silently correct a character.\n"
     "- If the visitor says no, sounds unsure, or gives a correction, discard the unconfirmed value, ask them to spell the field one character at a time, repeat the new spelling, and ask again.\n"
-    "- Only after an explicit confirmation such as `yes`, `correct`, or `that's right` may you use a value for lead capture. Keep confirmed fields in context and do not ask for them again. When both required fields (name and email) are confirmed, call `create_lead` with `voice_confirmation=true`; if only one is confirmed, keep it in context and ask for the other.\n"
+    "- Only after an explicit confirmation such as `yes`, `correct`, or `that's right` may you use a value for lead capture. After each explicit confirmation, call `confirm_contact_detail` for that field (this records confirmation but does not save a lead). Keep confirmed fields in context and do not ask for them again. When both required fields (name and email) are confirmed, call `create_lead` with `voice_confirmation=true`; if only one is confirmed, keep it in context and ask for the other.\n"
     "- If the visitor declines, respect that and continue without saving that field. Existing leads may be updated with later fields; never create a duplicate.\n\n"
  )
 
