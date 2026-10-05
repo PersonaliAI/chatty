@@ -2,6 +2,7 @@
 
 import importlib.util
 import ast
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -198,6 +199,51 @@ def test_typed_voice_input_claims_turn_and_requests_text_reply():
         and any(keyword.arg == "input_modality" for keyword in call.keywords)
         for call in calls
     )
+
+
+def test_typed_voice_input_executes_the_same_speech_handle_path():
+    """A composer turn must actually schedule the agent response, not only parse it."""
+    worker = _load_worker()
+
+    class FakeTurnClaim:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class FakeSpeechHandle:
+        def __init__(self):
+            self.callback = None
+
+        def add_done_callback(self, callback):
+            self.callback = callback
+
+        def exception(self):
+            return None
+
+    class FakeSession:
+        def __init__(self):
+            self.handle = FakeSpeechHandle()
+            self.interrupted = False
+            self.reply_args = None
+
+        def _claim_user_turn(self):
+            return FakeTurnClaim()
+
+        async def interrupt(self):
+            self.interrupted = True
+
+        def generate_reply(self, **kwargs):
+            self.reply_args = kwargs
+            return self.handle
+
+    session = FakeSession()
+    asyncio.run(worker._handle_text_input(session, SimpleNamespace(text="pricing please")))
+
+    assert session.interrupted is True
+    assert session.reply_args == {"user_input": "pricing please", "input_modality": "text"}
+    assert session.handle.callback is not None
 
 
 def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
