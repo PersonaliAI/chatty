@@ -114,6 +114,16 @@ def test_worker_default_idle_pool_matches_realtime_sizing():
     assert worker.DEFAULT_IDLE_PROCESSES == 0
 
 
+def test_worker_defaults_to_native_vad_with_plugin_fallback():
+    """Native LiveKit VAD avoids ONNX thread contention on the VPS."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert 'os.environ.get("VOICE_VAD_BACKEND", "native")' in source
+    assert "inference.VAD(" in source
+    assert "silero.VAD.load(" in source
+
+
 def test_assistant_transcript_is_synchronized_with_tts_audio():
     """Prevent assistant text from being rendered ahead of its spoken audio."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"

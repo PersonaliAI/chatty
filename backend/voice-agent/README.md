@@ -39,6 +39,7 @@ Keep these values explicit in the production VPS `.env`:
 
 ```dotenv
 LIVEKIT_NUM_IDLE_PROCESSES=0
+VOICE_VAD_BACKEND=native
 VOICE_IDLE_NUDGES_ENABLED=false
 LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=false
 GOOGLE_TTS_STREAMING=false

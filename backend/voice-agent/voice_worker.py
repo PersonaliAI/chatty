@@ -988,7 +988,21 @@ def prewarm_fnc(proc: JobProcess) -> None:
     # noise read as "done talking". inference.TurnDetector (semantic, not
     # just silence-based) remains the primary turn-taking signal below, so
     # this only needs to be conservative enough not to mis-trigger.
-    proc.userdata["vad"] = silero.VAD.load(min_silence_duration=0.5)
+    # LiveKit's bundled native inference VAD keeps the Silero model singleton
+    # in the worker and gives each call a lightweight stream executor. This
+    # avoids ONNX Runtime thread contention that made the 4-vCPU VPS fall
+    # behind realtime during a live call. Keep the plugin implementation as
+    # an explicit compatibility fallback for older images.
+    vad_backend = os.environ.get("VOICE_VAD_BACKEND", "native").strip().lower()
+    if vad_backend in {"plugin", "onnx", "silero-plugin"}:
+        proc.userdata["vad"] = silero.VAD.load(min_silence_duration=0.5)
+    else:
+        proc.userdata["vad"] = inference.VAD(
+            model="silero",
+            min_silence_duration=0.5,
+            activation_threshold=0.5,
+        )
+    logger.info("voice worker: prewarmed VAD backend=%s", "plugin" if vad_backend in {"plugin", "onnx", "silero-plugin"} else "native")
 
 
 @server.rtc_session(agent_name="chatty-voice")
