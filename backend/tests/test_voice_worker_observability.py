@@ -175,6 +175,15 @@ def test_selected_tts_provider_errors_are_not_reported_as_success():
     assert "speech provider failed" in source
 
 
+def test_legacy_elevenlabs_voice_names_are_normalized_to_ids():
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "ELEVENLABS_VOICE_ALIASES" in source
+    assert '"rachel": "21m00Tcm4TlvDq8ikWAM"' in source
+    assert 'kwargs["voice_id"] = ELEVENLABS_VOICE_ALIASES.get' in source
+
+
 def test_voice_session_logs_selected_mode_and_providers_without_secrets():
     """Production logs must make pipeline/realtime selection diagnosable."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"

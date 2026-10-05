@@ -104,6 +104,18 @@ from app.services import multimodal_service
 
 logger = logging.getLogger("chatty.voice_worker")
 
+# Older MCP/config records sometimes stored the display name instead of the
+# ElevenLabs voice ID. Keep those records working while the dashboard now
+# stores IDs explicitly.
+ELEVENLABS_VOICE_ALIASES = {
+    "rachel": "21m00Tcm4TlvDq8ikWAM",
+    "bella": "EXAVITQu4vr4xnSDxMaL",
+    "antoni": "ErXwobaYiN019PkySvjV",
+    "elli": "MF3mGyEYCl7XYWbV9V6O",
+    "josh": "TxGEqnHWrfWFTfGW9XjX",
+    "adam": "pNInz6obpgDQGcFmaJgB",
+}
+
 
 def _process_rss_mb() -> Optional[float]:
     """Return this worker process' peak resident memory in MiB when available."""
@@ -513,7 +525,9 @@ def _build_tts(bot: dict[str, Any]):
             )
         kwargs = {"api_key": key} if key else {}
         if voice:
-            kwargs["voice_id"] = voice
+            kwargs["voice_id"] = ELEVENLABS_VOICE_ALIASES.get(
+                str(voice).strip().lower(), str(voice).strip()
+            )
         return elevenlabs.TTS(**kwargs)
     if provider == "openai":
         key = key or OPENAI_API_KEY or None
