@@ -13,6 +13,8 @@
 
 **Open-source AI customer support: chat widget + real-time voice agent + a full MCP server, grounded in your own knowledge base.**
 
+Chatty is an open-source, self-hostable **Zendesk alternative** and **Intercom alternative** for teams that need an AI chat widget, a shared support inbox, and voice agents. Chatty is an independent project and is not affiliated with or endorsed by Zendesk or Intercom.
+
 Run the application containers on your own host while keeping Supabase Auth,
 Postgres, Storage, and Realtime managed. The same deployment contract works on
 a VPS, Railway, Render, or another Docker host without touching the live
