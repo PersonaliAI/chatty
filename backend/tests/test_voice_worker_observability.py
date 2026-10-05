@@ -130,9 +130,11 @@ def test_google_pipeline_stt_uses_streaming_interim_results():
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert "interim_results=True" in source
-    assert "use_streaming=True" in source
-    assert "enable_voice_activity_events=True" in source
+    assert '"interim_results": True' in source
+    assert '"use_streaming": True' in source
+    assert '"enable_voice_activity_events": True' in source
+    assert 'os.environ.get("GOOGLE_STT_MODEL", "chirp_3")' in source
+    assert '"endpointing_sensitivity"' in source
 
 
 def test_assistant_transcript_is_synchronized_with_tts_audio():

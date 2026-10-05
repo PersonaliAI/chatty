@@ -42,6 +42,52 @@ interface TranscriptEntry {
   text: string;
   final: boolean;
 }
+
+function normalizeTranscriptText(text: string): string {
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** Merge legacy + stream RoomIO packets so one utterance renders once. */
+function mergeTranscriptSegment(
+  entries: TranscriptEntry[],
+  segment: TranscriptEntry,
+  now: number,
+  recentFinals: Map<string, number>,
+): TranscriptEntry[] {
+  const next = [...entries];
+  const normalized = normalizeTranscriptText(segment.text);
+  if (!normalized) return next;
+  const exact = next.findIndex((entry) => entry.id === segment.id);
+  if (exact >= 0) {
+    next[exact] = segment;
+    return next;
+  }
+  for (const [key, at] of recentFinals) {
+    if (now - at > 10000) recentFinals.delete(key);
+  }
+  const key = `${segment.speaker}:${normalized}`;
+  if (segment.final && (recentFinals.get(key) ?? 0) > now - 10000) return next;
+  for (let i = next.length - 1; i >= 0; i -= 1) {
+    const previous = next[i];
+    if (previous.speaker !== segment.speaker || previous.final) continue;
+    const oldText = normalizeTranscriptText(previous.text);
+    const continuation = oldText === normalized
+      || normalized.startsWith(oldText + " ")
+      || oldText.startsWith(normalized + " ");
+    if (continuation) {
+      next[i] = segment;
+      if (segment.final) recentFinals.set(key, now);
+      return next;
+    }
+    break;
+  }
+  if (segment.final) {
+    recentFinals.set(key, now);
+    if (next.some((entry) => entry.speaker === segment.speaker && entry.final && normalizeTranscriptText(entry.text) === normalized)) return next;
+  }
+  next.push(segment);
+  return next;
+}
 interface VoiceCallWidgetProps {
   botId: string;
   sessionId: string;
@@ -268,37 +314,14 @@ export default function VoiceCallWidget({
             const speaker: "visitor" | "agent" =
               !participant || participant.identity === room?.localParticipant?.identity ? "visitor" : "agent";
             setTranscript((prev) => {
-              const next = [...prev];
+              let next = prev;
               for (const seg of segments) {
                 // Providers occasionally flush an empty final segment when
                 // VAD closes a short/noisy utterance. Never render that as a
                 // blank visitor message in the conversation.
                 if (!seg.text?.trim()) continue;
-                const idx = next.findIndex((e) => e.id === seg.id);
                 const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
-                if (idx >= 0) {
-                  next[idx] = entry;
-                  continue;
-                }
-                const normalized = seg.text.trim().replace(/\s+/g, " ").toLowerCase();
-                const dedupeKey = `${speaker}:${normalized}`;
-                const now = Date.now();
-                for (const [key, at] of recentFinalTranscriptRef.current) {
-                  if (now - at > 3000) recentFinalTranscriptRef.current.delete(key);
-                }
-                // RoomIO publishes legacy and stream transcription packets for
-                // compatibility. Some LiveKit clients surface both with new
-                // segment IDs, so suppress an exact final duplicate for the
-                // short window in which those two packets can arrive.
-                const duplicateRecentFinal = seg.final && normalized &&
-                  (recentFinalTranscriptRef.current.get(dedupeKey) ?? 0) > now - 5000;
-                if (duplicateRecentFinal) {
-                  continue;
-                }
-                if (seg.final && normalized) {
-                  recentFinalTranscriptRef.current.set(dedupeKey, now);
-                }
-                next.push(entry);
+                next = mergeTranscriptSegment(next, entry, Date.now(), recentFinalTranscriptRef.current);
               }
               return next;
             });
@@ -510,10 +533,7 @@ export default function VoiceCallWidget({
     const visitorText = text || `Attachment: ${file?.name || "file"}`;
     setMessageText("");
     setPendingFile(null);
-    recentFinalTranscriptRef.current.set(
-      `visitor:${visitorText.trim().replace(/\s+/g, " ").toLowerCase()}`,
-      Date.now(),
-    );
+    recentFinalTranscriptRef.current.set(`visitor:${normalizeTranscriptText(visitorText)}`, Date.now());
     setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
     setSendingMessage(true);
     try {

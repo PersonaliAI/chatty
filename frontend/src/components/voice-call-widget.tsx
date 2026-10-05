@@ -46,6 +46,67 @@ interface TranscriptEntry {
   text: string;
   final: boolean;
 }
+
+function normalizeTranscriptText(text: string): string {
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * RoomIO intentionally publishes both its legacy and stream transcription
+ * packets. They are two transports for one utterance and often have different
+ * segment IDs. Keep the two packets from becoming two visible bubbles while
+ * still allowing the visitor to repeat a sentence after the current turn.
+ */
+function mergeTranscriptSegment(
+  entries: TranscriptEntry[],
+  segment: TranscriptEntry,
+  now: number,
+  recentFinals: Map<string, number>,
+): TranscriptEntry[] {
+  const next = [...entries];
+  const normalized = normalizeTranscriptText(segment.text);
+  if (!normalized) return next;
+  const exact = next.findIndex((entry) => entry.id === segment.id);
+  if (exact >= 0) {
+    next[exact] = segment;
+    return next;
+  }
+
+  for (const [key, at] of recentFinals) {
+    if (now - at > 10000) recentFinals.delete(key);
+  }
+  const key = `${segment.speaker}:${normalized}`;
+  if (segment.final && (recentFinals.get(key) ?? 0) > now - 10000) return next;
+
+  // Interim and final packets can use different IDs. Replace the latest
+  // open segment from the same speaker when the new text is its continuation
+  // (or its final form), instead of appending a second bubble.
+  for (let i = next.length - 1; i >= 0; i -= 1) {
+    const previous = next[i];
+    if (previous.speaker !== segment.speaker || previous.final) continue;
+    const oldText = normalizeTranscriptText(previous.text);
+    const continuation = oldText === normalized
+      || normalized.startsWith(oldText + " ")
+      || oldText.startsWith(normalized + " ");
+    if (continuation) {
+      next[i] = segment;
+      if (segment.final) recentFinals.set(key, now);
+      return next;
+    }
+    break;
+  }
+
+  if (segment.final) {
+    recentFinals.set(key, now);
+    // A final packet may arrive after its legacy/stream twin was already
+    // committed with a different ID.
+    if (next.some((entry) => entry.speaker === segment.speaker && entry.final && normalizeTranscriptText(entry.text) === normalized)) {
+      return next;
+    }
+  }
+  next.push(segment);
+  return next;
+}
 interface VoiceCallWidgetProps {
   botId: string;
   sessionId: string;
@@ -369,40 +430,14 @@ export default function VoiceCallWidget({
             }
 
             setTranscript((prev) => {
-              const next = [...prev];
+              let next = prev;
               for (const seg of segments) {
                 // Providers occasionally flush an empty final segment when
                 // VAD closes a short/noisy utterance. Never render that as a
                 // blank visitor message in the conversation.
                 if (!seg.text?.trim()) continue;
-                const idx = next.findIndex((e) => e.id === seg.id);
                 const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final };
-                if (idx >= 0) {
-                  next[idx] = entry;
-                } else {
-                  // Some LiveKit/provider combinations emit the same final
-                  // assistant sentence twice with different segment IDs
-                  // (once from the model transcript and once from the audio
-                  // transcript). Keep the transcript readable and avoid
-                  // making a user think the agent repeated itself.
-                  const normalized = seg.text.trim().replace(/\s+/g, " ").toLowerCase();
-                  const dedupeKey = `${speaker}:${normalized}`;
-                  const now = Date.now();
-                  for (const [key, at] of recentFinalTranscriptRef.current) {
-                    if (now - at > 3000) recentFinalTranscriptRef.current.delete(key);
-                  }
-                  const duplicateRecentFinal = speaker === "visitor" && seg.final && normalized &&
-                    (recentFinalTranscriptRef.current.get(dedupeKey) ?? 0) > now - 3000;
-                  if (duplicateRecentFinal) continue;
-                  if (speaker === "visitor" && seg.final && normalized) {
-                    recentFinalTranscriptRef.current.set(dedupeKey, now);
-                  }
-                  const duplicateAgentFinal = speaker === "agent" && seg.final && normalized && next.some(
-                    (item) => item.speaker === "agent" && item.final &&
-                      item.text.trim().replace(/\s+/g, " ").toLowerCase() === normalized,
-                  );
-                  if (!duplicateAgentFinal) next.push(entry);
-                }
+                next = mergeTranscriptSegment(next, entry, Date.now(), recentFinalTranscriptRef.current);
               }
               return next;
             });
@@ -644,10 +679,7 @@ export default function VoiceCallWidget({
     const visitorText = text || `Attachment: ${file?.name || "file"}`;
     setMessageText("");
     setPendingFile(null);
-    recentFinalTranscriptRef.current.set(
-      `visitor:${visitorText.trim().replace(/\s+/g, " ").toLowerCase()}`,
-      Date.now(),
-    );
+    recentFinalTranscriptRef.current.set(`visitor:${normalizeTranscriptText(visitorText)}`, Date.now());
     setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
     setSendingMessage(true);
     try {

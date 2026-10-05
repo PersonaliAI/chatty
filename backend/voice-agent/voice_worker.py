@@ -494,16 +494,48 @@ def _build_stt(bot: dict[str, Any]):
     provider = (bot.get("voice_stt_provider") or "google").strip().lower()
     if provider == "google":
         try:
+            # Chirp 3 is Google's current low-latency streaming recognizer for
+            # voice bots. Keep the model and endpointing sensitivity tunable
+            # for operators, but never fall back to a batch recognizer: the
+            # pipeline must continue to emit interim hypotheses while speech
+            # is still arriving.
+            stt_model = os.environ.get("GOOGLE_STT_MODEL", "chirp_3").strip() or "chirp_3"
+            if stt_model not in {"chirp_3", "latest_long", "latest_short", "telephony"}:
+                logger.warning("voice worker: unsupported GOOGLE_STT_MODEL=%r; using chirp_3", stt_model)
+                stt_model = "chirp_3"
+            endpointing_sensitivity = os.environ.get(
+                "GOOGLE_STT_ENDPOINTING_SENSITIVITY",
+                "ENDPOINTING_SENSITIVITY_SHORT",
+            ).strip().upper()
+            if endpointing_sensitivity not in {
+                "ENDPOINTING_SENSITIVITY_STANDARD",
+                "ENDPOINTING_SENSITIVITY_SHORT",
+                "ENDPOINTING_SENSITIVITY_SUPERSHORT",
+            }:
+                logger.warning(
+                    "voice worker: unsupported GOOGLE_STT_ENDPOINTING_SENSITIVITY=%r; using SHORT",
+                    endpointing_sensitivity,
+                )
+                endpointing_sensitivity = "ENDPOINTING_SENSITIVITY_SHORT"
+            # Chirp 3 is served from the `us`/`eu` multi-regions (not the
+            # generic `global` endpoint). Keep this explicit so a valid
+            # streaming model does not fail at runtime because the SDK used
+            # its global default.
+            stt_location = os.environ.get("GOOGLE_STT_LOCATION", "us").strip() or "us"
             # Keep the pipeline on Google's bidirectional streaming STT API;
             # ``interim_results`` alone is not enough if a plugin default ever
             # changes and would otherwise make the UI wait for a whole turn.
-            return google.STT(
-                languages="en-US",
-                model="latest_long",
-                interim_results=True,
-                use_streaming=True,
-                enable_voice_activity_events=True,
-            )
+            kwargs: dict[str, Any] = {
+                "languages": "en-US",
+                "model": stt_model,
+                "location": stt_location,
+                "interim_results": True,
+                "use_streaming": True,
+                "enable_voice_activity_events": True,
+            }
+            if stt_model == "chirp_3":
+                kwargs["endpointing_sensitivity"] = endpointing_sensitivity
+            return google.STT(**kwargs)
         except Exception as exc:
             raise RuntimeError(
                 "Google Pipeline STT requires Google Application Default Credentials; "
@@ -1331,11 +1363,12 @@ async def entrypoint(ctx: JobContext) -> None:
     )
     logger.info(
         "voice worker: session configuration mode=%s stt_provider=%s tts_provider=%s "
-        "realtime_provider=%s realtime_model=%s vad_backend=%s denoise_enabled=%s "
+        "stt_model=%s realtime_provider=%s realtime_model=%s vad_backend=%s denoise_enabled=%s "
         "stt_key_configured=%s tts_key_configured=%s tts_voice=%s endpointing=%s",
         voice_mode,
         stt_provider,
         tts_provider,
+        os.environ.get("GOOGLE_STT_MODEL", "chirp_3") if stt_provider == "google" else "not-used",
         realtime_provider,
         configured_realtime_model or "default",
         os.environ.get("VOICE_VAD_BACKEND", "native").strip().lower(),
