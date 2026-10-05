@@ -312,6 +312,16 @@ def test_interim_user_transcripts_keep_one_id_and_tolerate_missing_timestamps():
     assert "if start_seconds > 100_000_000_000:" in source
 
 
+def test_visitor_transcripts_use_remote_participant_identity():
+    """Published visitor STT must not be attributed to the worker agent."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "def _visitor_identity() -> Optional[str]:" in source
+    assert "participant_identity=visitor_identity" in source
+    assert "participant_identity=ctx.room.local_participant.identity" not in source
+
+
 def test_voice_widget_offers_recovery_after_unexpected_disconnect():
     """A transport loss must be recoverable without pretending it was a clean hangup."""
     source_path = Path(__file__).resolve().parents[2] / "frontend" / "src" / "components" / "voice-call-widget.tsx"

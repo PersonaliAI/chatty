@@ -1233,6 +1233,21 @@ async def entrypoint(ctx: JobContext) -> None:
 
     active_transcript_id: Optional[str] = None
 
+    def _visitor_identity() -> Optional[str]:
+        """Return the remote visitor identity for published STT segments.
+
+        The worker is the room's local participant, but visitor transcripts
+        must carry the visitor's identity or clients classify them as agent
+        output. Voice rooms currently have one remote visitor; selecting the
+        first remote participant also keeps this safe for future supervisors.
+        """
+        remote_participants = getattr(ctx.room, "remote_participants", None)
+        if isinstance(remote_participants, dict):
+            for identity in remote_participants:
+                if identity:
+                    return str(identity)
+        return None
+
     def _record_user_input(ev) -> None:
         nonlocal turn_count, active_transcript_id
         transcript = (getattr(ev, "transcript", "") or "").strip()
@@ -1245,6 +1260,10 @@ async def entrypoint(ctx: JobContext) -> None:
         # segment using the same stable item id.
         if transcript and getattr(ctx.room, "local_participant", None):
             try:
+                visitor_identity = _visitor_identity()
+                if not visitor_identity:
+                    logger.warning("voice worker: visitor transcript has no remote participant identity")
+                    return
                 event_item_id = getattr(ev, "item_id", None)
                 if event_item_id:
                     item_id = str(event_item_id)
@@ -1280,7 +1299,7 @@ async def entrypoint(ctx: JobContext) -> None:
                 asyncio.create_task(
                     ctx.room.local_participant.publish_transcription(
                         rtc.Transcription(
-                            participant_identity=ctx.room.local_participant.identity,
+                            participant_identity=visitor_identity,
                             track_sid="",
                             segments=[segment],
                         )
