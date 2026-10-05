@@ -957,13 +957,17 @@ export default function VoiceCallWidget({
                           >
                         {cleanText ? (
                           <>
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm, remarkMath]}
-                              rehypePlugins={[rehypeKatex]}
-                              components={transcriptMdComponents}
-                            >
-                              {cleanText}
-                            </ReactMarkdown>
+                            {isAgent ? (
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                                components={transcriptMdComponents}
+                              >
+                                {cleanText}
+                              </ReactMarkdown>
+                            ) : (
+                              <span className="whitespace-pre-wrap">{cleanText}</span>
+                            )}
                             {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
                           </>
                         ) : (

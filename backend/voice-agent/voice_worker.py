@@ -298,15 +298,15 @@ def _voice_endpointing_options() -> dict[str, Any]:
     pauses while allowing operators to tune it without rebuilding the worker.
     """
     try:
-        min_delay = float(os.environ.get("VOICE_ENDPOINTING_MIN_DELAY", "0.45"))
+        min_delay = float(os.environ.get("VOICE_ENDPOINTING_MIN_DELAY", "0.35"))
     except (TypeError, ValueError):
-        min_delay = 0.45
+        min_delay = 0.35
     try:
-        max_delay = float(os.environ.get("VOICE_ENDPOINTING_MAX_DELAY", "2.0"))
+        max_delay = float(os.environ.get("VOICE_ENDPOINTING_MAX_DELAY", "0.85"))
     except (TypeError, ValueError):
-        max_delay = 2.0
-    min_delay = max(0.25, min(1.5, min_delay))
-    max_delay = max(min_delay, min(3.5, max_delay))
+        max_delay = 0.85
+    min_delay = max(0.2, min(1.0, min_delay))
+    max_delay = max(min_delay, min(2.0, max_delay))
     return {"mode": "fixed", "min_delay": min_delay, "max_delay": max_delay}
 
 

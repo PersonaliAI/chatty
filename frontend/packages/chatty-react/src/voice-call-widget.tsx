@@ -794,14 +794,18 @@ export default function VoiceCallWidget({
                       >
                       {rich.cleanContent.trim() ? (
                         <>
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeKatex]}
-                            components={transcriptMdComponents}
-                          >
-                            {rich.cleanContent}
-                          </ReactMarkdown>
-                            {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
+                          {entry.speaker === "agent" ? (
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[rehypeKatex]}
+                              components={transcriptMdComponents}
+                            >
+                              {rich.cleanContent}
+                            </ReactMarkdown>
+                          ) : (
+                            <span className="whitespace-pre-wrap">{rich.cleanContent}</span>
+                          )}
+                          {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
                         </>
                       ) : !hasRichCards ? (
                         <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
