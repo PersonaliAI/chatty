@@ -327,6 +327,16 @@ def test_voice_generation_has_a_hard_response_budget():
     assert source.count("max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096") == 2
 
 
+def test_voice_rag_skips_extra_translation_round_trip():
+    """Pipeline voice turns should not pay for a duplicate translation LLM call."""
+    brain = Path(__file__).resolve().parents[1] / "plugins" / "widget_brain.py"
+    worker = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    brain_source = brain.read_text(encoding="utf-8")
+    worker_source = worker.read_text(encoding="utf-8")
+    assert "translate_query=not voice_mode" in brain_source
+    assert "translate_query=False" in worker_source
+
+
 def test_streamed_voice_reply_flushes_on_sentences_not_short_clauses():
     """TTS buffering should not turn punctuation inside a sentence into a new burst."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"

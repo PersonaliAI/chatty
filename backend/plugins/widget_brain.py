@@ -207,7 +207,8 @@ async def _translate_to_english_for_rag(text: str) -> str:
 
 
 async def search_knowledge(
-    bot_id: str, owner_user: dict[str, Any], bot: dict[str, Any], query: str
+    bot_id: str, owner_user: dict[str, Any], bot: dict[str, Any], query: str, *,
+    translate_query: bool = True,
 ) -> tuple[str, list[dict]]:
     """The RAG step run_widget_assistant does at the start of every turn -
     extracted so it's reusable outside the text-chat tool-calling loop, e.g.
@@ -216,7 +217,11 @@ async def search_knowledge(
     once" step of its own to hook this into. Behavior is unchanged from
     before this was pulled out of run_widget_assistant."""
     knowledge_context = ""
-    english_query = await _translate_to_english_for_rag(query)
+    # Voice STT already delivered the visitor's turn synchronously. Avoid a
+    # second LLM round-trip just to translate ordinary voice text before RAG;
+    # this is a major source of avoidable first-response latency. Text chat
+    # keeps the translation path for multilingual search quality.
+    english_query = await _translate_to_english_for_rag(query) if translate_query else (query or "").strip()
     if bot.get("sync_google_drive"):
         try:
             folder_id = bot.get("google_drive_folder_id")
@@ -462,7 +467,9 @@ async def run_widget_assistant(
     catalog_items: list[dict[str, Any]] = []
 
     # 2. RAG Context
-    knowledge_context, source_refs = await search_knowledge(bot_id, owner_user, bot, text)
+    knowledge_context, source_refs = await search_knowledge(
+        bot_id, owner_user, bot, text, translate_query=not voice_mode,
+    )
 
     # Multimodal RAG: Image/Video/Product Catalog search
     try:

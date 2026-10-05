@@ -968,7 +968,9 @@ def _build_realtime_tools(
         # continue with a safe fallback instead of holding an audio session.
         try:
             knowledge_context, _ = await asyncio.wait_for(
-                widget_brain.search_knowledge(bot_id, owner_user, bot, query),
+                widget_brain.search_knowledge(
+                    bot_id, owner_user, bot, query, translate_query=False,
+                ),
                 timeout=tool_timeout_seconds,
             )
         except asyncio.TimeoutError:
