@@ -158,7 +158,8 @@ def test_voice_session_logs_selected_mode_and_providers_without_secrets():
     source = source_path.read_text(encoding="utf-8")
 
     assert '"voice worker: session configuration mode=%s stt_provider=%s tts_provider=%s "' in source
-    assert "realtime_model or \"default\"" in source
+    assert 'configured_realtime_model = realtime_model if voice_mode == "realtime" else "not-used"' in source
+    assert 'configured_realtime_model or "default"' in source
     assert "denoiser is not None" in source
     # The diagnostic line must not interpolate any API key or credential value.
     assert "GEMINI_API_KEY" not in source.split('"voice worker: session configuration', 1)[1].split('realtime_usage', 1)[0]
