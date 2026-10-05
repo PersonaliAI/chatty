@@ -38,7 +38,7 @@ const MICROPHONE_CAPTURE_OPTIONS = {
   channelCount: 1,
 } as const;
 
-type CallStatus = "connecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
+type CallStatus = "connecting" | "reconnecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
 
 interface TranscriptEntry {
   id: string;
@@ -227,6 +227,13 @@ export default function VoiceCallWidget({
 
         room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
           if (cancelled || !mountedRef.current) return;
+          if (state === ConnectionState.Reconnecting) {
+            // LiveKit can recover a short network interruption without a new
+            // token. Keep the composer visible but tell the visitor that the
+            // voice path is temporarily catching up instead of looking frozen.
+            setStatus("reconnecting");
+            return;
+          }
           if (state === ConnectionState.Connected) {
             setStatus((s) => (s === "agent-speaking" ? s : "connected"));
           }
@@ -356,7 +363,7 @@ export default function VoiceCallWidget({
         if (!localSpeaking) localAudioLevelRef.current = 0;
           orbLevel.set(Math.min(1, remoteLevel * 3.5));
           setStatus((prev) => {
-            if (prev === "connecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
+            if (prev === "connecting" || prev === "reconnecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
             if (remoteLevel > 0.01) return "agent-speaking";
             if (localSpeaking) return "listening";
             return "connected";
@@ -467,7 +474,7 @@ export default function VoiceCallWidget({
 
   // Call duration timer, starts once connected.
   useEffect(() => {
-    if (status === "connecting" || status === "requesting-mic" || status === "error") return;
+    if (status === "connecting" || status === "reconnecting" || status === "requesting-mic" || status === "error") return;
     if (status === "ended") {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
       return;
@@ -655,6 +662,7 @@ export default function VoiceCallWidget({
   const statusLabel = (() => {
     switch (status) {
       case "connecting": return "Connecting…";
+      case "reconnecting": return "Reconnecting…";
       case "requesting-mic": return "Please allow microphone access…";
       case "connected": return fmtDuration(duration);
       case "listening": return "Listening…";
@@ -897,7 +905,7 @@ export default function VoiceCallWidget({
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={toggleMute}
-              disabled={status === "connecting" || status === "requesting-mic"}
+              disabled={status === "connecting" || status === "reconnecting" || status === "requesting-mic"}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
               className="flex size-11 items-center justify-center rounded-2xl border transition-colors disabled:opacity-40 sm:size-12"
               style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 8px 20px ${primaryColor}35` }}
