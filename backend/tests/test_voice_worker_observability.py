@@ -331,11 +331,22 @@ def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
     assert "speech_buffer_length" not in source
 
 
+def test_interrupted_pipeline_turn_cancels_the_background_brain_task():
+    """Barge-in must not leave the previous LLM/tool turn running in the background."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+    assert "AgentSession cancels the speech generator on barge-in" in source
+    assert "task.cancel()" in source
+    assert "await asyncio.gather(task, return_exceptions=True)" in source
+
+
 def test_voice_generation_has_a_hard_response_budget():
     """Voice TTS turns must not stay open behind an unbounded chat answer."""
     source_path = Path(__file__).resolve().parents[1] / "plugins" / "widget_brain.py"
     source = source_path.read_text(encoding="utf-8")
-    assert "VOICE_MAX_OUTPUT_TOKENS = 512" in source
+    assert "VOICE_MAX_OUTPUT_TOKENS = 320" in source
+    assert "VOICE_LLM_TIMEOUT_SECONDS" in source
+    assert 'gemini-3.5-flash-lite' in source
     assert source.count("max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096") == 2
 
 
@@ -391,7 +402,7 @@ def test_idle_nudges_are_removed():
     source = source_path.read_text(encoding="utf-8")
 
     assert "_nudge_when_idle" not in source
-    assert "are you still there" not in source.lower()
+    assert "user_away_timeout=None" in source
 
 
 def test_browser_voice_capture_requests_echo_noise_and_gain_processing():

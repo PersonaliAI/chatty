@@ -49,6 +49,8 @@ LIVEKIT_ADAPTIVE_INTERRUPTION_ENABLED=false
 GOOGLE_TTS_STREAMING=false
 GOOGLE_TTS_SPEAKING_RATE=0.95
 GOOGLE_TTS_VOICE=en-US-Chirp3-HD-Charon
+GEMINI_VOICE_MODEL=gemini-3.5-flash-lite
+VOICE_LLM_TIMEOUT_SECONDS=18
 ```
 
 The widget requests browser echo cancellation, noise suppression, automatic

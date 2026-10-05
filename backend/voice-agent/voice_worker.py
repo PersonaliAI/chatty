@@ -226,8 +226,10 @@ class _SpeechChunker:
     cuts through a word and keeps the final fragment for an explicit flush.
     """
 
-    _MAX_CHARS = 180
-    _MIN_SPLIT_CHARS = 80
+    # Release a punctuation-free phrase early enough for first audio to start
+    # while still keeping complete words and natural clauses together.
+    _MAX_CHARS = 120
+    _MIN_SPLIT_CHARS = 50
     _SENTENCE_END = re.compile(r"[.!?](?:[\"'\u2019\u201d)]*)(?=\s|$)")
 
     def __init__(self) -> None:
@@ -364,17 +366,34 @@ class ChattyVoiceAgent(Agent):
         # punctuation-free answers at whitespace, which prevents stuttering
         # without delaying the first complete sentence.
         speech_chunker = _SpeechChunker()
+        turn_started_at = time.monotonic()
+        first_model_token_at: Optional[float] = None
+        first_tts_phrase_at: Optional[float] = None
 
         # widget_brain._gemini_stream does `await on_token(part.text)` - on_token
         # MUST be an async callable (a fire-and-forget sync lambda would crash
         # with "object is not awaitable"). asyncio.Queue.put_nowait itself is
         # sync/non-blocking, so this async wrapper just awaits nothing extra.
         async def _on_token(tok: str) -> None:
+            nonlocal first_model_token_at, first_tts_phrase_at
             # Strip UI-only markers so the TTS engine never reads JSON aloud.
             clean_tok = tok.replace("[BOOKING_WIDGET]", "")
             clean_tok = re.sub(r"\[(?:PRODUCT_CARD|VIDEO_CLIP):\{.*?\}\]", "", clean_tok)
             if clean_tok:
+                if first_model_token_at is None:
+                    first_model_token_at = time.monotonic()
+                    logger.info(
+                        "voice worker: first model token mode=pipeline elapsed_ms=%d",
+                        round((first_model_token_at - turn_started_at) * 1000),
+                    )
                 for phrase in speech_chunker.add(clean_tok):
+                    if first_tts_phrase_at is None:
+                        first_tts_phrase_at = time.monotonic()
+                        logger.info(
+                            "voice worker: first tts phrase queued mode=pipeline elapsed_ms=%d chars=%d",
+                            round((first_tts_phrase_at - turn_started_at) * 1000),
+                            len(phrase),
+                        )
                     queue.put_nowait(phrase)
 
         task = asyncio.create_task(widget_brain.run_widget_assistant(
@@ -399,6 +418,12 @@ class ChattyVoiceAgent(Agent):
                 task_error = None
             except Exception as exc:  # pragma: no cover - defensive callback guard
                 task_error = exc
+            logger.info(
+                "voice worker: assistant stream finished mode=pipeline elapsed_ms=%d first_model_token_ms=%s first_tts_phrase_ms=%s",
+                round((time.monotonic() - turn_started_at) * 1000),
+                round((first_model_token_at - turn_started_at) * 1000) if first_model_token_at else None,
+                round((first_tts_phrase_at - turn_started_at) * 1000) if first_tts_phrase_at else None,
+            )
             if task_error is not None:
                 logger.error(
                     "voice worker: assistant turn failed mode=pipeline error_type=%s",
@@ -419,13 +444,22 @@ class ChattyVoiceAgent(Agent):
 
         task.add_done_callback(_finish_stream)
 
-        while True:
-            item = await queue.get()
-            if item is _SENTINEL:
-                break
-            yield item
+        try:
+            while True:
+                item = await queue.get()
+                if item is _SENTINEL:
+                    break
+                yield item
 
-        result = task.result()  # propagates any exception raised by the task
+            result = task.result()  # propagates any exception raised by the task
+        finally:
+            # AgentSession cancels the speech generator on barge-in. The
+            # assistant task is created separately so it must be cancelled
+            # explicitly too; otherwise an interrupted turn keeps consuming
+            # LLM/tool resources and can leak stale work into the next turn.
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
         # If the assistant turn triggered booking, publish a reliable data packet to the room
         # so the client's VoiceCallWidget displays the interactive calendar immediately.
@@ -1428,11 +1462,10 @@ async def entrypoint(ctx: JobContext) -> None:
                 stt=_build_stt(bot),
                 tts=_build_tts(bot),
                 vad=vad,
-                # Industrial turn-taking: semantic endpointing avoids cutting
-                # visitors off mid-thought; adaptive interruption filtering ignores
-                # backchannels/noise; false interruptions resume cleanly. TTS is
-                # deliberately not preemptive, so half-finished thoughts never
-                # become rushed audio.
+                # Industrial turn-taking: Google STT endpointing avoids cutting
+                # visitors off mid-thought; local VAD handles immediate barge-in.
+                # The speech generator is explicitly cancellable so a new turn
+                # cannot leave stale TTS/LLM work speaking over the visitor.
                 # Google Chirp 3 already provides streaming interim/final
                 # hypotheses and endpointing events. Using the STT turn mode
                 # avoids an additional semantic-inference hop that can lag
@@ -1441,6 +1474,7 @@ async def entrypoint(ctx: JobContext) -> None:
                     turn_detection="stt",
                     endpointing=_voice_endpointing_options(),
                     interruption={
+                        "enabled": True,
                         "mode": interruption_mode,
                         # A natural "stop" / "wait" is often shorter than
                         # 500 ms. Let a real one-word barge-in clear TTS
@@ -1459,6 +1493,11 @@ async def entrypoint(ctx: JobContext) -> None:
                         "max_retries": 1,
                     },
                 ),
+                # Do not turn a quiet visitor into an automatic away/nudge
+                # cycle. Support calls may contain long pauses while someone
+                # checks a detail; the conversation remains open until the
+                # visitor or the call limit ends it.
+                user_away_timeout=None,
             )
     except Exception:
         logger.exception(

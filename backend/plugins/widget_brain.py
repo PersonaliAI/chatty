@@ -68,13 +68,24 @@ from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS  # noq
 
 # Model tried first for voice-mode requests (run_widget_assistant(voice_mode=True))
 # before falling through to the same GEMINI_FALLBACK_MODELS chain used by text.
-GEMINI_VOICE_MODEL = os.environ.get("GEMINI_VOICE_MODEL", "gemini-3.1-flash-lite")
+# Keep the default on a current stable, low-latency text model. The Live API
+# realtime model is intentionally not used by pipeline calls; this is the
+# ordinary LLM turn between Google streaming STT and the selected TTS provider.
+GEMINI_VOICE_MODEL = os.environ.get("GEMINI_VOICE_MODEL", "gemini-3.5-flash-lite")
 # Keep a voice turn bounded at the model boundary as well as in the prompt. A
 # prompt-only limit is advisory; this hard cap prevents a long knowledge-base
-# answer from holding the TTS turn open and making the agent sound stuck. 512
-# tokens still leaves room for booking/lead confirmations and tool arguments,
-# while normal text chat keeps its existing 4096-token budget.
-VOICE_MAX_OUTPUT_TOKENS = 512
+# answer from holding the TTS turn open and making the agent sound stuck. A
+# concise voice budget leaves room for booking/lead confirmations while keeping
+# first-audio latency predictable; normal text chat keeps its existing budget.
+VOICE_MAX_OUTPUT_TOKENS = 320
+# A provider that stops returning stream chunks must not hold the call forever.
+# This timeout is deliberately voice-only; the regular widget keeps its normal
+# retry behavior and response budget.
+try:
+    _voice_llm_timeout = float(os.environ.get("VOICE_LLM_TIMEOUT_SECONDS", "18"))
+except (TypeError, ValueError):
+    _voice_llm_timeout = 18.0
+VOICE_LLM_TIMEOUT_SECONDS = max(8.0, min(30.0, _voice_llm_timeout))
 
 # Dashboard-configured persona/focus lean for voice calls (chatty_bots.
 # voice_agent_role) - shapes tone/emphasis only, does NOT gate which tools
@@ -1196,6 +1207,7 @@ async def run_widget_assistant(
             bot_id=bot_id,
             session_id=session_id,
             call_type="widget_chat",
+            timeout=VOICE_LLM_TIMEOUT_SECONDS if voice_mode else None,
         )
 
         tool_calls = gen["tool_calls"]
@@ -1321,6 +1333,7 @@ async def run_widget_assistant(
         bot_id=bot_id,
         session_id=session_id,
         call_type="widget_chat_final",
+        timeout=VOICE_LLM_TIMEOUT_SECONDS if voice_mode else None,
     )
     reply = final["text"] or "I'm sorry, I wasn't able to complete that request."
     if not booking_tool_succeeded and _claims_booking_success(reply):
