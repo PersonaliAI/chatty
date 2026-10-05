@@ -115,6 +115,10 @@ _VOICE_LEAD_VERIFICATION_INSTRUCTIONS = (
     "- If the visitor declines, respect that and continue without saving that field. Existing leads may be updated with later fields; never create a duplicate.\n\n"
  )
 
+_VOICE_TEXT_INPUT_INSTRUCTIONS = (
+    "VOICE + TEXT INPUT: This is one shared conversation, not a voice-only silo. Tell the visitor they can type whenever that is easier (for example, `You can also type your question here if you prefer`). Read and answer typed messages using the same context, knowledge, booking, and lead workflow, and speak the answer through the active voice session while also showing the text transcript. Never ignore a typed message or start a second unrelated conversation.\n\n"
+ )
+
 # Tool calls with a lasting real-world side effect (sends something, creates
 # a recurring automation, deletes something) that we refuse to let the
 # weaker fallback model execute unsupervised - see the fallback-model write
@@ -879,7 +883,10 @@ async def run_widget_assistant(
     # role; this only shapes tone/emphasis on what the agent leads with).
     voice_role_block = ""
     if voice_mode:
-        voice_role_block = _VOICE_ROLE_INSTRUCTIONS.get(bot.get("voice_agent_role") or "general", "")
+        voice_role_block = (
+            _VOICE_ROLE_INSTRUCTIONS.get(bot.get("voice_agent_role") or "general", "")
+            + _VOICE_TEXT_INPUT_INSTRUCTIONS
+        )
 
     # ── VISITOR MEMORY & ACTIVE APPOINTMENTS (Context Awareness) ──
     lead_row = None
