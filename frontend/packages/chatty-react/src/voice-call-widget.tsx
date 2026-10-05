@@ -312,15 +312,17 @@ export default function VoiceCallWidget({
 
         // Live transcript - the agent worker already publishes STT/reply text
         // over LiveKit's built-in transcription stream; each segment updates
-        // in place (by id) while interim, then locks in once `final`. Segments
-        // carry no explicit role, so attribute by participant: no `participant`
-        // (or the local one) means it's the visitor's own speech-to-text.
+        // in place (by id) while interim, then locks in once `final`. LiveKit
+        // resolves the transcribed participant from the packet identity: the
+        // remote participant is the visitor, while the local participant is
+        // the agent. Keep that mapping explicit so visitor speech never gets
+        // rendered as a Chatty reply (or duplicated as both roles).
         room.on(
           RoomEvent.TranscriptionReceived,
           (segments: TranscriptionSegment[], participant?: Participant) => {
             if (cancelled || !mountedRef.current) return;
             const speaker: "visitor" | "agent" =
-              !participant || participant.identity === room?.localParticipant?.identity ? "visitor" : "agent";
+              participant && participant.identity !== room?.localParticipant?.identity ? "visitor" : "agent";
             setTranscript((prev) => {
               let next = prev;
               for (const seg of segments) {
