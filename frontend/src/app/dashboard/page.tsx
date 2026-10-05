@@ -3667,7 +3667,7 @@ export default function Dashboard() {
           if (patchRes.ok) {
             saved = true;
           } else if (supabase) {
-            const { error: sbErr } = await supabase.table("chatty_bots").update(voiceFields).eq("id", botId);
+            const { error: sbErr } = await (supabase as any).from("chatty_bots").update(voiceFields).eq("id", botId);
             if (!sbErr) saved = true;
           }
         }
