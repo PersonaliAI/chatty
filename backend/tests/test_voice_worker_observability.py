@@ -451,8 +451,8 @@ def test_pipeline_endpointing_is_low_latency_for_streaming_google_stt():
     worker = _load_worker()
     assert worker._voice_endpointing_options() == {
         "mode": "fixed",
-        "min_delay": 0.45,
-        "max_delay": 2.0,
+        "min_delay": 0.35,
+        "max_delay": 0.85,
     }
     assert "endpointing=_voice_endpointing_options()" in source
 
