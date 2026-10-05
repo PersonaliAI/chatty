@@ -494,7 +494,16 @@ def _build_stt(bot: dict[str, Any]):
     provider = (bot.get("voice_stt_provider") or "google").strip().lower()
     if provider == "google":
         try:
-            return google.STT(languages="en-US", model="latest_long", interim_results=True)
+            # Keep the pipeline on Google's bidirectional streaming STT API;
+            # ``interim_results`` alone is not enough if a plugin default ever
+            # changes and would otherwise make the UI wait for a whole turn.
+            return google.STT(
+                languages="en-US",
+                model="latest_long",
+                interim_results=True,
+                use_streaming=True,
+                enable_voice_activity_events=True,
+            )
         except Exception as exc:
             raise RuntimeError(
                 "Google Pipeline STT requires Google Application Default Credentials; "
@@ -1323,7 +1332,7 @@ async def entrypoint(ctx: JobContext) -> None:
     logger.info(
         "voice worker: session configuration mode=%s stt_provider=%s tts_provider=%s "
         "realtime_provider=%s realtime_model=%s vad_backend=%s denoise_enabled=%s "
-        "stt_key_configured=%s tts_key_configured=%s tts_voice=%s",
+        "stt_key_configured=%s tts_key_configured=%s tts_voice=%s endpointing=%s",
         voice_mode,
         stt_provider,
         tts_provider,
@@ -1334,6 +1343,7 @@ async def entrypoint(ctx: JobContext) -> None:
         stt_key_configured,
         tts_key_configured,
         str(bot.get("voice_tts_voice") or "default"),
+        _voice_endpointing_options() if voice_mode == "pipeline" else "not-used",
     )
     realtime_usage = _RealtimeUsageTotals()
     call_start = time.monotonic()

@@ -125,6 +125,16 @@ def test_worker_defaults_to_native_vad_with_plugin_fallback():
     assert "silero.VAD.load(" in source
 
 
+def test_google_pipeline_stt_uses_streaming_interim_results():
+    """Pipeline mode must use Google's streaming recognizer, not batch STT."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert "interim_results=True" in source
+    assert "use_streaming=True" in source
+    assert "enable_voice_activity_events=True" in source
+
+
 def test_assistant_transcript_is_synchronized_with_tts_audio():
     """Prevent assistant text from being rendered ahead of its spoken audio."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
