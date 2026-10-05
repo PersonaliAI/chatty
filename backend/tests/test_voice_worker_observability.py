@@ -180,6 +180,15 @@ def test_streamed_voice_reply_does_not_use_unbound_buffer_counter():
     assert "speech_buffer_length" not in source
 
 
+def test_pipeline_google_tts_uses_chirp_default_not_gemini_flash():
+    """Pipeline TTS must not silently consume the Gemini Flash TTS quota."""
+    source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
+    source = source_path.read_text(encoding="utf-8")
+
+    assert '"model_name": "chirp_3"' in source
+    assert '"en-US-Chirp3-HD-Charon"' in source
+
+
 def test_idle_nudge_closure_declares_metric_counter_nonlocal():
     """Prevent the old UnboundLocalError from returning in a worker image."""
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"

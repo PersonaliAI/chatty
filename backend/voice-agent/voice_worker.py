@@ -394,7 +394,13 @@ def _build_tts(bot: dict[str, Any]):
     Same server-side-shared-key / google-fallback behavior as `_build_stt`.
     """
     provider = (bot.get("voice_tts_provider") or "google").strip().lower()
-    voice = bot.get("voice_tts_voice") or None
+    # The dashboard's supported Google voice list is Chirp 3.  Keep pipeline
+    # mode on that Cloud TTS path when an older bot has no saved voice; the
+    # Google plugin otherwise defaults to Gemini Flash TTS, whose per-model
+    # quota can be exhausted independently of the configured Gemini API key.
+    voice = bot.get("voice_tts_voice") or os.environ.get(
+        "GOOGLE_TTS_VOICE", "en-US-Chirp3-HD-Charon"
+    )
 
     if provider == "google":
         # Google streaming synthesis keeps a single RPC open for the whole
@@ -419,6 +425,7 @@ def _build_tts(bot: dict[str, Any]):
 
             kwargs: dict[str, Any] = {
                 "language": "en-US",
+                "model_name": "chirp_3",
                 "use_streaming": use_streaming,
                 "speaking_rate": speaking_rate,
                 "audio_encoding": google_cloud_texttospeech.AudioEncoding.OGG_OPUS,
