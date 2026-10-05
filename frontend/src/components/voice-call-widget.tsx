@@ -99,15 +99,28 @@ export default function VoiceCallWidget({
       if (entry.speaker === "visitor" && entry.text) {
         const text = entry.text;
         if (!email) {
-          const em = text.match(/\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/);
-          if (em) email = em[1].toLowerCase();
+          // Voice STT often renders an address as “name at company dot com”.
+          // Normalize that read-back before extracting it for the booking
+          // card; the server remains the source of truth for lead storage.
+          const normalizedEmailText = text
+            .replace(/\s+at\s+/gi, "@")
+            .replace(/\s+dot\s+/gi, ".");
+          // Handle a letter-by-letter local part without accidentally
+          // swallowing the preceding words “my email is”.
+          const spelled = normalizedEmailText.match(
+            /(?:\b(?:email|address)\b[^\n]{0,30})?((?:[A-Za-z]\s+){2,}[A-Za-z])\s*@\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/i,
+          );
+          const extractedEmail = spelled
+            ? `${spelled[1].replace(/\s+/g, "")}@${spelled[2]}`
+            : normalizedEmailText.match(/\b([A-Za-z0-9._%+-]+\s*@\s*[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/)?.[1] || "";
+          if (extractedEmail) email = extractedEmail.replace(/\s+/g, "").toLowerCase();
         }
         if (!phone) {
           const pm = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/);
           if (pm && pm[0].replace(/\D/g, "").length >= 7) phone = pm[0].trim();
         }
         if (!name) {
-          const nm = text.match(/(?:my name is|i am|i'm|this is)\s+([A-Za-z]+(?:\s+[A-Za-z]+){1,2})/i);
+          const nm = text.match(/(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z'’-]*(?:\s+[A-Za-z][A-Za-z'’-]*){0,2})/i);
           if (nm) {
             const cand = nm[1].trim();
             if (!["interested", "looking", "trying", "here", "ready", "fine", "good"].includes(cand.toLowerCase())) {
