@@ -111,7 +111,7 @@ def test_realtime_usage_uses_cumulative_session_totals():
 def test_worker_default_idle_pool_matches_realtime_sizing():
     worker = _load_worker()
 
-    assert worker.DEFAULT_IDLE_PROCESSES == 2
+    assert worker.DEFAULT_IDLE_PROCESSES == 0
 
 
 def test_assistant_transcript_is_synchronized_with_tts_audio():
