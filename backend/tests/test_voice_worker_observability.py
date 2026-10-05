@@ -159,6 +159,8 @@ def test_typed_voice_input_has_failure_observability():
 
     assert '"voice worker: typed input accepted chars=%d elapsed_ms=%d"' in source
     assert '"voice worker: typed input failed chars=%d"' in source
+    assert "speech_handle.add_done_callback(_log_typed_reply)" in source
+    assert '"voice worker: typed reply failed chars=%d error=%s"' in source
 
 
 def test_typed_voice_input_claims_turn_and_requests_text_reply():
