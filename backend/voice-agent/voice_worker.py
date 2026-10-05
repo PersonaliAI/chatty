@@ -1115,7 +1115,7 @@ class ChattyRealtimeAgent(Agent):
             "correct or reject it, discard the draft, ask them to spell it one character at a "
             "time, repeat it, and confirm again. After each explicit yes, call "
             "confirm_contact_detail for that field, passing the exact character-by-character or voice-friendly "
-            "read-back in its spelling argument, then call create_lead with "
+            "read-back in its spelling argument and confirmed=true, then call create_lead with "
             "voice_confirmation=true only after both required fields are confirmed. Keep "
             "confirmed fields and merge later fields into the same lead rather than creating "
             "a duplicate. "

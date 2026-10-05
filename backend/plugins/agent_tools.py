@@ -51,8 +51,9 @@ def _normalize_voice_contact_value(field: str, value: Any) -> str:
         text = re.sub(r"\s+dot\s+", ".", text)
         text = re.sub(r"\s+", "", text)
         return text
-    # Names are commonly repeated with pauses or hyphens (S-H-I-J-A).
-    return re.sub(r"[^a-z0-9]", "", text)
+    # Names are commonly repeated with pauses or hyphens (S-H-I-J-A). Keep
+    # Unicode letters/digits so international names are not silently changed.
+    return "".join(ch for ch in text if ch.isalnum())
 
 
 def _voice_spelling_matches(field: str, value: Any, spelling: Any) -> bool:
@@ -401,7 +402,7 @@ DECLARATIONS: list[dict] = [
         "Mark one spoken contact detail as explicitly confirmed by the visitor. "
         "Voice calls must repeat the spelling and ask for a clear yes before calling this. "
         "Pass the exact character-by-character or voice-friendly read-back in spelling; "
-        "this tool never saves a lead by itself.",
+        "set confirmed=true only after the visitor explicitly says yes/correct, and this tool never saves a lead by itself.",
         {
             "field": {
                 "type": "string",
@@ -413,8 +414,12 @@ DECLARATIONS: list[dict] = [
                 "type": "string",
                 "description": "Exact read-back used for confirmation: e.g. S-H-I-J-A for a name, or s h i j a at example dot com for an email.",
             },
+            "confirmed": {
+                "type": "boolean",
+                "description": "True only when the visitor explicitly confirmed this exact read-back with yes, correct, or equivalent.",
+            },
         },
-        ["field", "value", "spelling"],
+        ["field", "value", "spelling", "confirmed"],
     ),
     _tool(
         "reschedule_meeting",
@@ -1800,6 +1805,14 @@ async def execute(
                 return {"error": "field must be one of name, email, phone, company, or job_title"}
             if not context or not context.get("voice_mode"):
                 return {"error": "confirm_contact_detail is only available during a voice call"}
+            if args.get("confirmed") is not True:
+                return {
+                    "error": (
+                        "The visitor has not explicitly confirmed this read-back. Ask a clear yes/no question, "
+                        "wait for yes/correct, then call confirm_contact_detail again with confirmed=true."
+                    ),
+                    "needs_confirmation": True,
+                }
             if not args.get("spelling"):
                 return {
                     "error": (

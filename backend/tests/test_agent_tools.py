@@ -918,11 +918,11 @@ def test_execute_allows_voice_lead_after_explicit_confirmation(monkeypatch):
     monkeypatch.setattr(at, "_create_lead", create_lead_mock)
     context = {"source": "widget", "voice_mode": True, "bot_id": "b1", "session_id": "s1"}
     asyncio.run(at.execute(
-        "confirm_contact_detail", {"field": "name", "value": "Shija", "spelling": "S-H-I-J-A"},
+        "confirm_contact_detail", {"field": "name", "value": "Shija", "spelling": "S-H-I-J-A", "confirmed": True},
         user={}, supabase=MagicMock(), context=context,
     ))
     asyncio.run(at.execute(
-        "confirm_contact_detail", {"field": "email", "value": "shija@example.com", "spelling": "s h i j a at example dot com"},
+        "confirm_contact_detail", {"field": "email", "value": "shija@example.com", "spelling": "s h i j a at example dot com", "confirmed": True},
         user={}, supabase=MagicMock(), context=context,
     ))
     result = asyncio.run(at.execute(
@@ -941,7 +941,7 @@ def test_voice_confirmation_rejects_mismatched_name_spelling(monkeypatch):
     context = {"source": "widget", "voice_mode": True, "bot_id": "b-spell", "session_id": "s-spell"}
     result = asyncio.run(at.execute(
         "confirm_contact_detail",
-        {"field": "name", "value": "Shija", "spelling": "S-H-I-G-A"},
+        {"field": "name", "value": "Shija", "spelling": "S-H-I-G-A", "confirmed": True},
         user={}, supabase=MagicMock(), context=context,
     ))
     assert result["needs_confirmation"] is True
@@ -954,11 +954,24 @@ def test_voice_confirmation_requires_character_readback(monkeypatch):
     context = {"source": "widget", "voice_mode": True, "bot_id": "b-spell-2", "session_id": "s-spell-2"}
     result = asyncio.run(at.execute(
         "confirm_contact_detail",
-        {"field": "name", "value": "Shija", "spelling": "Shija"},
+        {"field": "name", "value": "Shija", "spelling": "Shija", "confirmed": True},
         user={}, supabase=MagicMock(), context=context,
     ))
     assert result["needs_confirmation"] is True
     assert "does not match" in result["error"]
+
+
+def test_voice_confirmation_requires_explicit_yes_attestation(monkeypatch):
+    create_lead_mock = AsyncMock(return_value={"success": True})
+    monkeypatch.setattr(at, "_create_lead", create_lead_mock)
+    context = {"source": "widget", "voice_mode": True, "bot_id": "b-confirm", "session_id": "s-confirm"}
+    result = asyncio.run(at.execute(
+        "confirm_contact_detail",
+        {"field": "name", "value": "Shija", "spelling": "S-H-I-J-A", "confirmed": False},
+        user={}, supabase=MagicMock(), context=context,
+    ))
+    assert result["needs_confirmation"] is True
+    assert "explicitly confirmed" in result["error"]
 
 
 def test_execute_overrides_llm_supplied_bot_id_with_trusted_context_bot_id(monkeypatch):
