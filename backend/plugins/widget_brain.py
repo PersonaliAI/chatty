@@ -1309,6 +1309,7 @@ async def run_widget_assistant(
         model=primary_model,
         messages=[{"role": "system", "content": final_system_instruction}] + messages,
         fallback_models=fallback_models,
+        max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096,
         on_token=stream_live,
         bot_id=bot_id,
         session_id=session_id,

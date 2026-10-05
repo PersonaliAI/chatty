@@ -324,7 +324,7 @@ def test_voice_generation_has_a_hard_response_budget():
     source_path = Path(__file__).resolve().parents[1] / "plugins" / "widget_brain.py"
     source = source_path.read_text(encoding="utf-8")
     assert "VOICE_MAX_OUTPUT_TOKENS = 512" in source
-    assert "max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096" in source
+    assert source.count("max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096") == 2
 
 
 def test_streamed_voice_reply_flushes_on_sentences_not_short_clauses():
