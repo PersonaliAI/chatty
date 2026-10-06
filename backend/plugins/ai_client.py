@@ -23,7 +23,7 @@ from typing import Any, Optional
 import litellm
 
 from app.core.clients import supabase
-from app.core.config import GEMINI_API_KEY, GOOGLE_CLOUD_LOCATION, GOOGLE_CLOUD_PROJECT, USE_VERTEX_AI
+from app.core.config import GEMINI_API_KEY, GOOGLE_CLOUD_LOCATION, GOOGLE_CLOUD_PROJECT, OPENROUTER_API_KEY, USE_VERTEX_AI
 from app.core.db import run_db
 
 logger = logging.getLogger("chatty.ai")
@@ -85,6 +85,17 @@ def _is_unrecoverable_key_error(exc: Exception) -> bool:
 def resolve_gemini_model(name: str) -> str:
     """Prefix a bare Gemini or Gemma model name for LiteLLM. Already-prefixed model
     strings (any provider) pass through unchanged."""
+    import os
+    if name.startswith(("openrouter/", "openai/", "anthropic/", "vertex_ai/", "gemini/")):
+        return name
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY
+    if openrouter_key and (
+        name.startswith("google/gemma")
+        or (not USE_VERTEX_AI and "gemma" in name.lower())
+        or os.environ.get("USE_OPENROUTER", "").strip().lower() in ("1", "true", "yes")
+    ):
+        clean = name if name.startswith("google/") else f"google/{name}"
+        return f"openrouter/{clean}"
     if "/" in name:
         return name
     if USE_VERTEX_AI or not GEMINI_API_KEY:
@@ -245,7 +256,12 @@ async def chat(
     for attempt in range(max_attempts):
         start = time.monotonic()
         try:
-            resp = await litellm.acompletion(model=model, messages=messages, **kwargs)
+            attempt_kwargs = dict(kwargs)
+            if model.startswith("openrouter/"):
+                attempt_kwargs.setdefault("api_key", os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY)
+            elif model.startswith("gemini/") or model.startswith("vertex_ai/"):
+                attempt_kwargs.pop("api_key", None)
+            resp = await litellm.acompletion(model=model, messages=messages, **attempt_kwargs)
             await _log_usage(
                 response=resp, litellm_model=model, call_type=call_type, bot_id=bot_id,
                 session_id=session_id, is_byok=is_byok,
@@ -255,12 +271,12 @@ async def chat(
         except _TRANSIENT_EXCEPTIONS as exc:
             last_err = exc
             # If the error is a hard daily quota exhaustion (e.g. 429 RESOURCE_EXHAUSTED
-            # with 20 RPD free tier limit), retrying the same model with 1s, 2s, 4s backoff
+            # with 20 RPD free tier limit or upstream rate limits), retrying the same model with 1s, 2s, 4s backoff
             # is futile and wastes up to 30s causing frontend timeouts. Immediately break
             # to fallback models if candidates remain!
             is_quota_exhausted = (
                 isinstance(exc, litellm.RateLimitError)
-                and any(term in str(exc).lower() for term in ("quota", "resource_exhausted", "free_tier_requests"))
+                and any(term in str(exc).lower() for term in ("quota", "resource_exhausted", "free_tier_requests", "rate-limited", "rate_limited", "upstream"))
             )
             if attempt == max_attempts - 1 or (is_quota_exhausted and len(candidates) > 1):
                 if is_quota_exhausted:
@@ -288,7 +304,12 @@ async def chat(
         logger.warning("falling back from %s to %s", model, fallback_model)
         start = time.monotonic()
         try:
-            resp = await litellm.acompletion(model=fallback_model, messages=messages, **kwargs)
+            fb_kwargs = dict(kwargs)
+            if fallback_model.startswith("openrouter/"):
+                fb_kwargs.setdefault("api_key", os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY)
+            elif fallback_model.startswith("gemini/") or fallback_model.startswith("vertex_ai/"):
+                fb_kwargs.pop("api_key", None)
+            resp = await litellm.acompletion(model=fallback_model, messages=messages, **fb_kwargs)
             await _log_usage(
                 response=resp, litellm_model=fallback_model, call_type=call_type, bot_id=bot_id,
                 session_id=session_id, is_byok=is_byok,
@@ -335,9 +356,14 @@ async def chat_stream(
         # litellm.stream_chunk_builder can reconstruct a usage-bearing
         # response afterward - the provider only attaches real usage to a
         # rebuilt/final response, not to any individual streamed chunk.
+        run_kwargs = dict(kwargs)
+        if m.startswith("openrouter/"):
+            run_kwargs.setdefault("api_key", os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY)
+        elif m.startswith("gemini/") or m.startswith("vertex_ai/"):
+            run_kwargs.pop("api_key", None)
         stream = await litellm.acompletion(
             model=m, messages=messages, stream=True,
-            stream_options={"include_usage": True}, **kwargs,
+            stream_options={"include_usage": True}, **run_kwargs,
         )
         raw_chunks: list = []
         text_parts: list[str] = []
