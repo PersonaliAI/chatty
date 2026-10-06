@@ -100,6 +100,9 @@ async def _embed_with_retry(
     titles: Optional[list[Optional[str]]] = None,
     model_name: Optional[str] = None,
     dimensions: Optional[int] = None,
+    bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    call_type: str = "embedding",
     max_attempts: int = 4,
 ) -> list[list[float]]:
     """Embed via LiteLLM, with retry on transient errors (429/500/503/etc.)."""
@@ -113,6 +116,7 @@ async def _embed_with_retry(
         try:
             res = await ai_client.embed(
                 model=model, input=formatted,
+                bot_id=bot_id, session_id=session_id, call_type=call_type,
                 output_dimensionality=dimensions or EMBED_DIMENSIONS, **extra_kwargs,
             )
             if not res.data:

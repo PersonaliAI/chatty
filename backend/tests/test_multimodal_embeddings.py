@@ -15,6 +15,9 @@ def test_image_embedding_uses_gemini_cross_modal_model(monkeypatch):
             return SimpleNamespace(embeddings=[SimpleNamespace(values=[1.0] * 768)])
 
     monkeypatch.setattr(multimodal_service, "genai_client", SimpleNamespace(models=Models()))
+    async def no_usage(**kwargs):
+        return None
+    monkeypatch.setattr(multimodal_service.ai_client, "log_external_usage", no_usage)
     vector = asyncio.run(multimodal_service.embed_image_bytes(b"image-bytes", "image/png"))
 
     assert len(vector) == 768
@@ -78,7 +81,7 @@ def test_catalog_ingest_never_sends_native_width_vector_to_database(monkeypatch)
     monkeypatch.setattr(multimodal_service, "supabase", FakeSupabase())
     monkeypatch.setattr(multimodal_service, "run_db", run_inline)
     monkeypatch.setattr(multimodal_service.ai_client, "embed", fake_embed)
-    monkeypatch.setattr(multimodal_service, "embed_catalog_images", lambda urls: asyncio.sleep(0, result=[]))
+    monkeypatch.setattr(multimodal_service, "embed_catalog_images", lambda urls, **kwargs: asyncio.sleep(0, result=[]))
 
     row = asyncio.run(
         multimodal_service.ingest_media_item(

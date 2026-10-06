@@ -230,7 +230,7 @@ def test_search_reapplies_stock_filter_after_live_refresh(monkeypatch):
         "metadata": {"source": "woocommerce", "woocommerce_id": 42, "in_stock": True},
     }
 
-    async def fake_embed(_text):
+    async def fake_embed(_text, **kwargs):
         return [0.1]
 
     async def fake_refresh(bot_id, items):

@@ -28,10 +28,10 @@ def test_shopper_image_uses_cross_modal_rpc_and_grounded_catalog_result(monkeypa
     async def fake_run_db(callback):
         return callback()
 
-    async def fake_embed_image(image_bytes, mime_type):
+    async def fake_embed_image(image_bytes, mime_type, **kwargs):
         return [0.2] * 768
 
-    async def fake_embed_text(text):
+    async def fake_embed_text(text, **kwargs):
         return [0.1] * 768
 
     async def fake_analyze(image_bytes, mime_type, user_text):
@@ -84,7 +84,7 @@ def test_low_confidence_catalog_match_returns_no_recommendation(monkeypatch):
     async def fake_run_db(callback):
         return callback()
 
-    async def fake_embed(text):
+    async def fake_embed(text, **kwargs):
         return [0.1] * 768
 
     monkeypatch.setattr(multimodal_service, "supabase", FakeSupabase())
@@ -139,7 +139,7 @@ def test_typed_catalog_query_searches_product_text_and_gallery_images(monkeypatc
     async def fake_run_db(callback):
         return callback()
 
-    async def fake_embed(text):
+    async def fake_embed(text, **kwargs):
         return [0.4] * 768
 
     async def no_live_refresh(bot_id, items):

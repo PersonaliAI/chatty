@@ -448,7 +448,11 @@ async def _prepare_product_embedding(
         stored.get("_embedding_fingerprint") != fingerprint
         or stored.get("_embedding_schema") != multimodal_service.EMBEDDING_SCHEMA_VERSION
     )
-    vector = await multimodal_service.embed_catalog_item(**embedding_kwargs) if needs_reembed else None
+    vector = (
+        await multimodal_service.embed_catalog_item(bot_id=bot_id, **embedding_kwargs)
+        if needs_reembed
+        else None
+    )
     image_urls = [
         str(url) for url in ((mapped.get("metadata") or {}).get("gallery_urls") or [mapped.get("media_url")])
         if url and str(url).startswith(("https://", "http://"))
@@ -460,7 +464,11 @@ async def _prepare_product_embedding(
         stored.get("_image_embedding_fingerprint") != image_fingerprint
         or stored.get("_image_embedding_schema") != multimodal_service.IMAGE_EMBEDDING_SCHEMA_VERSION
     )
-    image_vector = await multimodal_service.embed_catalog_images(image_urls) if needs_image_reembed else None
+    image_vector = (
+        await multimodal_service.embed_catalog_images(image_urls, bot_id=bot_id)
+        if needs_image_reembed
+        else None
+    )
     status = "ready" if vector or not needs_reembed else "stale"
     updated_metadata = multimodal_service.catalog_metadata_with_embedding(
         mapped.get("metadata"), fingerprint, status=status

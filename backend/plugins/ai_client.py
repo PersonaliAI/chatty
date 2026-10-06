@@ -103,13 +103,25 @@ async def _log_usage(
     latency_ms: Optional[int] = None,
     success: bool = True,
     error: Optional[str] = None,
+    prompt_tokens_override: Optional[int] = None,
+    completion_tokens_override: Optional[int] = None,
+    total_tokens_override: Optional[int] = None,
+    cost_usd_override: Optional[float] = None,
 ) -> None:
     usage = getattr(response, "usage", None)
     prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
     completion_tokens = getattr(usage, "completion_tokens", 0) or 0
     total_tokens = getattr(usage, "total_tokens", 0) or (prompt_tokens + completion_tokens)
+    if prompt_tokens_override is not None:
+        prompt_tokens = max(0, int(prompt_tokens_override))
+    if completion_tokens_override is not None:
+        completion_tokens = max(0, int(completion_tokens_override))
+    if total_tokens_override is not None:
+        total_tokens = max(0, int(total_tokens_override))
     cost: Optional[float] = None
-    if response is not None:
+    if cost_usd_override is not None:
+        cost = float(cost_usd_override)
+    elif response is not None:
         try:
             # LiteLLM records an exact provider-reported price in hidden
             # metadata for some providers. Prefer it, then fall back to the
@@ -143,6 +155,43 @@ async def _log_usage(
         }).execute())
     except Exception:  # noqa: BLE001 - usage logging must never break the actual AI call
         logger.warning("failed to log AI usage for %s", litellm_model, exc_info=True)
+
+
+async def log_external_usage(
+    *,
+    litellm_model: str,
+    call_type: str,
+    bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    total_tokens: Optional[int] = None,
+    cost_usd: Optional[float] = None,
+    success: bool = True,
+    error: Optional[str] = None,
+    latency_ms: Optional[int] = None,
+) -> None:
+    """Record usage for provider SDK calls outside LiteLLM.
+
+    Some Google AI Studio multimodal endpoints are not exposed by LiteLLM's
+    embedding adapter. Callers still use the official SDK, but send the
+    provider-reported or documented usage estimate through this same analytics
+    sink so per-bot cost reporting remains complete.
+    """
+    await _log_usage(
+        response=None,
+        litellm_model=litellm_model,
+        call_type=call_type,
+        bot_id=bot_id,
+        session_id=session_id,
+        success=success,
+        error=error,
+        latency_ms=latency_ms,
+        prompt_tokens_override=prompt_tokens,
+        completion_tokens_override=completion_tokens,
+        total_tokens_override=total_tokens if total_tokens is not None else prompt_tokens + completion_tokens,
+        cost_usd_override=cost_usd,
+    )
 
 
 async def chat(
@@ -377,6 +426,7 @@ async def embed(
     model: str,
     input: list[str] | str,
     bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
     call_type: str = "embedding",
     **kwargs: Any,
 ):
@@ -387,12 +437,14 @@ async def embed(
         resp = await litellm.aembedding(model=model, input=input, **kwargs)
         await _log_usage(
             response=resp, litellm_model=model, call_type=call_type, bot_id=bot_id,
+            session_id=session_id,
             latency_ms=int((time.monotonic() - start) * 1000),
         )
         return resp
     except Exception as exc:  # noqa: BLE001
         await _log_usage(
             response=None, litellm_model=model, call_type=call_type, bot_id=bot_id,
+            session_id=session_id,
             success=False, error=str(exc), latency_ms=int((time.monotonic() - start) * 1000),
         )
         raise

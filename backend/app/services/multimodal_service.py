@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -40,6 +41,14 @@ CATALOG_EMBED_DIMENSIONS = 768
 EMBEDDING_SCHEMA_VERSION = "catalog-multimodal-v2"
 IMAGE_EMBEDDING_SCHEMA_VERSION = "catalog-multimodal-v2"
 IMAGE_EMBEDDING_MODEL = CATALOG_EMBED_MODEL
+# The SDK currently does not expose usage metadata for embedContent. Gemini's
+# Developer API bills each image as a documented 560-token unit; keep the
+# estimate configurable for free-tier or price changes.
+GEMINI_EMBED_IMAGE_ESTIMATED_TOKENS = 560
+try:
+    GEMINI_EMBED_IMAGE_ESTIMATED_COST_USD = float(os.environ.get("GEMINI_EMBED_IMAGE_COST_USD", "0.00012"))
+except (TypeError, ValueError):
+    GEMINI_EMBED_IMAGE_ESTIMATED_COST_USD = 0.00012
 MAX_CATALOG_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_CATALOG_IMAGES = 8
 # The widget is a recommendation surface, not a raw catalog browser. Keep the
@@ -128,7 +137,13 @@ async def analyze_visual_query(
         }
 
 
-async def embed_multimodal_text(text: str) -> list[float]:
+async def embed_multimodal_text(
+    text: str,
+    *,
+    bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    call_type: str = "catalog_query_embedding",
+) -> list[float]:
     """Generate 768-d embedding for catalog indexing or query matching."""
     text = (text or "").strip()
     if not text:
@@ -139,6 +154,9 @@ async def embed_multimodal_text(text: str) -> list[float]:
             is_query=True,
             model_name=CATALOG_EMBED_MODEL,
             dimensions=CATALOG_EMBED_DIMENSIONS,
+            bot_id=bot_id,
+            session_id=session_id,
+            call_type=call_type,
         )
         # Keep the contract at the service boundary as well as in the shared
         # memory client.  This protects catalog/RAG writes if a provider
@@ -150,7 +168,14 @@ async def embed_multimodal_text(text: str) -> list[float]:
         return []
 
 
-async def embed_image_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -> list[float]:
+async def embed_image_bytes(
+    image_bytes: bytes,
+    mime_type: str = "image/jpeg",
+    *,
+    bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    call_type: str = "catalog_image_embedding",
+) -> list[float]:
     """Embed an image in Gemini's shared text/image embedding space."""
     if not image_bytes or not mime_type.lower().startswith("image/"):
         return []
@@ -172,14 +197,42 @@ async def embed_image_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -
             return []
         return mem._fit_embedding_dimensions(list(values), CATALOG_EMBED_DIMENSIONS)
 
+    started = time.monotonic()
     try:
-        return await asyncio.to_thread(_embed)
+        vector = await asyncio.to_thread(_embed)
+        if vector:
+            await ai_client.log_external_usage(
+                litellm_model=ai_client.resolve_gemini_model(IMAGE_EMBEDDING_MODEL),
+                call_type=call_type,
+                bot_id=bot_id,
+                session_id=session_id,
+                prompt_tokens=GEMINI_EMBED_IMAGE_ESTIMATED_TOKENS,
+                total_tokens=GEMINI_EMBED_IMAGE_ESTIMATED_TOKENS,
+                cost_usd=GEMINI_EMBED_IMAGE_ESTIMATED_COST_USD,
+                latency_ms=int((time.monotonic() - started) * 1000),
+            )
+        return vector
     except Exception as exc:
         logger.warning("Failed to embed catalog image with %s: %s", IMAGE_EMBEDDING_MODEL, exc)
+        await ai_client.log_external_usage(
+            litellm_model=ai_client.resolve_gemini_model(IMAGE_EMBEDDING_MODEL),
+            call_type=call_type,
+            bot_id=bot_id,
+            session_id=session_id,
+            success=False,
+            error=str(exc),
+            latency_ms=int((time.monotonic() - started) * 1000),
+        )
         return []
 
 
-async def embed_catalog_images(image_urls: list[str]) -> list[float]:
+async def embed_catalog_images(
+    image_urls: list[str],
+    *,
+    bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    call_type: str = "catalog_image_embedding",
+) -> list[float]:
     """Fetch and aggregate bounded gallery-image embeddings for one catalog item."""
     urls = [str(url).strip() for url in image_urls if str(url).strip()][:MAX_CATALOG_IMAGES]
     if not urls:
@@ -195,7 +248,13 @@ async def embed_catalog_images(image_urls: list[str]) -> list[float]:
                 mime_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
                 if not mime_type.startswith("image/"):
                     continue
-                vector = await embed_image_bytes(response.content, mime_type)
+                vector = await embed_image_bytes(
+                    response.content,
+                    mime_type,
+                    bot_id=bot_id,
+                    session_id=session_id,
+                    call_type=call_type,
+                )
                 if vector:
                     vectors.append(vector)
             except Exception as exc:
@@ -292,7 +351,13 @@ def catalog_metadata_with_embedding(
     return enriched
 
 
-async def embed_catalog_item(**kwargs: Any) -> list[float]:
+async def embed_catalog_item(
+    *,
+    bot_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    call_type: str = "catalog_document_embedding",
+    **kwargs: Any,
+) -> list[float]:
     """Embed catalog source fields using the same document pipeline as ingest."""
     text = build_catalog_embedding_text(**kwargs)
     if not text:
@@ -304,6 +369,9 @@ async def embed_catalog_item(**kwargs: Any) -> list[float]:
             titles=[kwargs.get("title")],
             model_name=CATALOG_EMBED_MODEL,
             dimensions=CATALOG_EMBED_DIMENSIONS,
+            bot_id=bot_id,
+            session_id=session_id,
+            call_type=call_type,
         )
         return mem._fit_embedding_dimensions(list(vectors[0]), CATALOG_EMBED_DIMENSIONS) if vectors else []
     except Exception as exc:
@@ -357,6 +425,7 @@ def fallback_catalog_score(item: dict[str, Any], tokens: list[str]) -> float:
 async def search_multimodal_catalog(
     *,
     bot_id: str,
+    session_id: Optional[str] = None,
     image_bytes: Optional[bytes] = None,
     mime_type: Optional[str] = None,
     query_text: str = "",
@@ -377,7 +446,13 @@ async def search_multimodal_catalog(
 
     image_vector: list[float] = []
     if image_bytes and mime_type and mime_type.startswith("image/"):
-        image_vector = await embed_image_bytes(image_bytes, mime_type)
+        image_vector = await embed_image_bytes(
+            image_bytes,
+            mime_type,
+            bot_id=bot_id,
+            session_id=session_id,
+            call_type="catalog_query_image_embedding",
+        )
         visual_attrs = await analyze_visual_query(image_bytes, mime_type, query_text)
         extracted_query = visual_attrs.get("search_query") or ""
         if extracted_query:
@@ -387,7 +462,12 @@ async def search_multimodal_catalog(
         return [], {}
 
     # 1. Generate dense query embedding
-    query_vector = await embed_multimodal_text(search_keywords)
+    query_vector = await embed_multimodal_text(
+        search_keywords,
+        bot_id=bot_id,
+        session_id=session_id,
+        call_type="catalog_query_embedding",
+    )
 
     results: list[dict[str, Any]] = []
 
@@ -738,12 +818,12 @@ async def ingest_media_item(
         "metadata": metadata,
     }
     fingerprint = catalog_embedding_fingerprint(**embedding_kwargs)
-    vector = await embed_catalog_item(**embedding_kwargs)
+    vector = await embed_catalog_item(bot_id=bot_id, **embedding_kwargs)
     image_urls = [
         str(url) for url in ((metadata or {}).get("gallery_urls") or [media_url, thumbnail_url])
         if url and str(url).startswith(("https://", "http://"))
     ][:MAX_CATALOG_IMAGES]
-    image_vector = await embed_catalog_images(image_urls)
+    image_vector = await embed_catalog_images(image_urls, bot_id=bot_id)
     image_fingerprint = image_embedding_fingerprint(image_urls, source_updated_at)
     metadata_with_embedding = catalog_metadata_with_embedding(
         metadata, fingerprint, status="ready" if vector else "stale"
