@@ -1,5 +1,7 @@
 "use client";
 
+import { VoiceUiCustomizer, DEFAULT_VOICE_UI_SETTINGS, VoiceUiSettingsData } from "./VoiceUiCustomizer";
+
 import { useState, useMemo } from "react";
 import { AudioWaveform, Mic, Check, Sparkles, ExternalLink, KeyRound } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -127,6 +129,7 @@ interface VoiceAgentTabProps {
   setWelcomeMsg: (message: string) => void;
   generateVoiceWelcome: () => Promise<void>;
   generatingVoiceWelcome: boolean;
+  voiceMessageMode?: string;
 }
 
 export function VoiceAgentTab({
@@ -169,7 +172,26 @@ export function VoiceAgentTab({
   setWelcomeMsg,
   generateVoiceWelcome,
   generatingVoiceWelcome,
+  voiceMessageMode = "audio",
 }: VoiceAgentTabProps) {
+
+  const [voiceUiSettings, setVoiceUiSettings] = useState<VoiceUiSettingsData>(() => {
+    if (voiceMessageMode && typeof voiceMessageMode === "string" && voiceMessageMode.startsWith("{")) {
+      try {
+        return { ...DEFAULT_VOICE_UI_SETTINGS, ...JSON.parse(voiceMessageMode) };
+      } catch {
+        return DEFAULT_VOICE_UI_SETTINGS;
+      }
+    }
+    return DEFAULT_VOICE_UI_SETTINGS;
+  });
+
+  const handleUpdateVoiceUi = (patch: Partial<VoiceUiSettingsData>) => {
+    const next = { ...voiceUiSettings, ...patch };
+    setVoiceUiSettings(next);
+    handleAutoSaveVoiceField({ voice_message_mode: JSON.stringify(next) });
+  };
+
   const [unifiedElevenLabsKeyInput, setUnifiedElevenLabsKeyInput] = useState("");
   const [savingUnifiedElevenLabs, setSavingUnifiedElevenLabs] = useState(false);
   const [isCustomVoiceSelected, setIsCustomVoiceSelected] = useState(false);
@@ -530,6 +552,7 @@ export function VoiceAgentTab({
                         }}
                         options={[
                           { value: "google", label: "Google", hint: "ADC required on VPS" },
+                          { value: "cartesia", label: "Cartesia Ink", hint: "Ultra-low latency streaming STT · Requires your own API key" },
                           { value: "deepgram", label: "Deepgram", hint: "Requires your own API key" },
                           { value: "assemblyai", label: "AssemblyAI", hint: "Requires your own API key" },
                           { value: "soniox", label: "Soniox", hint: "Requires your own API key" },
@@ -817,6 +840,15 @@ export function VoiceAgentTab({
                     Calls automatically end after this long, to prevent an abandoned browser tab from running indefinitely.
                   </p>
                 </div>
+
+                {/* Official LiveKit Agents UI & Controls Customization */}
+                <div className="pt-2 mt-2 border-t border-neutral-100 dark:border-neutral-800">
+                  <VoiceUiCustomizer
+                    settings={voiceUiSettings}
+                    onChange={handleUpdateVoiceUi}
+                  />
+                </div>
+
               </motion.div>
             )}
           </AnimatePresence>

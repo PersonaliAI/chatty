@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { AudioWaveform, Phone, ShieldCheck } from "lucide-react";
 import VoiceCallWidget from "@/components/voice-call-widget";
@@ -25,7 +25,24 @@ export default function VoiceAgentEmbedClient({
     return `voice-embed-${callKey}-${suffix}`;
   }, [callKey]);
 
-  const primaryColor = "#c67139";
+  const [primaryColor, setPrimaryColor] = useState("#c67139");
+  const [voiceUiSettings, setVoiceUiSettings] = useState<any>(null);
+
+  useEffect(() => {
+    if (!botId) return;
+    fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(botId)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (!data) return;
+        if (data.primary_color) setPrimaryColor(data.primary_color);
+        if (data.voice_message_mode && typeof data.voice_message_mode === "string" && data.voice_message_mode.startsWith("{")) {
+          try {
+            setVoiceUiSettings(JSON.parse(data.voice_message_mode));
+          } catch {}
+        }
+      })
+      .catch(() => {});
+  }, [botId]);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0b1118] text-white">

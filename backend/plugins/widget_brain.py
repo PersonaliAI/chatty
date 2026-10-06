@@ -1261,12 +1261,19 @@ async def run_widget_assistant(
                 )
             booking_mode = str(bot.get("booking_mode") or "hybrid").lower()
             if scheduling_enabled and booking_mode != "conversational_only" and not booking_tool_succeeded:
-                user_msg_str = (text or "") + " " + " ".join([_extract_user_text(m) for m in messages if isinstance(m, dict) and m.get("role") == "user"])
+                curr_turn_text = (text or "").strip()
+                current_turn_asked_booking = bool(
+                    re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|slots|call)\b", curr_turn_text, re.IGNORECASE)
+                )
+                already_offered_recently = any(
+                    isinstance(m, dict) and m.get("role") == "assistant" and "[BOOKING_WIDGET]" in str(m.get("content") or "")
+                    for m in messages[-4:]
+                )
                 should_attach = (
                     booking_mode == "interactive_only"
                     or "get_available_slots" in called_tools_this_turn
                     or "check_calendar_availability" in called_tools_this_turn
-                    or bool(re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|call)\b", user_msg_str, re.IGNORECASE))
+                    or (current_turn_asked_booking and not already_offered_recently)
                 )
                 if should_attach and "[BOOKING_WIDGET]" not in reply:
                     reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"

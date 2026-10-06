@@ -21,8 +21,6 @@ import {
   Loader2,
   CalendarPlus,
   AlertCircle,
-  RefreshCw,
-  KeyRound,
   ShieldCheck,
   CalendarClock,
   AlertTriangle,
@@ -96,6 +94,7 @@ export interface InlineBookingCardProps {
   initialEmail?: string;
   initialPhone?: string;
   initialCompany?: string;
+  preferredText?: string;
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   onMeetingRescheduled?: (meeting: ConfirmedMeeting) => void;
   onMeetingCancelled?: () => void;
@@ -261,6 +260,97 @@ function slotHostLabel(slot: TimeSlot): string {
   return name && !name.includes("@") ? name : "Available";
 }
 
+
+function detectPreferredSlot(
+  text: string | undefined,
+  dates: string[],
+  slotsByDate: Record<string, TimeSlot[]>,
+  timeZone: string
+): { date: string; slot: TimeSlot } | null {
+  if (!text || !dates || dates.length === 0) return null;
+  const lower = text.toLowerCase();
+
+  let targetDate: string | null = null;
+  const todayKey = getDateKeyInTimezone(new Date(), timeZone);
+  const tomorrowKey = addDaysToDateKey(todayKey, 1);
+
+  if (lower.includes('tomorrow')) {
+    targetDate = dates.includes(tomorrowKey) ? tomorrowKey : dates[0];
+  } else if (lower.includes('today')) {
+    targetDate = dates.includes(todayKey) ? todayKey : dates[0];
+  } else {
+    const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    for (let dayIdx = 0; dayIdx < weekdays.length; dayIdx++) {
+      if (lower.includes(weekdays[dayIdx])) {
+        const match = dates.find((d) => {
+          const [y, m, day] = d.split('-').map(Number);
+          const dt = new Date(Date.UTC(y, m - 1, day, 12, 0, 0));
+          return dt.getUTCDay() === dayIdx;
+        });
+        if (match) {
+          targetDate = match;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!targetDate) targetDate = dates[0];
+  const availableSlots = slotsByDate[targetDate] || [];
+  if (availableSlots.length === 0) return null;
+
+  const timeMatch = lower.match(/\b([0-1]?[0-9]|2[0-3])(?::([0-5][0-9]))?\s*(am|pm)?\b/i);
+  let targetHour: number | null = null;
+  let targetMinute = 0;
+
+  if (timeMatch) {
+    let hour = parseInt(timeMatch[1], 10);
+    const minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+    const meridian = timeMatch[3]?.toLowerCase();
+
+    if (meridian === 'pm' && hour < 12) hour += 12;
+    if (meridian === 'am' && hour === 12) hour = 0;
+    if (!meridian && hour >= 1 && hour <= 6) hour += 12;
+
+    targetHour = hour;
+    targetMinute = minute;
+  } else if (lower.includes('morning')) {
+    targetHour = 10;
+  } else if (lower.includes('afternoon')) {
+    targetHour = 14;
+  } else if (lower.includes('evening')) {
+    targetHour = 17;
+  }
+
+  if (targetHour !== null) {
+    let bestSlot: TimeSlot | null = null;
+    let minDiff = Infinity;
+
+    for (const slot of availableSlots) {
+      try {
+        const slotDate = new Date(slot.start);
+        const slotHours = slotDate.getHours();
+        const slotMinutes = slotDate.getMinutes();
+        const diff = Math.abs(slotHours * 60 + slotMinutes - (targetHour * 60 + targetMinute));
+        if (diff < minDiff && diff <= 120) {
+          minDiff = diff;
+          bestSlot = slot;
+        }
+      } catch {}
+    }
+
+    if (bestSlot) {
+      return { date: targetDate, slot: bestSlot };
+    }
+  }
+
+  if (targetDate && (lower.includes('tomorrow') || lower.includes('today'))) {
+    return { date: targetDate, slot: availableSlots[0] };
+  }
+
+  return null;
+}
+
 export function InlineBookingCard({
   botId,
   sessionId,
@@ -273,6 +363,7 @@ export function InlineBookingCard({
   initialEmail,
   initialPhone,
   initialCompany,
+  preferredText,
   onBookingSuccess,
   onMeetingRescheduled,
   onMeetingCancelled,
@@ -465,7 +556,13 @@ export function InlineBookingCard({
         if (data.prefilled_lead.company) setCompany((prev) => prev || data.prefilled_lead!.company || "");
       }
       if (data.available_dates && data.available_dates.length > 0) {
+        const autoMatch = detectPreferredSlot(preferredText, data.available_dates, data.slots_by_date, tz);
+      if (autoMatch) {
+        setSelectedDate(autoMatch.date);
+        setSelectedSlot(autoMatch.slot);
+      } else {
         setSelectedDate(data.available_dates[0]);
+      }
       }
     } catch (err: any) {
       setError(err?.message || "Failed to load scheduling calendar");
@@ -939,6 +1036,24 @@ export function InlineBookingCard({
           <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-100">
             {cardMode === "reschedule" ? "Select New Date & Time" : "Select a Date & Time"}
           </div>
+
+          {selectedSlot && cardMode !== "reschedule" && (
+            <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between">
+              <span className="truncate">Auto-selected: <strong>{formatSlotTime(selectedSlot, activeTimezone)}</strong></span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmitError(null);
+                  setOtpSent(false);
+                  setVerificationCode("");
+                  setStep(2);
+                }}
+                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] shrink-0 ml-2 cursor-pointer transition-colors"
+              >
+                Confirm Slot
+              </button>
+            </div>
+          )}
 
           {availableDates.length === 0 ? (
             <div className="py-6 text-center text-xs text-neutral-400">

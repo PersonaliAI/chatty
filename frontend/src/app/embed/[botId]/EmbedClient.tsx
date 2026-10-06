@@ -534,6 +534,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceCallOpen, setVoiceCallOpen] = useState(false);
+  const [voiceUiSettings, setVoiceUiSettings] = useState<any>(null);
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>(paramTab === "messages" || paramTab === "articles" ? paramTab : "home");
@@ -1896,6 +1897,11 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceEnabled(!!bot.voice_enabled);
           setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
+          try {
+            if (bot.voice_message_mode && typeof bot.voice_message_mode === "string" && bot.voice_message_mode.startsWith("{")) {
+              setVoiceUiSettings(JSON.parse(bot.voice_message_mode));
+            }
+          } catch {}
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
@@ -3426,6 +3432,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                                     initialName={extractedVisitorInfo.name}
                                     initialEmail={extractedVisitorInfo.email}
                                     initialPhone={extractedVisitorInfo.phone}
+                                    preferredText={msg.content || messages.slice(-3).map(m => m.content).join(" ")}
                                     onBookingSuccess={(meeting) => {
                                       setMessages((prev) => {
                                         const updated = [...prev];

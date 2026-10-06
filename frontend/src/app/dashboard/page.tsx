@@ -5083,6 +5083,7 @@ export default function Dashboard() {
               setWelcomeMsg={setWelcomeMsg}
               generateVoiceWelcome={generateVoiceWelcome}
               generatingVoiceWelcome={generatingVoiceWelcome}
+              voiceMessageMode={voiceMessageMode}
             />
           )}
 

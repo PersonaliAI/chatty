@@ -1,5 +1,9 @@
 "use client";
 
+import { LiveKitAudioVisualizer } from "@/components/livekit-agents-ui/audio-visualizers";
+import { LiveKitControlBar } from "@/components/livekit-agents-ui/control-bar";
+import type { VoiceUiSettingsData } from "@/app/dashboard/tabs/VoiceUiCustomizer";
+
 import { useEffect, useRef, useState, useMemo, useId } from "react";
 import { visitorIdentityClient } from "../../packages/chatty-react/src/visitor-identity";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
@@ -114,6 +118,7 @@ interface VoiceCallWidgetProps {
   onClose: () => void;
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   previewMode?: boolean;
+  voiceUiSettings?: VoiceUiSettingsData;
 }
 
 /** Calm live-transcription cue; an audio pulse reads as active listening rather than a stuck caret. */
@@ -143,7 +148,9 @@ export default function VoiceCallWidget({
   onClose,
   onBookingSuccess,
   previewMode = false,
+  voiceUiSettings,
 }: VoiceCallWidgetProps) {
+  const [showLiveKitChat, setShowLiveKitChat] = useState(false);
   const fetch = sessionId.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
   const [status, setStatus] = useState<CallStatus>(previewMode ? "agent-speaking" : "connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -624,7 +631,6 @@ export default function VoiceCallWidget({
   // usable mic audio in the first place.
   useEffect(() => {
     if (status !== "listening") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
       return;
     }
@@ -880,7 +886,18 @@ export default function VoiceCallWidget({
           <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-4 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-5">
             <div className="absolute -right-10 -top-12 size-32 rounded-full blur-3xl opacity-20" style={{ background: primaryColor }} />
             <div className="relative flex flex-col items-center gap-3">
-              <Orb status={status} level={orbLevel} primaryColor={primaryColor} />
+              {(voiceUiSettings?.visualizerType && voiceUiSettings.visualizerType !== "bar" && voiceUiSettings.visualizerType === "orb") ? (
+                <Orb status={status} level={orbLevel} primaryColor={voiceUiSettings?.visualizerColor || primaryColor} />
+              ) : (
+                <LiveKitAudioVisualizer
+                  type={(voiceUiSettings?.visualizerType as any) || "bar"}
+                  state={status === "agent-speaking" ? "speaking" : status === "listening" ? "listening" : status === "connecting" ? "connecting" : "listening"}
+                  color={voiceUiSettings?.visualizerColor || primaryColor}
+                  size={voiceUiSettings?.visualizerSize || "md"}
+                  barCount={voiceUiSettings?.visualizerBarCount || 5}
+                  audioLevel={status === "agent-speaking" ? (typeof orbLevel?.get === "function" ? orbLevel.get() : 0.6) : (localLevels[2] || 0)}
+                />
+              )}
               <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
                 <AudioWaveform className="size-3.5" style={{ color: primaryColor }} />
                 {status === "listening" ? "Listening" : statusLabel}
@@ -988,6 +1005,7 @@ export default function VoiceCallWidget({
                               initialEmail={extractedVisitorInfo.email}
                               initialPhone={extractedVisitorInfo.phone}
                               initialCompany={extractedVisitorInfo.company}
+                              preferredText={transcript.slice(-4).map(t => t.text).join(" ")}
                               onBookingSuccess={(meeting) => {
                                 setConfirmedMeeting(meeting);
                                 onBookingSuccess?.(meeting);
@@ -1022,7 +1040,30 @@ export default function VoiceCallWidget({
             <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-9 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-4" /></button>
           </form>
 
-          <div className="flex shrink-0 items-center gap-3 pb-1 pt-1 sm:gap-4 sm:pb-2">
+          <div className="w-full pt-1 pb-1">
+            <LiveKitControlBar
+              variant={voiceUiSettings?.controlBarVariant || "livekit"}
+              controls={voiceUiSettings?.controls || { leave: true, microphone: true, chat: true }}
+              muted={muted}
+              onToggleMute={toggleMute}
+              onDisconnect={handleHangup}
+              primaryColor={voiceUiSettings?.visualizerColor || primaryColor}
+              isChatOpen={showLiveKitChat}
+              onToggleChat={() => setShowLiveKitChat((v: boolean) => !v)}
+              onSendMessage={(text) => {
+                setMessageText(text);
+                if (text.trim() && roomRef.current) {
+                  roomRef.current.localParticipant.publishData(
+                    new TextEncoder().encode(JSON.stringify({ type: "chat", text: text.trim() })),
+                    { reliable: true }
+                  ).catch(() => {});
+                  setTranscript((prev) => [...prev, { id: `user-${Date.now()}`, speaker: "visitor", text: text.trim(), final: true }]);
+                }
+              }}
+              disabled={status === "connecting" || status === "reconnecting"}
+            />
+          </div>
+          <div className="hidden flex shrink-0 items-center gap-3 pb-1 pt-1 sm:gap-4 sm:pb-2">
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}

@@ -312,11 +312,12 @@ def _voice_endpointing_options() -> dict[str, Any]:
 
 
 def _voice_greeting(bot: dict[str, Any]) -> str:
-    """Return only the configured greeting; keep the opening voice turn natural."""
-    greeting = (bot.get("welcome_message") or "").strip() or (
-        "Hi, I'm Chatty. I'm here and ready to help. What would you like to do today?"
-    )
-    return greeting
+    """Return only the configured greeting; keep the opening voice turn natural, warm, and polite."""
+    raw = (bot.get("welcome_message") or "").strip()
+    if raw:
+        return raw
+    name = (bot.get("name") or "").strip() or "Chatty"
+    return f"Hello! Welcome. I'm {name}. It's a pleasure to speak with you today! How may I assist you?"
 
 
 def _process_rss_mb() -> Optional[float]:
@@ -670,13 +671,15 @@ class ChattyVoiceAgent(Agent):
         # so the client's VoiceCallWidget displays the interactive calendar immediately.
         reply = result.get("reply") or ""
         if "[BOOKING_WIDGET]" in reply and self._room and getattr(self._room, "local_participant", None):
-            try:
-                await self._room.local_participant.publish_data(
-                    json.dumps({"type": "booking_widget", "action": "open"}).encode("utf-8"),
-                    reliable=True,
-                )
-            except Exception:
-                logger.exception("voice worker: failed to publish booking_widget data packet")
+            if not getattr(self, "_booking_widget_opened", False):
+                self._booking_widget_opened = True
+                try:
+                    await self._room.local_participant.publish_data(
+                        json.dumps({"type": "booking_widget", "action": "open"}).encode("utf-8"),
+                        reliable=True,
+                    )
+                except Exception:
+                    logger.exception("voice worker: failed to publish booking_widget data packet")
 
         if self._room and getattr(self._room, "local_participant", None):
             products, clips = _extract_rich_media(reply)
@@ -801,6 +804,15 @@ def _build_stt(bot: dict[str, Any]):
 
     key = _decrypt_byok(bot.get("voice_stt_byok_key_encrypted"))
 
+    if provider == "cartesia":
+        key = key or CARTESIA_API_KEY or None
+        if not key:
+            raise RuntimeError("Cartesia STT selected but no BYOK/CARTESIA_API_KEY is configured")
+        return cartesia.STT(
+            api_key=key,
+            model=os.environ.get("CARTESIA_STT_MODEL", "ink-2"),
+            language="en",
+        )
     if provider == "deepgram":
         key = key or DEEPGRAM_API_KEY or None
         if not key:
@@ -808,10 +820,9 @@ def _build_stt(bot: dict[str, Any]):
         return deepgram.STT(
             api_key=key,
             model=os.environ.get("DEEPGRAM_STT_MODEL", "nova-3"),
-            detect_language=True,
+            language="en",
             interim_results=True,
-            no_delay=True,
-            vad_events=True,
+            smart_format=True,
         )
     if provider == "assemblyai":
         key = key or ASSEMBLYAI_API_KEY or None
