@@ -103,12 +103,32 @@ def test_typed_catalog_query_searches_product_text_and_gallery_images(monkeypatc
 
     class RpcQuery:
         def execute(self):
-            return SimpleNamespace(data=[{
-                "id": "media-visual-1",
-                "title": "DNK Red Sports Shoes",
-                "metadata": {"in_stock": True},
-                "similarity": 0.62,
-            }])
+            return SimpleNamespace(data=[
+                {
+                    "id": "media-red",
+                    "title": "DNK Red Sports Shoes",
+                    "metadata": {"in_stock": True, "woocommerce_id": 1},
+                    "similarity": 0.62,
+                },
+                {
+                    "id": "media-red-gallery",
+                    "title": "DNK Red Sports Shoes",
+                    "metadata": {"in_stock": True, "woocommerce_id": 1},
+                    "similarity": 0.60,
+                },
+                {
+                    "id": "media-black",
+                    "title": "DNK Black Shoes",
+                    "metadata": {"in_stock": True, "woocommerce_id": 2},
+                    "similarity": 0.55,
+                },
+                {
+                    "id": "media-green",
+                    "title": "DNK Green Shoes",
+                    "metadata": {"in_stock": True, "woocommerce_id": 3},
+                    "similarity": 0.51,
+                },
+            ])
 
     class FakeSupabase:
         def rpc(self, name, params):
@@ -138,4 +158,8 @@ def test_typed_catalog_query_searches_product_text_and_gallery_images(monkeypatc
     assert captured["params"]["query_image_embedding"] == [0.4] * 768
     assert captured["params"]["query_embedding"] == [0.4] * 768
     assert captured["params"]["query_text"] == "black pink athletic running shoes"
-    assert results[0]["title"] == "DNK Red Sports Shoes"
+    assert [item["title"] for item in results] == [
+        "DNK Red Sports Shoes",
+        "DNK Black Shoes",
+        "DNK Green Shoes",
+    ]
