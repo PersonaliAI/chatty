@@ -8,7 +8,6 @@ import {
   RoomEvent,
   Track,
   RemoteTrack,
-  RemoteParticipant,
   ConnectionState,
   TranscriptionSegment,
   Participant,
@@ -19,9 +18,6 @@ import {
   AlertCircle,
   Paperclip,
   Send,
-  MessageSquare,
-  Sparkles,
-  Radio,
 } from "lucide-react";
 
 import {
@@ -42,7 +38,6 @@ import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
 import { parseRichContent } from "@/lib/rich-content";
 
-const WAVE_BAR_COUNT = 14;
 const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
 
 const MICROPHONE_CAPTURE_OPTIONS = {
