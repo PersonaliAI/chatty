@@ -17,6 +17,7 @@ LiteLLM based on which provider it belongs to - mirrors the GEMINI_API_KEY
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any, Optional
 
@@ -85,7 +86,6 @@ def _is_unrecoverable_key_error(exc: Exception) -> bool:
 def resolve_gemini_model(name: str) -> str:
     """Prefix a bare Gemini or Gemma model name for LiteLLM. Already-prefixed model
     strings (any provider) pass through unchanged."""
-    import os
     if name.startswith(("openrouter/", "openai/", "anthropic/", "vertex_ai/", "gemini/")):
         return name
     openrouter_key = os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY
