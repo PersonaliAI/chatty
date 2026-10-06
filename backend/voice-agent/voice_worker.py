@@ -391,8 +391,8 @@ class _SpeechChunker:
     audio buffer underruns (eliminating signal drop / stuttering).
     """
 
-    _MAX_CHARS = 80
-    _MIN_SPLIT_CHARS = 35
+    _MAX_CHARS = 220
+    _MIN_SPLIT_CHARS = 60
     _SENTENCE_END = re.compile(r"[.!?](?:[\"'\u2019\u201d)]*)(?=\s|$)")
     _CLAUSE_END = re.compile(r"[,;:\u2014](?=\s|$)")
 
@@ -437,11 +437,11 @@ class _SpeechChunker:
                         continue
 
             # For subsequent chunks, allow splitting at natural clauses once the buffer
-            # has enough spoken content (>= 35 chars, >= 4 words) to feed TTS smoothly.
+            # has enough spoken content (>= 60 chars, >= 5 words) to feed TTS smoothly.
             clause = self._CLAUSE_END.search(self._buffer)
             if clause and clause.end() >= self._MIN_SPLIT_CHARS:
                 candidate = self._buffer[:clause.end()].strip()
-                if len(candidate.split()) >= 4:
+                if len(candidate.split()) >= 5:
                     phrase = candidate
                     self._buffer = self._buffer[clause.end():].lstrip()
                     chunks.append(phrase)
@@ -1750,6 +1750,8 @@ async def entrypoint(ctx: JobContext) -> None:
                         "max_retries": 1,
                     },
                 ),
+                aec_warmup_duration=3.0,
+                tts_text_transforms=["filter_markdown", "filter_emoji"],
                 # Do not turn a quiet visitor into an automatic away/nudge
                 # cycle. Support calls may contain long pauses while someone
                 # checks a detail; the conversation remains open until the

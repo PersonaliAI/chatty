@@ -1202,7 +1202,9 @@ async def run_widget_assistant(
     # check below.
     # Catalog cards are canonicalized after generation; buffer these answers so
     # untrusted model-authored card JSON never reaches the visitor mid-stream.
-    stream_live = on_token if not scheduling_enabled and not catalog_items else None
+    # In voice mode, NEVER block streaming: real-time voice synthesis requires immediate
+    # token streaming to eliminate dead air and feed the audio pipeline smoothly.
+    stream_live = on_token if (voice_mode or (not scheduling_enabled and not catalog_items)) else None
     for round_idx in range(MAX_TOOL_ROUNDS):
         gen = await ai_client.chat_stream(
             model=primary_model,
@@ -1224,7 +1226,7 @@ async def run_widget_assistant(
                 gen["text"]
                 or "I'm sorry, I wasn't able to process that. Could you try rephrasing your request?"
             )
-            if not booking_tool_succeeded and _claims_booking_success(reply):
+            if not voice_mode and not booking_tool_succeeded and _claims_booking_success(reply):
                 if not booking_correction_attempted:
                     # First offense: give the model one chance to actually book it.
                     # Nothing has been streamed for this round (stream_live is
