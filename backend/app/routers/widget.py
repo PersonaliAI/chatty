@@ -840,6 +840,9 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     async def _event_gen():
         task = asyncio.create_task(_runner())
         try:
+            # Yield an initial comment frame immediately so reverse proxies and
+            # browsers receive HTTP 200 headers with zero delay.
+            yield ": ping\n\n"
             while True:
                 item = await queue.get()
                 if item is _DONE:

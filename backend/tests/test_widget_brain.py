@@ -347,3 +347,21 @@ def test_scheduling_tool_names_exposes_voice_contact_confirmation_only_for_voice
         bot, {}, include_voice_confirmation=True,
     )
 
+def test_is_probably_english_recognizes_english_and_non_english():
+    assert wb._is_probably_english("What is your pricing?") is True
+    assert wb._is_probably_english("Hello, what does Chatty do?") is True
+    assert wb._is_probably_english("Can I book a demo for tomorrow?") is True
+    assert wb._is_probably_english("pricing") is True
+    assert wb._is_probably_english("Qual è il prezzo?") is False
+    assert wb._is_probably_english("hola mundo") is False
+    assert wb._is_probably_english("bonjour le monde") is False
+    assert wb._is_probably_english("مرحبا كيف حالك") is False
+
+
+def test_translate_skips_ai_chat_for_obvious_english(monkeypatch):
+    chat_mock = AsyncMock()
+    monkeypatch.setattr(wb.ai_client, "chat", chat_mock)
+    result = asyncio.run(wb._translate_to_english_for_rag("What is your pricing?"))
+    assert result == "What is your pricing?"
+    chat_mock.assert_not_called()
+

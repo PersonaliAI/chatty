@@ -199,9 +199,47 @@ async def _web_search(query: str) -> str:
     return "Web search is unavailable right now; answer from what you already know."
 
 
+_COMMON_ENGLISH_WORDS = frozenset({
+    "the", "be", "to", "of", "and", "a", "in", "that", "have", "i",
+    "it", "for", "not", "on", "with", "he", "as", "you", "do", "at",
+    "this", "but", "his", "by", "from", "they", "we", "say", "her",
+    "she", "or", "an", "will", "my", "one", "all", "would", "there",
+    "their", "what", "so", "up", "out", "if", "about", "who", "get",
+    "which", "go", "me", "when", "make", "can", "like", "time", "no",
+    "just", "him", "know", "take", "people", "into", "year", "your",
+    "good", "some", "could", "them", "see", "other", "than", "then",
+    "now", "look", "only", "come", "its", "over", "think", "also",
+    "back", "after", "use", "two", "how", "our", "work", "first",
+    "well", "way", "even", "new", "want", "because", "any", "these",
+    "give", "day", "most", "us", "hello", "hi", "hey", "help", "pricing",
+    "price", "cost", "features", "demo", "book", "appointment", "meeting",
+    "support", "contact", "chat", "bot", "ai", "call", "tell", "show",
+    "where", "why", "who", "much", "many", "does", "is", "are", "am",
+    "please", "thanks", "thank", "yes", "need", "services", "product",
+})
+
+
+def _is_probably_english(text: str) -> bool:
+    """Fast check whether text is already English or Latin-script queryable,
+    avoiding a 2-3 second remote LLM translation round-trip."""
+    text = (text or "").strip()
+    if not text:
+        return True
+    # Non-Latin script characters (CJK, Arabic, Cyrillic, Hebrew, etc.) require translation
+    if any(ord(c) > 0x0590 for c in text):
+        return False
+    words = [w.lower() for w in re.findall(r"[a-zA-Z]+", text)]
+    if not words:
+        return True
+    return any(w in _COMMON_ENGLISH_WORDS for w in words)
+
+
 async def _translate_to_english_for_rag(text: str) -> str:
     text = (text or "").strip()
     if not text or len(text) < 4:
+        return text
+    # Avoid a 2.5-3.5s remote LLM round-trip if query is already English
+    if _is_probably_english(text):
         return text
     try:
         response = await ai_client.chat(
@@ -235,15 +273,38 @@ async def search_knowledge(
     extracted so it's reusable outside the text-chat tool-calling loop, e.g.
     as a callable tool for a voice_mode="realtime" (Gemini Live/OpenAI
     Realtime) session, which has no discrete "build a prompt, call the LLM
-    once" step of its own to hook this into. Behavior is unchanged from
-    before this was pulled out of run_widget_assistant."""
+    once" step of its own to hook this into."""
     knowledge_context = ""
-    # Voice STT already delivered the visitor's turn synchronously. Avoid a
-    # second LLM round-trip just to translate ordinary voice text before RAG;
-    # this is a major source of avoidable first-response latency. Text chat
-    # keeps the translation path for multilingual search quality.
-    english_query = await _translate_to_english_for_rag(query) if translate_query else (query or "").strip()
-    if bot.get("sync_google_drive"):
+    query_text = (query or "").strip()
+    if not query_text:
+        return "", []
+
+    has_drive = bool(bot.get("sync_google_drive"))
+    trained_sources: list[dict] = []
+    source_refs: list[dict] = []
+
+    try:
+        res_sources = await run_db(lambda: supabase.table("chatty_sources")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("status", "trained")
+            .execute())
+        if res_sources and res_sources.data:
+            trained_sources = res_sources.data
+    except Exception:
+        logger.exception("Widget sources query failed")
+
+    # If the bot has no synced Google Drive and no trained sources, skip RAG entirely
+    if not has_drive and not trained_sources:
+        return "", []
+
+    # Fast-path: don't burn an LLM translation call for English text or voice turns
+    if not translate_query or _is_probably_english(query_text):
+        english_query = query_text
+    else:
+        english_query = await _translate_to_english_for_rag(query_text)
+
+    if has_drive:
         try:
             folder_id = bot.get("google_drive_folder_id")
             chunks = await doc_rag.search(
@@ -254,20 +315,11 @@ async def search_knowledge(
         except Exception:
             logger.exception("Widget RAG search failed")
 
-    source_refs: list[dict] = []
-    try:
-        res_sources = await run_db(lambda: supabase.table("chatty_sources")
-            .select("*")
-            .eq("bot_id", bot_id)
-            .eq("status", "trained")
-            .execute())
-        if res_sources.data:
-            ranked = _rank_sources(english_query, res_sources.data)
-            if ranked:
-                knowledge_context += "\n\nWebsite / business knowledge (most relevant first):" + ranked
-            source_refs = _ranked_source_refs(english_query, res_sources.data)
-    except Exception:
-        logger.exception("Widget sources query failed")
+    if trained_sources:
+        ranked = _rank_sources(english_query, trained_sources)
+        if ranked:
+            knowledge_context += "\n\nWebsite / business knowledge (most relevant first):" + ranked
+        source_refs = _ranked_source_refs(english_query, trained_sources)
 
     return knowledge_context, source_refs
 
@@ -1197,26 +1249,49 @@ async def run_widget_assistant(
 
     # 6. Tool-calling Loop.
     # Every model call goes through ai_client.chat_stream. When on_token is
-    # provided (streaming endpoint) the FINAL text answer is emitted
-    # token-by-token; tool rounds normally emit no visible text so nothing is
-    # streamed prematurely. With on_token=None the same code just aggregates -
-    # identical output to the old non-streaming loop.
+    # provided (streaming endpoint) the text answer is emitted token-by-token
+    # so visitors see immediate live typing (sub-second time-to-first-token).
     #
-    # Exception: when this bot can book meetings, we can't stream the final
-    # round live - a round can turn out to be a fabricated booking claim (model
-    # checks availability, then confidently lies that it booked the slot
-    # without ever calling create_calendar_event/create_outlook_event; observed
-    # live, not hypothetical). Once tokens hit on_token they're already on the
-    # visitor's screen, so validation has to happen before anything is sent,
-    # not after. For scheduling bots we buffer each round's text internally and
-    # only forward it to the real on_token once it's cleared the booking-claim
-    # check below.
-    # Catalog cards are canonicalized after generation; buffer these answers so
-    # untrusted model-authored card JSON never reaches the visitor mid-stream.
-    # In voice mode, NEVER block streaming: real-time voice synthesis requires immediate
-    # token streaming to eliminate dead air and feed the audio pipeline smoothly.
-    stream_live = on_token if (voice_mode or (not scheduling_enabled and not catalog_items)) else None
+    # Buffering is reserved strictly for cases that require output mutation or
+    # safety interception before tokens reach the screen:
+    # 1. Active booking requests without confirmed booking: buffer so fabricated
+    #    booking claims ("I have booked your meeting for 3pm") can be caught and
+    #    corrected before the visitor reads them.
+    # 2. Multimodal catalog cards: buffer so raw JSON cards are canonicalized.
+    # For all standard Q&A, FAQ, greeting, pricing, and informational turns,
+    # tokens stream live without artificial delay.
+    cal_tool_names = frozenset({
+        "get_available_slots",
+        "check_calendar_availability",
+        "list_outlook_events",
+        "create_calendar_event",
+        "create_outlook_event",
+        "reschedule_meeting",
+        "cancel_meeting",
+    })
+    curr_turn_text = (text or "").strip()
+    current_turn_asked_booking = bool(
+        re.search(
+            r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|slots|call)\b",
+            curr_turn_text,
+            re.IGNORECASE,
+        )
+    )
+
     for round_idx in range(MAX_TOOL_ROUNDS):
+        must_buffer = bool(
+            not voice_mode
+            and (
+                bool(catalog_items)
+                or (
+                    scheduling_enabled
+                    and not booking_tool_succeeded
+                    and (current_turn_asked_booking or bool(called_tools_this_turn & cal_tool_names))
+                )
+            )
+        )
+        stream_live = None if must_buffer else on_token
+
         gen = await ai_client.chat_stream(
             model=primary_model,
             messages=[{"role": "system", "content": system_instruction}] + messages,
@@ -1241,7 +1316,7 @@ async def run_widget_assistant(
                 if not booking_correction_attempted:
                     # First offense: give the model one chance to actually book it.
                     # Nothing has been streamed for this round (stream_live is
-                    # None whenever this check can fire), so the fabricated
+                    # None whenever must_buffer is True), so the fabricated
                     # claim never reached the visitor.
                     booking_correction_attempted = True
                     messages.append(gen["message"])
@@ -1266,10 +1341,6 @@ async def run_widget_assistant(
                 )
             booking_mode = str(bot.get("booking_mode") or "hybrid").lower()
             if scheduling_enabled and booking_mode != "conversational_only" and not booking_tool_succeeded:
-                curr_turn_text = (text or "").strip()
-                current_turn_asked_booking = bool(
-                    re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|slots|call)\b", curr_turn_text, re.IGNORECASE)
-                )
                 already_offered_recently = any(
                     isinstance(m, dict) and m.get("role") == "assistant" and "[BOOKING_WIDGET]" in str(m.get("content") or "")
                     for m in messages[-4:]
@@ -1282,6 +1353,8 @@ async def run_widget_assistant(
                 )
                 if should_attach and "[BOOKING_WIDGET]" not in reply:
                     reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"
+                    if on_token and stream_live:
+                        await on_token("\n\n[BOOKING_WIDGET]")
             elif booking_tool_succeeded or booking_mode == "conversational_only":
                 reply = reply.replace("[BOOKING_WIDGET]", "").strip()
 
