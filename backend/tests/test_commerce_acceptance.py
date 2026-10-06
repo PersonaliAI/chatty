@@ -96,3 +96,46 @@ def test_low_confidence_catalog_match_returns_no_recommendation(monkeypatch):
     ))
 
     assert results == []
+
+
+def test_typed_catalog_query_searches_product_text_and_gallery_images(monkeypatch):
+    captured = {}
+
+    class RpcQuery:
+        def execute(self):
+            return SimpleNamespace(data=[{
+                "id": "media-visual-1",
+                "title": "DNK Red Sports Shoes",
+                "metadata": {"in_stock": True},
+                "similarity": 0.62,
+            }])
+
+    class FakeSupabase:
+        def rpc(self, name, params):
+            captured["name"] = name
+            captured["params"] = params
+            return RpcQuery()
+
+    async def fake_run_db(callback):
+        return callback()
+
+    async def fake_embed(text):
+        return [0.4] * 768
+
+    async def no_live_refresh(bot_id, items):
+        return items
+
+    monkeypatch.setattr(multimodal_service, "supabase", FakeSupabase())
+    monkeypatch.setattr(multimodal_service, "run_db", fake_run_db)
+    monkeypatch.setattr(multimodal_service, "embed_multimodal_text", fake_embed)
+    monkeypatch.setattr("app.services.woocommerce_service.refresh_live_product_facts", no_live_refresh)
+
+    results, _ = asyncio.run(multimodal_service.search_multimodal_catalog(
+        bot_id="bot-1", query_text="black pink athletic running shoes"
+    ))
+
+    assert captured["name"] == "match_media_items_multimodal"
+    assert captured["params"]["query_image_embedding"] == [0.4] * 768
+    assert captured["params"]["query_embedding"] == [0.4] * 768
+    assert captured["params"]["query_text"] == "black pink athletic running shoes"
+    assert results[0]["title"] == "DNK Red Sports Shoes"

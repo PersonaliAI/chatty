@@ -642,8 +642,9 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                     if existing and existing.data:
                         # Update price, stock, description, url
                         item_id = existing.data[0]["id"]
+                        existing_metadata = existing.data[0].get("metadata") or {}
                         updated_metadata, embedding, image_embedding = await _prepare_product_embedding(
-                            mapped, existing.data[0].get("metadata")
+                            mapped, existing_metadata
                         )
                         upd = {
                             "title": mapped["title"],
@@ -654,6 +655,12 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                             "url": mapped["url"],
                             "media_url": mapped["media_url"] or existing.data[0].get("media_url", ""),
                             "thumbnail_url": mapped["thumbnail_url"] or existing.data[0].get("thumbnail_url", ""),
+                            "search_text": multimodal_service.build_catalog_search_text(
+                                title=mapped["title"],
+                                description=mapped["description"],
+                                sku=mapped.get("sku"),
+                                metadata=mapped.get("metadata"),
+                            ),
                             "metadata": updated_metadata,
                             "updated_at": datetime.now(timezone.utc).isoformat(),
                             "source_updated_at": mapped.get("source_updated_at"),
@@ -664,8 +671,15 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                         }
                         if embedding is not None:
                             upd["embedding"] = embedding
+                        elif existing_metadata.get("_embedding_schema") != multimodal_service.EMBEDDING_SCHEMA_VERSION:
+                            # Never leave an old-model vector queryable after a
+                            # schema/model migration fails. The next retry can
+                            # repopulate it without serving incompatible data.
+                            upd["embedding"] = None
                         if image_embedding is not None:
                             upd["image_embedding"] = image_embedding
+                        elif existing_metadata.get("_image_embedding_schema") != multimodal_service.IMAGE_EMBEDDING_SCHEMA_VERSION:
+                            upd["image_embedding"] = None
                         await run_db(
                             lambda: supabase.table("chatty_media_items")
                             .update(upd)
@@ -818,8 +832,9 @@ async def process_webhook_payload(
 
         if existing and existing.data:
             item_id = existing.data[0]["id"]
+            existing_metadata = existing.data[0].get("metadata") or {}
             updated_metadata, embedding, image_embedding = await _prepare_product_embedding(
-                mapped, existing.data[0].get("metadata")
+                mapped, existing_metadata
             )
             upd = {
                 "title": mapped["title"],
@@ -828,6 +843,12 @@ async def process_webhook_payload(
                 "price": mapped["price"],
                 "currency": mapped["currency"],
                 "url": mapped["url"],
+                "search_text": multimodal_service.build_catalog_search_text(
+                    title=mapped["title"],
+                    description=mapped["description"],
+                    sku=mapped.get("sku"),
+                    metadata=mapped.get("metadata"),
+                ),
                 "metadata": updated_metadata,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "source_updated_at": mapped.get("source_updated_at"),
@@ -841,8 +862,12 @@ async def process_webhook_payload(
                 upd["thumbnail_url"] = mapped["thumbnail_url"]
             if embedding is not None:
                 upd["embedding"] = embedding
+            elif existing_metadata.get("_embedding_schema") != multimodal_service.EMBEDDING_SCHEMA_VERSION:
+                upd["embedding"] = None
             if image_embedding is not None:
                 upd["image_embedding"] = image_embedding
+            elif existing_metadata.get("_image_embedding_schema") != multimodal_service.IMAGE_EMBEDDING_SCHEMA_VERSION:
+                upd["image_embedding"] = None
 
             await run_db(
                 lambda: supabase.table("chatty_media_items")

@@ -124,6 +124,30 @@ def test_catalog_embedding_uses_document_task_and_changes_with_product_facts(mon
     assert first_fingerprint != second_fingerprint
 
 
+def test_catalog_text_and_image_embeddings_share_the_same_model():
+    assert multimodal_service.CATALOG_EMBED_MODEL == multimodal_service.IMAGE_EMBEDDING_MODEL
+    assert multimodal_service.EMBEDDING_SCHEMA_VERSION == "catalog-multimodal-v2"
+    assert multimodal_service.IMAGE_EMBEDDING_SCHEMA_VERSION == "catalog-multimodal-v2"
+
+
+def test_catalog_search_text_keeps_commerce_attributes():
+    text = multimodal_service.build_catalog_search_text(
+        title="DNK Red Sports Shoes",
+        description="Athletic running shoe",
+        sku="DNK-RED-42",
+        metadata={
+            "categories": ["Men's Shoes"],
+            "tags": ["running", "pink"],
+            "attributes": [{"name": "Color", "options": ["black", "pink"]}],
+            "gallery_urls": ["https://example.test/image.jpg"],
+        },
+    )
+    assert "DNK Red Sports Shoes" in text
+    assert "running" in text
+    assert "pink" in text
+    assert "example.test" not in text
+
+
 def test_catalog_service_normalizes_native_width_from_adapter(monkeypatch):
     """The catalog service must enforce pgvector width at its own boundary."""
 

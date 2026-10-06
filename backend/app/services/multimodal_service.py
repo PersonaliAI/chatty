@@ -141,7 +141,7 @@ async def embed_multimodal_text(text: str) -> list[float]:
         # memory client.  This protects catalog/RAG writes if a provider
         # adapter, test double, or future client bypasses that normalizer and
         # returns Gemini's native 3072-dimensional vector.
-        return mem._fit_embedding_dimensions(list(vectors[0])) if vectors else []
+        return mem._fit_embedding_dimensions(list(vectors[0]), CATALOG_EMBED_DIMENSIONS) if vectors else []
     except Exception as exc:
         logger.error("Failed to embed text: %s", exc)
         return []
@@ -159,7 +159,7 @@ async def embed_image_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -
         result = genai_client.models.embed_content(
             model=IMAGE_EMBEDDING_MODEL,
             contents=[types.Part.from_bytes(data=image_bytes, mime_type=mime_type)],
-            config=types.EmbedContentConfig(output_dimensionality=mem.EMBED_DIMENSIONS),
+            config=types.EmbedContentConfig(output_dimensionality=CATALOG_EMBED_DIMENSIONS),
         )
         embeddings = getattr(result, "embeddings", None) or []
         values = getattr(embeddings[0], "values", None) if embeddings else None
@@ -225,20 +225,46 @@ def build_catalog_embedding_text(
     visual_attributes: Optional[dict[str, Any]] = None,
     metadata: Optional[dict[str, Any]] = None,
 ) -> str:
-    """Build the stable source text used for catalog document embeddings."""
-    parts = [title]
-    if description:
-        parts.append(description)
-    if sku:
-        parts.append(f"SKU: {sku}")
+    """Build stable, bounded source text used by catalog document embeddings."""
+    return build_catalog_search_text(
+        title=title,
+        description=description,
+        sku=sku,
+        visual_attributes=visual_attributes,
+        metadata=metadata,
+    )
+
+
+def build_catalog_search_text(
+    *,
+    title: str,
+    description: str = "",
+    sku: Optional[str] = None,
+    visual_attributes: Optional[dict[str, Any]] = None,
+    metadata: Optional[dict[str, Any]] = None,
+) -> str:
+    """Build bounded lexical text for hybrid catalog retrieval.
+
+    Vector search handles paraphrases and visual similarity. This compact
+    representation preserves exact SKU, category, tag, colour, size, and
+    variation matches without indexing URLs or embedding bookkeeping.
+    """
+    parts: list[str] = [title, description, sku or ""]
     if visual_attributes:
-        attrs = ", ".join(f"{key}: {value}" for key, value in visual_attributes.items() if value)
-        if attrs:
-            parts.append(attrs)
+        parts.extend(str(value) for value in visual_attributes.values() if value)
     source_metadata = _catalog_source_metadata(metadata)
-    if source_metadata:
-        parts.append(json.dumps(source_metadata, sort_keys=True, default=str, separators=(",", ":")))
-    return " | ".join(str(part) for part in parts if part).strip()
+    for key in (
+        "categories", "tags", "attributes", "variations", "stock_status",
+        "in_stock", "type", "status", "brand", "color", "colors", "colour",
+        "colours", "material", "size", "sizes",
+    ):
+        value = source_metadata.get(key)
+        if value:
+            parts.append(
+                json.dumps(value, sort_keys=True, default=str)
+                if isinstance(value, (dict, list)) else str(value)
+            )
+    return " ".join(part for part in parts if part).strip()[:6000]
 
 
 def catalog_embedding_fingerprint(**kwargs: Any) -> str:
@@ -255,8 +281,8 @@ def catalog_metadata_with_embedding(
     enriched = dict(metadata or {})
     enriched.update({
         "_embedding_schema": EMBEDDING_SCHEMA_VERSION,
-        "_embedding_model": mem.EMBED_MODEL,
-        "_embedding_dimensions": mem.EMBED_DIMENSIONS,
+        "_embedding_model": CATALOG_EMBED_MODEL,
+        "_embedding_dimensions": CATALOG_EMBED_DIMENSIONS,
         "_embedding_fingerprint": fingerprint,
         "_embedding_status": status,
     })
@@ -270,9 +296,13 @@ async def embed_catalog_item(**kwargs: Any) -> list[float]:
         return []
     try:
         vectors = await mem._embed_with_retry(
-            [text], is_query=False, titles=[kwargs.get("title")]
+            [text],
+            is_query=False,
+            titles=[kwargs.get("title")],
+            model_name=CATALOG_EMBED_MODEL,
+            dimensions=CATALOG_EMBED_DIMENSIONS,
         )
-        return mem._fit_embedding_dimensions(list(vectors[0])) if vectors else []
+        return mem._fit_embedding_dimensions(list(vectors[0]), CATALOG_EMBED_DIMENSIONS) if vectors else []
     except Exception as exc:
         logger.error("Failed to embed catalog item: %s", exc)
         return []
@@ -308,11 +338,17 @@ def fallback_catalog_score(item: dict[str, Any], tokens: list[str]) -> float:
         "title": set(re.findall(r"[a-z0-9]+", str(item.get("title") or "").lower())),
         "description": set(re.findall(r"[a-z0-9]+", str(item.get("description") or "").lower())),
         "sku": set(re.findall(r"[a-z0-9]+", str(item.get("sku") or "").lower())),
+        "search_text": set(re.findall(r"[a-z0-9]+", str(item.get("search_text") or "").lower())),
     }
     title_hits = sum(token in fields["title"] for token in tokens)
     description_hits = sum(token in fields["description"] for token in tokens)
     sku_hits = sum(token in fields["sku"] for token in tokens)
-    return min(1.0, (title_hits * 0.7 + description_hits * 0.2 + sku_hits * 0.9) / len(tokens))
+    search_text_hits = sum(token in fields["search_text"] for token in tokens)
+    return min(
+        1.0,
+        (title_hits * 0.7 + description_hits * 0.2 + sku_hits * 0.9 + search_text_hits * 0.3)
+        / len(tokens),
+    )
 
 
 async def search_multimodal_catalog(
@@ -323,7 +359,7 @@ async def search_multimodal_catalog(
     query_text: str = "",
     media_type: Optional[str] = None,
     top_k: int = 6,
-    match_threshold: float = 0.35,
+    match_threshold: float = 0.25,
     in_stock_only: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Search the bot's indexed product catalog, images, and video frames.
@@ -352,18 +388,21 @@ async def search_multimodal_catalog(
 
     results: list[dict[str, Any]] = []
 
-    # 2. Try Vector Search via RPC match_media_items
+    # 2. Unified cross-modal vector search. Because text and image vectors
+    # share Gemini Embedding 2's space, a typed query can score both the
+    # product document and its gallery images. An uploaded image supplies the
+    # image-side query vector instead.
     if query_vector or image_vector:
         try:
-            rpc_name = "match_media_items_multimodal" if image_vector else "match_media_items"
+            rpc_name = "match_media_items_multimodal"
             rpc_params: dict[str, Any] = {
                 "query_embedding": query_vector or None,
+                "query_image_embedding": image_vector or query_vector or None,
+                "query_text": search_keywords or None,
                 "match_bot_id": bot_id,
                 "match_threshold": match_threshold,
                 "match_count": top_k,
             }
-            if image_vector:
-                rpc_params["query_image_embedding"] = image_vector
             if media_type:
                 rpc_params["filter_media_type"] = media_type
 
@@ -391,7 +430,7 @@ async def search_multimodal_catalog(
                 filters = ",".join(
                     f"{field}.ilike.%{token}%"
                     for token in tokens
-                    for field in ("title", "description", "sku")
+                    for field in ("title", "description", "sku", "search_text")
                 )
                 q = q.or_(filters)
 
@@ -690,6 +729,13 @@ async def ingest_media_item(
         "_image_embedding_status": "ready" if image_vector else "stale",
         "_image_embedding_count": len(image_urls),
     })
+    search_text = build_catalog_search_text(
+        title=title,
+        description=description,
+        sku=sku,
+        visual_attributes=visual_attributes,
+        metadata=metadata,
+    )
 
     row = {
         "bot_id": bot_id,
@@ -706,6 +752,7 @@ async def ingest_media_item(
         "video_timestamp_start": video_timestamp_start,
         "video_timestamp_end": video_timestamp_end,
         "visual_attributes": visual_attributes or {},
+        "search_text": search_text,
         "metadata": metadata_with_embedding,
         "embedding": vector if vector else None,
         "image_embedding": image_vector if image_vector else None,
