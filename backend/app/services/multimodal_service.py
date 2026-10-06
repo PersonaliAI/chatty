@@ -32,9 +32,14 @@ from plugins import memory as mem
 
 logger = logging.getLogger("chatty.multimodal")
 
-EMBEDDING_SCHEMA_VERSION = "catalog-text-v1"
-IMAGE_EMBEDDING_SCHEMA_VERSION = "catalog-image-v1"
-IMAGE_EMBEDDING_MODEL = os.environ.get("KIN_IMAGE_EMBED_MODEL", "gemini-embedding-2")
+# Catalog retrieval must use one embedding space for text and images. The
+# general document RAG pipeline keeps its own model/version, while catalog
+# records and catalog queries are pinned to Gemini Embedding 2.
+CATALOG_EMBED_MODEL = os.environ.get("KIN_CATALOG_EMBED_MODEL", "gemini-embedding-2")
+CATALOG_EMBED_DIMENSIONS = 768
+EMBEDDING_SCHEMA_VERSION = "catalog-multimodal-v2"
+IMAGE_EMBEDDING_SCHEMA_VERSION = "catalog-multimodal-v2"
+IMAGE_EMBEDDING_MODEL = CATALOG_EMBED_MODEL
 MAX_CATALOG_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_CATALOG_IMAGES = 8
 MAX_CATALOG_RESULTS = 20
@@ -126,7 +131,12 @@ async def embed_multimodal_text(text: str) -> list[float]:
     if not text:
         return []
     try:
-        vectors = await mem._embed_with_retry([text], is_query=True)
+        vectors = await mem._embed_with_retry(
+            [text],
+            is_query=True,
+            model_name=CATALOG_EMBED_MODEL,
+            dimensions=CATALOG_EMBED_DIMENSIONS,
+        )
         # Keep the contract at the service boundary as well as in the shared
         # memory client.  This protects catalog/RAG writes if a provider
         # adapter, test double, or future client bypasses that normalizer and
@@ -157,7 +167,7 @@ async def embed_image_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -
             values = embeddings[0].get("values")
         if not values:
             return []
-        return mem._fit_embedding_dimensions(list(values))
+        return mem._fit_embedding_dimensions(list(values), CATALOG_EMBED_DIMENSIONS)
 
     try:
         return await asyncio.to_thread(_embed)

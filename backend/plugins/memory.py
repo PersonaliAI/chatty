@@ -9,7 +9,9 @@ anywhere in this codebase), so it's been removed rather than carried as
 dead weight. Only the embedding pipeline doc_rag.py actually uses remains.
 
 Runs against `gemini-embedding-001` (768-d, matches the existing pgvector
-column) - text-embedding-004 was retired from the Gemini API.
+column) for the general document RAG pipeline. Catalog/MM-RAG callers may
+override the model and dimensions so they can migrate to a unified
+cross-modal embedding space without changing existing document indexes.
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ EMBED_DIMENSIONS = int(os.environ.get("KIN_EMBED_DIMENSIONS", "768"))
 IS_EMBED_V2 = "gemini-embedding-2" in EMBED_MODEL
 
 
-def _fit_embedding_dimensions(vector: list[float]) -> list[float]:
+def _fit_embedding_dimensions(vector: list[float], dimensions: Optional[int] = None) -> list[float]:
     """Keep vectors compatible with the Supabase pgvector column.
 
     Some LiteLLM/Vertex combinations ignore the requested output dimension
@@ -39,20 +41,21 @@ def _fit_embedding_dimensions(vector: list[float]) -> list[float]:
     use a 768-dimensional column, so reduce that response deterministically
     and normalize it before writing or querying.
     """
-    if len(vector) == EMBED_DIMENSIONS:
+    target_dimensions = dimensions or EMBED_DIMENSIONS
+    if len(vector) == target_dimensions:
         return vector
-    if len(vector) < EMBED_DIMENSIONS:
+    if len(vector) < target_dimensions:
         raise ValueError(
-            f"embedding provider returned {len(vector)} dimensions; expected at least {EMBED_DIMENSIONS}"
+            f"embedding provider returned {len(vector)} dimensions; expected at least {target_dimensions}"
         )
-    fitted = vector[:EMBED_DIMENSIONS]
+    fitted = vector[:target_dimensions]
     norm = math.sqrt(sum(value * value for value in fitted))
     if norm > 0:
         fitted = [value / norm for value in fitted]
     logger.warning(
         "embedding provider returned %d dimensions; reduced to configured %d dimensions",
         len(vector),
-        EMBED_DIMENSIONS,
+        target_dimensions,
     )
     return fitted
 
@@ -72,9 +75,11 @@ def _build_call(
     *,
     is_query: bool,
     titles: Optional[list[Optional[str]]] = None,
+    model_name: Optional[str] = None,
 ) -> tuple[list[str], dict]:
     """Returns (formatted_texts, extra_kwargs) for the active embedding model."""
-    if IS_EMBED_V2:
+    is_v2 = "gemini-embedding-2" in (model_name or EMBED_MODEL)
+    if is_v2:
         # Format each text with its task prefix - gemini-embedding-2 doesn't
         # take a separate task_type param, unlike gemini-embedding-001.
         if is_query:
@@ -93,18 +98,22 @@ async def _embed_with_retry(
     *,
     is_query: bool,
     titles: Optional[list[Optional[str]]] = None,
+    model_name: Optional[str] = None,
+    dimensions: Optional[int] = None,
     max_attempts: int = 4,
 ) -> list[list[float]]:
     """Embed via LiteLLM, with retry on transient errors (429/500/503/etc.)."""
-    formatted, extra_kwargs = _build_call(texts, is_query=is_query, titles=titles)
-    model = ai_client.resolve_gemini_model(EMBED_MODEL)
+    formatted, extra_kwargs = _build_call(
+        texts, is_query=is_query, titles=titles, model_name=model_name
+    )
+    model = ai_client.resolve_gemini_model(model_name or EMBED_MODEL)
 
     last_exc: Optional[Exception] = None
     for attempt in range(max_attempts):
         try:
             res = await ai_client.embed(
                 model=model, input=formatted,
-                output_dimensionality=EMBED_DIMENSIONS, **extra_kwargs,
+                output_dimensionality=dimensions or EMBED_DIMENSIONS, **extra_kwargs,
             )
             if not res.data:
                 raise RuntimeError("empty embeddings response")
@@ -113,7 +122,7 @@ async def _embed_with_retry(
                 values = item.get("embedding") if isinstance(item, dict) else getattr(item, "embedding", None)
                 if not values:
                     raise RuntimeError("embedding value missing")
-                vectors.append(_fit_embedding_dimensions(list(values)))
+                vectors.append(_fit_embedding_dimensions(list(values), dimensions))
             return vectors
         except Exception as exc:  # noqa: BLE001
             transient = isinstance(exc, ai_client._TRANSIENT_EXCEPTIONS)

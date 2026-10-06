@@ -1817,6 +1817,56 @@ async def entrypoint(ctx: JobContext) -> None:
             error_count += 1
             logger.error("voice worker: session closed with an error: %s", ev.error)
     session.on("close", _record_close)
+    async def _publish_voice_error(message: str) -> None:
+        """Tell the widget why audio could not be produced.
+
+        Provider failures otherwise happen in LiveKit's background speech
+        task and look like a healthy but silent call. The packet is safe to
+        expose because it contains no provider credentials or raw exceptions.
+        """
+        participant = getattr(ctx.room, "local_participant", None)
+        if participant is None:
+            return
+        try:
+            await participant.publish_data(
+                json.dumps({"type": "voice_error", "message": message}).encode("utf-8"),
+                reliable=True,
+            )
+        except Exception:
+            logger.exception("voice worker: failed to publish voice error packet")
+
+    def _record_session_error(ev) -> None:
+        nonlocal error_count
+        error_count += 1
+        err_obj = getattr(ev, "error", None) or ev
+        underlying = getattr(err_obj, "error", err_obj)
+        status_code = getattr(underlying, "status_code", None)
+        err_str = str(underlying)
+        source = getattr(ev, "source", None)
+        source_name = getattr(source, "__class__", type(source)).__name__
+        logger.error(
+            "voice worker: session error source=%s error=%s (status=%s)",
+            source_name, err_str, status_code,
+        )
+        provider = tts_provider if "tts" in source_name.lower() else (stt_provider or "voice")
+        if status_code == 402 or "402" in err_str:
+            detail = (
+                f"{provider.title()} HTTP 402: Insufficient credits or payment required on your provider account. "
+                "Please top up your credits or switch TTS provider in the dashboard."
+            )
+        elif status_code == 401 or "401" in err_str:
+            detail = (
+                f"{provider.title()} HTTP 401: Invalid API key or unauthorized. "
+                "Please verify your provider API key in the dashboard."
+            )
+        elif status_code == 429 or "429" in err_str:
+            detail = f"{provider.title()} HTTP 429: Rate limit or quota exceeded on provider account."
+        else:
+            detail = f"{provider.title()} audio error: {_provider_error_guidance(stt_provider, tts_provider)}"
+
+        asyncio.create_task(_publish_voice_error(detail))
+
+    session.on("error", _record_session_error)
     session.on(
         "user_transcription_timeout",
         lambda ev: logger.warning("voice worker: user_transcription_timeout - speech detected, no transcript"),
@@ -1979,24 +2029,6 @@ async def entrypoint(ctx: JobContext) -> None:
                 "continuing with input denoise only"
             )
 
-    async def _publish_voice_error(message: str) -> None:
-        """Tell the widget why audio could not be produced.
-
-        Provider failures otherwise happen in LiveKit's background speech
-        task and look like a healthy but silent call.  The packet is safe to
-        expose because it contains no provider credentials or raw exceptions.
-        """
-        participant = getattr(ctx.room, "local_participant", None)
-        if participant is None:
-            return
-        try:
-            await participant.publish_data(
-                json.dumps({"type": "voice_error", "message": message}).encode("utf-8"),
-                reliable=True,
-            )
-        except Exception:
-            logger.exception("voice worker: failed to publish voice error packet")
-
     async def _speak(text: str):
         """Speak text through the correct LiveKit API for this session mode."""
         started_at = time.monotonic()
@@ -2054,7 +2086,10 @@ async def entrypoint(ctx: JobContext) -> None:
         # route through llm_node/run_widget_assistant at all. Realtime mode's
         # own ChattyRealtimeAgent.on_enter already does this greeting itself.
         greeting = _voice_greeting(bot)
-        await _speak(greeting)
+        try:
+            await _speak(greeting)
+        except Exception:
+            logger.warning("voice worker: initial greeting failed mode=%s (error reported to widget)", voice_mode)
 
     # Cost/abuse circuit-breaker: no per-minute quota exists yet (a known,
     # explicitly-accepted gap - usage is tracked, not gated), but an
