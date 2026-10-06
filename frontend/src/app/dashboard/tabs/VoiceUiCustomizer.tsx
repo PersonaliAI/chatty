@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   Sliders,
-  Eye,
   Check,
   Disc,
   Activity,
@@ -13,6 +12,8 @@ import {
   Mic,
   MessageSquare,
   PhoneOff,
+  Sparkles,
+  RotateCcw,
 } from "lucide-react";
 import {
   LiveKitAudioVisualizer,
@@ -20,7 +21,6 @@ import {
   VISUALIZER_DEFAULTS,
 } from "@/components/livekit-agents-ui/audio-visualizers";
 import { LiveKitControlBar } from "@/components/livekit-agents-ui/control-bar";
-import { LiveKitPreConnectPrompt } from "@/components/livekit-agents-ui/pre-connect";
 
 export interface VoiceUiSettingsData {
   visualizerType?: VisualizerType;
@@ -46,41 +46,47 @@ export interface VoiceUiSettingsData {
 export const VISUALIZER_METADATA: Record<
   VisualizerType,
   {
-    title: string;
-    label: string;
+    name: string;
+    subtitle: string;
     desc: string;
     defaultColor: string;
+    icon: typeof Disc;
   }
 > = {
   aura: {
-    title: "<AgentAudioVisualizerAura />",
-    label: "AURA",
-    desc: "An undulating energy field. Designed in partnership with Unicorn Studio. Powered with a custom WebGL shader.",
+    name: "Aura",
+    subtitle: "Fluid Energy Field",
+    desc: "Undulating 3D fluid energy field powered by Unicorn Studio WebGL shader.",
     defaultColor: "#1FD5F9",
+    icon: Disc,
   },
   wave: {
-    title: "<AgentAudioVisualizerWave />",
-    label: "WAVE",
-    desc: "An oscillating wave visualizer powered by a custom WebGL shader.",
+    name: "Wave",
+    subtitle: "Oscilloscope Waveform",
+    desc: "Smooth sine-wave oscilloscope with dynamic bell-curve attenuation.",
     defaultColor: "#FA954C",
+    icon: Activity,
   },
   radial: {
-    title: "<AgentAudioVisualizerRadial />",
-    label: "RADIAL",
-    desc: "Give your agent a bright and energetic appearance with our radial visualizer.",
+    name: "Radial",
+    subtitle: "Circular Pulse Spokes",
+    desc: "Vibrant circular spoke ring with quadrant pulse and rotating thinking state.",
     defaultColor: "#04A43A",
+    icon: SunMedium,
   },
   grid: {
-    title: "<AgentAudioVisualizerGrid />",
-    label: "GRID",
-    desc: "A retro, lo-fi vibe dot-matrix grid visualizer.",
+    name: "Grid",
+    subtitle: "Dot Matrix Grid",
+    desc: "Retro lo-fi dot-matrix matrix reacting with multi-band equalizer heights.",
     defaultColor: "#C04CFA",
+    icon: Grid3X3,
   },
   bar: {
-    title: "<AgentAudioVisualizerBar />",
-    label: "BAR",
-    desc: "Our classic bar visualizer.",
+    name: "Bar",
+    subtitle: "Classic Equalizer",
+    desc: "Classic LiveKit vertical pill bars with bouncing audio reactive bands.",
     defaultColor: "#4CA3FA",
+    icon: BarChart3,
   },
 };
 
@@ -114,7 +120,6 @@ interface VoiceUiCustomizerProps {
 export function VoiceUiCustomizer({
   settings,
   onChange,
-  primaryColor = "#1FD5F9",
 }: VoiceUiCustomizerProps) {
   const [activePreviewState, setActivePreviewState] = useState<
     "connecting" | "listening" | "speaking" | "thinking"
@@ -122,9 +127,9 @@ export function VoiceUiCustomizer({
   const [previewChatOpen, setPreviewChatOpen] = useState(false);
 
   const rawType = settings.visualizerType || "aura";
-  const visualizerType: VisualizerType = (["aura", "wave", "radial", "grid", "bar"].includes(rawType)
-    ? rawType
-    : "aura") as VisualizerType;
+  const visualizerType: VisualizerType = (
+    ["aura", "wave", "radial", "grid", "bar"].includes(rawType) ? rawType : "aura"
+  ) as VisualizerType;
 
   const currentMeta = VISUALIZER_METADATA[visualizerType] || VISUALIZER_METADATA.aura;
   const visualizerColor = settings.visualizerColor || currentMeta.defaultColor;
@@ -158,382 +163,405 @@ export function VoiceUiCustomizer({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-200 dark:border-neutral-800">
-        <div>
-          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-            <Sliders className="size-4.5 text-[#1FD5F9]" />
-            Official LiveKit Voice UI Personality
-          </h3>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Choose from five official LiveKit audio visualizer styles with real-time behaviors for every agent state.
-          </p>
+    <div className="space-y-6 pt-2">
+      {/* 1. Section Header */}
+      <div>
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-orange-50 dark:bg-orange-950/40 text-[#f97316] border border-orange-200/50 dark:border-orange-800/50">
+            <Sliders className="size-4" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+              LiveKit Voice Interface Customization
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              Choose from the 5 official LiveKit visualizers and configure your agent&apos;s real-time appearance.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Main Interactive LiveKit Studio Layout */}
-      <div className="rounded-2xl border border-neutral-800 bg-[#0d0d0f] text-neutral-100 overflow-hidden shadow-2xl">
-        <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[460px]">
-          {/* Left Vertical Visualizer Selector Bar */}
-          <div className="lg:col-span-2 border-b lg:border-b-0 lg:border-r border-neutral-800/80 bg-neutral-950/60 p-3 flex flex-row lg:flex-col gap-2 justify-start items-stretch">
+      {/* 2. Visualizer Style Selector (Clean Cards) */}
+      <div className="space-y-2.5">
+        <label className="block text-[11px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+          Audio Visualizer Style
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+          {(
+            [
+              { id: "aura", meta: VISUALIZER_METADATA.aura },
+              { id: "wave", meta: VISUALIZER_METADATA.wave },
+              { id: "radial", meta: VISUALIZER_METADATA.radial },
+              { id: "grid", meta: VISUALIZER_METADATA.grid },
+              { id: "bar", meta: VISUALIZER_METADATA.bar },
+            ] as const
+          ).map(({ id, meta }) => {
+            const Icon = meta.icon;
+            const isSelected = visualizerType === id;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => handleSelectVisualizer(id)}
+                className={`relative flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  isSelected
+                    ? "border-neutral-900 dark:border-neutral-100 bg-white dark:bg-neutral-900 shadow-sm ring-2 ring-neutral-900/10 dark:ring-neutral-100/20"
+                    : "border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 hover:bg-white dark:hover:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-2">
+                  <div
+                    className="p-1.5 rounded-lg transition-colors"
+                    style={{
+                      backgroundColor: `${meta.defaultColor}18`,
+                      color: meta.defaultColor,
+                    }}
+                  >
+                    <Icon className="size-4" />
+                  </div>
+                  {isSelected && (
+                    <span className="flex size-4 items-center justify-center rounded-full bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900">
+                      <Check className="size-2.5 stroke-[3]" />
+                    </span>
+                  )}
+                </div>
+                <div className="font-semibold text-xs text-neutral-900 dark:text-neutral-100">
+                  {meta.name}
+                </div>
+                <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">
+                  {meta.subtitle}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Interactive Preview Canvas & Stage */}
+      <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-950 text-white overflow-hidden shadow-lg">
+        {/* Stage Toolbar */}
+        <div className="px-4 py-3 border-b border-neutral-800 flex flex-wrap items-center justify-between gap-3 bg-neutral-900/60">
+          <div className="flex items-center gap-2">
+            <span
+              className="size-2.5 rounded-full"
+              style={{ backgroundColor: visualizerColor }}
+            />
+            <span className="text-xs font-semibold text-neutral-200">
+              {currentMeta.name} Visualizer Preview
+            </span>
+          </div>
+
+          {/* Agent State Switcher (Clean Pills) */}
+          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-950 border border-neutral-800 text-[11px]">
             {(
               [
-                { id: "aura", label: "AURA", icon: Disc },
-                { id: "wave", label: "WAVE", icon: Activity },
-                { id: "radial", label: "RADIAL", icon: SunMedium },
-                { id: "grid", label: "GRID", icon: Grid3X3 },
-                { id: "bar", label: "BAR", icon: BarChart3 },
+                { id: "connecting", label: "Connecting" },
+                { id: "listening", label: "Listening" },
+                { id: "speaking", label: "Speaking" },
+                { id: "thinking", label: "Thinking" },
               ] as const
-            ).map((item) => {
-              const Icon = item.icon;
-              const isSelected = visualizerType === item.id;
-              const meta = VISUALIZER_METADATA[item.id];
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => handleSelectVisualizer(item.id)}
-                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left ${
-                    isSelected
-                      ? "bg-neutral-800/90 text-white shadow-sm ring-1 ring-neutral-700"
-                      : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50"
-                  }`}
-                >
-                  <Icon
-                    className="size-4 shrink-0 transition-colors"
-                    style={{ color: isSelected ? meta.defaultColor : undefined }}
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Center Live Stage Preview */}
-          <div className="lg:col-span-6 p-6 flex flex-col justify-between items-center relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neutral-900/40 via-neutral-950 to-[#0a0a0c] border-b lg:border-b-0 lg:border-r border-neutral-800/80 min-h-[340px]">
-            {/* Stage header info */}
-            <div className="w-full flex items-center justify-between text-xs text-neutral-400">
-              <span className="flex items-center gap-1.5 font-mono text-[11px] text-neutral-300">
-                <Eye className="size-3.5 text-neutral-400" />
-                Live Preview
-              </span>
-              <span className="font-mono text-[11px] text-neutral-500">
-                {currentMeta.title}
-              </span>
-            </div>
-
-            {/* Visualizer Renderer in Dark Field */}
-            <div className="my-auto py-8 flex flex-col items-center justify-center min-h-[220px]">
-              <LiveKitAudioVisualizer
-                type={visualizerType}
-                state={activePreviewState}
-                color={visualizerColor}
-                size={visualizerSize}
-                barCount={barCount}
-                rowCount={rowCount}
-                columnCount={columnCount}
-                radius={radius}
-                colorShift={colorShift}
-                lineWidth={lineWidth}
-                audioLevel={activePreviewState === "speaking" ? 0.75 : 0}
-              />
-            </div>
-
-            {/* Pill Control Bar Preview */}
-            <div className="w-full max-w-sm mt-2">
-              <LiveKitControlBar
-                variant="livekit"
-                controls={controls}
-                primaryColor={visualizerColor}
-                isChatOpen={previewChatOpen}
-                onToggleChat={() => setPreviewChatOpen((v: boolean) => !v)}
-                onToggleMute={() => {}}
-                onDisconnect={() => {}}
-              />
-            </div>
-          </div>
-
-          {/* Right Parameters & Controls Panel */}
-          <div className="lg:col-span-4 p-5 space-y-5 bg-neutral-950/40 flex flex-col justify-between">
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-mono text-sm font-bold text-white tracking-tight">
-                  {currentMeta.title}
-                </h4>
-                <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-                  {currentMeta.desc}
-                </p>
-              </div>
-
-              {/* AGENT STATE Tabs */}
-              <div className="space-y-1.5 pt-2">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  Agent State
-                </label>
-                <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-900 rounded-lg border border-neutral-800">
-                  {(["connecting", "listening", "speaking", "thinking"] as const).map((st) => (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setActivePreviewState(st)}
-                      className={`py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
-                        activePreviewState === st
-                          ? "bg-neutral-800 text-white shadow-sm ring-1 ring-neutral-700"
-                          : "text-neutral-400 hover:text-neutral-200"
-                      }`}
-                    >
-                      {st}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* COLOR HUE Slider + Hex Badge */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                    Color Hue
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="size-3 rounded-full border border-neutral-700 shadow-sm"
-                      style={{ backgroundColor: visualizerColor }}
-                    />
-                    <span className="font-mono text-[11px] text-neutral-300">
-                      {visualizerColor}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="360"
-                    defaultValue="185"
-                    onChange={(e) => {
-                      const hue = Number(e.target.value);
-                      const hex = hslToHex(hue, 95, 55);
-                      onChange({ visualizerColor: hex });
-                    }}
-                    className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-                    style={{
-                      background:
-                        "linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
-                    }}
-                  />
-                  <input
-                    type="color"
-                    value={visualizerColor}
-                    onChange={(e) => onChange({ visualizerColor: e.target.value })}
-                    className="size-7 rounded border border-neutral-700 bg-transparent cursor-pointer p-0 shrink-0"
-                    title="Choose hex color"
-                  />
-                </div>
-              </div>
-
-              {/* Component Specific Sliders */}
-              {visualizerType === "aura" && (
-                <div className="space-y-1 pt-1">
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                      Color Shift
-                    </span>
-                    <span className="font-mono text-neutral-300">{colorShift}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={colorShift}
-                    onChange={(e) =>
-                      onChange({ visualizerColorShift: Number(e.target.value) })
-                    }
-                    className="w-full accent-[#1FD5F9] cursor-pointer"
-                  />
-                </div>
-              )}
-
-              {visualizerType === "wave" && (
-                <>
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                        Color Shift
-                      </span>
-                      <span className="font-mono text-neutral-300">{colorShift}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.05"
-                      value={colorShift}
-                      onChange={(e) =>
-                        onChange({ visualizerColorShift: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#FA954C] cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                        Line Width
-                      </span>
-                      <span className="font-mono text-neutral-300">{lineWidth}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="5"
-                      step="0.5"
-                      value={lineWidth}
-                      onChange={(e) =>
-                        onChange({ visualizerLineWidth: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#FA954C] cursor-pointer"
-                    />
-                  </div>
-                </>
-              )}
-
-              {visualizerType === "radial" && (
-                <>
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                        Radius
-                      </span>
-                      <span className="font-mono text-neutral-300">{radius}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="30"
-                      max="100"
-                      step="5"
-                      value={radius}
-                      onChange={(e) =>
-                        onChange({ visualizerRadius: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#04A43A] cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                        Bar Count
-                      </span>
-                      <span className="font-mono text-neutral-300">{barCount}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="12"
-                      max="36"
-                      step="4"
-                      value={barCount}
-                      onChange={(e) =>
-                        onChange({ visualizerBarCount: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#04A43A] cursor-pointer"
-                    />
-                  </div>
-                </>
-              )}
-
-              {visualizerType === "grid" && (
-                <>
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                        Row Count
-                      </span>
-                      <span className="font-mono text-neutral-300">{rowCount}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="5"
-                      max="21"
-                      step="2"
-                      value={rowCount}
-                      onChange={(e) =>
-                        onChange({ visualizerRowCount: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#C04CFA] cursor-pointer"
-                    />
-                  </div>
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                        Column Count
-                      </span>
-                      <span className="font-mono text-neutral-300">{columnCount}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="5"
-                      max="21"
-                      step="2"
-                      value={columnCount}
-                      onChange={(e) =>
-                        onChange({ visualizerColumnCount: Number(e.target.value) })
-                      }
-                      className="w-full accent-[#C04CFA] cursor-pointer"
-                    />
-                  </div>
-                </>
-              )}
-
-              {visualizerType === "bar" && (
-                <div className="space-y-1 pt-1">
-                  <div className="flex justify-between text-[11px]">
-                    <span className="text-neutral-400 uppercase tracking-wider font-semibold">
-                      Bar Count
-                    </span>
-                    <span className="font-mono text-neutral-300">{barCount}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="3"
-                    max="15"
-                    step="1"
-                    value={barCount}
-                    onChange={(e) =>
-                      onChange({ visualizerBarCount: Number(e.target.value) })
-                    }
-                    className="w-full accent-[#4CA3FA] cursor-pointer"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Quick reset to default color button */}
-            <div className="pt-2 border-t border-neutral-900">
+            ).map((st) => (
               <button
+                key={st.id}
                 type="button"
-                onClick={() =>
-                  onChange({ visualizerColor: currentMeta.defaultColor })
-                }
-                className="w-full py-1.5 px-3 rounded-lg border border-neutral-800 hover:border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800 text-[11px] text-neutral-300 font-medium transition-colors cursor-pointer"
+                onClick={() => setActivePreviewState(st.id)}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all cursor-pointer ${
+                  activePreviewState === st.id
+                    ? "bg-neutral-800 text-white shadow-sm"
+                    : "text-neutral-400 hover:text-neutral-200"
+                }`}
               >
-                Reset to {currentMeta.label} Default Color ({currentMeta.defaultColor})
+                {st.label}
               </button>
-            </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Visualizer Display Area */}
+        <div className="py-12 px-4 flex flex-col items-center justify-center min-h-[240px] relative bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-neutral-900/50 via-neutral-950 to-neutral-950">
+          <LiveKitAudioVisualizer
+            type={visualizerType}
+            state={activePreviewState}
+            color={visualizerColor}
+            size={visualizerSize}
+            barCount={barCount}
+            rowCount={rowCount}
+            columnCount={columnCount}
+            radius={radius}
+            colorShift={colorShift}
+            lineWidth={lineWidth}
+            audioLevel={activePreviewState === "speaking" ? 0.75 : 0}
+          />
+        </div>
+
+        {/* LiveKit Official Control Bar Preview */}
+        <div className="p-4 border-t border-neutral-850 bg-neutral-900/40 flex items-center justify-center">
+          <div className="w-full max-w-xs">
+            <LiveKitControlBar
+              variant="livekit"
+              controls={controls}
+              primaryColor={visualizerColor}
+              isChatOpen={previewChatOpen}
+              onToggleChat={() => setPreviewChatOpen((v: boolean) => !v)}
+              onToggleMute={() => {}}
+              onDisconnect={() => {}}
+            />
           </div>
         </div>
       </div>
 
-      {/* Control Bar Media Settings (Microphone, Chat, Disconnect - NO Camera/Screenshare) */}
-      <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 space-y-3">
-        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500">
-          Control Bar Buttons
-        </label>
-        <p className="text-xs text-neutral-500">
-          Enable or disable in-call controls for the official LiveKit pill control bar.
-        </p>
+      {/* 4. Fine-Tuning Settings Card */}
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-4 shadow-xs">
+        <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+          <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            {currentMeta.name} Appearance Settings
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange({ visualizerColor: currentMeta.defaultColor })}
+            className="inline-flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 font-medium cursor-pointer transition-colors"
+          >
+            <RotateCcw className="size-3" />
+            Reset default color ({currentMeta.defaultColor})
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Color Picker & Swatches */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
+              Visualizer Color
+            </label>
+            <div className="flex items-center gap-2.5">
+              <input
+                type="color"
+                value={visualizerColor}
+                onChange={(e) => onChange({ visualizerColor: e.target.value })}
+                className="size-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-transparent cursor-pointer p-0 shrink-0"
+              />
+              <input
+                type="text"
+                value={visualizerColor}
+                onChange={(e) => onChange({ visualizerColor: e.target.value })}
+                className="w-28 font-mono text-xs px-2.5 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 uppercase"
+              />
+
+              {/* Quick Official Palette Swatches */}
+              <div className="flex items-center gap-1.5 ml-auto">
+                {(
+                  [
+                    { color: "#1FD5F9", name: "Aura Cyan" },
+                    { color: "#FA954C", name: "Wave Orange" },
+                    { color: "#04A43A", name: "Radial Green" },
+                    { color: "#C04CFA", name: "Grid Purple" },
+                    { color: "#4CA3FA", name: "Bar Sky" },
+                  ] as const
+                ).map((swatch) => (
+                  <button
+                    key={swatch.color}
+                    type="button"
+                    title={swatch.name}
+                    onClick={() => onChange({ visualizerColor: swatch.color })}
+                    className={`size-5 rounded-full border transition-transform cursor-pointer hover:scale-110 ${
+                      visualizerColor.toLowerCase() === swatch.color.toLowerCase()
+                        ? "border-neutral-900 dark:border-neutral-100 scale-110 ring-2 ring-neutral-400"
+                        : "border-transparent"
+                    }`}
+                    style={{ backgroundColor: swatch.color }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Size Preset */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300">
+              Display Scale
+            </label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  { id: "sm", label: "Compact" },
+                  { id: "md", label: "Standard" },
+                  { id: "lg", label: "Expanded" },
+                ] as const
+              ).map((sz) => (
+                <button
+                  key={sz.id}
+                  type="button"
+                  onClick={() => onChange({ visualizerSize: sz.id })}
+                  className={`py-1.5 rounded-lg text-xs font-semibold text-center border transition-all cursor-pointer ${
+                    visualizerSize === sz.id
+                      ? "border-neutral-900 dark:border-neutral-100 bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900"
+                      : "border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300"
+                  }`}
+                >
+                  {sz.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Specific Parameter Sliders */}
+        <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {visualizerType === "aura" && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                <span>Color Shift Intensity</span>
+                <span className="font-mono text-neutral-500">{colorShift}</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={colorShift}
+                onChange={(e) => onChange({ visualizerColorShift: Number(e.target.value) })}
+                className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+              />
+            </div>
+          )}
+
+          {visualizerType === "wave" && (
+            <>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  <span>Color Shift</span>
+                  <span className="font-mono text-neutral-500">{colorShift}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={colorShift}
+                  onChange={(e) => onChange({ visualizerColorShift: Number(e.target.value) })}
+                  className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+                />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  <span>Wave Line Width</span>
+                  <span className="font-mono text-neutral-500">{lineWidth}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="0.5"
+                  value={lineWidth}
+                  onChange={(e) => onChange({ visualizerLineWidth: Number(e.target.value) })}
+                  className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+                />
+              </div>
+            </>
+          )}
+
+          {visualizerType === "radial" && (
+            <>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  <span>Spoke Radius</span>
+                  <span className="font-mono text-neutral-500">{radius}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="30"
+                  max="90"
+                  step="5"
+                  value={radius}
+                  onChange={(e) => onChange({ visualizerRadius: Number(e.target.value) })}
+                  className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+                />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  <span>Spoke Count</span>
+                  <span className="font-mono text-neutral-500">{barCount}</span>
+                </div>
+                <input
+                  type="range"
+                  min="12"
+                  max="36"
+                  step="4"
+                  value={barCount}
+                  onChange={(e) => onChange({ visualizerBarCount: Number(e.target.value) })}
+                  className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+                />
+              </div>
+            </>
+          )}
+
+          {visualizerType === "grid" && (
+            <>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  <span>Row Count</span>
+                  <span className="font-mono text-neutral-500">{rowCount}</span>
+                </div>
+                <input
+                  type="range"
+                  min="7"
+                  max="21"
+                  step="2"
+                  value={rowCount}
+                  onChange={(e) => onChange({ visualizerRowCount: Number(e.target.value) })}
+                  className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+                />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  <span>Column Count</span>
+                  <span className="font-mono text-neutral-500">{columnCount}</span>
+                </div>
+                <input
+                  type="range"
+                  min="7"
+                  max="21"
+                  step="2"
+                  value={columnCount}
+                  onChange={(e) => onChange({ visualizerColumnCount: Number(e.target.value) })}
+                  className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+                />
+              </div>
+            </>
+          )}
+
+          {visualizerType === "bar" && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                <span>Bar Count</span>
+                <span className="font-mono text-neutral-500">{barCount}</span>
+              </div>
+              <input
+                type="range"
+                min="3"
+                max="15"
+                step="1"
+                value={barCount}
+                onChange={(e) => onChange({ visualizerBarCount: Number(e.target.value) })}
+                className="w-full accent-neutral-900 dark:accent-neutral-100 cursor-pointer"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 5. In-Call Controls Card (Mic, Chat, Leave - NO Camera/Screenshare) */}
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-3 shadow-xs">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            Control Bar Buttons
+          </span>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Configure which controls appear inside the in-call pill bar.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          <label className="flex items-center gap-2.5 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-xs font-semibold cursor-pointer">
+          <label className="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 text-xs font-medium text-neutral-800 dark:text-neutral-200 cursor-pointer hover:bg-neutral-100/50">
             <input
               type="checkbox"
               checked={controls.microphone}
@@ -542,13 +570,13 @@ export function VoiceUiCustomizer({
                   controls: { ...controls, microphone: e.target.checked },
                 })
               }
-              className="rounded text-[#1FD5F9] focus:ring-0"
+              className="size-4 rounded text-neutral-900 focus:ring-0"
             />
             <Mic className="size-4 text-neutral-500" />
             Microphone Mute
           </label>
 
-          <label className="flex items-center gap-2.5 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-xs font-semibold cursor-pointer">
+          <label className="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 text-xs font-medium text-neutral-800 dark:text-neutral-200 cursor-pointer hover:bg-neutral-100/50">
             <input
               type="checkbox"
               checked={controls.chat}
@@ -557,13 +585,13 @@ export function VoiceUiCustomizer({
                   controls: { ...controls, chat: e.target.checked },
                 })
               }
-              className="rounded text-[#1FD5F9] focus:ring-0"
+              className="size-4 rounded text-neutral-900 focus:ring-0"
             />
             <MessageSquare className="size-4 text-neutral-500" />
             Chat Transcript Toggle
           </label>
 
-          <label className="flex items-center gap-2.5 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-xs font-semibold cursor-pointer">
+          <label className="flex items-center gap-3 p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 text-xs font-medium text-neutral-800 dark:text-neutral-200 cursor-pointer hover:bg-neutral-100/50">
             <input
               type="checkbox"
               checked={controls.leave}
@@ -572,7 +600,7 @@ export function VoiceUiCustomizer({
                   controls: { ...controls, leave: e.target.checked },
                 })
               }
-              className="rounded text-[#1FD5F9] focus:ring-0"
+              className="size-4 rounded text-neutral-900 focus:ring-0"
             />
             <PhoneOff className="size-4 text-red-500" />
             Leave Call Button
@@ -580,15 +608,15 @@ export function VoiceUiCustomizer({
         </div>
       </div>
 
-      {/* Pre-Connect Buffer & Shimmer Prompt */}
-      <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 space-y-3">
+      {/* 6. Pre-Connect Shimmer Buffer Card */}
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-3 shadow-xs">
         <div className="flex items-center justify-between">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500">
+            <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
               Pre-Connect Shimmer Buffer
-            </label>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              LiveKit official pre-connect shimmer banner shown while connecting before first audio packet.
+            </span>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              Displays a gentle listening shimmer while audio streams connect before the first speech packet.
             </p>
           </div>
           <input
@@ -597,13 +625,13 @@ export function VoiceUiCustomizer({
             onChange={(e) =>
               onChange({ isPreConnectBufferEnabled: e.target.checked })
             }
-            className="size-4 rounded text-[#1FD5F9]"
+            className="size-4 rounded text-neutral-900 focus:ring-0 cursor-pointer"
           />
         </div>
 
         {settings.isPreConnectBufferEnabled !== false && (
           <div className="pt-2">
-            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+            <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
               Pre-Connect Prompt Message
             </label>
             <input
@@ -613,7 +641,7 @@ export function VoiceUiCustomizer({
                 "Agent is listening, ask it a question"
               }
               onChange={(e) => onChange({ preConnectMessage: e.target.value })}
-              className="w-full text-xs px-3 py-2 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100"
+              className="w-full text-xs px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-neutral-400"
               placeholder="Agent is listening, ask it a question"
             />
           </div>
@@ -621,20 +649,4 @@ export function VoiceUiCustomizer({
       </div>
     </div>
   );
-}
-
-/**
- * Converts HSL to 6-character Hex string
- */
-function hslToHex(h: number, s: number, l: number): string {
-  l /= 100;
-  const a = (s * Math.min(l, 1 - l)) / 100;
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
 }
