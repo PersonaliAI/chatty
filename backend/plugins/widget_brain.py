@@ -71,7 +71,12 @@ from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS  # noq
 # Keep the default on a current stable, low-latency text model. The Live API
 # realtime model is intentionally not used by pipeline calls; this is the
 # ordinary LLM turn between Google streaming STT and the selected TTS provider.
-GEMINI_VOICE_MODEL = os.environ.get("GEMINI_VOICE_MODEL", "gemini-3.5-flash-lite")
+GEMINI_VOICE_MODEL = (
+    os.environ.get("GEMINI_VOICE_MODEL")
+    or os.environ.get("GEMMA_VOICE_MODEL")
+    or os.environ.get("GEMMA_MODEL")
+    or "gemini-3.5-flash-lite"
+)
 # Keep a voice turn bounded at the model boundary as well as in the prompt. A
 # prompt-only limit is advisory; this hard cap prevents a long knowledge-base
 # answer from holding the TTS turn open and making the agent sound stuck. A
