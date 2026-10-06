@@ -41,6 +41,7 @@ async def mint_voice_session(
     *,
     bot_id: str,
     session_id: str | None = None,
+    call_id: str | None = None,
     visitor_timezone: str = "UTC",
     visitor_language: str | None = None,
     visitor_country: str | None = None,
@@ -51,7 +52,8 @@ async def mint_voice_session(
         raise HTTPException(status_code=500, detail="Voice is not configured on this server")
 
     session_id = session_id or f"voice:{uuid4()}"
-    room_name = f"chatty-voice-{bot_id}-{session_id}"
+    call_suffix = call_id or uuid4().hex[:8]
+    room_name = f"chatty-voice-{bot_id}-{session_id}-{call_suffix}"
     identity = f"{identity_prefix}-{uuid4().hex[:12]}"
 
     # Job metadata read back by voice_worker.py's entrypoint via ctx.job.metadata.

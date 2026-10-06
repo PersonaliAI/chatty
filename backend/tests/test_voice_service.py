@@ -67,7 +67,7 @@ def test_mint_voice_session_dispatches_worker_with_metadata(monkeypatch):
 
     assert result["token"] == "signed-token"
     assert result["livekit_url"] == "wss://livekit.example"
-    assert result["room_name"] == "chatty-voice-bot-1-session-1"
+    assert result["room_name"].startswith("chatty-voice-bot-1-session-1-")
     assert result["session_id"] == "session-1"
     assert len(dispatches) == 1
     assert dispatches[0].agent_name == "chatty-voice"

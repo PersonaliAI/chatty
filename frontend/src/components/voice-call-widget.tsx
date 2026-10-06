@@ -1,12 +1,8 @@
 "use client";
 
-import { LiveKitAudioVisualizer } from "@/components/livekit-agents-ui/audio-visualizers";
-import { LiveKitControlBar } from "@/components/livekit-agents-ui/control-bar";
-import type { VoiceUiSettingsData } from "@/app/dashboard/tabs/VoiceUiCustomizer";
-
-import { useEffect, useRef, useState, useMemo, useId } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { visitorIdentityClient } from "../../packages/chatty-react/src/visitor-identity";
-import { motion, AnimatePresence, useSpring } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Room,
   RoomEvent,
@@ -17,10 +13,30 @@ import {
   TranscriptionSegment,
   Participant,
 } from "livekit-client";
-import { AudioWaveform, Mic, MicOff, Paperclip, Send, X, AlertCircle } from "lucide-react";
-import ReactMarkdown, { type Components } from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
+import {
+  PhoneOff,
+  X,
+  AlertCircle,
+  Paperclip,
+  Send,
+  MessageSquare,
+  Sparkles,
+  Radio,
+} from "lucide-react";
+
+import {
+  LiveKitAudioVisualizer,
+  type VisualizerType,
+  type AgentVisualizerState,
+} from "@/components/livekit-agents-ui/audio-visualizers";
+import { LiveKitControlBar } from "@/components/livekit-agents-ui/control-bar";
+import {
+  AgentChatTranscript,
+  type TranscriptItem,
+} from "@/components/livekit-agents-ui/agent-chat-transcript";
+import { AgentChatIndicator } from "@/components/livekit-agents-ui/agent-chat-indicator";
+import { StartAudioButton } from "@/components/livekit-agents-ui/start-audio-button";
+import type { VoiceUiSettingsData } from "@/app/dashboard/tabs/VoiceUiCustomizer";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
@@ -28,10 +44,7 @@ import { parseRichContent } from "@/lib/rich-content";
 
 const WAVE_BAR_COUNT = 14;
 const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
-// Use the browser's WebRTC audio processing before audio reaches VAD/STT.
-// These constraints are supported by Chromium, Firefox, and Safari and are
-// the safe baseline for echo cancellation, fan/traffic suppression, and stable
-// mic levels in an embedded widget. LiveKit forwards them to getUserMedia.
+
 const MICROPHONE_CAPTURE_OPTIONS = {
   autoGainControl: true,
   echoCancellation: true,
@@ -39,32 +52,31 @@ const MICROPHONE_CAPTURE_OPTIONS = {
   channelCount: 1,
 } as const;
 
-type CallStatus = "connecting" | "reconnecting" | "requesting-mic" | "connected" | "listening" | "agent-speaking" | "error" | "ended";
-
-interface TranscriptEntry {
-  id: string;
-  speaker: "visitor" | "agent";
-  text: string;
-  final: boolean;
-  updatedAt?: number;
-}
+type CallStatus =
+  | "connecting"
+  | "reconnecting"
+  | "requesting-mic"
+  | "connected"
+  | "listening"
+  | "thinking"
+  | "agent-speaking"
+  | "error"
+  | "ended";
 
 function normalizeTranscriptText(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 /**
- * RoomIO intentionally publishes both its legacy and stream transcription
- * packets. They are two transports for one utterance and often have different
- * segment IDs. Keep the two packets from becoming two visible bubbles while
- * still allowing the visitor to repeat a sentence after the current turn.
+ * Merge room transcript segments cleanly to avoid duplicates between interim
+ * speech hypotheses and final transcription packets.
  */
 function mergeTranscriptSegment(
-  entries: TranscriptEntry[],
-  segment: TranscriptEntry,
+  entries: TranscriptItem[],
+  segment: TranscriptItem,
   now: number,
-  recentFinals: Map<string, number>,
-): TranscriptEntry[] {
+  recentFinals: Map<string, number>
+): TranscriptItem[] {
   const next = [...entries];
   const normalized = normalizeTranscriptText(segment.text);
   if (!normalized) return next;
@@ -80,16 +92,17 @@ function mergeTranscriptSegment(
   const key = `${segment.speaker}:${normalized}`;
   if (segment.final && (recentFinals.get(key) ?? 0) > now - 10000) return next;
 
-  // Typed turns are rendered optimistically before RoomIO echoes them. The
-  // echo may arrive as an interim segment with a different id, so suppress it
-  // when the equivalent final bubble is already visible.
-  if (next.some((entry) => entry.speaker === segment.speaker && entry.final && normalizeTranscriptText(entry.text) === normalized)) {
+  if (
+    next.some(
+      (entry) =>
+        entry.speaker === segment.speaker &&
+        entry.final &&
+        normalizeTranscriptText(entry.text) === normalized
+    )
+  ) {
     return next;
   }
 
-  // Interim and final packets can use different IDs. Replace the latest
-  // open segment from the same speaker with revised hypotheses or final text,
-  // instead of appending duplicate or fragmented bubbles with discarded words.
   for (let i = next.length - 1; i >= 0; i -= 1) {
     const previous = next[i];
     if (previous.speaker !== segment.speaker) break;
@@ -102,12 +115,11 @@ function mergeTranscriptSegment(
 
   if (segment.final) {
     recentFinals.set(key, now);
-    // The equivalent-final check above also covers legacy/stream twins that
-    // arrive in either order.
   }
   next.push(segment);
   return next;
 }
+
 interface VoiceCallWidgetProps {
   botId: string;
   sessionId: string;
@@ -119,23 +131,6 @@ interface VoiceCallWidgetProps {
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   previewMode?: boolean;
   voiceUiSettings?: VoiceUiSettingsData;
-}
-
-/** Calm live-transcription cue; an audio pulse reads as active listening rather than a stuck caret. */
-function TranscriptActivityIndicator({ label = "Live transcription" }: { label?: string }) {
-  return (
-    <span className="ml-2 inline-flex h-3 items-center gap-[2px] align-middle" aria-label={label} role="status">
-      <span className="sr-only">{label}</span>
-      {[0, 1, 2, 3, 4].map((index) => (
-        <motion.span
-          key={index}
-          className="h-1.5 w-[2px] origin-center rounded-full bg-current opacity-50"
-          animate={{ scaleY: [0.55, 1.9, 0.7, 1.45, 0.55], opacity: [0.35, 0.9, 0.5, 0.8, 0.35] }}
-          transition={{ duration: 1.05, repeat: Infinity, ease: "easeInOut", delay: index * 0.1 }}
-        />
-      ))}
-    </span>
-  );
 }
 
 export default function VoiceCallWidget({
@@ -150,28 +145,44 @@ export default function VoiceCallWidget({
   previewMode = false,
   voiceUiSettings,
 }: VoiceCallWidgetProps) {
-  const [showLiveKitChat, setShowLiveKitChat] = useState(false);
-  const fetch = sessionId.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const fetch = sessionId.startsWith("ci-")
+    ? visitorIdentityClient(botId, backendUrl).fetch
+    : globalThis.fetch;
+
   const [status, setStatus] = useState<CallStatus>(previewMode ? "agent-speaking" : "connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
   const [duration, setDuration] = useState(previewMode ? 24 : 0);
-  const [localLevels, setLocalLevels] = useState<number[]>(() => Array(WAVE_BAR_COUNT).fill(0));
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>(() =>
-    previewMode
-      ? [
-          { id: "p1", speaker: "visitor", text: "Can we schedule a product demo for this Wednesday at 10 AM?", final: true },
-          { id: "p2", speaker: "agent", text: "I've confirmed your product demo for Wednesday at 10:00 AM! Here are your meeting details: [BOOKING_WIDGET]", final: true },
-        ]
-      : []
-  );
-  const [messageText, setMessageText] = useState("");
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [sendingMessage, setSendingMessage] = useState(false);
+  const [localAudioLevel, setLocalAudioLevel] = useState(0);
+  const [agentAudioLevel, setAgentAudioLevel] = useState(0);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [connectAttempt, setConnectAttempt] = useState(0);
 
-  // Auto-extract visitor contact info if spoken/transcribed during the call
+  const [transcript, setTranscript] = useState<TranscriptItem[]>(() =>
+    previewMode
+      ? [
+          {
+            id: "p1",
+            speaker: "visitor",
+            text: "Can we schedule a product demo for this Wednesday at 10 AM?",
+            final: true,
+          },
+          {
+            id: "p2",
+            speaker: "agent",
+            text: "I've confirmed your product demo for Wednesday at 10:00 AM! Here are your meeting details: [BOOKING_WIDGET]",
+            final: true,
+          },
+        ]
+      : []
+  );
+
+  const [messageText, setMessageText] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  // Auto-extract visitor info from spoken transcript for booking convenience
   const extractedVisitorInfo = useMemo(() => {
     let name = "";
     let email = "";
@@ -181,16 +192,9 @@ export default function VoiceCallWidget({
       if (entry.speaker === "visitor" && entry.text) {
         const text = entry.text;
         if (!email) {
-          // Voice STT often renders an address as “name at company dot com”.
-          // Normalize that read-back before extracting it for the booking
-          // card; the server remains the source of truth for lead storage.
-          const normalizedEmailText = text
-            .replace(/\s+at\s+/gi, "@")
-            .replace(/\s+dot\s+/gi, ".");
-          // Handle a letter-by-letter local part without accidentally
-          // swallowing the preceding words “my email is”.
+          const normalizedEmailText = text.replace(/\s+at\s+/gi, "@").replace(/\s+dot\s+/gi, ".");
           const spelled = normalizedEmailText.match(
-            /(?:\b(?:email|address)\b[^\n]{0,30})?((?:[A-Za-z]\s+){2,}[A-Za-z])\s*@\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/i,
+            /(?:\b(?:email|address)\b[^\n]{0,30})?((?:[A-Za-z]\s+){2,}[A-Za-z])\s*@\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/i
           );
           const extractedEmail = spelled
             ? `${spelled[1].replace(/\s+/g, "")}@${spelled[2]}`
@@ -202,7 +206,9 @@ export default function VoiceCallWidget({
           if (pm && pm[0].replace(/\D/g, "").length >= 7) phone = pm[0].trim();
         }
         if (!name) {
-          const nm = text.match(/(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z'’-]*(?:\s+[A-Za-z][A-Za-z'’-]*){0,2})/i);
+          const nm = text.match(
+            /(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z'’-]*(?:\s+[A-Za-z][A-Za-z'’-]*){0,2})/i
+          );
           if (nm) {
             const cand = nm[1].trim();
             if (!["interested", "looking", "trying", "here", "ready", "fine", "good"].includes(cand.toLowerCase())) {
@@ -223,6 +229,7 @@ export default function VoiceCallWidget({
     }
     return { name, email, phone, company };
   }, [transcript]);
+
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(() =>
     previewMode
       ? {
@@ -238,119 +245,84 @@ export default function VoiceCallWidget({
       : null
   );
   const [showBookingCard, setShowBookingCard] = useState(previewMode);
-  const [bookingTriggeredEntryId, setBookingTriggeredEntryId] = useState<string | null>(previewMode ? "p2" : null);
+  const [bookingTriggeredEntryId, setBookingTriggeredEntryId] = useState<string | null>(
+    previewMode ? "p2" : null
+  );
 
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const localLevelFrameRef = useRef<number | null>(null);
-  const localAudioLevelRef = useRef(0);
   const mountedRef = useRef(true);
-  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const richPacketIdsRef = useRef(new Set<string>());
-  // STT providers can emit the same final utterance once from their native
-  // stream and once from the worker's explicit visitor transcript packet.
-  // Keep the map short-lived so a visitor can intentionally repeat a phrase
-  // later without it being hidden from the transcript.
   const recentFinalTranscriptRef = useRef(new Map<string, number>());
-  // Real mic analyser (not a fake random waveform) - lets us tell, just by
-  // watching the bars while talking, whether the browser is actually
-  // capturing audio from the mic at all, independent of whether the voice
-  // pipeline downstream (VAD/STT) picks it up.
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const localLevelFrameRef = useRef<number | null>(null);
 
-  // Smoothed orb scale/glow driven by the agent's remote audio level. Same
-  // spring feel used for the rest of the widget's motion (bouncy overshoot).
-  const orbLevel = useSpring(0, { stiffness: 220, damping: 18, mass: 0.6 });
+  // Compute active visualizer style
+  const visualizerType: VisualizerType = (voiceUiSettings?.visualizerType as VisualizerType) || "bar";
+  const visualizerColor = voiceUiSettings?.visualizerColor || primaryColor;
 
-  // A provider can lose the final packet during a reconnect even though the
-  // interim text was already rendered. Do not leave a caret/spinner stuck in
-  // the conversation forever; after a quiet window the visible text is safe
-  // to treat as the committed transcript.
+  // Compute visualizer state string
+  const visualizerState: AgentVisualizerState = useMemo(() => {
+    switch (status) {
+      case "agent-speaking":
+        return "speaking";
+      case "thinking":
+        return "thinking";
+      case "listening":
+        return "listening";
+      case "connecting":
+      case "requesting-mic":
+      case "reconnecting":
+        return "connecting";
+      case "ended":
+        return "ended";
+      default:
+        return "idle";
+    }
+  }, [status]);
+
+  // Connect to LiveKit Room
   useEffect(() => {
     if (previewMode) return;
-    const timer = window.setInterval(() => {
-      const cutoff = Date.now() - 4000;
-      setTranscript((prev) => {
-        let changed = false;
-        const next = prev.map((entry) => {
-          if (!entry.final && entry.updatedAt && entry.updatedAt < cutoff) {
-            changed = true;
-            return { ...entry, final: true };
-          }
-          return entry;
-        });
-        return changed ? next : prev;
-      });
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [previewMode]);
-
-  useEffect(() => {
+    let cancelled = false;
     mountedRef.current = true;
 
-    if (previewMode) {
-      const pulseInterval = setInterval(() => {
-        orbLevel.set(0.25 + Math.random() * 0.65);
-        setDuration((d) => d + 1);
-      }, 400);
-      return () => {
-        clearInterval(pulseInterval);
-        mountedRef.current = false;
-      };
-    }
-
-    const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
-    let cancelled = false;
-
     async function start() {
-      let room: Room | null = null;
       try {
-        const browserLanguage = typeof navigator !== "undefined" ? navigator.language || "" : "";
-        const browserCountry = browserLanguage.split("-")[1]?.toUpperCase() || "";
+        setStatus("connecting");
+        setErrorMessage(null);
+
+        const authHeaders: Record<string, string> = originToken
+          ? { "X-Widget-Token": originToken }
+          : {};
+
         const res = await fetch(`${backendUrl}/api/widget/voice/token`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-          body: JSON.stringify({ bot_id: botId, session_id: sessionId, visitor_timezone: visitorTimezone, visitor_language: browserLanguage, visitor_country: browserCountry }),
+          headers: { "Content-Type": "application/json", ...authHeaders },
+          body: JSON.stringify({
+            bot_id: botId,
+            session_id: sessionId,
+            visitor_timezone: visitorTimezone,
+          }),
         });
 
         if (!res.ok) {
-          let detail = "Couldn't start the call, please try again.";
-          if (res.status === 403) detail = "Voice chat isn't available right now.";
-          else if (res.status === 402) detail = "This assistant has reached its usage limit.";
-          else if (res.status === 429) detail = "Too many requests - please wait a moment and try again.";
-          else {
-            try {
-              const b = await res.json();
-              if (b?.detail) detail = b.detail;
-            } catch {}
-          }
-          if (!cancelled) {
-            setErrorMessage(detail);
-            setStatus("error");
-          }
-          return;
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.detail || "Failed to acquire voice token");
         }
 
-        const data = await res.json();
-        const { token, livekit_url } = data;
+        const { token, livekit_url } = await res.json();
+        if (cancelled) return;
 
-        room = new Room();
+        const room = new Room({
+          adaptiveStream: true,
+          dynacast: true,
+          audioCaptureDefaults: MICROPHONE_CAPTURE_OPTIONS,
+        });
         roomRef.current = room;
 
-        // LiveKit may attach the agent track after the original click has
-        // completed. Browsers then reject autoplay even though the visitor
-        // explicitly started the call. Keep the state in sync with LiveKit's
-        // playback probe so the recovery button is deterministic.
-        room.on(RoomEvent.AudioPlaybackStatusChanged, (playing: boolean) => {
-          if (!cancelled && mountedRef.current) setAudioBlocked(!playing);
-        });
-
         room.on(RoomEvent.Disconnected, () => {
-          // A deliberate hangup clears roomRef before disconnecting. Any
-          // remaining disconnect is an unexpected transport failure and
-          // should offer recovery instead of leaving the visitor at a dead
-          // "Call ended" screen.
           if (!cancelled && mountedRef.current && roomRef.current === room) {
             setErrorMessage("The voice connection was lost. Reconnect to continue.");
             setStatus("error");
@@ -360,32 +332,27 @@ export default function VoiceCallWidget({
         room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
           if (cancelled || !mountedRef.current) return;
           if (state === ConnectionState.Reconnecting) {
-            // LiveKit can recover a short network interruption without a new
-            // token. Keep the composer visible but tell the visitor that the
-            // voice path is temporarily catching up instead of looking frozen.
             setStatus("reconnecting");
-            return;
-          }
-          if (state === ConnectionState.Connected) {
+          } else if (state === ConnectionState.Connected) {
             setStatus((s) => (s === "agent-speaking" ? s : "connected"));
           }
         });
 
-        room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
+        // Remote Audio track attachment & autoplay handling
+        room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
           if (track.kind === Track.Kind.Audio) {
             const el = track.attach();
             el.autoplay = true;
             el.setAttribute("playsinline", "true");
             audioElRef.current = el;
             document.body.appendChild(el);
-            // Realtime calls are connected asynchronously, so the browser may
-            // reject playback even though the user already clicked the call
-            // button. Expose a one-tap recovery instead of silently muting the
-            // agent's response.
-            void el.play().then(() => setAudioBlocked(false)).catch(() => {
-              if (!cancelled && mountedRef.current) setAudioBlocked(true);
-            });
-            void participant;
+
+            void el
+              .play()
+              .then(() => setAudioBlocked(false))
+              .catch(() => {
+                if (!cancelled && mountedRef.current) setAudioBlocked(true);
+              });
           }
         });
 
@@ -393,7 +360,7 @@ export default function VoiceCallWidget({
           track.detach().forEach((el) => el.remove());
         });
 
-        // Real-time control messages (e.g. show booking widget or confirmed meeting)
+        // Data received from worker (booking cards, products, errors)
         room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
           if (cancelled || !mountedRef.current) return;
           try {
@@ -406,25 +373,39 @@ export default function VoiceCallWidget({
               setShowBookingCard(true);
               onBookingSuccess?.(data.meeting);
             } else if (data?.type === "product_card" && data?.product) {
-              const productId = String(data.product.id || data.product.sku || data.product.title || "product");
+              const productId = String(
+                data.product.id || data.product.sku || data.product.title || "product"
+              );
               if (!richPacketIdsRef.current.has(`product:${productId}`)) {
                 richPacketIdsRef.current.add(`product:${productId}`);
-                setTranscript((prev) => [...prev, {
-                  id: `voice-product-${productId}`, speaker: "agent",
-                  text: `[PRODUCT_CARD:${JSON.stringify(data.product)}]`, final: true,
-                }]);
+                setTranscript((prev) => [
+                  ...prev,
+                  {
+                    id: `voice-product-${productId}`,
+                    speaker: "agent",
+                    text: `[PRODUCT_CARD:${JSON.stringify(data.product)}]`,
+                    final: true,
+                  },
+                ]);
               }
             } else if (data?.type === "video_clip" && data?.clip) {
               const clipId = String(data.clip.video_url || data.clip.title || "video");
               if (!richPacketIdsRef.current.has(`video:${clipId}`)) {
                 richPacketIdsRef.current.add(`video:${clipId}`);
-                setTranscript((prev) => [...prev, {
-                  id: `voice-video-${clipId}`, speaker: "agent",
-                  text: `[VIDEO_CLIP:${JSON.stringify(data.clip)}]`, final: true,
-                }]);
+                setTranscript((prev) => [
+                  ...prev,
+                  {
+                    id: `voice-video-${clipId}`,
+                    speaker: "agent",
+                    text: `[VIDEO_CLIP:${JSON.stringify(data.clip)}]`,
+                    final: true,
+                  },
+                ]);
               }
             } else if (data?.type === "voice_error") {
-              const message = String(data.message || "Voice audio failed. Please reconnect and try again.");
+              const message = String(
+                data.message || "Voice audio failed. Please reconnect and try again."
+              );
               setErrorMessage(message);
               setStatus("error");
               setTranscript((prev) => [
@@ -433,23 +414,19 @@ export default function VoiceCallWidget({
               ]);
             }
           } catch {
-            // Ignore non-JSON or unrelated packets
+            // Ignore non-json packets
           }
         });
 
-        // Live transcript - the agent worker already publishes STT/reply text
-        // over LiveKit's built-in transcription stream; each segment updates
-        // in place (by id) while interim, then locks in once `final`. LiveKit
-        // resolves the transcribed participant from the packet identity. In a
-        // browser call the visitor is local and the worker/agent is remote;
-        // keep that mapping explicit so agent speech is not rendered as a
-        // duplicate "You" bubble.
+        // Real-time live transcript from LiveKit
         room.on(
           RoomEvent.TranscriptionReceived,
           (segments: TranscriptionSegment[], participant?: Participant) => {
             if (cancelled || !mountedRef.current) return;
             const speaker: "visitor" | "agent" =
-              participant && participant.identity === room?.localParticipant?.identity ? "visitor" : "agent";
+              participant && participant.identity === room?.localParticipant?.identity
+                ? "visitor"
+                : "agent";
 
             if (speaker === "agent") {
               for (const seg of segments) {
@@ -463,39 +440,54 @@ export default function VoiceCallWidget({
             setTranscript((prev) => {
               let next = prev;
               for (const seg of segments) {
-                // Providers occasionally flush an empty final segment when
-                // VAD closes a short/noisy utterance. Never render that as a
-                // blank visitor message in the conversation.
                 if (!seg.text?.trim()) continue;
-                const entry: TranscriptEntry = { id: seg.id, speaker, text: seg.text, final: seg.final, updatedAt: Date.now() };
-                next = mergeTranscriptSegment(next, entry, Date.now(), recentFinalTranscriptRef.current);
+                const entry: TranscriptItem = {
+                  id: seg.id,
+                  speaker,
+                  text: seg.text,
+                  final: seg.final,
+                  timestamp: Date.now(),
+                };
+                next = mergeTranscriptSegment(
+                  next,
+                  entry,
+                  Date.now(),
+                  recentFinalTranscriptRef.current
+                );
               }
               return next;
             });
           }
         );
 
-        // Drive the orb glow from whichever remote participant (the agent) is
-        // actively speaking; drive the "listening" bars from the visitor's own
-        // local audio level.
+        // Active speaker levels for visualizers
         room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
           if (cancelled || !mountedRef.current) return;
           const localIdentity = room?.localParticipant?.identity;
           let remoteLevel = 0;
           let localSpeaking = false;
+
           for (const p of speakers) {
-          if (p.identity === localIdentity) {
-            localSpeaking = true;
-            localAudioLevelRef.current = Math.max(0, Math.min(1, p.audioLevel ?? 0));
-          } else {
-            remoteLevel = Math.max(remoteLevel, p.audioLevel ?? 0);
+            if (p.identity === localIdentity) {
+              localSpeaking = true;
+            } else {
+              remoteLevel = Math.max(remoteLevel, p.audioLevel ?? 0);
+            }
           }
-        }
-        if (!localSpeaking) localAudioLevelRef.current = 0;
-          orbLevel.set(Math.min(1, remoteLevel * 3.5));
+
+          setAgentAudioLevel(remoteLevel);
+
           setStatus((prev) => {
-            if (prev === "connecting" || prev === "reconnecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
-            if (remoteLevel > 0.01) return "agent-speaking";
+            if (
+              prev === "connecting" ||
+              prev === "reconnecting" ||
+              prev === "requesting-mic" ||
+              prev === "error" ||
+              prev === "ended"
+            ) {
+              return prev;
+            }
+            if (remoteLevel > 0.02) return "agent-speaking";
             if (localSpeaking) return "listening";
             return "connected";
           });
@@ -506,36 +498,26 @@ export default function VoiceCallWidget({
           room.disconnect();
           return;
         }
-        // getUserMedia can sit pending for a while if the visitor hasn't
-        // noticed/responded to the browser's permission prompt yet (easy to
-        // miss inside an embedded iframe) - show an explicit state for this
-        // rather than a generic "Connecting…" that looks stuck.
+
         if (!cancelled && mountedRef.current) setStatus("requesting-mic");
         let microphoneTimeout: number | undefined;
         try {
-          // LiveKit requests permission internally, but an unanswered browser
-          // prompt can leave that promise pending forever (especially in an
-          // embedded widget). Bound the wait so the visitor gets an actionable
-          // error and can retry after changing the browser permission.
           await Promise.race([
             room.localParticipant.setMicrophoneEnabled(true, MICROPHONE_CAPTURE_OPTIONS),
             new Promise<never>((_, reject) => {
               microphoneTimeout = window.setTimeout(
                 () => reject(new Error("MICROPHONE_PERMISSION_TIMEOUT")),
-                MICROPHONE_PERMISSION_TIMEOUT_MS,
+                MICROPHONE_PERMISSION_TIMEOUT_MS
               );
             }),
           ]);
-          // LiveKit already exposes local speaking state through
-          // ActiveSpeakersChanged below. Avoid creating an AudioContext here:
-          // this callback runs after an async permission request and browsers
-          // correctly reject a non-gesture audio context with a console warning.
         } catch (micErr) {
           console.error("Microphone permission failed:", micErr);
           if (!cancelled && mountedRef.current) {
-            const micMessage = micErr instanceof Error && micErr.message === "MICROPHONE_PERMISSION_TIMEOUT"
-              ? "Microphone permission is still waiting. Allow microphone access for this site, then try again."
-              : "Microphone access is required for voice calls. Please allow microphone access in your browser and try again.";
+            const micMessage =
+              micErr instanceof Error && micErr.message === "MICROPHONE_PERMISSION_TIMEOUT"
+                ? "Microphone permission is pending. Please allow microphone access and try again."
+                : "Microphone access is required for voice calls. Please allow microphone access in your browser and try again.";
             setErrorMessage(micMessage);
             setStatus("error");
           }
@@ -544,6 +526,7 @@ export default function VoiceCallWidget({
         } finally {
           if (microphoneTimeout !== undefined) window.clearTimeout(microphoneTimeout);
         }
+
         if (!cancelled && mountedRef.current) setStatus("connected");
       } catch (err) {
         console.error("Voice call failed to start:", err);
@@ -551,7 +534,7 @@ export default function VoiceCallWidget({
           setErrorMessage("Couldn't start the call, please try again.");
           setStatus("error");
         }
-        room?.disconnect();
+        roomRef.current?.disconnect();
       }
     }
 
@@ -571,41 +554,50 @@ export default function VoiceCallWidget({
         audioElRef.current = null;
       }
       analyserRef.current = null;
+      if (localLevelFrameRef.current) cancelAnimationFrame(localLevelFrameRef.current);
     };
-    // The retry counter deliberately restarts the room and microphone flow.
-    // Other props are immutable for the lifetime of an opened call.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectAttempt]);
+  }, [connectAttempt, botId, sessionId, backendUrl, originToken, visitorTimezone, previewMode]);
 
-  // Compute the latest agent entry ID in transcript
-  const lastAgentEntryId = useMemo(() => {
-    for (let i = transcript.length - 1; i >= 0; i--) {
-      if (transcript[i].speaker === "agent") {
-        return transcript[i].id;
+  // Real AnalyserNode on local mic
+  useEffect(() => {
+    if (status !== "listening") {
+      setLocalAudioLevel(0);
+      return;
+    }
+    let stopped = false;
+    const bins = new Uint8Array(analyserRef.current?.frequencyBinCount ?? 128);
+    const tick = () => {
+      if (stopped) return;
+      const analyser = analyserRef.current;
+      if (analyser) {
+        analyser.getByteTimeDomainData(bins);
+        let sumSquares = 0;
+        for (let i = 0; i < bins.length; i++) {
+          const centered = (bins[i] - 128) / 128;
+          sumSquares += centered * centered;
+        }
+        const rms = Math.sqrt(sumSquares / bins.length);
+        setLocalAudioLevel(Math.min(1, rms * 4));
       }
+      localLevelFrameRef.current = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => {
+      stopped = true;
+      if (localLevelFrameRef.current) cancelAnimationFrame(localLevelFrameRef.current);
+    };
+  }, [status]);
+
+  // Call duration counter
+  useEffect(() => {
+    if (
+      status === "connecting" ||
+      status === "reconnecting" ||
+      status === "requesting-mic" ||
+      status === "error"
+    ) {
+      return;
     }
-    return null;
-  }, [transcript]);
-
-  const activeBookingId = bookingTriggeredEntryId || (showBookingCard ? lastAgentEntryId : null);
-
-  // Auto-scroll the transcript to the newest line as it streams in.
-  useEffect(() => {
-    if (previewMode) return;
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [transcript, previewMode]);
-
-  // Auto-scroll when booking card appears or meeting confirms
-  useEffect(() => {
-    if (previewMode) return;
-    if (showBookingCard || confirmedMeeting) {
-      transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-  }, [showBookingCard, confirmedMeeting, previewMode]);
-
-  // Call duration timer, starts once connected.
-  useEffect(() => {
-    if (status === "connecting" || status === "reconnecting" || status === "requesting-mic" || status === "error") return;
     if (status === "ended") {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
       return;
@@ -621,61 +613,14 @@ export default function VoiceCallWidget({
     };
   }, [status]);
 
-  // Local mic level animation for the 14-bar "listening" waveform - now
-  // driven by a real AnalyserNode on the mic track (see analyserRef above)
-  // instead of a fake random animation. The "listening" transition itself
-  // comes from LiveKit's client-side local audioLevel (ActiveSpeakersChanged
-  // below), computed in-browser independent of the server VAD/STT pipeline -
-  // so whether this state is ever reached at all is itself diagnostic: if it
-  // never fires while you're actually talking, the browser isn't capturing
-  // usable mic audio in the first place.
-  useEffect(() => {
-    if (status !== "listening") {
-      setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
-      return;
-    }
-    let stopped = false;
-    const bins = new Uint8Array(analyserRef.current?.frequencyBinCount ?? 128);
-    const tick = () => {
-      if (stopped) return;
-      const analyser = analyserRef.current;
-      if (analyser) {
-        analyser.getByteTimeDomainData(bins);
-        // RMS of the time-domain signal around its 128 midpoint - a real
-        // amplitude reading, not a synthetic animation.
-        let sumSquares = 0;
-        for (let i = 0; i < bins.length; i++) {
-          const centered = (bins[i] - 128) / 128;
-          sumSquares += centered * centered;
-        }
-        const rms = Math.sqrt(sumSquares / bins.length);
-        const boosted = Math.min(1, rms * 6);
-        const levels = Array.from({ length: WAVE_BAR_COUNT }, () => Math.min(1, boosted * (0.7 + Math.random() * 0.3)));
-        setLocalLevels(levels);
-      } else {
-        // ActiveSpeakersChanged is backed by the actual WebRTC microphone
-        // stream. It remains available even when Web Audio is suspended by
-        // browser autoplay policy, so never animate bars as if the mic were
-        // live when the measured level is zero.
-        const level = localAudioLevelRef.current;
-        setLocalLevels(Array.from({ length: WAVE_BAR_COUNT }, (_, i) =>
-          Math.min(1, level * (0.72 + 0.28 * ((Math.sin(i * 1.7) + 1) / 2)))
-        ));
-      }
-      localLevelFrameRef.current = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => {
-      stopped = true;
-      if (localLevelFrameRef.current) cancelAnimationFrame(localLevelFrameRef.current);
-    };
-  }, [status]);
-
   const toggleMute = async () => {
     const room = roomRef.current;
     if (!room) return;
     const next = !muted;
-    await room.localParticipant.setMicrophoneEnabled(!next, next ? undefined : MICROPHONE_CAPTURE_OPTIONS);
+    await room.localParticipant.setMicrophoneEnabled(
+      !next,
+      next ? undefined : MICROPHONE_CAPTURE_OPTIONS
+    );
     setMuted(next);
   };
 
@@ -701,20 +646,45 @@ export default function VoiceCallWidget({
     setConnectAttempt((attempt) => attempt + 1);
   };
 
-  const sendComposerMessage = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const enableAudio = async () => {
+    const room = roomRef.current;
+    try {
+      await room?.startAudio();
+    } catch {
+      // Fall through to manual play
+    }
+    const audio = audioElRef.current;
+    if (!audio) return;
+    void audio
+      .play()
+      .then(() => setAudioBlocked(false))
+      .catch(() => setAudioBlocked(true));
+  };
+
+  const sendComposerMessage = async (event?: React.FormEvent) => {
+    if (event) event.preventDefault();
     const text = messageText.trim();
     const file = pendingFile;
     if ((!text && !file) || sendingMessage) return;
+
     const visitorText = text || `Attachment: ${file?.name || "file"}`;
     setMessageText("");
     setPendingFile(null);
-    recentFinalTranscriptRef.current.set(`visitor:${normalizeTranscriptText(visitorText)}`, Date.now());
-    setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
+    recentFinalTranscriptRef.current.set(
+      `visitor:${normalizeTranscriptText(visitorText)}`,
+      Date.now()
+    );
+    setTranscript((prev) => [
+      ...prev,
+      { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true },
+    ]);
     setSendingMessage(true);
+
     try {
-      const authHeaders: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
-      let response: Response;
+      const authHeaders: Record<string, string> = originToken
+        ? { "X-Widget-Token": originToken }
+        : {};
+
       if (file) {
         const body = new FormData();
         body.append("bot_id", botId);
@@ -722,463 +692,421 @@ export default function VoiceCallWidget({
         body.append("text", text);
         body.append("visitor_timezone", visitorTimezone);
         body.append("file", file, file.name);
-        response = await fetch(`${backendUrl}/api/widget/chat/media`, { method: "POST", headers: authHeaders, body });
+        const response = await fetch(`${backendUrl}/api/widget/chat/media`, {
+          method: "POST",
+          headers: authHeaders,
+          body,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.detail || "Message could not be sent");
+        const reply = String(data?.reply || "").trim();
+        if (reply) {
+          setTranscript((prev) => [
+            ...prev,
+            { id: `typed-reply-${Date.now()}`, speaker: "agent", text: reply, final: true },
+          ]);
+        }
       } else {
-        // Typed messages in the voice window use LiveKit's standard text
-        // stream. AgentSession consumes the `lk.chat` topic and runs the
-        // configured Pipeline or Realtime response, including audio output.
         const room = roomRef.current;
         if (room && room.state === ConnectionState.Connected) {
           await room.localParticipant.sendText(text, { topic: "lk.chat" });
-          setSendingMessage(false);
-          return;
+          setStatus("thinking");
+        } else {
+          setErrorMessage("Voice connection is still starting. Please try again.");
         }
-        setErrorMessage("Voice connection is still starting. Please try again in a moment.");
-        setSendingMessage(false);
-        return;
       }
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data?.detail || "Message could not be sent");
-      const reply = String(data?.reply || "").trim();
-      if (reply) setTranscript((prev) => [...prev, { id: `typed-reply-${Date.now()}`, speaker: "agent", text: reply, final: true }]);
     } catch {
-      setTranscript((prev) => [...prev, { id: `typed-error-${Date.now()}`, speaker: "agent", text: "I couldn't send that message. Please try again.", final: true }]);
+      setTranscript((prev) => [
+        ...prev,
+        {
+          id: `typed-error-${Date.now()}`,
+          speaker: "agent",
+          text: "I couldn't send that message. Please try again.",
+          final: true,
+        },
+      ]);
     } finally {
       setSendingMessage(false);
     }
   };
 
-  const transcriptMdComponents: Components = {
-    h1: ({ children }) => <h1 className="mb-2 text-sm font-bold leading-snug">{children}</h1>,
-    h2: ({ children }) => <h2 className="mb-1.5 text-xs font-bold leading-snug">{children}</h2>,
-    h3: ({ children }) => <h3 className="mb-1 text-xs font-semibold leading-snug">{children}</h3>,
-    p: ({ children }) => <p className="mb-1.5 last:mb-0 break-words">{children}</p>,
-    ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
-    ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
-    li: ({ children }) => <li className="break-words">{children}</li>,
-    blockquote: ({ children }) => <blockquote className="my-1.5 border-l-2 border-current/30 pl-2 italic opacity-85">{children}</blockquote>,
-    hr: () => <hr className="my-2 border-current/15" />,
-    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-    em: ({ children }) => <em className="italic">{children}</em>,
-    a: ({ href, children }) => (
-      <SafeMarkdownLink href={href} className="underline break-all" style={{ color: "currentColor" }}>
-        {children}
-      </SafeMarkdownLink>
-    ),
-    table: ({ children }) => (
-      <div className="my-1.5 max-w-full overflow-x-auto rounded-md border border-current/15">
-        <table className="min-w-full text-[10px]">{children}</table>
-      </div>
-    ),
-    thead: ({ children }) => <thead className="bg-black/5 dark:bg-white/5">{children}</thead>,
-    th: ({ children }) => <th className="whitespace-nowrap px-2 py-1 text-left font-semibold">{children}</th>,
-    td: ({ children }) => <td className="border-t border-current/10 px-2 py-1 align-top">{children}</td>,
-    code: ({ className, children, ...rest }) => {
-      const isBlock = className?.startsWith("language-");
-      if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
-      return (
-        <pre className="my-1.5 max-w-full overflow-x-auto rounded-lg bg-black/10 p-2 text-[10px] leading-relaxed dark:bg-white/10" tabIndex={0}>
-          <code {...rest}>{children}</code>
-        </pre>
-      );
-    },
+  const fmtDuration = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const fmtDuration = (s: number) => {
-    const m = Math.floor(s / 60).toString().padStart(2, "0");
-    const sec = (s % 60).toString().padStart(2, "0");
-    return `${m}:${sec}`;
-  };
-
-  const statusLabel = (() => {
+  const statusLabel = useMemo(() => {
     switch (status) {
-      case "connecting": return "Connecting…";
-      case "reconnecting": return "Reconnecting…";
-      case "requesting-mic": return "Please allow microphone access…";
-      case "connected": return fmtDuration(duration);
-      case "listening": return "Listening…";
-      case "agent-speaking": return "Speaking…";
-      case "ended": return "Call ended";
-      case "error": return errorMessage || "Something went wrong";
-      default: return "";
+      case "connecting":
+        return "Connecting…";
+      case "requesting-mic":
+        return "Waiting for mic…";
+      case "reconnecting":
+        return "Reconnecting…";
+      case "connected":
+        return "Connected";
+      case "listening":
+        return "Listening…";
+      case "thinking":
+        return "Thinking…";
+      case "agent-speaking":
+        return "Speaking…";
+      case "ended":
+        return "Call ended";
+      case "error":
+        return errorMessage || "Something went wrong";
+      default:
+        return "";
     }
-  })();
+  }, [status, errorMessage]);
 
-  const enableAudio = async () => {
-    const room = roomRef.current;
-    try {
-      // startAudio is LiveKit's supported user-gesture recovery path. It
-      // resumes the SDK audio context and retries every attached remote track.
-      await room?.startAudio();
-    } catch {
-      // Fall through to the attached element retry below.
+  // Compute the latest agent entry ID in transcript for booking
+  const lastAgentEntryId = useMemo(() => {
+    for (let i = transcript.length - 1; i >= 0; i--) {
+      if (transcript[i].speaker === "agent") {
+        return transcript[i].id;
+      }
     }
-    const audio = audioElRef.current;
-    if (!audio) return;
-    void audio.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
+    return null;
+  }, [transcript]);
+
+  const activeBookingId = bookingTriggeredEntryId || (showBookingCard ? lastAgentEntryId : null);
+
+  // Render Rich Embedded Card inside transcript
+  const renderRichCard = (entry: TranscriptItem) => {
+    const isAgent = entry.speaker === "agent";
+    if (!isAgent) return null;
+
+    const containsBookingTag = entry.text.includes("[BOOKING_WIDGET]");
+    const hasBookingOnEntry = entry.id === activeBookingId || containsBookingTag;
+    const rich = parseRichContent<ProductCardData, VideoClipData>(entry.text);
+    const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
+
+    return (
+      <div className="w-full space-y-2">
+        {hasRichCards && (
+          <div className="w-full space-y-1">
+            {rich.products.map((product, index) => (
+              <ProductCard
+                key={`${product.id || product.sku || product.title}-${index}`}
+                product={product}
+                primaryColor={primaryColor}
+              />
+            ))}
+            {rich.videoClips.map((clip, index) => (
+              <VideoCard
+                key={`${clip.video_url}-${index}`}
+                clip={clip}
+                primaryColor={primaryColor}
+              />
+            ))}
+          </div>
+        )}
+        {hasBookingOnEntry && (
+          <div className="w-full">
+            <InlineBookingCard
+              botId={botId}
+              sessionId={sessionId}
+              visitorTimezone={visitorTimezone}
+              primaryColor={primaryColor}
+              backendUrl={backendUrl}
+              initialMeeting={confirmedMeeting || undefined}
+              initialName={extractedVisitorInfo.name}
+              initialEmail={extractedVisitorInfo.email}
+              initialPhone={extractedVisitorInfo.phone}
+              initialCompany={extractedVisitorInfo.company}
+              preferredText={transcript.slice(-4).map((t) => t.text).join(" ")}
+              onBookingSuccess={(meeting) => {
+                setConfirmedMeeting(meeting);
+                onBookingSuccess?.(meeting);
+              }}
+              onMeetingRescheduled={(meeting) => {
+                setConfirmedMeeting(meeting);
+                onBookingSuccess?.(meeting);
+              }}
+              onMeetingCancelled={() => {
+                setConfirmedMeeting(null);
+              }}
+            />
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-3 sm:p-4">
-      {status === "error" ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
-          <div className="size-12 rounded-full flex items-center justify-center bg-red-50 dark:bg-red-950/40">
-            <AlertCircle className="size-6 text-red-500" />
+    <div
+      data-slot="livekit-voice-agent"
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-[28px] border border-neutral-200/90 bg-card p-3 shadow-2xl backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-950 sm:p-4"
+    >
+      {/* Top Header Bar */}
+      <div className="flex shrink-0 items-center justify-between pb-3 border-b border-neutral-100 dark:border-neutral-800/80">
+        <div className="flex items-center gap-2">
+          <div className="relative flex items-center justify-center">
+            <span
+              className={`size-2.5 rounded-full ${
+                status === "agent-speaking"
+                  ? "bg-emerald-500 animate-pulse"
+                  : status === "listening"
+                  ? "bg-sky-500 animate-pulse"
+                  : status === "thinking"
+                  ? "bg-amber-500 animate-pulse"
+                  : status === "error"
+                  ? "bg-rose-500"
+                  : "bg-emerald-500"
+              }`}
+            />
+            {status === "agent-speaking" && (
+              <span className="absolute size-4 rounded-full bg-emerald-500/30 animate-ping" />
+            )}
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-[220px] leading-relaxed">{errorMessage}</p>
+          <div>
+            <h4 className="text-xs font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              LiveKit Voice Agent
+            </h4>
+            <span className="text-[10px] text-neutral-500 dark:text-neutral-400 capitalize">
+              {statusLabel}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {status !== "ended" && status !== "error" && (
+            <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-0.5 font-mono text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+              {fmtDuration(duration)}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close voice call"
+            className="grid size-7 place-items-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      {status === "error" ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
+          <div className="grid size-12 place-items-center rounded-full bg-rose-50 text-rose-500 dark:bg-rose-950/40">
+            <AlertCircle className="size-6" />
+          </div>
+          <div>
+            <h5 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+              Connection Issue
+            </h5>
+            <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+              {errorMessage}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
-            <motion.button
+            <button
               type="button"
-              whileTap={{ scale: 0.85 }}
-              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={retryVoiceConnection}
-              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+              className="rounded-full px-4 py-2 text-xs font-semibold text-white shadow-sm transition-transform active:scale-95 cursor-pointer"
               style={{ background: primaryColor }}
             >
-              {(errorMessage || "").toLowerCase().includes("microphone") ? "Try microphone again" : "Reconnect voice"}
-            </motion.button>
-            <motion.button
+              Try Reconnecting
+            </button>
+            <button
               type="button"
-              whileTap={{ scale: 0.85 }}
-              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={onClose}
-              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
-              style={{ background: primaryColor }}
+              className="rounded-full border border-neutral-200 px-4 py-2 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
             >
               Close
-            </motion.button>
+            </button>
           </div>
         </div>
       ) : status === "ended" ? (
-        // Distinct end-of-call summary instead of leaving the active-call
-        // mute/hangup controls visibly lingering over a disconnected room.
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-          className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-4"
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center"
         >
           <div
-            className="size-12 rounded-full flex items-center justify-center"
+            className="grid size-12 place-items-center rounded-full"
             style={{ background: `${primaryColor}1a` }}
           >
-            <X className="size-5" style={{ color: primaryColor }} />
+            <PhoneOff className="size-5" style={{ color: primaryColor }} />
           </div>
           <div>
-            <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Call ended</p>
-            <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">{fmtDuration(duration)}</p>
+            <h5 className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+              Call Completed
+            </h5>
+            <p className="mt-0.5 text-[11px] text-neutral-400 dark:text-neutral-500 font-mono">
+              Total duration: {fmtDuration(duration)}
+            </p>
           </div>
-          <motion.button
+          <button
             type="button"
-            whileTap={{ scale: 0.85 }}
-            transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
             onClick={onClose}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-white mt-1"
+            className="mt-2 rounded-full px-5 py-2 text-xs font-semibold text-white shadow-sm transition-transform active:scale-95 cursor-pointer"
             style={{ background: primaryColor }}
           >
-            Back to chat
-          </motion.button>
+            Back to Chat
+          </button>
         </motion.div>
       ) : (
-        <>
-          {/* Animated voice stage: the orb reacts to the remote speaker while
-              the bars prove that the visitor's microphone is live. */}
-          <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-4 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-5">
-            <div className="absolute -right-10 -top-12 size-32 rounded-full blur-3xl opacity-20" style={{ background: primaryColor }} />
-            <div className="relative flex flex-col items-center gap-3">
-              <LiveKitAudioVisualizer
-                type={voiceUiSettings?.visualizerType || "aura"}
-                state={status === "agent-speaking" ? "speaking" : status === "listening" ? "listening" : status === "connecting" ? "connecting" : "listening"}
-                color={voiceUiSettings?.visualizerColor || primaryColor}
-                size={voiceUiSettings?.visualizerSize || "md"}
-                barCount={voiceUiSettings?.visualizerBarCount}
-                rowCount={voiceUiSettings?.visualizerRowCount}
-                columnCount={voiceUiSettings?.visualizerColumnCount}
-                radius={voiceUiSettings?.visualizerRadius}
-                colorShift={voiceUiSettings?.visualizerColorShift}
-                lineWidth={voiceUiSettings?.visualizerLineWidth}
-                audioLevel={status === "agent-speaking" ? (typeof orbLevel?.get === "function" ? orbLevel.get() : 0.6) : (localLevels[2] || 0)}
+        <div className="relative flex flex-1 min-h-0 flex-col overflow-hidden py-2">
+          {/* Audio Unblock Notification if browser blocked autoplay */}
+          {audioBlocked && (
+            <div className="mb-2 flex items-center justify-center">
+              <StartAudioButton
+                label="Click to Enable Agent Audio"
+                primaryColor={primaryColor}
+                onClick={enableAudio}
               />
-              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
-                <AudioWaveform className="size-3.5" style={{ color: primaryColor }} />
-                {status === "listening" ? "Listening" : statusLabel}
-              </div>
-              <div className="flex items-center justify-center gap-[3px] h-5" aria-label="Microphone activity">
-                {localLevels.map((level, i) => (
-                  <span key={i} className="w-1 rounded-full transition-[height] duration-[50ms] ease-out" style={{ height: `${Math.max(3, level * 20)}px`, background: primaryColor, opacity: status === "listening" ? 0.9 : 0.25 }} />
-                ))}
-              </div>
-              <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
-              {audioBlocked && (
-                <button
-                  type="button"
-                  onClick={enableAudio}
-                  className="rounded-full px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm"
-                  style={{ background: primaryColor }}
+            </div>
+          )}
+
+          {/* Switchable Stage: Visualizer Tile vs Transcript Stream */}
+          <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+            <AnimatePresence mode="wait">
+              {!isChatOpen ? (
+                /* OFFICIAL LIVEKIT VISUALIZER VIEW */
+                <motion.div
+                  key="visualizer-view"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.25 }}
+                  className="flex h-full w-full flex-col items-center justify-center gap-4 py-4"
                 >
-                  Tap to enable agent audio
-                </button>
+                  <div className="relative flex size-[260px] sm:size-[300px] items-center justify-center">
+                    <LiveKitAudioVisualizer
+                      type={visualizerType}
+                      state={visualizerState}
+                      color={visualizerColor}
+                      size="lg"
+                      barCount={voiceUiSettings?.visualizerBarCount}
+                      rowCount={voiceUiSettings?.visualizerRowCount}
+                      columnCount={voiceUiSettings?.visualizerColumnCount}
+                      radius={voiceUiSettings?.visualizerRadius}
+                      colorShift={voiceUiSettings?.visualizerColorShift}
+                      lineWidth={voiceUiSettings?.visualizerLineWidth}
+                      audioLevel={status === "agent-speaking" ? agentAudioLevel : localAudioLevel}
+                    />
+                  </div>
+
+                  {/* Status Shimmer Prompt */}
+                  <div className="flex flex-col items-center gap-1.5 text-center">
+                    {status === "thinking" ? (
+                      <div className="flex items-center gap-2 text-xs font-medium text-neutral-600 dark:text-neutral-300">
+                        <AgentChatIndicator size="sm" />
+                        <span className="animate-pulse">Thinking…</span>
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
+                        {status === "agent-speaking"
+                          ? "Agent is speaking…"
+                          : status === "listening"
+                          ? "Listening to you…"
+                          : "Agent is listening, speak or tap chat"}
+                      </p>
+                    )}
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                      Realtime audio · natural interruption supported
+                    </span>
+                  </div>
+                </motion.div>
+              ) : (
+                /* OFFICIAL LIVEKIT TRANSCRIPT VIEW */
+                <motion.div
+                  key="transcript-view"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.25 }}
+                  className="h-full w-full overflow-hidden"
+                >
+                  <AgentChatTranscript
+                    agentState={status === "thinking" ? "thinking" : "idle"}
+                    messages={transcript}
+                    primaryColor={primaryColor}
+                    renderRichCard={renderRichCard}
+                  />
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
           </div>
 
-          {/* Live transcript - auto-scrolls to the newest line; interim
-              (not-yet-final) segments show a calm live cue and settle once final. */}
-          <div className={`min-h-[7rem] flex-1 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto overscroll-contain"} chatty-voice-scrollbar space-y-2 py-2`}>
-            {transcript.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
-                  {status === "agent-speaking" || status === "listening" || status === "connected"
-                    ? "Say something - your conversation will appear here."
-                    : ""}
-                </p>
-              </div>
-            ) : (
-              <AnimatePresence initial={false}>
-                {transcript.map((entry) => {
-                  const isAgent = entry.speaker === "agent";
-                  const containsBookingTag = isAgent && entry.text.includes("[BOOKING_WIDGET]");
-                  const hasBookingOnEntry = isAgent && (entry.id === activeBookingId || containsBookingTag);
-                  const rich = isAgent ? parseRichContent<ProductCardData, VideoClipData>(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
-                  const cleanText = rich.cleanContent;
-                  const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
+          {/* Chat Composer (visible when transcript view is open) */}
+          {isChatOpen && (
+            <form
+              onSubmit={sendComposerMessage}
+              className="mt-2 flex min-w-0 shrink-0 items-center gap-2 rounded-2xl border border-neutral-200 bg-white/90 p-1.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90"
+            >
+              <input
+                type="file"
+                className="hidden"
+                id="chatty-voice-attachment-app"
+                accept="image/*,.pdf,.doc,.docx,.txt"
+                onChange={(event) => setPendingFile(event.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                onClick={() => document.getElementById("chatty-voice-attachment-app")?.click()}
+                aria-label="Attach a file"
+                title="Attach a file"
+                className="grid size-8 place-items-center rounded-xl text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+              >
+                <Paperclip className="size-4" />
+              </button>
+              <input
+                value={messageText}
+                onChange={(event) => setMessageText(event.target.value)}
+                placeholder={pendingFile ? pendingFile.name : "Type a message while on call…"}
+                disabled={sendingMessage}
+                className="flex-1 bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200"
+              />
+              <button
+                type="submit"
+                disabled={sendingMessage || (!messageText.trim() && !pendingFile)}
+                aria-label="Send message"
+                className="grid size-8 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 active:scale-95 disabled:opacity-40 cursor-pointer"
+                style={{ background: primaryColor }}
+              >
+                <Send className="size-3.5" />
+              </button>
+            </form>
+          )}
 
-                    return (
-                      <motion.div
-                        key={entry.id}
-                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                        className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"} ${hasBookingOnEntry ? "w-full" : ""}`}
-                      >
-                        <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasBookingOnEntry || hasRichCards ? "w-full" : "max-w-[85%]"}`}>
-                          <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
-                            <span className={`size-1.5 rounded-full ${isAgent ? "bg-emerald-500" : "bg-sky-500"}`} />
-                            {isAgent ? "Chatty" : "You"}
-                          </span>
-                          <div
-                            className={`${
-                              hasBookingOnEntry || hasRichCards ? "w-full p-2" : "max-w-full px-3 py-2"
-                            } text-xs leading-relaxed ${
-                              entry.speaker === "visitor"
-                                ? "user-bubble rounded-br-md"
-                                : "bot-bubble rounded-bl-md"
-                            }`}
-                          >
-                        {cleanText ? (
-                          <>
-                            {isAgent && entry.final ? (
-                              <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                components={transcriptMdComponents}
-                              >
-                                {cleanText}
-                              </ReactMarkdown>
-                            ) : (
-                              <span className="whitespace-pre-wrap">{cleanText}</span>
-                            )}
-                            {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
-                          </>
-                        ) : (
-                          !hasBookingOnEntry && !hasRichCards && (
-                            <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
-                              <span className="text-[10px] opacity-55">Listening</span>
-                              <TranscriptActivityIndicator label="Listening for speech" />
-                            </span>
-                          )
-                        )}
-                        {hasRichCards && (
-                          <div className="mt-1.5 w-full space-y-1">
-                            {rich.products.map((product, index) => <ProductCard key={`${product.id || product.sku || product.title}-${index}`} product={product} primaryColor={primaryColor} />)}
-                            {rich.videoClips.map((clip, index) => <VideoCard key={`${clip.video_url}-${index}`} clip={clip} primaryColor={primaryColor} />)}
-                          </div>
-                        )}
-                        {hasBookingOnEntry && (
-                          <div className="mt-2.5 w-full">
-                            <InlineBookingCard
-                              botId={botId}
-                              sessionId={sessionId}
-                              visitorTimezone={visitorTimezone}
-                              primaryColor={primaryColor}
-                              backendUrl={backendUrl}
-                              initialMeeting={confirmedMeeting || undefined}
-                              initialName={extractedVisitorInfo.name}
-                              initialEmail={extractedVisitorInfo.email}
-                              initialPhone={extractedVisitorInfo.phone}
-                              initialCompany={extractedVisitorInfo.company}
-                              preferredText={transcript.slice(-4).map(t => t.text).join(" ")}
-                              onBookingSuccess={(meeting) => {
-                                setConfirmedMeeting(meeting);
-                                onBookingSuccess?.(meeting);
-                              }}
-                              onMeetingRescheduled={(meeting) => {
-                                setConfirmedMeeting(meeting);
-                                onBookingSuccess?.(meeting);
-                              }}
-                              onMeetingCancelled={() => {
-                                setConfirmedMeeting(null);
-                              }}
-                            />
-                          </div>
-                        )}
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                })}
-              </AnimatePresence>
-            )}
-            <div ref={transcriptEndRef} />
-          </div>
-
-          <form onSubmit={sendComposerMessage} className="mb-2 flex min-w-0 shrink-0 items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/80 p-1.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 sm:mb-3 sm:gap-2 sm:p-2">
-            <input type="file" className="hidden" id="chatty-voice-attachment-app" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setPendingFile(event.target.files?.[0] || null)} />
-            <button type="button" onClick={() => document.getElementById("chatty-voice-attachment-app")?.click()} aria-label="Attach a file" title="Attach a file" className="grid size-9 shrink-0 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"><Paperclip className="size-4" /></button>
-            <div className="min-w-0 flex-1">
-              <input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder={pendingFile ? pendingFile.name : "Send a message while you talk…"} disabled={sendingMessage} className="w-full bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200" />
-              {pendingFile && <p className="truncate px-1 text-[9px] text-neutral-400">Attachment ready · click send to share</p>}
-            </div>
-            <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-9 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-4" /></button>
-          </form>
-
-          <div className="w-full pt-1 pb-1">
+          {/* Official LiveKit Control Bar */}
+          <div className="w-full pt-3">
             <LiveKitControlBar
-              variant={voiceUiSettings?.controlBarVariant || "livekit"}
-              controls={voiceUiSettings?.controls || { leave: true, microphone: true, chat: true }}
+              variant="livekit"
+              controls={{
+                leave: true,
+                microphone: true,
+                chat: true,
+              }}
               muted={muted}
               onToggleMute={toggleMute}
               onDisconnect={handleHangup}
-              primaryColor={voiceUiSettings?.visualizerColor || primaryColor}
-              isChatOpen={showLiveKitChat}
-              onToggleChat={() => setShowLiveKitChat((v: boolean) => !v)}
-              onSendMessage={(text) => {
-                setMessageText(text);
-                if (text.trim() && roomRef.current) {
-                  roomRef.current.localParticipant.publishData(
-                    new TextEncoder().encode(JSON.stringify({ type: "chat", text: text.trim() })),
-                    { reliable: true }
-                  ).catch(() => {});
-                  setTranscript((prev) => [...prev, { id: `user-${Date.now()}`, speaker: "visitor", text: text.trim(), final: true }]);
-                }
-              }}
+              primaryColor={visualizerColor}
+              isChatOpen={isChatOpen}
+              onToggleChat={() => setIsChatOpen((v) => !v)}
               disabled={status === "connecting" || status === "reconnecting"}
             />
           </div>
-          <div className="hidden flex shrink-0 items-center gap-3 pb-1 pt-1 sm:gap-4 sm:pb-2">
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.85 }}
-              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-              onClick={toggleMute}
-              disabled={status === "connecting" || status === "reconnecting" || status === "requesting-mic"}
-              aria-label={muted ? "Unmute microphone" : "Mute microphone"}
-              className="flex size-11 items-center justify-center rounded-2xl border transition-colors disabled:opacity-40 sm:size-12"
-              style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 8px 20px ${primaryColor}35` }}
-            >
-              {muted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
-            </motion.button>
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.85 }}
-              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-              onClick={handleHangup}
-              aria-label="Close voice call"
-              title="Close voice call"
-              className="flex size-11 items-center justify-center rounded-2xl text-white shadow-lg transition-transform hover:scale-105 sm:size-12"
-              style={{ background: "#1f2937" }}
-            >
-              <X className="size-5" />
-            </motion.button>
-          </div>
-        </>
+        </div>
       )}
-      <div className="shrink-0 border-t border-neutral-100/70 pt-1 text-center text-[10px] tracking-wide text-neutral-400 dark:border-neutral-800/70 dark:text-neutral-500">
+
+      {/* Powered By Footer */}
+      <div className="shrink-0 pt-2 text-center text-[10px] tracking-wide text-neutral-400 dark:text-neutral-500">
         Powered by{" "}
-        <a href="https://chatty.personaliai.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">
+        <a
+          href="https://chatty.personaliai.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold hover:underline"
+        >
           Chatty
         </a>
       </div>
     </div>
-  );
-}
-
-function Orb({
-  status,
-  level,
-  primaryColor,
-  compact = false,
-}: {
-  status: CallStatus;
-  level: ReturnType<typeof useSpring>;
-  primaryColor: string;
-  compact?: boolean;
-}) {
-  const [glow, setGlow] = useState(0);
-
-  useEffect(() => {
-    const unsub = level.on("change", (v) => {
-      setGlow(v);
-    });
-    return () => unsub();
-  }, [level]);
-
-  const isActive = status === "agent-speaking";
-  const noiseInstanceId = useId().replace(/:/g, "");
-  const noiseId = `chatty-fluid-noise-${noiseInstanceId}-${compact ? "compact" : "full"}`;
-  const blobSize = compact ? "size-8" : "size-[78%]";
-
-  return (
-    <motion.div
-      animate={{ scale: 1 }}
-      className={`relative isolate shrink-0 overflow-hidden rounded-full flex items-center justify-center ${compact ? "size-9" : "size-28"}`}
-      style={{
-        background: "linear-gradient(145deg, #062b42 0%, #087e98 48%, #6caa78 100%)",
-        boxShadow: `0 0 ${(compact ? 8 : 20) + (isActive ? glow * (compact ? 20 : 60) : compact ? 4 : 10)}px ${primaryColor}${isActive ? "aa" : "55"}`,
-      }}
-    >
-      <svg aria-hidden="true" className="absolute size-0" focusable="false">
-        <defs>
-          <filter id={noiseId} x="-25%" y="-25%" width="150%" height="150%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" seed="9" result="noise">
-              <animate attributeName="baseFrequency" values="0.009;0.016;0.011;0.009" dur="5.5s" repeatCount="indefinite" />
-            </feTurbulence>
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale={compact ? 5 : 18} xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-        </defs>
-      </svg>
-      <div className="absolute inset-[-18%]" style={{ filter: `url(#${noiseId})` }}>
-        <motion.div
-          className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[18px]`}
-          style={{ left: "-8%", top: "-12%", background: "radial-gradient(circle at 55% 55%, rgba(34,211,238,.98), rgba(14,116,144,.68) 48%, transparent 73%)", mixBlendMode: "screen" }}
-          animate={{ x: ["-8%", "34%", "5%", "-8%"], y: ["8%", "-12%", "26%", "8%"], scale: [1, 1.18, 0.9, 1] }}
-          transition={{ duration: 6.5, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className={`absolute ${blobSize} rounded-full blur-[10px] sm:blur-[19px]`}
-          style={{ right: "-12%", top: "10%", background: "radial-gradient(circle at 45% 50%, rgba(96,165,250,.95), rgba(37,99,235,.58) 46%, transparent 74%)", mixBlendMode: "screen" }}
-          animate={{ x: ["5%", "-22%", "10%", "5%"], y: ["-8%", "22%", "6%", "-8%"], scale: [0.92, 1.16, 1.04, 0.92] }}
-          transition={{ duration: 7.5, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className={`absolute ${blobSize} rounded-full blur-[11px] sm:blur-[20px]`}
-          style={{ left: "18%", bottom: "-22%", background: "radial-gradient(circle at 50% 42%, rgba(134,239,172,.96), rgba(34,197,94,.58) 45%, transparent 74%)", mixBlendMode: "screen" }}
-          animate={{ x: ["4%", "-18%", "24%", "4%"], y: ["0%", "-24%", "-4%", "0%"], scale: [1, 0.88, 1.2, 1] }}
-          transition={{ duration: 8.5, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          className={`absolute ${blobSize} rounded-full blur-[9px] sm:blur-[16px]`}
-          style={{ left: "30%", top: "12%", background: "radial-gradient(circle, rgba(253,224,71,.9), rgba(250,204,21,.48) 42%, transparent 70%)", mixBlendMode: "screen" }}
-          animate={{ x: ["0%", "18%", "-16%", "0%"], y: ["0%", "28%", "16%", "0%"], scale: [0.76, 1.08, 0.9, 0.76] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        />
-      </div>
-      <motion.div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-full"
-        style={{ background: "radial-gradient(circle at 32% 24%, rgba(255,255,255,.42), transparent 24%), radial-gradient(circle at 62% 70%, rgba(8,30,50,.24), transparent 55%)", mixBlendMode: "screen" }}
-        animate={{ opacity: isActive ? [0.7, 1, 0.72] : [0.55, 0.82, 0.55] }}
-        transition={{ duration: isActive ? 2.4 : 4.5, repeat: Infinity, ease: "easeInOut" }}
-      />
-    </motion.div>
   );
 }
