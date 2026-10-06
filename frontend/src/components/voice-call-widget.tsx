@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useId, useMemo, memo } from "react";
-import { visitorIdentityClient } from "./visitor-identity";
+import { useEffect, useRef, useState, useMemo, useId } from "react";
+import { visitorIdentityClient } from "../../packages/chatty-react/src/visitor-identity";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
 import {
   Room,
@@ -16,15 +16,18 @@ import {
 import { AudioWaveform, Mic, MicOff, Paperclip, Send, X, AlertCircle } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { SafeMarkdownLink } from "./safe-markdown-link";
-import { ProductCard, type ProductCardData } from "./product-card";
-import { VideoCard, type VideoClipData } from "./video-card";
-import { parseRichContent } from "./rich-content";
+import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
+import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
+import { ProductCard, type ProductCardData } from "@/components/product-card";
+import { VideoCard, type VideoClipData } from "@/components/video-card";
+import { parseRichContent } from "@/lib/rich-content";
 
 const WAVE_BAR_COUNT = 14;
 const MICROPHONE_PERMISSION_TIMEOUT_MS = 15000;
-// Ask the browser/WebRTC stack to perform the safety processing that keeps
-// customer calls intelligible before audio reaches VAD/STT.
+// Use the browser's WebRTC audio processing before audio reaches VAD/STT.
+// These constraints are supported by Chromium, Firefox, and Safari and are
+// the safe baseline for echo cancellation, fan/traffic suppression, and stable
+// mic levels in an embedded widget. LiveKit forwards them to getUserMedia.
 const MICROPHONE_CAPTURE_OPTIONS = {
   autoGainControl: true,
   echoCancellation: true,
@@ -46,7 +49,12 @@ function normalizeTranscriptText(text: string): string {
   return text.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/** Merge legacy + stream RoomIO packets so one utterance renders once. */
+/**
+ * RoomIO intentionally publishes both its legacy and stream transcription
+ * packets. They are two transports for one utterance and often have different
+ * segment IDs. Keep the two packets from becoming two visible bubbles while
+ * still allowing the visitor to repeat a sentence after the current turn.
+ */
 function mergeTranscriptSegment(
   entries: TranscriptEntry[],
   segment: TranscriptEntry,
@@ -61,6 +69,7 @@ function mergeTranscriptSegment(
     next[exact] = segment;
     return next;
   }
+
   for (const [key, at] of recentFinals) {
     if (now - at > 10000) recentFinals.delete(key);
   }
@@ -73,6 +82,10 @@ function mergeTranscriptSegment(
   if (next.some((entry) => entry.speaker === segment.speaker && entry.final && normalizeTranscriptText(entry.text) === normalized)) {
     return next;
   }
+
+  // Interim and final packets can use different IDs. Replace the latest
+  // open segment from the same speaker when the new text is its continuation
+  // (or its final form), instead of appending a second bubble.
   for (let i = next.length - 1; i >= 0; i -= 1) {
     const previous = next[i];
     if (previous.speaker !== segment.speaker || previous.final) continue;
@@ -87,6 +100,7 @@ function mergeTranscriptSegment(
     }
     break;
   }
+
   if (segment.final) {
     recentFinals.set(key, now);
     // The equivalent-final check above also covers legacy/stream twins that
@@ -99,12 +113,12 @@ interface VoiceCallWidgetProps {
   botId: string;
   sessionId: string;
   backendUrl: string;
-  /** Pass null to intentionally use the unverified tier; omit to verify the
-   * embedding page origin automatically before requesting a LiveKit token. */
-  originToken?: string | null;
+  originToken: string | null;
   visitorTimezone: string;
   primaryColor: string;
   onClose: () => void;
+  onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
+  previewMode?: boolean;
 }
 
 /** Calm live-transcription cue; an audio pulse reads as active listening rather than a stuck caret. */
@@ -124,115 +138,6 @@ function TranscriptActivityIndicator({ label = "Live transcription" }: { label?:
   );
 }
 
-const TRANSCRIPT_MD_COMPONENTS: Components = {
-  h1: ({ children }) => <h1 className="mb-2 text-sm font-bold leading-snug">{children}</h1>,
-  h2: ({ children }) => <h2 className="mb-1.5 text-xs font-bold leading-snug">{children}</h2>,
-  h3: ({ children }) => <h3 className="mb-1 text-xs font-semibold leading-snug">{children}</h3>,
-  p: ({ children }) => <p className="mb-1.5 last:mb-0 break-words">{children}</p>,
-  ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
-  ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
-  li: ({ children }) => <li className="break-words">{children}</li>,
-  blockquote: ({ children }) => <blockquote className="my-1.5 border-l-2 border-current/30 pl-2 italic opacity-85">{children}</blockquote>,
-  hr: () => <hr className="my-2 border-current/15" />,
-  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-  em: ({ children }) => <em className="italic">{children}</em>,
-  a: ({ href, children }) => (
-    <SafeMarkdownLink href={href} className="underline break-all" style={{ color: "currentColor" }}>
-      {children}
-    </SafeMarkdownLink>
-  ),
-  table: ({ children }) => (
-    <div className="my-1.5 max-w-full overflow-x-auto rounded-md border border-current/15">
-      <table className="min-w-full text-[10px]">{children}</table>
-    </div>
-  ),
-  thead: ({ children }) => <thead className="bg-black/5 dark:bg-white/5">{children}</thead>,
-  th: ({ children }) => <th className="whitespace-nowrap px-2 py-1 text-left font-semibold">{children}</th>,
-  td: ({ children }) => <td className="border-t border-current/10 px-2 py-1 align-top">{children}</td>,
-  code: ({ className, children, ...rest }) => {
-    const isBlock = className?.startsWith("language-");
-    if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
-    return (
-      <pre className="my-1.5 max-w-full overflow-x-auto rounded-lg bg-black/10 p-2 text-[10px] leading-relaxed dark:bg-white/10" tabIndex={0}>
-        <code {...rest}>{children}</code>
-      </pre>
-    );
-  },
-};
-
-interface TranscriptBubbleProps {
-  entry: TranscriptEntry;
-  primaryColor: string;
-}
-
-const TranscriptBubble = memo(function TranscriptBubble({
-  entry,
-  primaryColor,
-}: TranscriptBubbleProps) {
-  const rich = useMemo(() => {
-    return entry.speaker === "agent"
-      ? parseRichContent<ProductCardData, VideoClipData>(entry.text)
-      : { cleanContent: entry.text, products: [], videoClips: [] };
-  }, [entry.speaker, entry.text]);
-
-  const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
-
-  return (
-    <motion.div
-      key={entry.id}
-      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-      className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"}`}
-    >
-      <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasRichCards ? "w-full" : "max-w-[80%]"}`}>
-        <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
-          <span className={`size-1.5 rounded-full ${entry.speaker === "agent" ? "bg-emerald-500" : "bg-sky-500"}`} />
-          {entry.speaker === "agent" ? "Chatty" : "You"}
-        </span>
-        <div
-          className={`${hasRichCards ? "w-full" : "max-w-full"} px-3 py-2 text-xs leading-relaxed ${
-            entry.speaker === "visitor"
-              ? "user-bubble rounded-br-md"
-              : "bot-bubble rounded-bl-md"
-          }`}
-        >
-        {rich.cleanContent.trim() ? (
-          <>
-            {entry.speaker === "agent" && entry.final ? (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={TRANSCRIPT_MD_COMPONENTS}
-              >
-                {rich.cleanContent}
-              </ReactMarkdown>
-            ) : (
-              <span className="whitespace-pre-wrap">{rich.cleanContent}</span>
-            )}
-            {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
-          </>
-        ) : !hasRichCards ? (
-          <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
-            <span className="text-[10px] opacity-55">Listening</span>
-            <TranscriptActivityIndicator label="Listening for speech" />
-          </span>
-        ) : null}
-        {hasRichCards && (
-          <div className="mt-1.5 w-full space-y-1">
-            {rich.products.map((product, index) => (
-              <ProductCard key={`${product.id || product.sku || product.title}-${index}`} product={product} primaryColor={primaryColor} />
-            ))}
-            {rich.videoClips.map((clip, index) => (
-              <VideoCard key={`${clip.video_url}-${index}`} clip={clip} primaryColor={primaryColor} />
-            ))}
-          </div>
-        )}
-        </div>
-      </div>
-    </motion.div>
-  );
-});
-
 export default function VoiceCallWidget({
   botId,
   sessionId,
@@ -241,38 +146,116 @@ export default function VoiceCallWidget({
   visitorTimezone,
   primaryColor,
   onClose,
+  onBookingSuccess,
+  previewMode = false,
 }: VoiceCallWidgetProps) {
   const fetch = sessionId.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
-  const [status, setStatus] = useState<CallStatus>("connecting");
+  const [status, setStatus] = useState<CallStatus>(previewMode ? "agent-speaking" : "connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(previewMode ? 24 : 0);
   const [localLevels, setLocalLevels] = useState<number[]>(() => Array(WAVE_BAR_COUNT).fill(0));
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>(() =>
+    previewMode
+      ? [
+          { id: "p1", speaker: "visitor", text: "Can we schedule a product demo for this Wednesday at 10 AM?", final: true },
+          { id: "p2", speaker: "agent", text: "I've confirmed your product demo for Wednesday at 10:00 AM! Here are your meeting details: [BOOKING_WIDGET]", final: true },
+        ]
+      : []
+  );
   const [messageText, setMessageText] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
   const [connectAttempt, setConnectAttempt] = useState(0);
 
+  // Auto-extract visitor contact info if spoken/transcribed during the call
+  const extractedVisitorInfo = useMemo(() => {
+    let name = "";
+    let email = "";
+    let phone = "";
+    let company = "";
+    for (const entry of transcript) {
+      if (entry.speaker === "visitor" && entry.text) {
+        const text = entry.text;
+        if (!email) {
+          // Voice STT often renders an address as “name at company dot com”.
+          // Normalize that read-back before extracting it for the booking
+          // card; the server remains the source of truth for lead storage.
+          const normalizedEmailText = text
+            .replace(/\s+at\s+/gi, "@")
+            .replace(/\s+dot\s+/gi, ".");
+          // Handle a letter-by-letter local part without accidentally
+          // swallowing the preceding words “my email is”.
+          const spelled = normalizedEmailText.match(
+            /(?:\b(?:email|address)\b[^\n]{0,30})?((?:[A-Za-z]\s+){2,}[A-Za-z])\s*@\s*([A-Za-z0-9.-]+\.[A-Za-z]{2,})/i,
+          );
+          const extractedEmail = spelled
+            ? `${spelled[1].replace(/\s+/g, "")}@${spelled[2]}`
+            : normalizedEmailText.match(/\b([A-Za-z0-9._%+-]+\s*@\s*[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/)?.[1] || "";
+          if (extractedEmail) email = extractedEmail.replace(/\s+/g, "").toLowerCase();
+        }
+        if (!phone) {
+          const pm = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/);
+          if (pm && pm[0].replace(/\D/g, "").length >= 7) phone = pm[0].trim();
+        }
+        if (!name) {
+          const nm = text.match(/(?:my name is|i am|i'm|this is)\s+([A-Za-z][A-Za-z'’-]*(?:\s+[A-Za-z][A-Za-z'’-]*){0,2})/i);
+          if (nm) {
+            const cand = nm[1].trim();
+            if (!["interested", "looking", "trying", "here", "ready", "fine", "good"].includes(cand.toLowerCase())) {
+              name = cand;
+            }
+          }
+        }
+        if (!company) {
+          const cm = text.match(/(?:company is|work at|work for|company:\s*|from)\s+([A-Za-z0-9&., -]{2,40})/i);
+          if (cm) {
+            const cand = cm[1].trim();
+            if (!["home", "here", "myself"].includes(cand.toLowerCase())) {
+              company = cand;
+            }
+          }
+        }
+      }
+    }
+    return { name, email, phone, company };
+  }, [transcript]);
+  const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(() =>
+    previewMode
+      ? {
+          meeting_link: "https://meet.google.com/abc-defg-hij",
+          formatted_time: "Wednesday, Sep 16 at 10:00 AM",
+          summary: "Chatty Product Demo",
+          start_time: "2026-09-16T10:00:00Z",
+          end_time: "2026-09-16T10:30:00Z",
+          attendee_name: "Alex Morgan",
+          attendee_email: "alex@personaliai.com",
+          assigned_to_email: "sales@personaliai.com",
+        }
+      : null
+  );
+  const [showBookingCard, setShowBookingCard] = useState(previewMode);
+  const [bookingTriggeredEntryId, setBookingTriggeredEntryId] = useState<string | null>(previewMode ? "p2" : null);
+
   const roomRef = useRef<Room | null>(null);
   const audioElRef = useRef<HTMLMediaElement | null>(null);
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const localLevelFrameRef = useRef<number | null>(null);
+  const localAudioLevelRef = useRef(0);
   const mountedRef = useRef(true);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const richPacketIdsRef = useRef(new Set<string>());
-  // A provider transcript and the worker's explicit visitor transcript can
-  // contain the same final utterance with different segment IDs. Suppress
-  // only near-simultaneous duplicates, not a phrase repeated later.
+  // STT providers can emit the same final utterance once from their native
+  // stream and once from the worker's explicit visitor transcript packet.
+  // Keep the map short-lived so a visitor can intentionally repeat a phrase
+  // later without it being hidden from the transcript.
   const recentFinalTranscriptRef = useRef(new Map<string, number>());
   // Real mic analyser (not a fake random waveform) - lets us tell, just by
   // watching the bars while talking, whether the browser is actually
   // capturing audio from the mic at all, independent of whether the voice
   // pipeline downstream (VAD/STT) picks it up.
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const analyserCtxRef = useRef<AudioContext | null>(null);
-  const autoOriginTokenRef = useRef<string | null>(null);
 
   // Smoothed orb scale/glow driven by the agent's remote audio level. Same
   // spring feel used for the rest of the widget's motion (bouncy overshoot).
@@ -283,6 +266,7 @@ export default function VoiceCallWidget({
   // the conversation forever; after a quiet window the visible text is safe
   // to treat as the committed transcript.
   useEffect(() => {
+    if (previewMode) return;
     const timer = window.setInterval(() => {
       const cutoff = Date.now() - 4000;
       setTranscript((prev) => {
@@ -298,36 +282,28 @@ export default function VoiceCallWidget({
       });
     }, 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [previewMode]);
 
   useEffect(() => {
     mountedRef.current = true;
 
+    if (previewMode) {
+      const pulseInterval = setInterval(() => {
+        orbLevel.set(0.25 + Math.random() * 0.65);
+        setDuration((d) => d + 1);
+      }, 400);
+      return () => {
+        clearInterval(pulseInterval);
+        mountedRef.current = false;
+      };
+    }
+
+    const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
     let cancelled = false;
 
     async function start() {
       let room: Room | null = null;
       try {
-        // Same-realm website embeds have no iframe Referer for the host
-        // application to forward. Verify the current page directly before
-        // requesting the short-lived voice token when the caller omitted a
-        // token. Explicit null remains an escape hatch for previews/tests.
-        if (originToken === undefined && !autoOriginTokenRef.current && typeof window !== "undefined") {
-          try {
-            const originRes = await fetch(`${backendUrl}/api/widget/verify-origin`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ bot_id: botId, referer: window.location.href }),
-            });
-            const originData = originRes.ok ? await originRes.json() : null;
-            if (originData?.token) autoOriginTokenRef.current = originData.token;
-          } catch {
-            // The token endpoint still returns the correct unverified-tier
-            // response when an origin cannot be verified.
-          }
-        }
-        const resolvedOriginToken = originToken === undefined ? autoOriginTokenRef.current : originToken;
-        const widgetTokenHeader: Record<string, string> = resolvedOriginToken ? { "X-Widget-Token": resolvedOriginToken } : {};
         const browserLanguage = typeof navigator !== "undefined" ? navigator.language || "" : "";
         const browserCountry = browserLanguage.split("-")[1]?.toUpperCase() || "";
         const res = await fetch(`${backendUrl}/api/widget/voice/token`, {
@@ -360,10 +336,19 @@ export default function VoiceCallWidget({
         room = new Room();
         roomRef.current = room;
 
+        // LiveKit may attach the agent track after the original click has
+        // completed. Browsers then reject autoplay even though the visitor
+        // explicitly started the call. Keep the state in sync with LiveKit's
+        // playback probe so the recovery button is deterministic.
+        room.on(RoomEvent.AudioPlaybackStatusChanged, (playing: boolean) => {
+          if (!cancelled && mountedRef.current) setAudioBlocked(!playing);
+        });
+
         room.on(RoomEvent.Disconnected, () => {
-          // Deliberate hangup clears roomRef before disconnecting. Any other
-          // disconnect is a recoverable transport failure, not a completed
-          // conversation.
+          // A deliberate hangup clears roomRef before disconnecting. Any
+          // remaining disconnect is an unexpected transport failure and
+          // should offer recovery instead of leaving the visitor at a dead
+          // "Call ended" screen.
           if (!cancelled && mountedRef.current && roomRef.current === room) {
             setErrorMessage("The voice connection was lost. Reconnect to continue.");
             setStatus("error");
@@ -373,6 +358,9 @@ export default function VoiceCallWidget({
         room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
           if (cancelled || !mountedRef.current) return;
           if (state === ConnectionState.Reconnecting) {
+            // LiveKit can recover a short network interruption without a new
+            // token. Keep the composer visible but tell the visitor that the
+            // voice path is temporarily catching up instead of looking frozen.
             setStatus("reconnecting");
             return;
           }
@@ -383,27 +371,16 @@ export default function VoiceCallWidget({
 
         room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
           if (track.kind === Track.Kind.Audio) {
-            // A newly subscribed WebRTC audio track can contain a short codec
-            // warm-up transient. Start silent and ramp in quickly so the
-            // first spoken syllable is clean instead of a click/pop.
-            if (audioElRef.current) audioElRef.current.remove();
             const el = track.attach();
             el.autoplay = true;
             el.setAttribute("playsinline", "true");
-            el.volume = 0;
             audioElRef.current = el;
             document.body.appendChild(el);
-            void el.play().then(() => {
-              setAudioBlocked(false);
-              const startedAt = performance.now();
-              const ramp = (now: number) => {
-                if (audioElRef.current !== el) return;
-                const progress = Math.min(1, (now - startedAt) / 140);
-                el.volume = progress;
-                if (progress < 1) requestAnimationFrame(ramp);
-              };
-              requestAnimationFrame(ramp);
-            }).catch(() => {
+            // Realtime calls are connected asynchronously, so the browser may
+            // reject playback even though the user already clicked the call
+            // button. Expose a one-tap recovery instead of silently muting the
+            // agent's response.
+            void el.play().then(() => setAudioBlocked(false)).catch(() => {
               if (!cancelled && mountedRef.current) setAudioBlocked(true);
             });
             void participant;
@@ -414,15 +391,35 @@ export default function VoiceCallWidget({
           track.detach().forEach((el) => el.remove());
         });
 
+        // Real-time control messages (e.g. show booking widget or confirmed meeting)
         room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
           if (cancelled || !mountedRef.current) return;
           try {
-            const data = JSON.parse(new TextDecoder().decode(payload));
-            if (data?.type === "product_card" && data.product) {
-              const id = String(data.product.id || data.product.sku || data.product.title || "product");
-              if (!richPacketIdsRef.current.has(`product:${id}`)) {
-                richPacketIdsRef.current.add(`product:${id}`);
-                setTranscript((prev) => [...prev, { id: `voice-product-${id}`, speaker: "agent", text: `[PRODUCT_CARD:${JSON.stringify(data.product)}]`, final: true }]);
+            const text = new TextDecoder().decode(payload);
+            const data = JSON.parse(text);
+            if (data?.type === "booking_widget") {
+              setShowBookingCard(true);
+            } else if (data?.type === "meeting_confirmed" && data?.meeting) {
+              setConfirmedMeeting(data.meeting);
+              setShowBookingCard(true);
+              onBookingSuccess?.(data.meeting);
+            } else if (data?.type === "product_card" && data?.product) {
+              const productId = String(data.product.id || data.product.sku || data.product.title || "product");
+              if (!richPacketIdsRef.current.has(`product:${productId}`)) {
+                richPacketIdsRef.current.add(`product:${productId}`);
+                setTranscript((prev) => [...prev, {
+                  id: `voice-product-${productId}`, speaker: "agent",
+                  text: `[PRODUCT_CARD:${JSON.stringify(data.product)}]`, final: true,
+                }]);
+              }
+            } else if (data?.type === "video_clip" && data?.clip) {
+              const clipId = String(data.clip.video_url || data.clip.title || "video");
+              if (!richPacketIdsRef.current.has(`video:${clipId}`)) {
+                richPacketIdsRef.current.add(`video:${clipId}`);
+                setTranscript((prev) => [...prev, {
+                  id: `voice-video-${clipId}`, speaker: "agent",
+                  text: `[VIDEO_CLIP:${JSON.stringify(data.clip)}]`, final: true,
+                }]);
               }
             } else if (data?.type === "voice_error") {
               const message = String(data.message || "Voice audio failed. Please reconnect and try again.");
@@ -432,14 +429,10 @@ export default function VoiceCallWidget({
                 ...prev,
                 { id: `voice-error-${Date.now()}`, speaker: "agent", text: message, final: true },
               ]);
-            } else if (data?.type === "video_clip" && data.clip) {
-              const id = String(data.clip.video_url || data.clip.title || "video");
-              if (!richPacketIdsRef.current.has(`video:${id}`)) {
-                richPacketIdsRef.current.add(`video:${id}`);
-                setTranscript((prev) => [...prev, { id: `voice-video-${id}`, speaker: "agent", text: `[VIDEO_CLIP:${JSON.stringify(data.clip)}]`, final: true }]);
-              }
             }
-          } catch { /* unrelated LiveKit packet */ }
+          } catch {
+            // Ignore non-JSON or unrelated packets
+          }
         });
 
         // Live transcript - the agent worker already publishes STT/reply text
@@ -455,6 +448,16 @@ export default function VoiceCallWidget({
             if (cancelled || !mountedRef.current) return;
             const speaker: "visitor" | "agent" =
               participant && participant.identity === room?.localParticipant?.identity ? "visitor" : "agent";
+
+            if (speaker === "agent") {
+              for (const seg of segments) {
+                if (seg.text && seg.text.includes("[BOOKING_WIDGET]")) {
+                  setBookingTriggeredEntryId(seg.id);
+                  setShowBookingCard(true);
+                }
+              }
+            }
+
             setTranscript((prev) => {
               let next = prev;
               for (const seg of segments) {
@@ -479,12 +482,14 @@ export default function VoiceCallWidget({
           let remoteLevel = 0;
           let localSpeaking = false;
           for (const p of speakers) {
-            if (p.identity === localIdentity) {
-              localSpeaking = true;
-            } else {
-              remoteLevel = Math.max(remoteLevel, p.audioLevel ?? 0);
-            }
+          if (p.identity === localIdentity) {
+            localSpeaking = true;
+            localAudioLevelRef.current = Math.max(0, Math.min(1, p.audioLevel ?? 0));
+          } else {
+            remoteLevel = Math.max(remoteLevel, p.audioLevel ?? 0);
           }
+        }
+        if (!localSpeaking) localAudioLevelRef.current = 0;
           orbLevel.set(Math.min(1, remoteLevel * 3.5));
           setStatus((prev) => {
             if (prev === "connecting" || prev === "reconnecting" || prev === "requesting-mic" || prev === "error" || prev === "ended") return prev;
@@ -506,6 +511,10 @@ export default function VoiceCallWidget({
         if (!cancelled && mountedRef.current) setStatus("requesting-mic");
         let microphoneTimeout: number | undefined;
         try {
+          // LiveKit requests permission internally, but an unanswered browser
+          // prompt can leave that promise pending forever (especially in an
+          // embedded widget). Bound the wait so the visitor gets an actionable
+          // error and can retry after changing the browser permission.
           await Promise.race([
             room.localParticipant.setMicrophoneEnabled(true, MICROPHONE_CAPTURE_OPTIONS),
             new Promise<never>((_, reject) => {
@@ -515,18 +524,10 @@ export default function VoiceCallWidget({
               );
             }),
           ]);
-          const pub = Array.from(room.localParticipant.audioTrackPublications.values())[0];
-          const mediaTrack = pub?.track?.mediaStreamTrack;
-          if (mediaTrack) {
-            const ctx = new AudioContext();
-            const source = ctx.createMediaStreamSource(new MediaStream([mediaTrack]));
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = 256;
-            analyser.smoothingTimeConstant = 0.6;
-            source.connect(analyser);
-            analyserCtxRef.current = ctx;
-            analyserRef.current = analyser;
-          }
+          // LiveKit already exposes local speaking state through
+          // ActiveSpeakersChanged below. Avoid creating an AudioContext here:
+          // this callback runs after an async permission request and browsers
+          // correctly reject a non-gesture audio context with a console warning.
         } catch (micErr) {
           console.error("Microphone permission failed:", micErr);
           if (!cancelled && mountedRef.current) {
@@ -568,28 +569,41 @@ export default function VoiceCallWidget({
         audioElRef.current = null;
       }
       analyserRef.current = null;
-      if (analyserCtxRef.current) {
-        analyserCtxRef.current.close().catch(() => {});
-        analyserCtxRef.current = null;
-      }
     };
+    // The retry counter deliberately restarts the room and microphone flow.
+    // Other props are immutable for the lifetime of an opened call.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [connectAttempt]);
+  }, [connectAttempt]);
 
-  const retryMicrophone = () => {
-    setErrorMessage(null);
-    setStatus("connecting");
-    setConnectAttempt((attempt) => attempt + 1);
-  };
+  // Compute the latest agent entry ID in transcript
+  const lastAgentEntryId = useMemo(() => {
+    for (let i = transcript.length - 1; i >= 0; i--) {
+      if (transcript[i].speaker === "agent") {
+        return transcript[i].id;
+      }
+    }
+    return null;
+  }, [transcript]);
+
+  const activeBookingId = bookingTriggeredEntryId || (showBookingCard ? lastAgentEntryId : null);
 
   // Auto-scroll the transcript to the newest line as it streams in.
   useEffect(() => {
+    if (previewMode) return;
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [transcript]);
+  }, [transcript, previewMode]);
+
+  // Auto-scroll when booking card appears or meeting confirms
+  useEffect(() => {
+    if (previewMode) return;
+    if (showBookingCard || confirmedMeeting) {
+      transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [showBookingCard, confirmedMeeting, previewMode]);
 
   // Call duration timer, starts once connected.
   useEffect(() => {
-    if (status === "connecting" || status === "requesting-mic" || status === "error") return;
+    if (status === "connecting" || status === "reconnecting" || status === "requesting-mic" || status === "error") return;
     if (status === "ended") {
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
       return;
@@ -638,7 +652,14 @@ export default function VoiceCallWidget({
         const levels = Array.from({ length: WAVE_BAR_COUNT }, () => Math.min(1, boosted * (0.7 + Math.random() * 0.3)));
         setLocalLevels(levels);
       } else {
-        setLocalLevels(Array(WAVE_BAR_COUNT).fill(0));
+        // ActiveSpeakersChanged is backed by the actual WebRTC microphone
+        // stream. It remains available even when Web Audio is suspended by
+        // browser autoplay policy, so never animate bars as if the mic were
+        // live when the measured level is zero.
+        const level = localAudioLevelRef.current;
+        setLocalLevels(Array.from({ length: WAVE_BAR_COUNT }, (_, i) =>
+          Math.min(1, level * (0.72 + 0.28 * ((Math.sin(i * 1.7) + 1) / 2)))
+        ));
       }
       localLevelFrameRef.current = requestAnimationFrame(tick);
     };
@@ -667,6 +688,18 @@ export default function VoiceCallWidget({
     onClose();
   };
 
+  const retryVoiceConnection = () => {
+    const room = roomRef.current;
+    roomRef.current = null;
+    if (room) {
+      room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+      room.disconnect();
+    }
+    setErrorMessage(null);
+    setStatus("connecting");
+    setConnectAttempt((attempt) => attempt + 1);
+  };
+
   const sendComposerMessage = async (event: React.FormEvent) => {
     event.preventDefault();
     const text = messageText.trim();
@@ -679,8 +712,7 @@ export default function VoiceCallWidget({
     setTranscript((prev) => [...prev, { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true }]);
     setSendingMessage(true);
     try {
-      const resolvedToken = originToken === undefined ? autoOriginTokenRef.current : originToken;
-      const authHeaders: Record<string, string> = resolvedToken ? { "X-Widget-Token": resolvedToken } : {};
+      const authHeaders: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
       let response: Response;
       if (file) {
         const body = new FormData();
@@ -691,10 +723,9 @@ export default function VoiceCallWidget({
         body.append("file", file, file.name);
         response = await fetch(`${backendUrl}/api/widget/chat/media`, { method: "POST", headers: authHeaders, body });
       } else {
-        // Keep typed messages inside the same LiveKit AgentSession as speech.
-        // The worker then uses the configured Pipeline/Realtime mode, emits
-        // the assistant transcript, and speaks the response over the active
-        // call instead of returning a text-only HTTP reply.
+        // Typed messages in the voice window use LiveKit's standard text
+        // stream. AgentSession consumes the `lk.chat` topic and runs the
+        // configured Pipeline or Realtime response, including audio output.
         const room = roomRef.current;
         if (room && room.state === ConnectionState.Connected) {
           await room.localParticipant.sendText(text, { topic: "lk.chat" });
@@ -714,6 +745,42 @@ export default function VoiceCallWidget({
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const transcriptMdComponents: Components = {
+    h1: ({ children }) => <h1 className="mb-2 text-sm font-bold leading-snug">{children}</h1>,
+    h2: ({ children }) => <h2 className="mb-1.5 text-xs font-bold leading-snug">{children}</h2>,
+    h3: ({ children }) => <h3 className="mb-1 text-xs font-semibold leading-snug">{children}</h3>,
+    p: ({ children }) => <p className="mb-1.5 last:mb-0 break-words">{children}</p>,
+    ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
+    ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
+    li: ({ children }) => <li className="break-words">{children}</li>,
+    blockquote: ({ children }) => <blockquote className="my-1.5 border-l-2 border-current/30 pl-2 italic opacity-85">{children}</blockquote>,
+    hr: () => <hr className="my-2 border-current/15" />,
+    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+    em: ({ children }) => <em className="italic">{children}</em>,
+    a: ({ href, children }) => (
+      <SafeMarkdownLink href={href} className="underline break-all" style={{ color: "currentColor" }}>
+        {children}
+      </SafeMarkdownLink>
+    ),
+    table: ({ children }) => (
+      <div className="my-1.5 max-w-full overflow-x-auto rounded-md border border-current/15">
+        <table className="min-w-full text-[10px]">{children}</table>
+      </div>
+    ),
+    thead: ({ children }) => <thead className="bg-black/5 dark:bg-white/5">{children}</thead>,
+    th: ({ children }) => <th className="whitespace-nowrap px-2 py-1 text-left font-semibold">{children}</th>,
+    td: ({ children }) => <td className="border-t border-current/10 px-2 py-1 align-top">{children}</td>,
+    code: ({ className, children, ...rest }) => {
+      const isBlock = className?.startsWith("language-");
+      if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
+      return (
+        <pre className="my-1.5 max-w-full overflow-x-auto rounded-lg bg-black/10 p-2 text-[10px] leading-relaxed dark:bg-white/10" tabIndex={0}>
+          <code {...rest}>{children}</code>
+        </pre>
+      );
+    },
   };
 
   const fmtDuration = (s: number) => {
@@ -736,33 +803,50 @@ export default function VoiceCallWidget({
     }
   })();
 
+  const enableAudio = async () => {
+    const room = roomRef.current;
+    try {
+      // startAudio is LiveKit's supported user-gesture recovery path. It
+      // resumes the SDK audio context and retries every attached remote track.
+      await room?.startAudio();
+    } catch {
+      // Fall through to the attached element retry below.
+    }
+    const audio = audioElRef.current;
+    if (!audio) return;
+    void audio.play().then(() => setAudioBlocked(false)).catch(() => setAudioBlocked(true));
+  };
+
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-2.5 sm:p-3.5">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-card p-3 sm:p-4">
       {status === "error" ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-4">
           <div className="size-12 rounded-full flex items-center justify-center bg-red-50 dark:bg-red-950/40">
             <AlertCircle className="size-6 text-red-500" />
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-[220px] leading-relaxed">{errorMessage}</p>
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.95 }}
-            onClick={retryMicrophone}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-white"
-            style={{ background: primaryColor }}
-          >
-            {(errorMessage || "").toLowerCase().includes("microphone") ? "Try microphone again" : "Reconnect voice"}
-          </motion.button>
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.85 }}
-            transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-            onClick={onClose}
-            className="px-4 py-2 rounded-full text-xs font-semibold text-white"
-            style={{ background: primaryColor }}
-          >
-            Close
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.85 }}
+              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+              onClick={retryVoiceConnection}
+              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+              style={{ background: primaryColor }}
+            >
+              {(errorMessage || "").toLowerCase().includes("microphone") ? "Try microphone again" : "Reconnect voice"}
+            </motion.button>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.85 }}
+              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+              onClick={onClose}
+              className="px-4 py-2 rounded-full text-xs font-semibold text-white"
+              style={{ background: primaryColor }}
+            >
+              Close
+            </motion.button>
+          </div>
         </div>
       ) : status === "ended" ? (
         // Distinct end-of-call summary instead of leaving the active-call
@@ -779,7 +863,6 @@ export default function VoiceCallWidget({
           >
             <X className="size-5" style={{ color: primaryColor }} />
           </div>
-
           <div>
             <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Call ended</p>
             <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5">{fmtDuration(duration)}</p>
@@ -799,37 +882,36 @@ export default function VoiceCallWidget({
         <>
           {/* Animated voice stage: the orb reacts to the remote speaker while
               the bars prove that the visitor's microphone is live. */}
-          <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-2.5 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-3.5">
+          <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-4 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-5">
             <div className="absolute -right-10 -top-12 size-32 rounded-full blur-3xl opacity-20" style={{ background: primaryColor }} />
-            <div className="relative flex flex-col items-center gap-1.5 sm:gap-2">
+            <div className="relative flex flex-col items-center gap-3">
               <Orb status={status} level={orbLevel} primaryColor={primaryColor} />
-              <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                <AudioWaveform className="size-3" style={{ color: primaryColor }} />
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
+                <AudioWaveform className="size-3.5" style={{ color: primaryColor }} />
                 {status === "listening" ? "Listening" : statusLabel}
               </div>
-              <div className="flex items-center justify-center gap-[2px] h-3.5" aria-label="Microphone activity">
+              <div className="flex items-center justify-center gap-[3px] h-5" aria-label="Microphone activity">
                 {localLevels.map((level, i) => (
-                  <span key={i} className="w-1 rounded-full transition-[height] duration-[50ms] ease-out" style={{ height: `${Math.max(2, level * 14)}px`, background: primaryColor, opacity: status === "listening" ? 0.9 : 0.25 }} />
+                  <span key={i} className="w-1 rounded-full transition-[height] duration-[50ms] ease-out" style={{ height: `${Math.max(3, level * 20)}px`, background: primaryColor, opacity: status === "listening" ? 0.9 : 0.25 }} />
                 ))}
               </div>
-              <span className="text-center text-[9px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
+              <span className="text-center text-[10px] text-neutral-400 dark:text-neutral-500">Live transcription · booking enabled</span>
+              {audioBlocked && (
+                <button
+                  type="button"
+                  onClick={enableAudio}
+                  className="rounded-full px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm"
+                  style={{ background: primaryColor }}
+                >
+                  Tap to enable agent audio
+                </button>
+              )}
             </div>
           </div>
 
-          {audioBlocked && (
-            <button
-              type="button"
-              onClick={() => audioElRef.current?.play().then(() => setAudioBlocked(false)).catch(() => {})}
-              className="mx-auto mb-1 rounded-full px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm"
-              style={{ background: primaryColor }}
-            >
-              Tap to enable agent audio
-            </button>
-          )}
-
-          {/* Live transcript - auto-scrolls to the newest line. Interim text
-              uses a subtle caret so it stays readable while speech arrives. */}
-          <div className="min-h-[3rem] flex-1 w-full overflow-y-auto overscroll-contain chatty-voice-scrollbar space-y-1.5 py-1">
+          {/* Live transcript - auto-scrolls to the newest line; interim
+              (not-yet-final) segments show a calm live cue and settle once final. */}
+          <div className={`min-h-[7rem] flex-1 w-full ${previewMode ? "overflow-hidden" : "overflow-y-auto overscroll-contain"} chatty-voice-scrollbar space-y-2 py-2`}>
             {transcript.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <p className="text-[11px] text-neutral-400 dark:text-neutral-500 text-center px-6">
@@ -840,40 +922,123 @@ export default function VoiceCallWidget({
               </div>
             ) : (
               <AnimatePresence initial={false}>
-                {transcript.map((entry) => (
-                  <TranscriptBubble
-                    key={entry.id}
-                    entry={entry}
-                    primaryColor={primaryColor}
-                  />
-                ))}
+                {transcript.map((entry) => {
+                  const isAgent = entry.speaker === "agent";
+                  const containsBookingTag = isAgent && entry.text.includes("[BOOKING_WIDGET]");
+                  const hasBookingOnEntry = isAgent && (entry.id === activeBookingId || containsBookingTag);
+                  const rich = isAgent ? parseRichContent<ProductCardData, VideoClipData>(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
+                  const cleanText = rich.cleanContent;
+                  const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
+
+                    return (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                        className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"} ${hasBookingOnEntry ? "w-full" : ""}`}
+                      >
+                        <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasBookingOnEntry || hasRichCards ? "w-full" : "max-w-[85%]"}`}>
+                          <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+                            <span className={`size-1.5 rounded-full ${isAgent ? "bg-emerald-500" : "bg-sky-500"}`} />
+                            {isAgent ? "Chatty" : "You"}
+                          </span>
+                          <div
+                            className={`${
+                              hasBookingOnEntry || hasRichCards ? "w-full p-2" : "max-w-full px-3 py-2"
+                            } text-xs leading-relaxed ${
+                              entry.speaker === "visitor"
+                                ? "user-bubble rounded-br-md"
+                                : "bot-bubble rounded-bl-md"
+                            }`}
+                          >
+                        {cleanText ? (
+                          <>
+                            {isAgent && entry.final ? (
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={transcriptMdComponents}
+                              >
+                                {cleanText}
+                              </ReactMarkdown>
+                            ) : (
+                              <span className="whitespace-pre-wrap">{cleanText}</span>
+                            )}
+                            {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
+                          </>
+                        ) : (
+                          !hasBookingOnEntry && !hasRichCards && (
+                            <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
+                              <span className="text-[10px] opacity-55">Listening</span>
+                              <TranscriptActivityIndicator label="Listening for speech" />
+                            </span>
+                          )
+                        )}
+                        {hasRichCards && (
+                          <div className="mt-1.5 w-full space-y-1">
+                            {rich.products.map((product, index) => <ProductCard key={`${product.id || product.sku || product.title}-${index}`} product={product} primaryColor={primaryColor} />)}
+                            {rich.videoClips.map((clip, index) => <VideoCard key={`${clip.video_url}-${index}`} clip={clip} primaryColor={primaryColor} />)}
+                          </div>
+                        )}
+                        {hasBookingOnEntry && (
+                          <div className="mt-2.5 w-full">
+                            <InlineBookingCard
+                              botId={botId}
+                              sessionId={sessionId}
+                              visitorTimezone={visitorTimezone}
+                              primaryColor={primaryColor}
+                              backendUrl={backendUrl}
+                              initialMeeting={confirmedMeeting || undefined}
+                              initialName={extractedVisitorInfo.name}
+                              initialEmail={extractedVisitorInfo.email}
+                              initialPhone={extractedVisitorInfo.phone}
+                              initialCompany={extractedVisitorInfo.company}
+                              onBookingSuccess={(meeting) => {
+                                setConfirmedMeeting(meeting);
+                                onBookingSuccess?.(meeting);
+                              }}
+                              onMeetingRescheduled={(meeting) => {
+                                setConfirmedMeeting(meeting);
+                                onBookingSuccess?.(meeting);
+                              }}
+                              onMeetingCancelled={() => {
+                                setConfirmedMeeting(null);
+                              }}
+                            />
+                          </div>
+                        )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                })}
               </AnimatePresence>
             )}
             <div ref={transcriptEndRef} />
           </div>
 
-          <form onSubmit={sendComposerMessage} className="mb-1.5 flex min-w-0 shrink-0 items-center gap-1 rounded-2xl border border-neutral-200 bg-white/80 p-1 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 sm:mb-2 sm:p-1.5">
-              <input type="file" className="hidden" id="chatty-voice-attachment" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setPendingFile(event.target.files?.[0] || null)} />
-              <button type="button" onClick={() => document.getElementById("chatty-voice-attachment")?.click()} aria-label="Attach a file" title="Attach a file" className="grid size-8 shrink-0 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"><Paperclip className="size-3.5" /></button>
-              <div className="min-w-0 flex-1">
-                <input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder={pendingFile ? pendingFile.name : "Send a message while you talk…"} disabled={sendingMessage} className="w-full bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200" />
-                {pendingFile && <p className="truncate px-1 text-[9px] text-neutral-400">Attachment ready · click send to share</p>}
-              </div>
-              <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-8 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-3.5" /></button>
+          <form onSubmit={sendComposerMessage} className="mb-2 flex min-w-0 shrink-0 items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/80 p-1.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/80 sm:mb-3 sm:gap-2 sm:p-2">
+            <input type="file" className="hidden" id="chatty-voice-attachment-app" accept="image/*,.pdf,.doc,.docx,.txt" onChange={(event) => setPendingFile(event.target.files?.[0] || null)} />
+            <button type="button" onClick={() => document.getElementById("chatty-voice-attachment-app")?.click()} aria-label="Attach a file" title="Attach a file" className="grid size-9 shrink-0 place-items-center rounded-xl text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"><Paperclip className="size-4" /></button>
+            <div className="min-w-0 flex-1">
+              <input value={messageText} onChange={(event) => setMessageText(event.target.value)} placeholder={pendingFile ? pendingFile.name : "Send a message while you talk…"} disabled={sendingMessage} className="w-full bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200" />
+              {pendingFile && <p className="truncate px-1 text-[9px] text-neutral-400">Attachment ready · click send to share</p>}
+            </div>
+            <button type="submit" disabled={sendingMessage || (!messageText.trim() && !pendingFile)} aria-label="Send message" title="Send message" className="grid size-9 shrink-0 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-35" style={{ background: primaryColor }}><Send className="size-4" /></button>
           </form>
 
-          <div className="flex shrink-0 items-center justify-center gap-3 pb-0.5 pt-0.5 sm:gap-4 sm:pb-1">
+          <div className="flex shrink-0 items-center gap-3 pb-1 pt-1 sm:gap-4 sm:pb-2">
             <motion.button
               type="button"
               whileTap={{ scale: 0.85 }}
               transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
               onClick={toggleMute}
-              disabled={status === "connecting" || status === "requesting-mic"}
+              disabled={status === "connecting" || status === "reconnecting" || status === "requesting-mic"}
               aria-label={muted ? "Unmute microphone" : "Mute microphone"}
-              className="flex size-10 items-center justify-center rounded-2xl border transition-colors disabled:opacity-40 sm:size-11"
-              style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 6px 16px ${primaryColor}35` }}
+              className="flex size-11 items-center justify-center rounded-2xl border transition-colors disabled:opacity-40 sm:size-12"
+              style={{ background: muted ? `${primaryColor}18` : primaryColor, borderColor: muted ? `${primaryColor}45` : primaryColor, color: muted ? primaryColor : "#fff", boxShadow: muted ? "none" : `0 8px 20px ${primaryColor}35` }}
             >
-              {muted ? <MicOff className="size-4 sm:size-5" /> : <Mic className="size-4 sm:size-5" />}
+              {muted ? <MicOff className="size-5" /> : <Mic className="size-5" />}
             </motion.button>
             <motion.button
               type="button"
@@ -882,14 +1047,20 @@ export default function VoiceCallWidget({
               onClick={handleHangup}
               aria-label="Close voice call"
               title="Close voice call"
-              className="flex size-10 items-center justify-center rounded-2xl text-white shadow-lg transition-transform hover:scale-105 sm:size-11"
+              className="flex size-11 items-center justify-center rounded-2xl text-white shadow-lg transition-transform hover:scale-105 sm:size-12"
               style={{ background: "#1f2937" }}
             >
-              <X className="size-4 sm:size-5" />
+              <X className="size-5" />
             </motion.button>
           </div>
         </>
       )}
+      <div className="shrink-0 border-t border-neutral-100/70 pt-1 text-center text-[10px] tracking-wide text-neutral-400 dark:border-neutral-800/70 dark:text-neutral-500">
+        Powered by{" "}
+        <a href="https://chatty.personaliai.com" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">
+          Chatty
+        </a>
+      </div>
     </div>
   );
 }
@@ -922,7 +1093,7 @@ function Orb({
   return (
     <motion.div
       animate={{ scale: 1 }}
-      className={`relative isolate shrink-0 overflow-hidden rounded-full flex items-center justify-center ${compact ? "size-9" : "size-16 sm:size-20"}`}
+      className={`relative isolate shrink-0 overflow-hidden rounded-full flex items-center justify-center ${compact ? "size-9" : "size-28"}`}
       style={{
         background: "linear-gradient(145deg, #062b42 0%, #087e98 48%, #6caa78 100%)",
         boxShadow: `0 0 ${(compact ? 8 : 20) + (isActive ? glow * (compact ? 20 : 60) : compact ? 4 : 10)}px ${primaryColor}${isActive ? "aa" : "55"}`,

@@ -1735,10 +1735,12 @@ async def entrypoint(ctx: JobContext) -> None:
                     interruption={
                         "enabled": True,
                         "mode": interruption_mode,
-                        # Require at least 550 ms and at least 1 recognized word so acoustic
-                        # blips, speaker bleed, and breath noise do not falsely cut off speech.
-                        "min_duration": 0.55,
-                        "min_words": 1,
+                        # A natural "stop" / "wait" is often shorter than
+                        # 500 ms. Let a real one-word barge-in clear TTS
+                        # promptly while min_words and the denoised VAD still
+                        # reject most clicks and background noise.
+                        "min_duration": 0.25,
+                        "min_words": 0,
                         "false_interruption_timeout": 0.8,
                         "resume_false_interruption": True,
                         "backchannel_boundary": (0.8, 1.5),
