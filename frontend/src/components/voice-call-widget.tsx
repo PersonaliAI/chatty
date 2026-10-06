@@ -84,21 +84,16 @@ function mergeTranscriptSegment(
   }
 
   // Interim and final packets can use different IDs. Replace the latest
-  // open segment from the same speaker when the new text is its continuation
-  // (or its final form), instead of appending a second bubble.
+  // open segment from the same speaker with revised hypotheses or final text,
+  // instead of appending duplicate or fragmented bubbles with discarded words.
   for (let i = next.length - 1; i >= 0; i -= 1) {
     const previous = next[i];
-    if (previous.speaker !== segment.speaker || previous.final) continue;
-    const oldText = normalizeTranscriptText(previous.text);
-    const continuation = oldText === normalized
-      || normalized.startsWith(oldText + " ")
-      || oldText.startsWith(normalized + " ");
-    if (continuation) {
+    if (previous.speaker !== segment.speaker) break;
+    if (!previous.final) {
       next[i] = segment;
       if (segment.final) recentFinals.set(key, now);
       return next;
     }
-    break;
   }
 
   if (segment.final) {

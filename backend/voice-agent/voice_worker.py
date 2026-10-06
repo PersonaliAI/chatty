@@ -529,7 +529,7 @@ class ChattyVoiceAgent(Agent):
         room: Optional[Any] = None,
         tts_router: Optional[Any] = None,
     ):
-        super().__init__(instructions="", llm=_NullLLM())
+        super().__init__(instructions="", llm=_NullLLM(), tts=tts_router)
         self._bot = bot
         self._owner_user = owner_user
         self._bot_id = bot_id

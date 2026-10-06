@@ -1277,6 +1277,17 @@ async def run_widget_assistant(
 
         messages.append(gen["message"])
 
+        # In voice mode, bridge the 2-5 second tool execution latency with an immediate natural
+        # filler so the caller never experiences dead air while the calendar or tool query runs.
+        if voice_mode and stream_live and round_idx == 0 and tool_calls:
+            first_fn = tool_calls[0]["function"]["name"]
+            if first_fn in ("get_available_slots", "check_calendar_availability"):
+                await stream_live("One moment, let me check the calendar... ")
+            elif first_fn in ("create_calendar_event", "create_outlook_event"):
+                await stream_live("Booking that for you now... ")
+            elif first_fn == "web_search":
+                await stream_live("One moment, looking that up... ")
+
         for tc in tool_calls:
             fn_name = tc["function"]["name"]
             called_tools_this_turn.add(fn_name)
