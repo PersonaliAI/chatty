@@ -100,7 +100,7 @@
   // cached copy silently gets an app that doesn't match what this file
   // expects - doMount()'s `window.ChattyDOM.mount` check just no-ops with
   // no error, so the widget never appears. Bump this on every release that
-  var ASSET_VERSION = "2026-10-06.voice-responsive-1";
+  var ASSET_VERSION = "2026-10-06.voice-perf-2";
 
   // Preconnect to origin for fast asset loading
   try {

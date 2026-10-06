@@ -386,7 +386,7 @@ class _SpeechChunker:
     """Turn streamed assistant text into stable, speakable phrases.
 
     Feeds audio smoothly to TTS without clipping words or stalling playout.
-    Releases the first clause quickly so first-word latency is minimal,
+    Releases the first natural clause quickly so first-word latency is minimal,
     then streams subsequent phrases at natural pause boundaries to prevent
     audio buffer underruns (eliminating signal drop / stuttering).
     """
@@ -394,7 +394,7 @@ class _SpeechChunker:
     _MAX_CHARS = 80
     _MIN_SPLIT_CHARS = 35
     _SENTENCE_END = re.compile(r"[.!?](?:[\"'\u2019\u201d)]*)(?=\s|$)")
-    _CLAUSE_END = re.compile(r"[,;:\u2014-](?=\s|$)")
+    _CLAUSE_END = re.compile(r"[,;:\u2014](?=\s|$)")
 
     def __init__(self) -> None:
         self._buffer = ""
@@ -421,16 +421,31 @@ class _SpeechChunker:
                     self._first_emitted = True
                 continue
 
-            # For the first chunk, split early on clause boundary (e.g. "Sure," or "Got it,")
-            # so user hears voice response immediately (<200ms) without waiting for full sentence.
+            # For the first chunk, split on a natural multi-word clause boundary
+            # (e.g. "Sure, I can help with that," or "Got it, let's take a look,")
+            # so the user hears voice response quickly (<200ms) without emitting
+            # awkward isolated 1-word fragments like "Take" or "Well".
             if not self._first_emitted:
                 clause = self._CLAUSE_END.search(self._buffer)
-                if clause and clause.end() >= 4:
-                    phrase = self._buffer[:clause.end()].strip()
-                    self._buffer = self._buffer[clause.end():].lstrip()
-                    if phrase:
+                if clause:
+                    candidate = self._buffer[:clause.end()].strip()
+                    if len(candidate.split()) >= 3 and len(candidate) >= 14:
+                        phrase = candidate
+                        self._buffer = self._buffer[clause.end():].lstrip()
                         chunks.append(phrase)
                         self._first_emitted = True
+                        continue
+
+            # For subsequent chunks, allow splitting at natural clauses once the buffer
+            # has enough spoken content (>= 35 chars, >= 4 words) to feed TTS smoothly.
+            clause = self._CLAUSE_END.search(self._buffer)
+            if clause and clause.end() >= self._MIN_SPLIT_CHARS:
+                candidate = self._buffer[:clause.end()].strip()
+                if len(candidate.split()) >= 4:
+                    phrase = candidate
+                    self._buffer = self._buffer[clause.end():].lstrip()
+                    chunks.append(phrase)
+                    self._first_emitted = True
                     continue
 
             if len(self._buffer) >= self._MAX_CHARS:
@@ -1720,13 +1735,11 @@ async def entrypoint(ctx: JobContext) -> None:
                     interruption={
                         "enabled": True,
                         "mode": interruption_mode,
-                        # A natural "stop" / "wait" is often shorter than
-                        # 500 ms. Let a real one-word barge-in clear TTS
-                        # promptly while min_words and the denoised VAD still
-                        # reject most clicks and background noise.
-                        "min_duration": 0.25,
-                        "min_words": 0,
-                        "false_interruption_timeout": 2.0,
+                        # Require at least 550 ms and at least 1 recognized word so acoustic
+                        # blips, speaker bleed, and breath noise do not falsely cut off speech.
+                        "min_duration": 0.55,
+                        "min_words": 1,
+                        "false_interruption_timeout": 0.8,
                         "resume_false_interruption": True,
                         "backchannel_boundary": (0.8, 1.5),
                     },

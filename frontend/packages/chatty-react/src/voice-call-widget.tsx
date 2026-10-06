@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useId } from "react";
+import { useEffect, useRef, useState, useId, useMemo, memo } from "react";
 import { visitorIdentityClient } from "./visitor-identity";
 import { motion, AnimatePresence, useSpring } from "framer-motion";
 import {
@@ -16,8 +16,6 @@ import {
 import { AudioWaveform, Mic, MicOff, Paperclip, Send, X, AlertCircle } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import { SafeMarkdownLink } from "./safe-markdown-link";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
@@ -125,6 +123,115 @@ function TranscriptActivityIndicator({ label = "Live transcription" }: { label?:
     </span>
   );
 }
+
+const TRANSCRIPT_MD_COMPONENTS: Components = {
+  h1: ({ children }) => <h1 className="mb-2 text-sm font-bold leading-snug">{children}</h1>,
+  h2: ({ children }) => <h2 className="mb-1.5 text-xs font-bold leading-snug">{children}</h2>,
+  h3: ({ children }) => <h3 className="mb-1 text-xs font-semibold leading-snug">{children}</h3>,
+  p: ({ children }) => <p className="mb-1.5 last:mb-0 break-words">{children}</p>,
+  ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
+  li: ({ children }) => <li className="break-words">{children}</li>,
+  blockquote: ({ children }) => <blockquote className="my-1.5 border-l-2 border-current/30 pl-2 italic opacity-85">{children}</blockquote>,
+  hr: () => <hr className="my-2 border-current/15" />,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  a: ({ href, children }) => (
+    <SafeMarkdownLink href={href} className="underline break-all" style={{ color: "currentColor" }}>
+      {children}
+    </SafeMarkdownLink>
+  ),
+  table: ({ children }) => (
+    <div className="my-1.5 max-w-full overflow-x-auto rounded-md border border-current/15">
+      <table className="min-w-full text-[10px]">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-black/5 dark:bg-white/5">{children}</thead>,
+  th: ({ children }) => <th className="whitespace-nowrap px-2 py-1 text-left font-semibold">{children}</th>,
+  td: ({ children }) => <td className="border-t border-current/10 px-2 py-1 align-top">{children}</td>,
+  code: ({ className, children, ...rest }) => {
+    const isBlock = className?.startsWith("language-");
+    if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
+    return (
+      <pre className="my-1.5 max-w-full overflow-x-auto rounded-lg bg-black/10 p-2 text-[10px] leading-relaxed dark:bg-white/10" tabIndex={0}>
+        <code {...rest}>{children}</code>
+      </pre>
+    );
+  },
+};
+
+interface TranscriptBubbleProps {
+  entry: TranscriptEntry;
+  primaryColor: string;
+}
+
+const TranscriptBubble = memo(function TranscriptBubble({
+  entry,
+  primaryColor,
+}: TranscriptBubbleProps) {
+  const rich = useMemo(() => {
+    return entry.speaker === "agent"
+      ? parseRichContent<ProductCardData, VideoClipData>(entry.text)
+      : { cleanContent: entry.text, products: [], videoClips: [] };
+  }, [entry.speaker, entry.text]);
+
+  const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
+
+  return (
+    <motion.div
+      key={entry.id}
+      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+      className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"}`}
+    >
+      <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasRichCards ? "w-full" : "max-w-[80%]"}`}>
+        <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
+          <span className={`size-1.5 rounded-full ${entry.speaker === "agent" ? "bg-emerald-500" : "bg-sky-500"}`} />
+          {entry.speaker === "agent" ? "Chatty" : "You"}
+        </span>
+        <div
+          className={`${hasRichCards ? "w-full" : "max-w-full"} px-3 py-2 text-xs leading-relaxed ${
+            entry.speaker === "visitor"
+              ? "user-bubble rounded-br-md"
+              : "bot-bubble rounded-bl-md"
+          }`}
+        >
+        {rich.cleanContent.trim() ? (
+          <>
+            {entry.speaker === "agent" && entry.final ? (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={TRANSCRIPT_MD_COMPONENTS}
+              >
+                {rich.cleanContent}
+              </ReactMarkdown>
+            ) : (
+              <span className="whitespace-pre-wrap">{rich.cleanContent}</span>
+            )}
+            {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
+          </>
+        ) : !hasRichCards ? (
+          <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
+            <span className="text-[10px] opacity-55">Listening</span>
+            <TranscriptActivityIndicator label="Listening for speech" />
+          </span>
+        ) : null}
+        {hasRichCards && (
+          <div className="mt-1.5 w-full space-y-1">
+            {rich.products.map((product, index) => (
+              <ProductCard key={`${product.id || product.sku || product.title}-${index}`} product={product} primaryColor={primaryColor} />
+            ))}
+            {rich.videoClips.map((clip, index) => (
+              <VideoCard key={`${clip.video_url}-${index}`} clip={clip} primaryColor={primaryColor} />
+            ))}
+          </div>
+        )}
+        </div>
+      </div>
+    </motion.div>
+  );
+});
 
 export default function VoiceCallWidget({
   botId,
@@ -609,42 +716,6 @@ export default function VoiceCallWidget({
     }
   };
 
-  const transcriptMdComponents: Components = {
-    h1: ({ children }) => <h1 className="mb-2 text-sm font-bold leading-snug">{children}</h1>,
-    h2: ({ children }) => <h2 className="mb-1.5 text-xs font-bold leading-snug">{children}</h2>,
-    h3: ({ children }) => <h3 className="mb-1 text-xs font-semibold leading-snug">{children}</h3>,
-    p: ({ children }) => <p className="mb-1.5 last:mb-0 break-words">{children}</p>,
-    ul: ({ children }) => <ul className="mb-1.5 list-disc space-y-0.5 pl-4">{children}</ul>,
-    ol: ({ children }) => <ol className="mb-1.5 list-decimal space-y-0.5 pl-4">{children}</ol>,
-    li: ({ children }) => <li className="break-words">{children}</li>,
-    blockquote: ({ children }) => <blockquote className="my-1.5 border-l-2 border-current/30 pl-2 italic opacity-85">{children}</blockquote>,
-    hr: () => <hr className="my-2 border-current/15" />,
-    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-    em: ({ children }) => <em className="italic">{children}</em>,
-    a: ({ href, children }) => (
-      <SafeMarkdownLink href={href} className="underline break-all" style={{ color: "currentColor" }}>
-        {children}
-      </SafeMarkdownLink>
-    ),
-    table: ({ children }) => (
-      <div className="my-1.5 max-w-full overflow-x-auto rounded-md border border-current/15">
-        <table className="min-w-full text-[10px]">{children}</table>
-      </div>
-    ),
-    thead: ({ children }) => <thead className="bg-black/5 dark:bg-white/5">{children}</thead>,
-    th: ({ children }) => <th className="whitespace-nowrap px-2 py-1 text-left font-semibold">{children}</th>,
-    td: ({ children }) => <td className="border-t border-current/10 px-2 py-1 align-top">{children}</td>,
-    code: ({ className, children, ...rest }) => {
-      const isBlock = className?.startsWith("language-");
-      if (!isBlock) return <code className="bg-black/10 dark:bg-white/10 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
-      return (
-        <pre className="my-1.5 max-w-full overflow-x-auto rounded-lg bg-black/10 p-2 text-[10px] leading-relaxed dark:bg-white/10" tabIndex={0}>
-          <code {...rest}>{children}</code>
-        </pre>
-      );
-    },
-  };
-
   const fmtDuration = (s: number) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
@@ -769,59 +840,13 @@ export default function VoiceCallWidget({
               </div>
             ) : (
               <AnimatePresence initial={false}>
-                {transcript.map((entry) => {
-                  const rich = entry.speaker === "agent" ? parseRichContent<ProductCardData, VideoClipData>(entry.text) : { cleanContent: entry.text, products: [], videoClips: [] };
-                  const hasRichCards = rich.products.length > 0 || rich.videoClips.length > 0;
-                  return (
-                  <motion.div
+                {transcript.map((entry) => (
+                  <TranscriptBubble
                     key={entry.id}
-                    initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                    className={`flex ${entry.speaker === "visitor" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div className={`flex flex-col gap-1 ${entry.speaker === "visitor" ? "items-end" : "items-start"} ${hasRichCards ? "w-full" : "max-w-[80%]"}`}>
-                      <span className="flex items-center gap-1 px-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-400 dark:text-neutral-500">
-                        <span className={`size-1.5 rounded-full ${entry.speaker === "agent" ? "bg-emerald-500" : "bg-sky-500"}`} />
-                        {entry.speaker === "agent" ? "Chatty" : "You"}
-                      </span>
-                      <div
-                        className={`${hasRichCards ? "w-full" : "max-w-full"} px-3 py-2 text-xs leading-relaxed ${
-                          entry.speaker === "visitor"
-                            ? "user-bubble rounded-br-md"
-                            : "bot-bubble rounded-bl-md"
-                        }`}
-                      >
-                      {rich.cleanContent.trim() ? (
-                        <>
-                          {entry.speaker === "agent" ? (
-                            <ReactMarkdown
-                              remarkPlugins={[remarkGfm, remarkMath]}
-                              rehypePlugins={[rehypeKatex]}
-                              components={transcriptMdComponents}
-                            >
-                              {rich.cleanContent}
-                            </ReactMarkdown>
-                          ) : (
-                            <span className="whitespace-pre-wrap">{rich.cleanContent}</span>
-                          )}
-                          {!entry.final && <TranscriptActivityIndicator label="Live transcription" />}
-                        </>
-                      ) : !hasRichCards ? (
-                        <span className="flex items-center gap-1.5 py-0.5" aria-label="Listening">
-                          <span className="text-[10px] opacity-55">Listening</span>
-                          <TranscriptActivityIndicator label="Listening for speech" />
-                        </span>
-                      ) : null}
-                      {hasRichCards && <div className="mt-1.5 w-full space-y-1">
-                        {rich.products.map((product, index) => <ProductCard key={`${product.id || product.sku || product.title}-${index}`} product={product} primaryColor={primaryColor} />)}
-                        {rich.videoClips.map((clip, index) => <VideoCard key={`${clip.video_url}-${index}`} clip={clip} primaryColor={primaryColor} />)}
-                      </div>}
-                      </div>
-                    </div>
-                  </motion.div>
-                  );
-                })}
+                    entry={entry}
+                    primaryColor={primaryColor}
+                  />
+                ))}
               </AnimatePresence>
             )}
             <div ref={transcriptEndRef} />
