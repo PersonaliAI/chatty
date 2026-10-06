@@ -126,6 +126,11 @@ def _normalized_api_key(name: str) -> str:
 GEMINI_API_KEY = _normalized_api_key("GEMINI_API_KEY")
 GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
 GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
+USE_VERTEX_AI = (
+    os.environ.get("USE_VERTEX_AI", "").strip().lower() in ("1", "true", "yes")
+    or os.environ.get("VERTEX_AI", "").strip().lower() in ("1", "true", "yes")
+    or not bool(GEMINI_API_KEY)
+)
 
 # Ordered fallback chain tried in sequence whenever a Gemini call fails
 # (quota/429, transient 5xx, or any other error) - the free-tier AI Studio

@@ -11,24 +11,19 @@ from app.core.config import (
     GOOGLE_CLOUD_PROJECT,
     SUPABASE_SECRET_KEY,
     SUPABASE_URL,
+    USE_VERTEX_AI,
 )
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
 
 # GEMINI_API_KEY (Google AI Studio, free tier) is a separate billing surface
-# from Vertex AI - set it to route all Gemini calls through AI Studio instead
-# (e.g. when the GCP project's Vertex AI billing is blocked/suspended).
-# Vertex AI stays as the default/fallback path when GEMINI_API_KEY is unset,
-# unchanged from before.
-if GEMINI_API_KEY:
-    genai_client = genai.Client(api_key=GEMINI_API_KEY)
-else:
+# from Vertex AI. Setting USE_VERTEX_AI=true (or unsetting GEMINI_API_KEY)
+# routes all model calls through Vertex AI using GCP credentials/project.
+if USE_VERTEX_AI:
     genai_client = genai.Client(
         vertexai=True,
         project=GOOGLE_CLOUD_PROJECT,
-        # gemini-3.x models are only served from the "global" Vertex AI endpoint,
-        # not region-pinned ones like us-central1 (confirmed empirically - they
-        # 404 there). "global" also works fine for the older 2.5 models and
-        # text-embedding-004 that OCR/memory still use, so one client covers all.
         location=GOOGLE_CLOUD_LOCATION,
     )
+else:
+    genai_client = genai.Client(api_key=GEMINI_API_KEY)

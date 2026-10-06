@@ -25,12 +25,21 @@ def test_api_key_rejects_embedded_control_without_exposing_value(monkeypatch):
 
 def test_resolve_gemini_model_uses_ai_studio_prefix_when_key_set(monkeypatch):
     monkeypatch.setattr(ai_client, "GEMINI_API_KEY", "fake-key")
+    monkeypatch.setattr(ai_client, "USE_VERTEX_AI", False)
     assert ai_client.resolve_gemini_model("gemini-2.5-flash") == "gemini/gemini-2.5-flash"
 
 
 def test_resolve_gemini_model_uses_vertex_prefix_without_key(monkeypatch):
     monkeypatch.setattr(ai_client, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(ai_client, "USE_VERTEX_AI", True)
     assert ai_client.resolve_gemini_model("gemini-2.5-flash") == "vertex_ai/gemini-2.5-flash"
+
+
+def test_resolve_gemini_model_uses_vertex_for_gemma_and_vertex_flag(monkeypatch):
+    monkeypatch.setattr(ai_client, "GEMINI_API_KEY", "fake-key")
+    monkeypatch.setattr(ai_client, "USE_VERTEX_AI", True)
+    assert ai_client.resolve_gemini_model("gemma-2-27b-it") == "vertex_ai/gemma-2-27b-it"
+    assert ai_client.resolve_gemini_model("gemma-2-9b-it") == "vertex_ai/gemma-2-9b-it"
 
 
 def test_resolve_gemini_model_passes_through_already_prefixed_names(monkeypatch):

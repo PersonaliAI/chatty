@@ -23,7 +23,7 @@ from typing import Any, Optional
 import litellm
 
 from app.core.clients import supabase
-from app.core.config import GEMINI_API_KEY, GOOGLE_CLOUD_LOCATION, GOOGLE_CLOUD_PROJECT
+from app.core.config import GEMINI_API_KEY, GOOGLE_CLOUD_LOCATION, GOOGLE_CLOUD_PROJECT, USE_VERTEX_AI
 from app.core.db import run_db
 
 logger = logging.getLogger("chatty.ai")
@@ -83,11 +83,13 @@ def _is_unrecoverable_key_error(exc: Exception) -> bool:
 
 
 def resolve_gemini_model(name: str) -> str:
-    """Prefix a bare Gemini model name for LiteLLM. Already-prefixed model
+    """Prefix a bare Gemini or Gemma model name for LiteLLM. Already-prefixed model
     strings (any provider) pass through unchanged."""
     if "/" in name:
         return name
-    return f"gemini/{name}" if GEMINI_API_KEY else f"vertex_ai/{name}"
+    if USE_VERTEX_AI or not GEMINI_API_KEY:
+        return f"vertex_ai/{name}"
+    return f"gemini/{name}"
 
 
 def resolve_byok_model(provider: str, model: str) -> str:
