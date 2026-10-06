@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Sliders, Eye, Check } from "lucide-react";
 import {
   LiveKitAudioVisualizer,
@@ -148,7 +149,7 @@ export function VoiceUiCustomizer({
             controls={controls}
             primaryColor={visualizerColor}
             isChatOpen={previewChatOpen}
-            onToggleChat={() => setPreviewChatOpen((v) => !v)}
+            onToggleChat={() => setPreviewChatOpen((v: boolean) => !v)}
             onToggleMute={() => {}}
             onDisconnect={() => {}}
           />
