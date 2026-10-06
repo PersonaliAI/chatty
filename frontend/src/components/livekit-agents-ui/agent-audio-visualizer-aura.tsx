@@ -314,6 +314,7 @@ function AuraShader({
     <div ref={ref} className={className} {...props}>
       <ReactShaderToy
         fs={shaderSource}
+        animateWhenNotVisible={true}
         devicePixelRatio={devicePixelRatio}
         uniforms={{
           // Aurora wave speed

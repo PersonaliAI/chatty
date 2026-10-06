@@ -197,12 +197,21 @@ export function AgentAudioVisualizerRadial({
   return (
     <div
       data-lk-state={state}
-      className={cn(AgentAudioVisualizerRadialVariants({ size }), 'relative', className)}
+      className={cn(
+        AgentAudioVisualizerRadialVariants({ size }),
+        state === 'thinking' && 'animate-spin [animation-duration:3s]',
+        'relative',
+        className
+      )}
       style={{ ...style, color } as CSSProperties}
       {...props}
     >
       {resolvedVolumeBands.map((band, idx) => {
         const angle = (idx / _barCount) * Math.PI * 2;
+        const isHighlighted = highlightedIndices.includes(idx);
+        const spokeHeight = state === 'speaking'
+          ? Math.max(dotSize, dotSize * (1 + band * 8))
+          : dotSize;
 
         return (
           <div
@@ -216,11 +225,17 @@ export function AgentAudioVisualizerRadial({
           >
             <div
               data-lk-index={idx}
-              data-lk-highlighted={highlightedIndices.includes(idx)}
+              data-lk-highlighted={isHighlighted}
+              className="rounded-full transition-all duration-150 ease-linear"
               style={{
-                width: dotSize,
-                minHeight: dotSize,
-                height: state === 'speaking' ? `${dotSize * 10 * band}px` : 0,
+                width: Math.max(3, dotSize),
+                minHeight: Math.max(3, dotSize),
+                height: `${spokeHeight}px`,
+                backgroundColor: color || 'currentColor',
+                opacity: isHighlighted || state === 'speaking' || state === 'thinking' ? 1 : 0.2,
+                boxShadow: (isHighlighted || (state === 'speaking' && band > 0.35))
+                  ? `0 0 8px ${color || 'currentColor'}`
+                  : 'none',
               }}
             />
           </div>

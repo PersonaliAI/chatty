@@ -155,6 +155,7 @@ interface GridCellProps {
   volumeBands: number[];
   highlightedCoordinate: Coordinate;
   children?: ReactNode;
+  color?: `#${string}`;
 }
 
 const GridCell = memo(function GridCell({
@@ -166,6 +167,7 @@ const GridCell = memo(function GridCell({
   volumeBands,
   highlightedCoordinate,
   children,
+  color,
 }: GridCellProps) {
   if (state === 'speaking') {
     const y = Math.floor(index / columnCount);
@@ -178,6 +180,12 @@ const GridCell = memo(function GridCell({
     return cloneSingleChild(children, {
       'data-lk-index': index,
       'data-lk-highlighted': isHighlighted,
+      style: {
+        backgroundColor: isHighlighted ? (color || 'currentColor') : `${color || 'currentColor'}20`,
+        opacity: isHighlighted ? 1 : 0.2,
+        transform: isHighlighted ? 'scale(1.25)' : 'scale(1)',
+        boxShadow: isHighlighted ? `0 0 6px ${color || 'currentColor'}90` : 'none',
+      },
     });
   }
 
@@ -192,6 +200,10 @@ const GridCell = memo(function GridCell({
     'data-lk-highlighted': isHighlighted,
     style: {
       transitionDuration: `${transitionDurationInSeconds}s`,
+      backgroundColor: isHighlighted ? (color || 'currentColor') : `${color || 'currentColor'}20`,
+      opacity: isHighlighted ? 1 : 0.2,
+      transform: isHighlighted ? 'scale(1.25)' : 'scale(1)',
+      boxShadow: isHighlighted ? `0 0 6px ${color || 'currentColor'}90` : 'none',
     },
   });
 });
@@ -307,6 +319,7 @@ export function AgentAudioVisualizerGrid({
           columnCount={columnCount}
           volumeBands={resolvedVolumeBands}
           highlightedCoordinate={highlightedCoordinate}
+          color={color}
         >
           {children ?? <div className={AgentAudioVisualizerGridCellVariants({ size })} />}
         </GridCell>

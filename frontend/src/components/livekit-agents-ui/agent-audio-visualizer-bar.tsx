@@ -223,25 +223,41 @@ export function AgentAudioVisualizerBar({
       className={cn(AgentAudioVisualizerBarVariants({ size }), className)}
       {...props}
     >
-      {bands.map((band: number, idx: number) =>
-        children ? (
+      {bands.map((band: number, idx: number) => {
+        const isHighlighted = highlightedIndices.includes(idx);
+        const barHeight = state === 'speaking'
+          ? `${Math.max(15, Math.min(100, Math.round(band * 100)))}%`
+          : undefined;
+
+        return children ? (
           <React.Fragment key={idx}>
             {cloneSingleChild(children, {
               'data-lk-index': idx,
-              'data-lk-highlighted': highlightedIndices.includes(idx),
-              style: { height: `${band * 100}%` },
+              'data-lk-highlighted': isHighlighted,
+              style: {
+                height: barHeight,
+                backgroundColor: isHighlighted || state === 'speaking' ? (color || 'currentColor') : `${color || 'currentColor'}26`,
+                opacity: isHighlighted || state === 'speaking' ? 1 : 0.25,
+              },
             })}
           </React.Fragment>
         ) : (
           <div
             key={idx}
             data-lk-index={idx}
-            data-lk-highlighted={highlightedIndices.includes(idx)}
-            style={{ height: `${band * 100}%` }}
-            className={cn(AgentAudioVisualizerBarElementVariants({ size }))}
+            data-lk-highlighted={isHighlighted}
+            style={{
+              height: barHeight,
+              backgroundColor: isHighlighted || state === 'speaking' ? (color || 'currentColor') : `${color || 'currentColor'}26`,
+              opacity: isHighlighted || state === 'speaking' ? 1 : 0.25,
+              boxShadow: (isHighlighted || (state === 'speaking' && band > 0.35))
+                ? `0 0 10px ${color || 'currentColor'}80`
+                : 'none',
+            }}
+            className={cn(AgentAudioVisualizerBarElementVariants({ size }), 'transition-all duration-100 ease-out')}
           />
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

@@ -10,12 +10,15 @@ import { AgentAudioVisualizerRadial, type AgentAudioVisualizerRadialProps } from
 import { AgentAudioVisualizerGrid, type AgentAudioVisualizerGridProps } from "./agent-audio-visualizer-grid";
 import { AgentAudioVisualizerBar, type AgentAudioVisualizerBarProps } from "./agent-audio-visualizer-bar";
 
+import { useSimulatedVolumeBands } from "./hooks/use-simulated-volume-bands";
+
 export {
   AgentAudioVisualizerAura,
   AgentAudioVisualizerWave,
   AgentAudioVisualizerRadial,
   AgentAudioVisualizerGrid,
   AgentAudioVisualizerBar,
+  useSimulatedVolumeBands,
 };
 
 export type VisualizerType = "aura" | "wave" | "radial" | "grid" | "bar";
@@ -112,16 +115,41 @@ export function LiveKitAudioVisualizer({
   const safeType: VisualizerType = (["aura", "wave", "radial", "grid", "bar"].includes(type) ? type : "bar") as VisualizerType;
   const activeColor = (color || VISUALIZER_DEFAULTS[safeType]?.color || "#4CA3FA") as `#${string}`;
 
-  // Generate multi-band volumes when simulating from audioLevel
-  const volume = lkState === "speaking" ? Math.max(0.1, audioLevel) : 0;
-  const simulatedVolumeBands = useMemo(() => {
-    if (lkState !== "speaking") return undefined;
-    const bandLength = 36;
-    return Array.from({ length: bandLength }, (_, i) => {
-      const spread = Math.sin((i / (bandLength - 1)) * Math.PI);
-      return Math.max(0.05, Math.min(1.0, audioLevel * spread * (0.7 + Math.random() * 0.3)));
-    });
-  }, [lkState, audioLevel]);
+  // Determine required band count based on visualizer geometry
+  const requiredBands = useMemo(() => {
+    switch (safeType) {
+      case "radial":
+        return barCount ?? VISUALIZER_DEFAULTS.radial.barCount;
+      case "grid":
+        return columnCount ?? (size === "sm" ? 9 : size === "lg" ? 17 : 15);
+      case "bar":
+        return barCount ?? VISUALIZER_DEFAULTS.bar.barCount;
+      case "aura":
+      case "wave":
+      default:
+        return 5;
+    }
+  }, [safeType, barCount, columnCount, size]);
+
+  // Hook into continuous 60fps simulated multi-band volume stream
+  const simulatedBands = useSimulatedVolumeBands(requiredBands);
+
+  // When speaking without a live WebRTC audioTrack (e.g. preview mode or widget simulated voice),
+  // stream real-time 60fps oscillating volume bands simulating natural speech pauses and cadence.
+  const isSimulatedSpeaking = !audioTrack && lkState === "speaking";
+
+  const effectiveVolumeBands = useMemo(() => {
+    if (!isSimulatedSpeaking) return undefined;
+    return simulatedBands;
+  }, [isSimulatedSpeaking, simulatedBands]);
+
+  const effectiveVolume = useMemo(() => {
+    if (lkState !== "speaking") return 0;
+    if (!audioTrack) {
+      return simulatedBands[0] ?? Math.max(0.1, audioLevel);
+    }
+    return Math.max(0.1, audioLevel);
+  }, [lkState, audioTrack, simulatedBands, audioLevel]);
 
   switch (safeType) {
     case "aura":
@@ -133,7 +161,7 @@ export function LiveKitAudioVisualizer({
             colorShift={colorShift ?? VISUALIZER_DEFAULTS.aura.colorShift}
             size={size}
             audioTrack={audioTrack}
-            volume={volume}
+            volume={audioTrack ? undefined : effectiveVolume}
           />
         </div>
       );
@@ -148,7 +176,7 @@ export function LiveKitAudioVisualizer({
             lineWidth={lineWidth ?? VISUALIZER_DEFAULTS.wave.lineWidth}
             size={size}
             audioTrack={audioTrack}
-            volume={volume}
+            volume={audioTrack ? undefined : effectiveVolume}
           />
         </div>
       );
@@ -163,7 +191,7 @@ export function LiveKitAudioVisualizer({
             barCount={barCount ?? VISUALIZER_DEFAULTS.radial.barCount}
             size={size}
             audioTrack={audioTrack}
-            volumeBands={simulatedVolumeBands}
+            volumeBands={effectiveVolumeBands}
           />
         </div>
       );
@@ -178,7 +206,7 @@ export function LiveKitAudioVisualizer({
             columnCount={columnCount ?? (size === "sm" ? 9 : size === "lg" ? 17 : 15)}
             size={size}
             audioTrack={audioTrack}
-            volumeBands={simulatedVolumeBands}
+            volumeBands={effectiveVolumeBands}
           />
         </div>
       );
@@ -193,7 +221,7 @@ export function LiveKitAudioVisualizer({
             barCount={barCount ?? VISUALIZER_DEFAULTS.bar.barCount}
             size={size}
             audioTrack={audioTrack}
-            volumeBands={simulatedVolumeBands}
+            volumeBands={effectiveVolumeBands}
           />
         </div>
       );
