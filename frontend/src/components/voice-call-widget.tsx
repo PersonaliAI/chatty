@@ -886,18 +886,19 @@ export default function VoiceCallWidget({
           <div className="relative shrink-0 overflow-hidden rounded-2xl border border-neutral-200/80 bg-gradient-to-br from-neutral-50 via-white to-orange-50/50 px-3 py-4 dark:border-neutral-800 dark:from-neutral-950 dark:via-neutral-900 dark:to-orange-950/20 sm:px-4 sm:py-5">
             <div className="absolute -right-10 -top-12 size-32 rounded-full blur-3xl opacity-20" style={{ background: primaryColor }} />
             <div className="relative flex flex-col items-center gap-3">
-              {(voiceUiSettings?.visualizerType && voiceUiSettings.visualizerType !== "bar" && voiceUiSettings.visualizerType === "orb") ? (
-                <Orb status={status} level={orbLevel} primaryColor={voiceUiSettings?.visualizerColor || primaryColor} />
-              ) : (
-                <LiveKitAudioVisualizer
-                  type={(voiceUiSettings?.visualizerType as any) || "bar"}
-                  state={status === "agent-speaking" ? "speaking" : status === "listening" ? "listening" : status === "connecting" ? "connecting" : "listening"}
-                  color={voiceUiSettings?.visualizerColor || primaryColor}
-                  size={voiceUiSettings?.visualizerSize || "md"}
-                  barCount={voiceUiSettings?.visualizerBarCount || 5}
-                  audioLevel={status === "agent-speaking" ? (typeof orbLevel?.get === "function" ? orbLevel.get() : 0.6) : (localLevels[2] || 0)}
-                />
-              )}
+              <LiveKitAudioVisualizer
+                type={voiceUiSettings?.visualizerType || "aura"}
+                state={status === "agent-speaking" ? "speaking" : status === "listening" ? "listening" : status === "connecting" ? "connecting" : "listening"}
+                color={voiceUiSettings?.visualizerColor || primaryColor}
+                size={voiceUiSettings?.visualizerSize || "md"}
+                barCount={voiceUiSettings?.visualizerBarCount}
+                rowCount={voiceUiSettings?.visualizerRowCount}
+                columnCount={voiceUiSettings?.visualizerColumnCount}
+                radius={voiceUiSettings?.visualizerRadius}
+                colorShift={voiceUiSettings?.visualizerColorShift}
+                lineWidth={voiceUiSettings?.visualizerLineWidth}
+                audioLevel={status === "agent-speaking" ? (typeof orbLevel?.get === "function" ? orbLevel.get() : 0.6) : (localLevels[2] || 0)}
+              />
               <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-500 dark:text-neutral-400">
                 <AudioWaveform className="size-3.5" style={{ color: primaryColor }} />
                 {status === "listening" ? "Listening" : statusLabel}

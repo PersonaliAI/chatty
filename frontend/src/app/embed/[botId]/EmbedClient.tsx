@@ -2820,6 +2820,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             originToken={originToken}
             visitorTimezone={visitorTimezone}
             primaryColor={primaryColor}
+            voiceUiSettings={voiceUiSettings}
             onClose={() => {
               setVoiceCallOpen(false);
               setChatView("chat");

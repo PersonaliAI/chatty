@@ -119,6 +119,7 @@ export default function VoiceAgentEmbedClient({
                       originToken={originToken}
                       visitorTimezone={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"}
                       primaryColor={primaryColor}
+                      voiceUiSettings={voiceUiSettings}
                       onClose={() => setActive(false)}
                     />
                   </motion.div>

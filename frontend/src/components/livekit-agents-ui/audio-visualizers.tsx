@@ -1,258 +1,201 @@
 "use client";
 
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useMemo } from "react";
+import type { AgentState } from "@livekit/components-react";
+import type { LocalAudioTrack, RemoteAudioTrack } from "livekit-client";
 
-export type VisualizerType = "bar" | "wave" | "radial";
-export type AgentVisualizerState = "connecting" | "listening" | "thinking" | "speaking" | "ended";
+import { AgentAudioVisualizerAura, type AgentAudioVisualizerAuraProps } from "./agent-audio-visualizer-aura";
+import { AgentAudioVisualizerWave, type AgentAudioVisualizerWaveProps } from "./agent-audio-visualizer-wave";
+import { AgentAudioVisualizerRadial, type AgentAudioVisualizerRadialProps } from "./agent-audio-visualizer-radial";
+import { AgentAudioVisualizerGrid, type AgentAudioVisualizerGridProps } from "./agent-audio-visualizer-grid";
+import { AgentAudioVisualizerBar, type AgentAudioVisualizerBarProps } from "./agent-audio-visualizer-bar";
+
+export {
+  AgentAudioVisualizerAura,
+  AgentAudioVisualizerWave,
+  AgentAudioVisualizerRadial,
+  AgentAudioVisualizerGrid,
+  AgentAudioVisualizerBar,
+};
+
+export type VisualizerType = "aura" | "wave" | "radial" | "grid" | "bar";
+export type AgentVisualizerState = "connecting" | "listening" | "thinking" | "speaking" | "ended" | "idle";
+
+export const VISUALIZER_DEFAULTS = {
+  aura: {
+    color: "#1FD5F9",
+    colorShift: 0.3,
+  },
+  wave: {
+    color: "#FA954C",
+    colorShift: 0.3,
+    lineWidth: 2,
+  },
+  radial: {
+    color: "#04A43A",
+    radius: 60,
+    barCount: 24,
+  },
+  grid: {
+    color: "#C04CFA",
+    rowCount: 15,
+    columnCount: 15,
+  },
+  bar: {
+    color: "#4CA3FA",
+    barCount: 5,
+  },
+} as const;
 
 export interface AudioVisualizerProps {
   type?: VisualizerType;
   state?: AgentVisualizerState;
   color?: string;
-  size?: "sm" | "md" | "lg";
+  size?: "icon" | "sm" | "md" | "lg" | "xl";
   barCount?: number;
+  rowCount?: number;
+  columnCount?: number;
+  radius?: number;
+  colorShift?: number;
+  lineWidth?: number;
   audioLevel?: number; // 0 to 1
+  audioTrack?: LocalAudioTrack | RemoteAudioTrack;
   className?: string;
 }
 
 /**
- * 1. Bar Visualizer (Official LiveKit Pattern)
- * Displays reactive bars with state animations for connecting, listening, thinking, and speaking.
+ * Normalizes input state string to official LiveKit AgentState
  */
-export function LiveKitBarVisualizer({
+function toLiveKitAgentState(state?: string): AgentState {
+  switch (state) {
+    case "connecting":
+      return "connecting";
+    case "listening":
+      return "listening";
+    case "thinking":
+      return "thinking";
+    case "speaking":
+    case "agent-speaking":
+      return "speaking";
+    case "ended":
+      return "disconnected";
+    default:
+      return "listening";
+  }
+}
+
+/**
+ * Universal Unified LiveKit Audio Visualizer Component
+ * Directly renders the official LiveKit visualizers:
+ * - <AgentAudioVisualizerAura />
+ * - <AgentAudioVisualizerWave />
+ * - <AgentAudioVisualizerRadial />
+ * - <AgentAudioVisualizerGrid />
+ * - <AgentAudioVisualizerBar />
+ */
+export function LiveKitAudioVisualizer({
+  type = "bar",
   state = "listening",
-  color = "#f97316",
+  color,
   size = "md",
-  barCount = 5,
+  barCount,
+  rowCount,
+  columnCount,
+  radius,
+  colorShift,
+  lineWidth,
   audioLevel = 0,
+  audioTrack,
   className = "",
 }: AudioVisualizerProps) {
-  const [frame, setFrame] = useState(0);
+  const lkState = toLiveKitAgentState(state);
+  const safeType: VisualizerType = (["aura", "wave", "radial", "grid", "bar"].includes(type) ? type : "bar") as VisualizerType;
+  const activeColor = (color || VISUALIZER_DEFAULTS[safeType]?.color || "#4CA3FA") as `#${string}`;
 
-  useEffect(() => {
-    let animId: number;
-    let count = 0;
-    const loop = () => {
-      count++;
-      setFrame(count);
-      animId = requestAnimationFrame(loop);
-    };
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, []);
-
-  const count = Math.max(3, Math.min(15, barCount));
-
-  const heights = useMemo(() => {
-    return Array.from({ length: count }, (_, idx) => {
-      if (state === "speaking") {
-        const spread = Math.sin((idx / (count - 1)) * Math.PI);
-        const wave = Math.sin(frame * 0.15 + idx * 0.8) * 0.2;
-        const h = Math.max(0.12, Math.min(1.0, (audioLevel * 0.9 + wave) * spread + 0.15));
-        return h;
-      }
-      if (state === "thinking") {
-        const activeIdx = Math.floor((frame / 6) % count);
-        return idx === activeIdx ? 0.85 : 0.25;
-      }
-      if (state === "connecting") {
-        const progress = ((frame % 60) / 60) * count;
-        const diff = Math.abs(progress - idx);
-        return diff < 1 ? 0.7 : 0.2;
-      }
-      // Listening: gentle ambient breathing
-      const breath = Math.sin(frame * 0.05 + idx * 0.4) * 0.15 + 0.3;
-      return Math.max(0.15, breath + audioLevel * 0.4);
+  // Generate multi-band volumes when simulating from audioLevel
+  const volume = lkState === "speaking" ? Math.max(0.1, audioLevel) : 0;
+  const simulatedVolumeBands = useMemo(() => {
+    if (lkState !== "speaking") return undefined;
+    const bandLength = 36;
+    return Array.from({ length: bandLength }, (_, i) => {
+      const spread = Math.sin((i / (bandLength - 1)) * Math.PI);
+      return Math.max(0.05, Math.min(1.0, audioLevel * spread * (0.7 + Math.random() * 0.3)));
     });
-  }, [state, count, frame, audioLevel]);
+  }, [lkState, audioLevel]);
 
-  const heightClass = size === "sm" ? "h-8 gap-1" : size === "lg" ? "h-20 gap-2.5" : "h-14 gap-1.5";
-  const barWidth = size === "sm" ? "w-1" : size === "lg" ? "w-2.5" : "w-1.5";
-
-  return (
-    <div className={`flex items-center justify-center ${heightClass} ${className}`} aria-label={`Voice visualizer (${state})`}>
-      {heights.map((h, i) => (
-        <span
-          key={i}
-          className={`${barWidth} rounded-full transition-all duration-75 ease-out`}
-          style={{
-            height: `${Math.round(h * 100)}%`,
-            backgroundColor: color,
-            opacity: state === "listening" ? 0.7 : state === "thinking" ? 0.85 : 1,
-            boxShadow: state === "speaking" ? `0 0 10px ${color}60` : undefined,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
- * 2. Wave Visualizer (Smooth Audio Waveform)
- */
-export function LiveKitWaveVisualizer({
-  state = "listening",
-  color = "#f97316",
-  size = "md",
-  audioLevel = 0,
-  className = "",
-}: AudioVisualizerProps) {
-  const [frame, setFrame] = useState(0);
-
-  useEffect(() => {
-    let animId: number;
-    let count = 0;
-    const loop = () => {
-      count++;
-      setFrame(count);
-      animId = requestAnimationFrame(loop);
-    };
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, []);
-
-  const width = size === "sm" ? 120 : size === "lg" ? 220 : 160;
-  const height = size === "sm" ? 36 : size === "lg" ? 64 : 48;
-  const points = 32;
-
-  const pathD = useMemo(() => {
-    const centerY = height / 2;
-    const amp = state === "speaking"
-      ? Math.max(4, audioLevel * (height * 0.42))
-      : state === "thinking"
-      ? Math.sin(frame * 0.2) * 8 + 10
-      : Math.sin(frame * 0.05) * 4 + 6;
-
-    const coords: [number, number][] = [];
-    for (let i = 0; i < points; i++) {
-      const x = (i / (points - 1)) * width;
-      const bell = Math.sin((i / (points - 1)) * Math.PI);
-      const wave = Math.sin(i * 0.5 + frame * 0.12);
-      const y = centerY + wave * amp * bell;
-      coords.push([x, y]);
-    }
-
-    if (coords.length === 0) return "";
-    return coords.reduce((acc, [x, y], idx) => {
-      return idx === 0 ? `M ${x} ${y}` : `${acc} L ${x} ${y}`;
-    }, "");
-  }, [width, height, points, state, audioLevel, frame]);
-
-  return (
-    <div className={`flex items-center justify-center ${className}`}>
-      <svg width={width} height={height} className="overflow-visible">
-        <path
-          d={pathD}
-          fill="none"
-          stroke={color}
-          strokeWidth={size === "lg" ? 3 : 2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{
-            filter: state === "speaking" ? `drop-shadow(0 0 6px ${color}80)` : undefined,
-          }}
-        />
-      </svg>
-    </div>
-  );
-}
-
-/**
- * 3. Radial Visualizer (Circular Ring / Orb with live radiating spokes)
- */
-export function LiveKitRadialVisualizer({
-  state = "listening",
-  color = "#f97316",
-  size = "md",
-  barCount = 16,
-  audioLevel = 0,
-  className = "",
-}: AudioVisualizerProps) {
-  const [frame, setFrame] = useState(0);
-
-  useEffect(() => {
-    let animId: number;
-    let count = 0;
-    const loop = () => {
-      count++;
-      setFrame(count);
-      animId = requestAnimationFrame(loop);
-    };
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, []);
-
-  const totalBars = Math.max(12, Math.min(32, barCount));
-  const diameter = size === "sm" ? 64 : size === "lg" ? 130 : 96;
-  const radius = diameter / 2;
-
-  return (
-    <div
-      className={`relative flex items-center justify-center ${className}`}
-      style={{ width: diameter, height: diameter }}
-    >
-      {/* Center glowing core */}
-      <div
-        className="absolute rounded-full transition-all duration-200"
-        style={{
-          width: radius * 0.9,
-          height: radius * 0.9,
-          backgroundColor: `${color}15`,
-          border: `1.5px solid ${color}40`,
-          boxShadow: state === "speaking" ? `0 0 16px ${color}40` : undefined,
-          transform: state === "thinking" ? `scale(${1 + Math.sin(frame * 0.1) * 0.08})` : undefined,
-        }}
-      />
-
-      {/* Radiating bars */}
-      {Array.from({ length: totalBars }).map((_, idx) => {
-        const angle = (idx / totalBars) * 360;
-        const rad = (angle * Math.PI) / 180;
-        let barLen = 4;
-
-        if (state === "speaking") {
-          const wave = Math.sin(frame * 0.15 + idx * 0.6);
-          barLen = Math.max(3, (audioLevel * 18 + wave * 4));
-        } else if (state === "thinking") {
-          const active = (Math.floor(frame / 4) % totalBars) === idx;
-          barLen = active ? 14 : 4;
-        } else if (state === "connecting") {
-          const active = (Math.floor(frame / 3) % totalBars) === idx;
-          barLen = active ? 12 : 3;
-        } else {
-          barLen = Math.max(3, Math.sin(frame * 0.04 + idx * 0.3) * 3 + 4);
-        }
-
-        const barWidth = size === "lg" ? 2.5 : 2;
-
-        return (
-          <div
-            key={idx}
-            className="absolute rounded-full origin-bottom"
-            style={{
-              width: barWidth,
-              height: barLen,
-              backgroundColor: color,
-              opacity: state === "speaking" ? 0.95 : 0.6,
-              transform: `rotate(${angle}deg) translate(0px, -${radius - 4}px)`,
-            }}
+  switch (safeType) {
+    case "aura":
+      return (
+        <div className={`relative flex items-center justify-center ${className}`}>
+          <AgentAudioVisualizerAura
+            state={lkState}
+            color={activeColor}
+            colorShift={colorShift ?? VISUALIZER_DEFAULTS.aura.colorShift}
+            size={size}
+            audioTrack={audioTrack}
+            volume={volume}
           />
-        );
-      })}
-    </div>
-  );
-}
+        </div>
+      );
 
-/**
- * Universal Unified Visualizer Router
- */
-export function LiveKitAudioVisualizer(props: AudioVisualizerProps) {
-  const visualizerType = props.type || "bar";
-  if (visualizerType === "wave") {
-    return <LiveKitWaveVisualizer {...props} />;
+    case "wave":
+      return (
+        <div className={`relative flex items-center justify-center ${className}`}>
+          <AgentAudioVisualizerWave
+            state={lkState}
+            color={activeColor}
+            colorShift={colorShift ?? VISUALIZER_DEFAULTS.wave.colorShift}
+            lineWidth={lineWidth ?? VISUALIZER_DEFAULTS.wave.lineWidth}
+            size={size}
+            audioTrack={audioTrack}
+            volume={volume}
+          />
+        </div>
+      );
+
+    case "radial":
+      return (
+        <div className={`relative flex items-center justify-center ${className}`}>
+          <AgentAudioVisualizerRadial
+            state={lkState}
+            color={activeColor}
+            radius={radius ?? (size === "sm" ? 30 : size === "lg" ? 80 : 60)}
+            barCount={barCount ?? VISUALIZER_DEFAULTS.radial.barCount}
+            size={size}
+            audioTrack={audioTrack}
+            volumeBands={simulatedVolumeBands}
+          />
+        </div>
+      );
+
+    case "grid":
+      return (
+        <div className={`relative flex items-center justify-center ${className}`}>
+          <AgentAudioVisualizerGrid
+            state={lkState}
+            color={activeColor}
+            rowCount={rowCount ?? (size === "sm" ? 9 : size === "lg" ? 17 : 15)}
+            columnCount={columnCount ?? (size === "sm" ? 9 : size === "lg" ? 17 : 15)}
+            size={size}
+            audioTrack={audioTrack}
+            volumeBands={simulatedVolumeBands}
+          />
+        </div>
+      );
+
+    case "bar":
+    default:
+      return (
+        <div className={`relative flex items-center justify-center ${className}`}>
+          <AgentAudioVisualizerBar
+            state={lkState}
+            color={activeColor}
+            barCount={barCount ?? VISUALIZER_DEFAULTS.bar.barCount}
+            size={size}
+            audioTrack={audioTrack}
+            volumeBands={simulatedVolumeBands}
+          />
+        </div>
+      );
   }
-  if (visualizerType === "radial") {
-    return <LiveKitRadialVisualizer {...props} />;
-  }
-  return <LiveKitBarVisualizer {...props} />;
 }
