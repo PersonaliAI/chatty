@@ -279,7 +279,7 @@ export default function Dashboard() {
   // them to review/edit before sending (current default); "audio" skips
   // transcription and sends the recording itself as a playable voice
   // message bubble.
-  const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
+  const [voiceMessageMode, setVoiceMessageMode] = useState<string>("transcribe");
   const [avatarIcon, setAvatarIcon] = useState("logo");
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   // Set only when the current avatarUrl came from the icon library (not a
@@ -1395,7 +1395,7 @@ export default function Dashboard() {
         setHideBranding(activeBot.hide_branding || false);
         setShowSenderTag(activeBot.show_sender_tag || false);
         setCsatEnabled(activeBot.csat_enabled !== false);
-        setVoiceMessageMode(activeBot.voice_message_mode === "audio" ? "audio" : "transcribe");
+        setVoiceMessageMode(activeBot.voice_message_mode || "transcribe");
         setWebhookUrl(activeBot.webhook_url || "");
         setNotificationEmails(String(activeBot.notification_emails || ""));
         setCustomCss(activeBot.custom_css || "");
@@ -1577,7 +1577,7 @@ export default function Dashboard() {
       setHideBranding(selected.hide_branding || false);
       setShowSenderTag(selected.show_sender_tag || false);
       setCsatEnabled(selected.csat_enabled !== false);
-      setVoiceMessageMode(selected.voice_message_mode === "audio" ? "audio" : "transcribe");
+      setVoiceMessageMode(selected.voice_message_mode || "transcribe");
       setWebhookUrl(selected.webhook_url || "");
       setCustomCss(selected.custom_css || "");
       setCustomJs(selected.custom_js || "");
@@ -3649,8 +3649,12 @@ export default function Dashboard() {
     voice_realtime_provider?: "google" | "openai";
     voice_realtime_model?: string | null;
     welcome_message?: string;
+    voice_message_mode?: string;
   }) => {
     if (!botId) return;
+    if (fields.voice_message_mode !== undefined) {
+      setVoiceMessageMode(fields.voice_message_mode);
+    }
     setSavingVoiceField(true);
     try {
       // Route dashboard writes through the authenticated API in every
@@ -4521,7 +4525,7 @@ export default function Dashboard() {
               setFontSizePercent={setFontSizePercent}
               panelSize={panelSize}
               setPanelSize={setPanelSize}
-              voiceMessageMode={voiceMessageMode}
+              voiceMessageMode={voiceMessageMode === "audio" ? "audio" : "transcribe"}
               setVoiceMessageMode={setVoiceMessageMode}
               botName={botName}
               setBotName={setBotName}

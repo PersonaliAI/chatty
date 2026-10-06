@@ -986,7 +986,7 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
             "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
             "voice_agent_role, voice_max_duration_minutes, "
             "voice_realtime_provider, voice_realtime_model, voice_realtime_byok_key_encrypted, "
-            "user_id"
+            "voice_message_mode, user_id"
         ).eq("id", bot_id).execute())
     except Exception:
         # voice_mode/voice_realtime_*'s migration (20260829030000) may not be
@@ -995,7 +995,7 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
         res = await run_db(lambda: supabase.table("chatty_bots").select(
             "voice_enabled, voice_stt_provider, voice_stt_byok_key_encrypted, "
             "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
-            "voice_agent_role, voice_max_duration_minutes, user_id"
+            "voice_agent_role, voice_max_duration_minutes, voice_message_mode, user_id"
         ).eq("id", bot_id).execute())
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
@@ -1013,6 +1013,7 @@ async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require
         "voice_realtime_provider": row.get("voice_realtime_provider") or "google",
         "voice_realtime_model": row.get("voice_realtime_model"),
         "voice_realtime_configured": bool(row.get("voice_realtime_byok_key_encrypted")),
+        "voice_message_mode": row.get("voice_message_mode"),
     }
 
 
@@ -1063,6 +1064,8 @@ async def set_voice_settings(
         update["voice_agent_role"] = req.voice_agent_role
     if req.voice_max_duration_minutes is not None:
         update["voice_max_duration_minutes"] = max(1, min(60, req.voice_max_duration_minutes))
+    if req.voice_message_mode is not None:
+        update["voice_message_mode"] = req.voice_message_mode
 
     if update:
         try:

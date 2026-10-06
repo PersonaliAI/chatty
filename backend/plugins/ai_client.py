@@ -65,6 +65,23 @@ _TRANSIENT_EXCEPTIONS = (
 )
 
 
+def _is_unrecoverable_key_error(exc: Exception) -> bool:
+    """Return True if the error is an unrecoverable API key or permission failure.
+    Retrying other models under the same provider/key is futile and adds 20-30s latency."""
+    msg = str(exc).lower()
+    return any(
+        term in msg
+        for term in (
+            "api_key_service_blocked",
+            "api_key_invalid",
+            "permission_denied",
+            "service_disabled",
+            "billing_not_enabled",
+            "account_deactivated",
+        )
+    )
+
+
 def resolve_gemini_model(name: str) -> str:
     """Prefix a bare Gemini model name for LiteLLM. Already-prefixed model
     strings (any provider) pass through unchanged."""
@@ -260,6 +277,9 @@ async def chat(
                 session_id=session_id, is_byok=is_byok, success=False, error=str(exc),
                 latency_ms=int((time.monotonic() - start) * 1000),
             )
+            if _is_unrecoverable_key_error(exc):
+                logger.error("AI API key is blocked or unauthorized (%s) - failing fast without retrying fallbacks", exc)
+                raise
             break
 
     for fallback_model in candidates[1:]:
@@ -388,8 +408,11 @@ async def chat_stream(
             exc.emitted_chars,
         )
         raise
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         logger.exception("stream failed on %s", model)
+        if _is_unrecoverable_key_error(exc):
+            logger.error("AI API key is blocked or unauthorized (%s) - failing fast on stream", exc)
+            raise
         stream_fallbacks: list[str] = []
         for fallback_model in (fallback_models or []):
             if fallback_model and fallback_model != model and fallback_model not in stream_fallbacks:
@@ -397,8 +420,10 @@ async def chat_stream(
         for fallback_model in stream_fallbacks:
             try:
                 return await _run(fallback_model)
-            except Exception:  # noqa: BLE001
+            except Exception as fb_exc:  # noqa: BLE001
                 logger.exception("stream fallback failed on %s", fallback_model)
+                if _is_unrecoverable_key_error(fb_exc):
+                    raise
         # Last resort: non-streaming call (has its own retry + fallback chain).
         # Streaming providers can fail after opening a stream (or reject
         # stream_options entirely).  We already attempted every fallback above;

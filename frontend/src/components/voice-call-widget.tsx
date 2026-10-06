@@ -30,7 +30,10 @@ import {
 } from "@/components/livekit-agents-ui/agent-chat-transcript";
 import { AgentChatIndicator } from "@/components/livekit-agents-ui/agent-chat-indicator";
 import { StartAudioButton } from "@/components/livekit-agents-ui/start-audio-button";
-import type { VoiceUiSettingsData } from "@/app/dashboard/tabs/VoiceUiCustomizer";
+import {
+  type VoiceUiSettingsData,
+  DEFAULT_VOICE_UI_SETTINGS,
+} from "@/app/dashboard/tabs/VoiceUiCustomizer";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
@@ -250,9 +253,61 @@ export default function VoiceCallWidget({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const localLevelFrameRef = useRef<number | null>(null);
 
-  // Compute active visualizer style
-  const visualizerType: VisualizerType = (voiceUiSettings?.visualizerType as VisualizerType) || "bar";
-  const visualizerColor = voiceUiSettings?.visualizerColor || primaryColor;
+  // Internal Voice UI settings fallback if not passed directly as prop
+  const [internalVoiceUiSettings, setInternalVoiceUiSettings] = useState<VoiceUiSettingsData | null>(null);
+
+  useEffect(() => {
+    if (voiceUiSettings) return;
+    if (!botId || !backendUrl) return;
+    let cancelled = false;
+    fetch(`${backendUrl}/api/widget/theme?bot_id=${encodeURIComponent(botId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        if (
+          data.voice_message_mode &&
+          typeof data.voice_message_mode === "string" &&
+          data.voice_message_mode.startsWith("{")
+        ) {
+          try {
+            setInternalVoiceUiSettings({
+              ...DEFAULT_VOICE_UI_SETTINGS,
+              ...JSON.parse(data.voice_message_mode),
+            });
+          } catch {}
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [botId, backendUrl, voiceUiSettings]);
+
+  const effectiveVoiceUi = useMemo<VoiceUiSettingsData>(() => {
+    return voiceUiSettings || internalVoiceUiSettings || DEFAULT_VOICE_UI_SETTINGS;
+  }, [voiceUiSettings, internalVoiceUiSettings]);
+
+  // Compute active visualizer style (defaulting cleanly to "aura" and cyan)
+  const visualizerType: VisualizerType = effectiveVoiceUi.visualizerType || "aura";
+  const visualizerColor = effectiveVoiceUi.visualizerColor || primaryColor || "#1FD5F9";
+
+  // Guard against hanging "thinking" state when backend LLM fails or times out
+  useEffect(() => {
+    if (status !== "thinking") return;
+    const timer = setTimeout(() => {
+      setStatus("listening");
+      setTranscript((prev) => [
+        ...prev,
+        {
+          id: `timeout-${Date.now()}`,
+          speaker: "agent",
+          text: "I didn't receive a response from the AI assistant in time. Please check your AI API key or try again.",
+          final: true,
+        },
+      ]);
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [status]);
 
   // Compute visualizer state string
   const visualizerState: AgentVisualizerState = useMemo(() => {
@@ -396,10 +451,10 @@ export default function VoiceCallWidget({
               }
             } else if (data?.type === "voice_error") {
               const message = String(
-                data.message || "Voice audio failed. Please reconnect and try again."
+                data.message || "Voice audio failed. Please try again."
               );
               setErrorMessage(message);
-              setStatus("error");
+              setStatus("listening");
               setTranscript((prev) => [
                 ...prev,
                 { id: `voice-error-${Date.now()}`, speaker: "agent", text: message, final: true },
@@ -955,13 +1010,13 @@ export default function VoiceCallWidget({
                       type={visualizerType}
                       state={visualizerState}
                       color={visualizerColor}
-                      size="lg"
-                      barCount={voiceUiSettings?.visualizerBarCount}
-                      rowCount={voiceUiSettings?.visualizerRowCount}
-                      columnCount={voiceUiSettings?.visualizerColumnCount}
-                      radius={voiceUiSettings?.visualizerRadius}
-                      colorShift={voiceUiSettings?.visualizerColorShift}
-                      lineWidth={voiceUiSettings?.visualizerLineWidth}
+                      size={effectiveVoiceUi.visualizerSize || "lg"}
+                      barCount={effectiveVoiceUi.visualizerBarCount}
+                      rowCount={effectiveVoiceUi.visualizerRowCount}
+                      columnCount={effectiveVoiceUi.visualizerColumnCount}
+                      radius={effectiveVoiceUi.visualizerRadius}
+                      colorShift={effectiveVoiceUi.visualizerColorShift}
+                      lineWidth={effectiveVoiceUi.visualizerLineWidth}
                       audioLevel={status === "agent-speaking" ? agentAudioLevel : localAudioLevel}
                     />
                   </div>
@@ -1011,11 +1066,11 @@ export default function VoiceCallWidget({
           {/* Official LiveKit Control Bar */}
           <div className="w-full pt-3">
             <LiveKitControlBar
-              variant="livekit"
+              variant={effectiveVoiceUi.controlBarVariant || "livekit"}
               controls={{
-                leave: true,
-                microphone: true,
-                chat: true,
+                leave: effectiveVoiceUi.controls?.leave !== false,
+                microphone: effectiveVoiceUi.controls?.microphone !== false,
+                chat: effectiveVoiceUi.controls?.chat !== false,
               }}
               muted={muted}
               onToggleMute={toggleMute}

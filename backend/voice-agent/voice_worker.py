@@ -631,17 +631,23 @@ class ChattyVoiceAgent(Agent):
                 round((first_tts_phrase_at - turn_started_at) * 1000) if first_tts_phrase_at else None,
             )
             if task_error is not None:
+                err_str = str(task_error)
                 logger.error(
-                    "voice worker: assistant turn failed mode=pipeline error_type=%s",
+                    "voice worker: assistant turn failed mode=pipeline error_type=%s err=%s",
                     type(task_error).__name__,
+                    err_str,
                 )
+                if "api_key_service_blocked" in err_str.lower() or "permission_denied" in err_str.lower():
+                    err_msg = "The configured AI API key is blocked or unauthorized. Please verify the AI key in your dashboard."
+                else:
+                    err_msg = "The assistant could not complete that turn. Please try again or type your message instead."
                 participant = getattr(self._room, "local_participant", None)
                 if participant is not None:
                     asyncio.create_task(
                         participant.publish_data(
                             json.dumps({
                                 "type": "voice_error",
-                                "message": "The assistant could not complete that turn. Please try again or type your message instead.",
+                                "message": err_msg,
                             }).encode("utf-8"),
                             reliable=True,
                         )

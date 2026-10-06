@@ -43,7 +43,7 @@ export interface Bot {
   hide_branding?: boolean;
   show_sender_tag?: boolean;
   csat_enabled?: boolean;
-  voice_message_mode?: "transcribe" | "audio";
+  voice_message_mode?: string;
   webhook_url?: string;
   custom_css?: string;
   custom_js?: string;

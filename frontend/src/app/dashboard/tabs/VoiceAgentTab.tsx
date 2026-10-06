@@ -2,7 +2,7 @@
 
 import { VoiceUiCustomizer, DEFAULT_VOICE_UI_SETTINGS, VoiceUiSettingsData } from "./VoiceUiCustomizer";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AudioWaveform, Mic, Check, Sparkles, ExternalLink, KeyRound } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ModernSelect } from "@/components/ui/modern-select";
@@ -185,6 +185,14 @@ export function VoiceAgentTab({
     }
     return DEFAULT_VOICE_UI_SETTINGS;
   });
+
+  useEffect(() => {
+    if (voiceMessageMode && typeof voiceMessageMode === "string" && voiceMessageMode.startsWith("{")) {
+      try {
+        setVoiceUiSettings({ ...DEFAULT_VOICE_UI_SETTINGS, ...JSON.parse(voiceMessageMode) });
+      } catch {}
+    }
+  }, [voiceMessageMode]);
 
   const handleUpdateVoiceUi = (patch: Partial<VoiceUiSettingsData>) => {
     const next = { ...voiceUiSettings, ...patch };
