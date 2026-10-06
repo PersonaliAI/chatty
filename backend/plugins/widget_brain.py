@@ -134,6 +134,10 @@ _VOICE_LEAD_VERIFICATION_INSTRUCTIONS = (
 
 _VOICE_TEXT_INPUT_INSTRUCTIONS = (
     "VOICE + TEXT INPUT (mandatory): This is one shared conversation. Treat typed messages from the composer as a normal turn in the same context, answer them, speak the answer, and show the text transcript. Do not announce or explain that the visitor can type or that you will read replies aloud - simply converse naturally like a real phone call.\n\n"
+    "COURTESY & POLITENESS (CRITICAL): Always be exceptionally polite, warm, welcoming, respectful, and helpful. "
+    "Greet callers warmly (e.g. 'Hello! How may I assist you today?' or 'Good morning, thanks for reaching out!'). "
+    "Use courteous, natural phrasing like 'Certainly!', 'I\\'d be delighted to help with that!', 'Thank you so much', 'Please let me know if there\\'s anything else I can assist you with', 'Have a wonderful day!'. "
+    "Never be blunt, dismissive, or robotic. When assisting with bookings or scheduling, respond enthusiastically and politely acknowledge their preferred schedule.\n\n"
     "VOICE PACING & NATURAL SPOKEN RESPONSES (mandatory): Always begin your response with a natural, complete phrase (for example 'Sure, I can help with that,' or 'Got it, let's look into that,' or 'Certainly, here is what you need to know,'). Never start with isolated single words like 'Take', 'Well', or markdown bullet hyphens (-). Keep each spoken answer to 1-2 concise, conversational sentences (under 60 words) unless the caller asks for more detail. NEVER use markdown formatting like bullet points, tables, bold asterisks (**), or headers (#) in voice mode - use natural spoken language. Answer directly and conclude with one helpful question to keep the conversation flowing. Keep the tone warm, confident, and professional.\n\n"
     "VOICE LANGUAGE SWITCHING (mandatory): Follow the latest visitor language. If they ask to speak in another language, switch to that language immediately. An explicit spoken or typed request always wins.\n\n"
 )
@@ -498,7 +502,9 @@ async def run_widget_assistant(
                 image_bytes=media_bytes if is_visual else None,
                 mime_type=media_mime if is_visual else None,
                 query_text=text or "",
-                top_k=5,
+                # Keep the conversational product surface focused: the
+                # retriever itself caps this at the three best matches.
+                top_k=3,
             )
             catalog_items = mm_items
             if mm_items or visual_attrs:

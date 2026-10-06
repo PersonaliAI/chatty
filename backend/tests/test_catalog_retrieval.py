@@ -17,7 +17,7 @@ def test_catalog_recommendation_policy_filters_unpublished_and_out_of_stock_item
 
 
 def test_catalog_search_limits_result_count_and_confidence():
-    assert multimodal_service.MAX_CATALOG_RESULTS == 20
+    assert multimodal_service.MAX_CATALOG_RESULTS == 3
     assert multimodal_service.FALLBACK_MIN_SCORE == 0.3
 
 

@@ -1325,7 +1325,7 @@ def _build_realtime_tools(
         try:
             items, visual_attrs = await asyncio.wait_for(
                 multimodal_service.search_multimodal_catalog(
-                    bot_id=bot_id, query_text=query, top_k=5,
+                    bot_id=bot_id, query_text=query, top_k=3,
                 ),
                 timeout=tool_timeout_seconds,
             )

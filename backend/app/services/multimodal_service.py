@@ -42,7 +42,10 @@ IMAGE_EMBEDDING_SCHEMA_VERSION = "catalog-multimodal-v2"
 IMAGE_EMBEDDING_MODEL = CATALOG_EMBED_MODEL
 MAX_CATALOG_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_CATALOG_IMAGES = 8
-MAX_CATALOG_RESULTS = 20
+# The widget is a recommendation surface, not a raw catalog browser. Keep the
+# hard ceiling small so a broad visual query cannot flood the conversation with
+# cards. Callers can still request fewer results for stricter experiences.
+MAX_CATALOG_RESULTS = 3
 FALLBACK_MIN_SCORE = 0.3
 _FALLBACK_STOPWORDS = {
     "the", "and", "for", "are", "you", "your", "what", "how", "where",
@@ -464,7 +467,27 @@ async def search_multimodal_catalog(
         except Exception:
             logger.exception("Live WooCommerce fact refresh failed; using catalog snapshot")
 
-    return results[:top_k], visual_attrs
+    # RPCs are ranked, but live fact refresh and fallback candidates may append
+    # or mutate rows. Re-establish deterministic relevance order and remove
+    # duplicate product representations before the model sees the context.
+    ranked: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    for item in sorted(
+        results,
+        key=lambda value: (
+            -float(value.get("similarity") or 0.0),
+            str(value.get("title") or "").lower(),
+            str(value.get("id") or ""),
+        ),
+    ):
+        metadata = item.get("metadata") or {}
+        key = str(metadata.get("woocommerce_id") or item.get("id") or item.get("title") or "").strip().lower()
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        ranked.append(item)
+
+    return ranked[:top_k], visual_attrs
 
 
 def format_multimodal_context_for_prompt(
@@ -502,7 +525,8 @@ def format_multimodal_context_for_prompt(
             sizes = meta.get("sizes") or []
             variations = meta.get("variations") or []
 
-            lines.append(f"[{idx}] {title}")
+            rank_label = "BEST MATCH" if idx == 1 else f"ALTERNATIVE {idx - 1}"
+            lines.append(f"[{idx}] {rank_label} — {title}")
             lines.append(f"    • Type: {m_type}")
             lines.append(f"    • SKU: {sku}")
             if item.get("id"):
@@ -545,10 +569,12 @@ def format_multimodal_context_for_prompt(
         lines.append("INSTRUCTIONS FOR RETURNING MULTIMEDIA TO VISITOR:")
         lines.append("1. Answer the visitor warmly and directly based on whether the matching product is available.")
         lines.append("2. Include pricing, size/variant details, and direct links.")
-        lines.append("3. Whenever recommending or answering about a specific catalog product, append a structured card token:")
+        lines.append("3. The catalog results above are ranked best-first. Use the BEST MATCH first; never reorder them.")
+        lines.append("4. Show at most 3 product cards. For an availability/photo query, show the BEST MATCH and only add alternatives when they are genuinely useful or the visitor asks for options.")
+        lines.append("5. Whenever recommending or answering about a specific catalog product, append a structured card token:")
         lines.append('   [PRODUCT_CARD:{"id": "...", "variant_id": "...", "variant_sku": "...", "title": "...", "price": "...", "currency": "...", "url": "...", "image_url": "...", "in_stock": true}]')
-        lines.append("5. For variable products, select a concrete in-stock variant matching the visitor's requested attributes; use that variant's id, SKU, price, availability, and URL in PRODUCT_CARD. Never present the parent price as a confirmed variant price.")
-        lines.append("6. If a video demonstration or clip is relevant, append:")
+        lines.append("6. For variable products, select a concrete in-stock variant matching the visitor's requested attributes; use that variant's id, SKU, price, availability, and URL in PRODUCT_CARD. Never present the parent price as a confirmed variant price.")
+        lines.append("7. If a video demonstration or clip is relevant, append:")
         lines.append('   [VIDEO_CLIP:{"title": "...", "video_url": "...", "timestamp": 12, "thumbnail_url": "..."}]')
     else:
         lines.append("No exact matching products found in the catalog for this visual query.")
