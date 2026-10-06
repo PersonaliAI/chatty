@@ -16,8 +16,6 @@ import {
   PhoneOff,
   X,
   AlertCircle,
-  Paperclip,
-  Send,
 } from "lucide-react";
 
 import {
@@ -126,6 +124,7 @@ interface VoiceCallWidgetProps {
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   previewMode?: boolean;
   voiceUiSettings?: VoiceUiSettingsData;
+  showCloseButton?: boolean;
 }
 
 export default function VoiceCallWidget({
@@ -139,6 +138,7 @@ export default function VoiceCallWidget({
   onBookingSuccess,
   previewMode = false,
   voiceUiSettings,
+  showCloseButton = false,
 }: VoiceCallWidgetProps) {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const fetch = sessionId.startsWith("ci-")
@@ -173,9 +173,6 @@ export default function VoiceCallWidget({
       : []
   );
 
-  const [messageText, setMessageText] = useState("");
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [sendingMessage, setSendingMessage] = useState(false);
 
   // Auto-extract visitor info from spoken transcript for booking convenience
   const extractedVisitorInfo = useMemo(() => {
@@ -656,59 +653,42 @@ export default function VoiceCallWidget({
       .catch(() => setAudioBlocked(true));
   };
 
-  const sendComposerMessage = async (event?: React.FormEvent) => {
-    if (event) event.preventDefault();
-    const text = messageText.trim();
-    const file = pendingFile;
-    if ((!text && !file) || sendingMessage) return;
+  const handleSendMessage = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
-    const visitorText = text || `Attachment: ${file?.name || "file"}`;
-    setMessageText("");
-    setPendingFile(null);
     recentFinalTranscriptRef.current.set(
-      `visitor:${normalizeTranscriptText(visitorText)}`,
+      `visitor:${normalizeTranscriptText(trimmed)}`,
       Date.now()
     );
     setTranscript((prev) => [
       ...prev,
-      { id: `typed-${Date.now()}`, speaker: "visitor", text: visitorText, final: true },
+      { id: `typed-${Date.now()}`, speaker: "visitor", text: trimmed, final: true },
     ]);
-    setSendingMessage(true);
+
+    if (previewMode) {
+      setTimeout(() => {
+        setTranscript((prev) => [
+          ...prev,
+          {
+            id: `typed-preview-${Date.now()}`,
+            speaker: "agent",
+            text: "Thanks for your message! This is a demo preview of the voice agent chat.",
+            final: true,
+          },
+        ]);
+        setStatus("agent-speaking");
+      }, 600);
+      return;
+    }
 
     try {
-      const authHeaders: Record<string, string> = originToken
-        ? { "X-Widget-Token": originToken }
-        : {};
-
-      if (file) {
-        const body = new FormData();
-        body.append("bot_id", botId);
-        body.append("session_id", sessionId);
-        body.append("text", text);
-        body.append("visitor_timezone", visitorTimezone);
-        body.append("file", file, file.name);
-        const response = await fetch(`${backendUrl}/api/widget/chat/media`, {
-          method: "POST",
-          headers: authHeaders,
-          body,
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data?.detail || "Message could not be sent");
-        const reply = String(data?.reply || "").trim();
-        if (reply) {
-          setTranscript((prev) => [
-            ...prev,
-            { id: `typed-reply-${Date.now()}`, speaker: "agent", text: reply, final: true },
-          ]);
-        }
+      const room = roomRef.current;
+      if (room && room.state === ConnectionState.Connected) {
+        await room.localParticipant.sendText(trimmed, { topic: "lk.chat" });
+        setStatus("thinking");
       } else {
-        const room = roomRef.current;
-        if (room && room.state === ConnectionState.Connected) {
-          await room.localParticipant.sendText(text, { topic: "lk.chat" });
-          setStatus("thinking");
-        } else {
-          setErrorMessage("Voice connection is still starting. Please try again.");
-        }
+        setErrorMessage("Voice connection is still starting. Please try again.");
       }
     } catch {
       setTranscript((prev) => [
@@ -720,8 +700,6 @@ export default function VoiceCallWidget({
           final: true,
         },
       ]);
-    } finally {
-      setSendingMessage(false);
     }
   };
 
@@ -872,14 +850,16 @@ export default function VoiceCallWidget({
               {fmtDuration(duration)}
             </span>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close voice call"
-            className="grid size-7 place-items-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-          >
-            <X className="size-4" />
-          </button>
+          {showCloseButton && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close voice call"
+              className="grid size-7 place-items-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1028,47 +1008,6 @@ export default function VoiceCallWidget({
             </AnimatePresence>
           </div>
 
-          {/* Chat Composer (visible when transcript view is open) */}
-          {isChatOpen && (
-            <form
-              onSubmit={sendComposerMessage}
-              className="mt-2 flex min-w-0 shrink-0 items-center gap-2 rounded-2xl border border-neutral-200 bg-white/90 p-1.5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/90"
-            >
-              <input
-                type="file"
-                className="hidden"
-                id="chatty-voice-attachment-app"
-                accept="image/*,.pdf,.doc,.docx,.txt"
-                onChange={(event) => setPendingFile(event.target.files?.[0] || null)}
-              />
-              <button
-                type="button"
-                onClick={() => document.getElementById("chatty-voice-attachment-app")?.click()}
-                aria-label="Attach a file"
-                title="Attach a file"
-                className="grid size-8 place-items-center rounded-xl text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
-              >
-                <Paperclip className="size-4" />
-              </button>
-              <input
-                value={messageText}
-                onChange={(event) => setMessageText(event.target.value)}
-                placeholder={pendingFile ? pendingFile.name : "Type a message while on call…"}
-                disabled={sendingMessage}
-                className="flex-1 bg-transparent px-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-400 disabled:opacity-60 dark:text-neutral-200"
-              />
-              <button
-                type="submit"
-                disabled={sendingMessage || (!messageText.trim() && !pendingFile)}
-                aria-label="Send message"
-                className="grid size-8 place-items-center rounded-xl text-white shadow-sm transition-transform hover:scale-105 active:scale-95 disabled:opacity-40 cursor-pointer"
-                style={{ background: primaryColor }}
-              >
-                <Send className="size-3.5" />
-              </button>
-            </form>
-          )}
-
           {/* Official LiveKit Control Bar */}
           <div className="w-full pt-3">
             <LiveKitControlBar
@@ -1084,6 +1023,7 @@ export default function VoiceCallWidget({
               primaryColor={visualizerColor}
               isChatOpen={isChatOpen}
               onToggleChat={() => setIsChatOpen((v) => !v)}
+              onSendMessage={handleSendMessage}
               disabled={status === "connecting" || status === "reconnecting"}
             />
           </div>
