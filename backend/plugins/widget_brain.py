@@ -62,9 +62,12 @@ def _claims_booking_success(text: str) -> bool:
 
 
 # Moved to app/core/config.py so modules that don't otherwise depend on
-# widget_brain.py (e.g. doc_rag.py, to avoid a circular import) can use the
-# same fallback chain - re-exported here for existing call sites/imports.
-from app.core.config import GEMINI_FALLBACK_MODEL, GEMINI_FALLBACK_MODELS  # noqa: E402
+from app.core.config import (  # noqa: E402
+    GEMINI_API_KEY,
+    GEMINI_FALLBACK_MODEL,
+    GEMINI_FALLBACK_MODELS,
+    USE_VERTEX_AI,
+)
 
 # Model tried first for voice-mode requests (run_widget_assistant(voice_mode=True))
 # before falling through to the same GEMINI_FALLBACK_MODELS chain used by text.
@@ -75,7 +78,7 @@ GEMINI_VOICE_MODEL = (
     os.environ.get("GEMINI_VOICE_MODEL")
     or os.environ.get("GEMMA_VOICE_MODEL")
     or os.environ.get("GEMMA_MODEL")
-    or "gemini-3.5-flash-lite"
+    or ("vertex_ai/gemini-2.5-flash-lite" if (USE_VERTEX_AI or not GEMINI_API_KEY) else "gemini-2.5-flash-lite")
 )
 # Keep a voice turn bounded at the model boundary as well as in the prompt. A
 # prompt-only limit is advisory; this hard cap prevents a long knowledge-base
@@ -1292,6 +1295,10 @@ async def run_widget_assistant(
         )
         stream_live = None if must_buffer else on_token
 
+        extra_stream_kwargs: dict[str, Any] = {}
+        if voice_mode and "2.5" in primary_model.lower():
+            extra_stream_kwargs["thinking"] = {"budget_tokens": 0}
+
         gen = await ai_client.chat_stream(
             model=primary_model,
             messages=[{"role": "system", "content": system_instruction}] + messages,
@@ -1304,6 +1311,7 @@ async def run_widget_assistant(
             session_id=session_id,
             call_type="widget_chat",
             timeout=VOICE_LLM_TIMEOUT_SECONDS if voice_mode else None,
+            **extra_stream_kwargs,
         )
 
         tool_calls = gen["tool_calls"]

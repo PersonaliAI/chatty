@@ -400,10 +400,29 @@ class _SpeechChunker:
     def __init__(self) -> None:
         self._buffer = ""
         self._first_emitted = False
+        self._in_think = False
 
     def add(self, text: str) -> list[str]:
-        if text:
-            self._buffer += text
+        if not text:
+            return []
+        # Filter out <think>...</think> reasoning blocks from streaming models
+        while text:
+            if not self._in_think:
+                start = text.find("<think>")
+                if start != -1:
+                    self._buffer += text[:start]
+                    text = text[start + 7:]
+                    self._in_think = True
+                else:
+                    self._buffer += text
+                    break
+            else:
+                end = text.find("</think>")
+                if end != -1:
+                    text = text[end + 8:]
+                    self._in_think = False
+                else:
+                    break
         return self._drain(force=False)
 
     def flush(self) -> list[str]:
