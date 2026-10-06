@@ -1,6 +1,5 @@
 "use client";
 
-import { type Ref, type ComponentProps } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -48,10 +47,11 @@ const agentChatIndicatorVariants = cva(
   }
 );
 
-export interface AgentChatIndicatorProps {
+export interface AgentChatIndicatorProps
+  extends Omit<HTMLMotionProps<"span">, "size">,
+    VariantProps<typeof agentChatIndicatorVariants> {
   size?: "sm" | "md" | "lg";
   className?: string;
-  ref?: Ref<HTMLSpanElement>;
 }
 
 /**
@@ -62,9 +62,7 @@ export function AgentChatIndicator({
   size = "md",
   className,
   ...props
-}: AgentChatIndicatorProps &
-  ComponentProps<"span"> &
-  VariantProps<typeof agentChatIndicatorVariants>) {
+}: AgentChatIndicatorProps) {
   return (
     <motion.span
       {...motionAnimationProps}
