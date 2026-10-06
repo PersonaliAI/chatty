@@ -34,3 +34,7 @@ Thumbs.db
 *service-account*.json
 *-service-account*.json
 *voice-pipeline*.json
+*gcp-key*.json
+gcp-key.json
+*.key.json
+
