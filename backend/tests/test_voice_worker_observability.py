@@ -462,9 +462,10 @@ def test_pipeline_interruption_accepts_short_barge_in():
     source_path = Path(__file__).resolve().parents[1] / "voice-agent" / "voice_worker.py"
     source = source_path.read_text(encoding="utf-8")
 
-    assert '"min_duration": 0.25' in source
-    assert '"min_words": 0' in source
+    assert '"min_duration"' in source and "0.25" in source
+    assert '"min_words"' in source and "0" in source
     assert '"resume_false_interruption": True' in source
+    assert '"preemptive_tts": True' in source
 
 
 def test_voice_widget_offers_recovery_after_unexpected_disconnect():

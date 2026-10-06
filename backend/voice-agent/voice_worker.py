@@ -427,30 +427,30 @@ class _SpeechChunker:
             # so the user hears voice response quickly (<200ms) without emitting
             # awkward isolated 1-word fragments like "Take" or "Well".
             if not self._first_emitted:
-                clause = self._CLAUSE_END.search(self._buffer)
-                if clause:
+                found_clause = False
+                for clause in self._CLAUSE_END.finditer(self._buffer):
                     candidate = self._buffer[:clause.end()].strip()
                     if len(candidate.split()) >= 3 and len(candidate) >= 14:
                         phrase = candidate
                         self._buffer = self._buffer[clause.end():].lstrip()
                         chunks.append(phrase)
                         self._first_emitted = True
-                        continue
-
-            # For subsequent chunks, allow splitting at natural clauses once the buffer
-            # has enough spoken content (>= 60 chars, >= 5 words) to feed TTS smoothly.
-            clause = self._CLAUSE_END.search(self._buffer)
-            if clause and clause.end() >= self._MIN_SPLIT_CHARS:
-                candidate = self._buffer[:clause.end()].strip()
-                if len(candidate.split()) >= 5:
-                    phrase = candidate
-                    self._buffer = self._buffer[clause.end():].lstrip()
-                    chunks.append(phrase)
-                    self._first_emitted = True
+                        found_clause = True
+                        break
+                if found_clause:
                     continue
 
+            # For subsequent chunks, do NOT split at commas into fragments;
+            # keep full sentences together for natural prosody, steady pitch,
+            # and seamless audio playback without pauses between clauses.
+            # Only split if buffer exceeds _MAX_CHARS (run-on sentence without punctuation).
             if len(self._buffer) >= self._MAX_CHARS:
-                boundary = self._buffer.rfind(" ", 0, self._MAX_CHARS + 1)
+                boundary = -1
+                for clause in self._CLAUSE_END.finditer(self._buffer[:self._MAX_CHARS + 1]):
+                    if clause.end() >= self._MIN_SPLIT_CHARS:
+                        boundary = clause.end()
+                if boundary < self._MIN_SPLIT_CHARS:
+                    boundary = self._buffer.rfind(" ", 0, self._MAX_CHARS + 1)
                 if boundary >= self._MIN_SPLIT_CHARS:
                     phrase = self._buffer[:boundary].strip()
                     self._buffer = self._buffer[boundary + 1:].lstrip()
@@ -1756,15 +1756,15 @@ async def entrypoint(ctx: JobContext) -> None:
                         # 500 ms. Let a real one-word barge-in clear TTS
                         # promptly while min_words and the denoised VAD still
                         # reject most clicks and background noise.
-                        "min_duration": 0.25,
-                        "min_words": 0,
-                        "false_interruption_timeout": 0.8,
+                        "min_duration": float(os.environ.get("VOICE_INTERRUPTION_MIN_DURATION", "0.25")),
+                        "min_words": int(os.environ.get("VOICE_INTERRUPTION_MIN_WORDS", "0")),
+                        "false_interruption_timeout": float(os.environ.get("VOICE_FALSE_INTERRUPTION_TIMEOUT", "0.8")),
                         "resume_false_interruption": True,
                         "backchannel_boundary": (0.8, 1.5),
                     },
                     preemptive_generation={
                         "enabled": True,
-                        "preemptive_tts": False,
+                        "preemptive_tts": True,
                         "max_speech_duration": 10.0,
                         "max_retries": 1,
                     },
