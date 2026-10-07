@@ -32,6 +32,9 @@ export interface AnalyticsOverview {
   kpis: {
     total_sessions: KpiValue;
     total_messages: KpiValue;
+    ai_credits_used?: KpiValue;
+    weighted_ai_credits?: KpiValue;
+    visitor_messages?: KpiValue;
     deflection_rate: KpiValue;
     lead_conversion: KpiValue;
     avg_resolution_min: KpiValue;
@@ -567,6 +570,7 @@ function exportCsv(overview: AnalyticsOverview | null, volume: VolumePoint[], ag
     const k = overview.kpis;
     lines.push(`Total Conversations,${k.total_sessions.value ?? ""},${k.total_sessions.delta ?? ""}`);
     lines.push(`Total Messages,${k.total_messages.value ?? ""},${k.total_messages.delta ?? ""}`);
+    lines.push(`Weighted AI Credits,${k.ai_credits_used?.value ?? ""},${k.ai_credits_used?.delta ?? ""}`);
     lines.push(`AI Deflection Rate (%),${k.deflection_rate.value ?? ""},`);
     lines.push(`Lead Conversion (%),${k.lead_conversion.value ?? ""},${k.lead_conversion.delta ?? ""}`);
     lines.push(`Avg Resolution (min),${k.avg_resolution_min.value ?? ""},`);
@@ -874,6 +878,8 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
             icon={<MessageCircle className="size-4" />} colorClass="bg-orange-50 dark:bg-orange-950/30 text-[#f97316]" />
           <KpiCard label="User Messages" value={(k.total_messages.value ?? 0).toLocaleString()} delta={k.total_messages.delta}
             icon={<BarChart2 className="size-4" />} colorClass="bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500" />
+          <KpiCard label="AI Credits Used" value={(k.ai_credits_used?.value ?? 0).toLocaleString()} delta={k.ai_credits_used?.delta}
+            icon={<Zap className="size-4" />} colorClass="bg-violet-50 dark:bg-violet-950/30 text-violet-500" />
           <KpiCard label="AI Deflection" value={`${k.deflection_rate.value ?? 0}`} suffix="%" delta={null}
             icon={<Zap className="size-4" />} colorClass="bg-green-50 dark:bg-green-950/30 text-green-500" />
           <KpiCard label="Lead Conversion" value={`${k.lead_conversion.value ?? 0}`} suffix="%" delta={k.lead_conversion.delta}

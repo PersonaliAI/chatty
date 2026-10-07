@@ -221,6 +221,13 @@ For every supported application deployment keep `DEPLOYMENT_PROFILE=managed_supa
 
 Everything else (WhatsApp/Slack tokens, Google/Microsoft OAuth, Lemon Squeezy billing, Sentry, Upstash Redis) is **optional** - each env var you leave blank just disables that one feature; nothing else breaks.
 
+Usage and analytics stay with the deployment: self-hosted operators keep
+conversation counts, weighted AI credits, tokens, latency, and provider-cost
+telemetry in their own Supabase project. BYOK inference is still sent directly
+to the selected model provider, and unpriced BYOK calls remain visible by
+tokens/call count even when a dollar estimate is unavailable. No Chatty Cloud
+account is required for the open-source deployment.
+
 ## 🚀 Quick Start (Docker Compose)
 
 The fastest path from clone to a running instance. See [Self-Hosting, Step by Step](#-self-hosting-step-by-step) below if you want the full walkthrough with screenshots-in-words and troubleshooting.

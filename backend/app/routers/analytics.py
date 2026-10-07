@@ -18,6 +18,7 @@ from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import get_bot_role_and_permissions
+from app.services.chatty_quota_service import get_chatty_bot_usage
 
 logger = logging.getLogger("chatty")
 
@@ -85,12 +86,39 @@ def _priced_cost_stats(rows: list[dict[str, Any]]) -> tuple[float, int, int]:
     return total, priced, unpriced
 
 
+async def _ai_usage_rows(bot_id: str, from_iso: str, to_iso: str, columns: str) -> list[dict[str, Any]]:
+    """Read optional provider telemetry without breaking core analytics.
+
+    Older self-hosted databases may predate the telemetry migration. Core
+    conversation and credit analytics must still load in that case.
+    """
+    try:
+        res = await run_db(lambda: supabase.table("chatty_ai_usage")
+            .select(columns)
+            .eq("bot_id", bot_id)
+            .gte("created_at", from_iso).lte("created_at", to_iso)
+            .execute())
+        return res.data or []
+    except Exception:  # noqa: BLE001
+        logger.warning("AI provider telemetry is unavailable for bot %s", bot_id, exc_info=True)
+        return []
+
+
 def _percentile(values: list[float], percentile: float) -> Optional[float]:
     if not values:
         return None
     ordered = sorted(values)
     index = min(len(ordered) - 1, max(0, int(round((percentile / 100) * (len(ordered) - 1)))))
     return round(ordered[index], 2)
+
+
+def _lead_conversion_events(rows: list[dict[str, Any]], total: int) -> int:
+    """Count one conversion per session, preserving legacy lead rows."""
+    if not rows:
+        return total
+    session_ids = {str(row.get("session_id")) for row in rows if row.get("session_id")}
+    without_session = sum(1 for row in rows if not row.get("session_id"))
+    return len(session_ids) + without_session
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +132,7 @@ async def analytics_overview(
     to_date: Optional[str] = Query(None, alias="to"),
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Return 8 top-level KPI metrics plus period-over-period delta percentages."""
+    """Return top-level KPIs plus period-over-period delta percentages."""
     await _require_bot_access(bot_id, user)
 
     now = datetime.now(timezone.utc)
@@ -135,13 +163,17 @@ async def analytics_overview(
         .gte("created_at", from_iso).lte("created_at", to_iso)
         .execute())
     total_messages = msg_res.count or 0
+    current_user_messages, current_ai_credits = await get_chatty_bot_usage(
+        bot_id, from_iso=from_iso, to_iso=to_iso
+    )
 
     leads_res = await run_db(lambda: supabase.table("chatty_leads")
-        .select("id", count="exact")
+        .select("id, session_id", count="exact")
         .eq("bot_id", bot_id)
         .gte("created_at", from_iso).lte("created_at", to_iso)
         .execute())
     total_leads = leads_res.count or 0
+    lead_conversion_events = _lead_conversion_events(leads_res.data or [], total_leads)
 
     meetings_res = await run_db(lambda: supabase.table("chatty_meetings")
         .select("id", count="exact")
@@ -150,13 +182,10 @@ async def analytics_overview(
         .execute())
     total_meetings = meetings_res.count or 0
 
-    ai_res = await run_db(lambda: supabase.table("chatty_ai_usage")
-        .select("total_tokens, cost_usd, success, latency_ms")
-        .eq("bot_id", bot_id)
-        .eq("success", True)
-        .gte("created_at", from_iso).lte("created_at", to_iso)
-        .execute())
-    ai_rows = ai_res.data or []
+    ai_rows = await _ai_usage_rows(
+        bot_id, from_iso, to_iso, "total_tokens, cost_usd, success, latency_ms"
+    )
+    ai_rows = [row for row in ai_rows if row.get("success")]
     ai_cost, ai_priced_calls, ai_unpriced_calls = _priced_cost_stats(ai_rows)
     ai_tokens = sum(int(r.get("total_tokens") or 0) for r in ai_rows)
 
@@ -171,7 +200,7 @@ async def analytics_overview(
     deflected = sum(1 for s in sessions if not s.get("needs_attention"))
     deflection_rate = round((deflected / total_sessions * 100), 1) if total_sessions else 0.0
 
-    lead_conversion = round((total_leads / total_sessions * 100), 1) if total_sessions else 0.0
+    lead_conversion = round((min(lead_conversion_events, total_sessions) / total_sessions * 100), 1) if total_sessions else 0.0
 
     csat_avg = round(sum(r["rating"] for r in csat_rows) / len(csat_rows), 2) if csat_rows else None
 
@@ -206,20 +235,21 @@ async def analytics_overview(
         .gte("created_at", prev_from_iso).lte("created_at", prev_to_iso)
         .execute())
     prev_messages = prev_msg_res.count or 0
+    _, previous_ai_credits = await get_chatty_bot_usage(
+        bot_id, from_iso=prev_from_iso, to_iso=prev_to_iso
+    )
 
     prev_leads_res = await run_db(lambda: supabase.table("chatty_leads")
-        .select("id", count="exact")
+        .select("id, session_id", count="exact")
         .eq("bot_id", bot_id)
         .gte("created_at", prev_from_iso).lte("created_at", prev_to_iso)
         .execute())
     prev_leads = prev_leads_res.count or 0
+    previous_lead_conversion_events = _lead_conversion_events(prev_leads_res.data or [], prev_leads)
 
-    prev_ai_res = await run_db(lambda: supabase.table("chatty_ai_usage")
-        .select("cost_usd")
-        .eq("bot_id", bot_id).eq("success", True)
-        .gte("created_at", prev_from_iso).lte("created_at", prev_to_iso)
-        .execute())
-    prev_ai_cost, _, _ = _priced_cost_stats(prev_ai_res.data or [])
+    previous_ai_rows = await _ai_usage_rows(bot_id, prev_from_iso, prev_to_iso, "cost_usd, success, total_tokens")
+    previous_ai_rows = [row for row in previous_ai_rows if row.get("success")]
+    prev_ai_cost, _, _ = _priced_cost_stats(previous_ai_rows)
 
     def delta(curr, prev):
         if prev == 0:
@@ -231,8 +261,11 @@ async def analytics_overview(
         "kpis": {
             "total_sessions": {"value": total_sessions, "delta": delta(total_sessions, prev_sessions)},
             "total_messages": {"value": total_messages, "delta": delta(total_messages, prev_messages)},
+            "ai_credits_used": {"value": current_ai_credits, "delta": delta(current_ai_credits, previous_ai_credits)},
+            "weighted_ai_credits": {"value": current_ai_credits, "delta": delta(current_ai_credits, previous_ai_credits)},
+            "visitor_messages": {"value": current_user_messages, "delta": None},
             "deflection_rate": {"value": deflection_rate, "delta": None},
-            "lead_conversion": {"value": lead_conversion, "delta": delta(total_leads, prev_leads)},
+            "lead_conversion": {"value": lead_conversion, "delta": delta(lead_conversion_events, previous_lead_conversion_events)},
             "avg_resolution_min": {"value": avg_resolution_min, "delta": None},
             "csat_avg": {"value": csat_avg, "delta": None},
             "total_meetings": {"value": total_meetings, "delta": None},
@@ -584,12 +617,12 @@ async def analytics_ai_cost(
     to_dt = _parse_date_param(to_date, now)
     from_dt = _parse_date_param(from_date, to_dt - timedelta(days=30))
 
-    res = await run_db(lambda: supabase.table("chatty_ai_usage")
-        .select("model, provider, call_type, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, success, is_byok, created_at")
-        .eq("bot_id", bot_id)
-        .gte("created_at", _iso(from_dt)).lte("created_at", _iso(to_dt))
-        .execute())
-    rows = res.data or []
+    rows = await _ai_usage_rows(
+        bot_id,
+        _iso(from_dt),
+        _iso(to_dt),
+        "model, provider, call_type, prompt_tokens, completion_tokens, total_tokens, cost_usd, latency_ms, success, is_byok, created_at",
+    )
 
     # Per-model summary
     by_model: dict[str, dict] = defaultdict(lambda: {

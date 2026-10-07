@@ -198,7 +198,7 @@ const API_ENDPOINTS: Record<string, EndpointDef[]> = {
     {
       method: "GET", path: "/api/v1/analytics", scope: "read",
       description: "Return aggregated usage statistics. Filter with ?since=2026-09-01T00:00:00Z.",
-      responseExample: { total_messages: 4820, user_messages: 2410, unique_sessions: 891, total_leads: 142, knowledge_sources: 8, knowledge_kb: 48 },
+      responseExample: { total_messages: 4820, user_messages: 2410, ai_credits_used: 3075, unique_sessions: 891, total_leads: 142, knowledge_sources: 8, knowledge_kb: 48 },
     },
   ],
   "Webhooks": [

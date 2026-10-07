@@ -48,6 +48,12 @@ MODEL_NAME = (
 )
 
 FUNCTION_SECRET = os.environ.get("FUNCTION_SECRET", "")
+# Hosted Chatty enforces the plan credit caps. A self-hosted operator that
+# supplies its own model accounts can disable only that platform gate; usage
+# telemetry and analytics remain enabled either way.
+CHATTY_ENFORCE_AI_QUOTAS = os.environ.get("CHATTY_ENFORCE_AI_QUOTAS", "true").strip().lower() in {
+    "1", "true", "yes", "on"
+}
 # Lemon Squeezy - accept either naming convention.
 LEMON_WEBHOOK_SECRET = (
     os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET")

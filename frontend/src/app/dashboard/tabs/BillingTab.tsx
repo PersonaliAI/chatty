@@ -41,13 +41,14 @@ const PLAN_LABELS: Record<string, string> = {
 
 const PLAN_FEATURES: Record<string, string[]> = {
   free: [
-    "100 message credits/mo",
+    "100 AI credits/mo",
+    "Bring your own model key",
     "1 chatbot",
     "Basic AI models",
     "100 MB Media Storage (50 products)",
   ],
   chatty_hobby: [
-    "1,000 message credits/mo",
+    "1,000 weighted AI credits/mo",
     "10M training characters",
     "3 chatbots",
     "Fast & Advanced AI models",
@@ -57,7 +58,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
     "Lead collection & API",
   ],
   chatty_standard: [
-    "10,000 message credits/mo",
+    "10,000 weighted AI credits/mo",
     "20M training characters",
     "6 chatbots",
     "2 GB Media Storage (1,500 products)",
@@ -66,7 +67,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
     "Unlimited team members",
   ],
   chatty_business: [
-    "40,000 message credits/mo",
+    "40,000 weighted AI credits/mo",
     "50M training characters",
     "Unlimited chatbots",
     "10 GB Media Storage (Unlimited products)",
@@ -95,7 +96,7 @@ const PLAN_CARDS: {
     id: "standard",
     label: "Standard",
     monthly: 99,
-    yearly: 82,
+    yearly: 79,
     blurb: "All in Hobby, plus advanced automation and multi-bot systems.",
     popular: true,
   },
@@ -103,7 +104,7 @@ const PLAN_CARDS: {
     id: "business",
     label: "Business",
     monthly: 399,
-    yearly: 332,
+    yearly: 319,
     blurb: "For enterprise scale, heavy traffic, and reseller options.",
   },
 ];

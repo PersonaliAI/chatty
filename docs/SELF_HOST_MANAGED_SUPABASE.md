@@ -81,6 +81,7 @@ Backend variables:
 | Variable | Value | Where it may exist |
 |---|---|---|
 | DEPLOYMENT_PROFILE | managed_supabase | API only |
+| CHATTY_ENFORCE_AI_QUOTAS | true for hosted plan enforcement; false for an operator-funded self-host | API only |
 | SUPABASE_URL | project URL | API only |
 | SUPABASE_SECRET_KEY | server-only secret key | API only |
 | SUPABASE_DB_HOST | direct/session database host | API only |
@@ -109,6 +110,32 @@ Copy the complete optional feature list from
 [frontend/.env.example](../frontend/.env.example). WhatsApp, Slack, Google,
 Microsoft, Zoom, billing, Sentry, and web crawling remain opt-in;
 blank values disable only that feature.
+
+## 3a. Usage, analytics, and open-source deployments
+
+Analytics is local to the deployment. Conversation counts, weighted AI
+credits, provider tokens, latency, and any price that the provider adapter can
+identify are stored in the deployment's own Supabase project. They are not
+sent to Chatty Cloud. BYOK requests still go to the model provider selected by
+the operator or bot owner; Chatty does not proxy those provider accounts into a
+Chatty-owned billing account.
+
+The Analytics tab shows two different quantities deliberately:
+
+* **Weighted AI credits** are the local platform quota units used by the flat
+  plan enforcement. A short visitor request is one credit; longer or
+  multimodal requests consume more.
+* **Provider usage** is the observed model telemetry: tokens, latency, model,
+  and provider cost when the model has a known price. BYOK models may show an
+  unpriced cost while their tokens and calls remain visible.
+
+The migration runner installs both telemetry and weighted-credit tables. Run
+it before deploying a release that uses the Analytics tab. Self-hosted
+operators can keep the hosted plan/quota behavior, or set
+`CHATTY_ENFORCE_AI_QUOTAS=false` when the deployment uses its own model
+accounts. Disabling the platform gate does not disable analytics. No Lemon
+Squeezy or Chatty Cloud account is required to run the open-source
+application.
 
 ## 3. Local smoke test (required before a hosted deploy)
 

@@ -42,6 +42,7 @@ from main import (
     _update_key_usage,
 )
 from plugins.widget_brain import run_widget_assistant
+from app.services.chatty_quota_service import get_chatty_bot_usage
 
 logger = logging.getLogger("chatty")
 
@@ -653,13 +654,16 @@ async def public_api_analytics(
     total_leads      = r_lead.count or 0
     total_sources    = r_src.count or 0
     total_kb         = sum((s.get("char_count") or 0) for s in (r_src.data or [])) // 1024
+    visitor_messages, ai_credits = await get_chatty_bot_usage(bot_id, from_iso=since)
 
     await run_db(lambda: _update_key_usage(key_row))
     return {
         "bot_id": bot_id,
         "since": since,
         "total_messages": total_messages,
-        "user_messages": user_messages,
+        "user_messages": visitor_messages or user_messages,
+        "ai_credits_used": ai_credits,
+        "weighted_ai_credits": ai_credits,
         "bot_messages": bot_messages,
         "unique_sessions": unique_sessions,
         "total_leads": total_leads,

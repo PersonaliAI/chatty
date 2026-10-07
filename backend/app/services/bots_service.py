@@ -770,12 +770,12 @@ async def get_feedback_summary(principal: dict[str, Any], bot_id: str) -> dict[s
 
 
 async def get_account_billing(principal: dict[str, Any]) -> dict[str, Any]:
-    """Real plan/usage/quota numbers from main.py's own billing logic (the
+    """Real plan/usage/credit numbers from Chatty's billing logic (the
     same functions the widget's quota gate uses) - the original version of
     this function was entirely hardcoded ("Standard", 10000/1420/8580,
     byok_active always True) regardless of the account's real plan or usage."""
-    # Lazy import: main.py imports every router at the bottom of the file
-    # specifically to avoid this cycle (see main.py's own comment on that).
+    # Lazy import avoids the router/service import cycle.
+    from app.core.config import CHATTY_ENFORCE_AI_QUOTAS
     from app.services.chatty_quota_service import PLAN_QUOTAS, get_chatty_monthly_usage, plan_for
 
     user = await _oauth.user_dict_for_principal(principal)
@@ -786,9 +786,13 @@ async def get_account_billing(principal: dict[str, Any]) -> dict[str, Any]:
     return {
         "user_id": principal.get("user_id"),
         "plan": plan,
-        "monthly_message_quota": limit,
+        "billing_mode": "platform" if CHATTY_ENFORCE_AI_QUOTAS else "self_hosted",
+        "monthly_message_quota": limit if CHATTY_ENFORCE_AI_QUOTAS else None,
+        "monthly_ai_credit_quota": limit if CHATTY_ENFORCE_AI_QUOTAS else None,
         "messages_used_this_month": used,
-        "messages_remaining": max(limit - used, 0) if limit > 0 else None,
+        "ai_credits_used_this_month": used,
+        "messages_remaining": max(limit - used, 0) if CHATTY_ENFORCE_AI_QUOTAS and limit > 0 else None,
+        "ai_credits_remaining": max(limit - used, 0) if CHATTY_ENFORCE_AI_QUOTAS and limit > 0 else None,
         "active_bots_count": len(bots),
     }
 
@@ -796,7 +800,8 @@ async def get_account_billing(principal: dict[str, Any]) -> dict[str, Any]:
 async def bot_analytics(principal: dict[str, Any], bot_id: str, since: Optional[str] = None) -> dict[str, Any]:
     """`since` (ISO 8601 datetime) filters to messages/leads created at or
     after that time - same param and semantics as the per-key Developer
-    API's GET /api/v1/analytics."""
+    API's GET /api/v1/analytics. ``ai_credits_used`` is the weighted platform
+    usage for the same period."""
     await _oauth.require_bot_access(principal, bot_id)
     q_conv = supabase.table("chatty_conversations").select("id, role, session_id", count="exact").eq("bot_id", bot_id)
     q_lead = supabase.table("chatty_leads").select("id", count="exact").eq("bot_id", bot_id)
@@ -806,13 +811,17 @@ async def bot_analytics(principal: dict[str, Any], bot_id: str, since: Optional[
 
     conv_res = await run_db(q_conv.execute)
     leads_res = await run_db(q_lead.execute)
+    from app.services.chatty_quota_service import get_chatty_bot_usage
+    visitor_messages, ai_credits = await get_chatty_bot_usage(bot_id, from_iso=since)
 
     messages = conv_res.data or []
     return {
         "bot_id": bot_id,
         "since": since,
         "total_messages": conv_res.count or len(messages),
-        "user_messages": sum(1 for m in messages if m.get("role") == "user"),
+        "user_messages": visitor_messages or sum(1 for m in messages if m.get("role") == "user"),
+        "ai_credits_used": ai_credits,
+        "weighted_ai_credits": ai_credits,
         "bot_messages": sum(1 for m in messages if m.get("role") == "assistant"),
         "unique_sessions": len({m["session_id"] for m in messages if m.get("session_id")}),
         "total_leads": leads_res.count or 0,

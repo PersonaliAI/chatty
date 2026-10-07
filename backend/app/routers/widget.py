@@ -27,7 +27,12 @@ from app.core.db import run_db
 from app.core import ssrf
 from app.core.uploads import read_upload_capped
 from app.adapters.redis_jobs import RedisJobQueue
-from app.services.chatty_quota_service import WHITELABEL_PLANS, chatty_quota_exceeded, plan_for
+from app.services.chatty_quota_service import (
+    WHITELABEL_PLANS,
+    chatty_quota_exceeded,
+    plan_for,
+    usage_units_for_message,
+)
 from app.services.widget_session_service import (
     _detect_sentiment_escalation,
     _log_unanswered_if_needed,
@@ -397,6 +402,7 @@ async def widget_chat(
     bot_id = body.bot_id
     session_id = body.session_id
     text = body.text
+    usage_units = usage_units_for_message(text)
     visitor_timezone = body.visitor_timezone
     visitor_name = (body.visitor_name or "").strip()[:120] or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
@@ -497,7 +503,7 @@ async def widget_chat(
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
-            "content": text, "sender": "visitor",
+            "content": text, "sender": "visitor", "usage_units": usage_units,
         }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
@@ -545,7 +551,9 @@ async def widget_chat(
         return WidgetChatResponse(reply=reply, session_id=session_id)
 
     # 3b. Quota gate - never spend model tokens once the owner is out of quota.
-    if await chatty_quota_exceeded(owner_user, owner_id):
+    # The visitor row is already recorded with its weighted units above, so
+    # this check must evaluate the stored total rather than add the turn twice.
+    if await chatty_quota_exceeded(owner_user, owner_id, recorded_units=usage_units):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({
                 "needs_attention": True,
@@ -616,6 +624,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     bot_id = body.bot_id
     session_id = body.session_id
     text = body.text
+    usage_units = usage_units_for_message(text)
     visitor_timezone = body.visitor_timezone
     visitor_name = (body.visitor_name or "").strip()[:120] or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
@@ -706,7 +715,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     try:
         await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
-            "content": text, "sender": "visitor",
+            "content": text, "sender": "visitor", "usage_units": usage_units,
         }).execute())
     except Exception:
         logger.exception("Failed to save user conversation message")
@@ -765,7 +774,8 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         return StreamingResponse(_flow_gen(), media_type="text/event-stream", background=background_tasks)
 
     # Quota gate - save the graceful reply and stream it as a single message.
-    if await chatty_quota_exceeded(owner_user, owner_id):
+    # The visitor row is already recorded with its weighted units above.
+    if await chatty_quota_exceeded(owner_user, owner_id, recorded_units=usage_units):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({
                 "needs_attention": True,
@@ -1001,11 +1011,12 @@ async def widget_chat_media(
     if not res_user.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
+    usage_units = usage_units_for_message(text, has_media=True)
 
     # Quota gate BEFORE the storage write - an owner who's already out of
     # quota shouldn't also pay for storage on an upload the model will never
     # even look at.
-    if await chatty_quota_exceeded(owner_user, bot["user_id"]):
+    if await chatty_quota_exceeded(owner_user, bot["user_id"], additional_units=usage_units):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({"needs_attention": True})
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
@@ -1040,6 +1051,7 @@ async def widget_chat_media(
         ins_user = await run_db(lambda: supabase.table("chatty_conversations").insert({
             "bot_id": bot_id, "session_id": session_id, "role": "user",
             "content": display + (f"\n{file_url}" if file_url else ""),
+            "usage_units": usage_units,
         }).execute())
         if ins_user and ins_user.data:
             user_msg_id = ins_user.data[0].get("id")

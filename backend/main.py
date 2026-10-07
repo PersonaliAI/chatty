@@ -100,7 +100,7 @@ async def readinesscheck() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Plans / quotas - monthly message count enforced on /api/chat + telegram.
+# Plans / quotas - Kin uses token quotas; Chatty uses weighted AI credits.
 # Free covers evaluation; paid tiers cover real use.
 # ---------------------------------------------------------------------------
 
@@ -114,10 +114,10 @@ PLAN_QUOTAS: dict[str, int] = {
     "basic": 500,
     "pro": 3000,
     "executive": 15000,
-    # Chatty-specific tiers - quotas match what's advertised on chatty's own
+    # Chatty-specific credit caps - values match what's advertised on Chatty's
     # pricing page (src/app/page.tsx): $19/$99/$399 for 1k/10k/40k msgs/mo.
-    # Chatty still bills by message count - token tracking doesn't exist yet
-    # for its separate widget conversation pipeline (run_widget_assistant).
+    # The widget service applies server-calculated weights for long and
+    # multimodal requests; this table remains the shared plan-cap registry.
     "chatty_hobby": 1000,
     "chatty_standard": 10000,
     "chatty_business": 40000,

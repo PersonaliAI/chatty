@@ -2156,6 +2156,9 @@ export default function LandingClient() {
                       <Check className="size-4 text-emerald-600 shrink-0" /> Bring OpenAI, Anthropic, Gemini
                     </li>
                     <li className="flex items-center gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 100 platform AI credits/mo
+                    </li>
+                    <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> Knowledge RAG training
                     </li>
                     <li className="flex items-center gap-2">
@@ -2190,7 +2193,7 @@ export default function LandingClient() {
                       <Check className="size-4 text-emerald-600 shrink-0" /> 3 Live AI Agents
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Included AI message credits
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 1,000 weighted AI credits/mo
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> 10M characters knowledge base
@@ -2233,7 +2236,7 @@ export default function LandingClient() {
                       <Check className="size-4 text-[#f95721] shrink-0" /> 6 Live AI Agents
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-[#f95721] shrink-0" /> 10,000 Included AI credits
+                      <Check className="size-4 text-[#f95721] shrink-0" /> 10,000 weighted AI credits/mo
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-[#f95721] shrink-0" /> Daily auto-sync crawler
@@ -2270,10 +2273,13 @@ export default function LandingClient() {
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Unlimited AI Agents
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Unlimited agent configurations
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> 40,000 Included AI credits
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Fair-use limits apply
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 40,000 weighted AI credits/mo
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> 50M characters knowledge base

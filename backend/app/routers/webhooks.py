@@ -23,7 +23,7 @@ from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_
 from app.core.db import run_db
 from app.core.crypto import decrypt_secret
 from app.adapters.redis_jobs import RedisJobQueue
-from app.services.chatty_quota_service import chatty_quota_exceeded
+from app.services.chatty_quota_service import chatty_quota_exceeded, usage_units_for_message
 from app.services.widget_session_service import upsert_session as _upsert_session
 from app.services.whatsapp_service import (
     build_whatsapp_booking_url,
@@ -579,9 +579,10 @@ async def _handle_whatsapp_message(
 ) -> None:
     session_id = f"wa:{frm}"
     bot_id = bot["id"]
+    usage_units = usage_units_for_message(text, has_media=bool(media_bytes and media_mime))
 
     # Quota check
-    if await chatty_quota_exceeded(owner_user, bot["user_id"]):
+    if await chatty_quota_exceeded(owner_user, bot["user_id"], additional_units=usage_units):
         await _send_whatsapp(phone_number_id, frm, WIDGET_QUOTA_REPLY, access_token)
         return
 
@@ -607,6 +608,7 @@ async def _handle_whatsapp_message(
             "role": "user",
             "content": display_content or "[empty message]",
             "sender": "visitor",
+            "usage_units": usage_units,
         }).execute())
     except Exception:
         logger.exception("Failed to record inbound WhatsApp message")
