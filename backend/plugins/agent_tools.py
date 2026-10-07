@@ -36,84 +36,6 @@ from app.adapters.supabase_audit import SupabaseAuditLogRepository
 
 logger = logging.getLogger("chatty.tools")
 
-# Confirmed spoken contact values are kept briefly in the worker process. This
-# is an additional server-side check behind the model's `voice_confirmation`
-# flag: a model cannot persist a voice name/email unless it first calls the
-# non-persisting confirmation tool for the same session and value.
-_VOICE_CONFIRMATION_TTL_SECONDS = 3600
-_voice_contact_confirmations: dict[tuple[str, str], dict[str, tuple[str, float]]] = {}
-
-
-def _normalize_voice_contact_value(field: str, value: Any) -> str:
-    text = " ".join(str(value or "").strip().split()).casefold()
-    if field == "email":
-        text = re.sub(r"\s+at\s+", "@", text)
-        text = re.sub(r"\s+dot\s+", ".", text)
-        text = re.sub(r"\s+", "", text)
-        return text
-    # Names are commonly repeated with pauses or hyphens (S-H-I-J-A). Keep
-    # Unicode letters/digits so international names are not silently changed.
-    return "".join(ch for ch in text if ch.isalnum())
-
-
-def _voice_spelling_matches(field: str, value: Any, spelling: Any) -> bool:
-    """Validate that the value was actually read back to the visitor.
-
-    Voice STT is not authoritative for contact details. Requiring a second,
-    explicitly spoken-back representation gives the model a deterministic
-    retry path when names such as ``Shija``/``Shiga`` are easy to confuse.
-    """
-    canonical = _normalize_voice_contact_value(field, value)
-    repeated = _normalize_voice_contact_value(field, spelling)
-    if not canonical or not repeated or canonical != repeated:
-        return False
-    if field == "name":
-        raw = str(spelling or "").strip()
-        parts = [part for part in re.split(r"[-\s]+", raw) if part]
-        # Every token must be one character: this rejects a plain copied
-        # value such as "Shiga" and forces the agent to surface S-H-I-J-A
-        # versus S-H-I-G-A to the visitor.
-        return bool(parts) and all(len(part) == 1 for part in parts)
-    if field == "email":
-        raw = str(spelling or "").casefold()
-        return bool(re.search(r"\bat\b|\bdot\b|\s", raw))
-    return True
-
-
-def _voice_confirmation_key(context: Optional[dict]) -> Optional[tuple[str, str]]:
-    if not context or not context.get("voice_mode"):
-        return None
-    bot_id = str(context.get("bot_id") or "").strip()
-    session_id = str(context.get("session_id") or "").strip()
-    return (bot_id, session_id) if bot_id and session_id else None
-
-
-def _register_voice_confirmation(context: Optional[dict], field: str, value: Any) -> bool:
-    key = _voice_confirmation_key(context)
-    canonical = _normalize_voice_contact_value(field, value)
-    if not key or not canonical:
-        return False
-    now = time.monotonic()
-    state = _voice_contact_confirmations.setdefault(key, {})
-    state[field] = (canonical, now)
-    # Opportunistically prune expired sessions so long-lived workers do not
-    # grow this intentionally small in-memory cache without bound.
-    for old_key, old_state in list(_voice_contact_confirmations.items()):
-        if not old_state or all(now - ts > _VOICE_CONFIRMATION_TTL_SECONDS for _, ts in old_state.values()):
-            _voice_contact_confirmations.pop(old_key, None)
-    return True
-
-
-def _voice_value_was_confirmed(context: Optional[dict], field: str, value: Any) -> bool:
-    key = _voice_confirmation_key(context)
-    canonical = _normalize_voice_contact_value(field, value)
-    if not key or not canonical:
-        return False
-    state = _voice_contact_confirmations.get(key) or {}
-    stored = state.get(field)
-    return bool(stored and stored[0] == canonical and time.monotonic() - stored[1] <= _VOICE_CONFIRMATION_TTL_SECONDS)
-
-
 # ---------------------------------------------------------------------------
 # Anti-fake-meeting defenses: Domain blocklists & OTP cache
 # ---------------------------------------------------------------------------
@@ -377,9 +299,7 @@ DECLARATIONS: list[dict] = [
     _tool(
         "create_lead",
         "Record visitor details (name, email, phone, company, job_title, country, industry, budget, etc.) as a business lead. "
-        "Call this when the visitor shares their contact info, or after booking a meeting. "
-        "For voice calls, first repeat every spoken contact value character-by-character and "
-        "get an explicit confirmation; only then set voice_confirmation=true.",
+        "Call this when the visitor shares their contact info, or after booking a meeting. ",
         {
             "bot_id": {"type": "string", "description": "UUID of the chatbot widget."},
             "name": {"type": "string", "description": "Visitor's full name."},
@@ -390,36 +310,8 @@ DECLARATIONS: list[dict] = [
             "country": {"type": "string", "description": "Visitor's country."},
             "industry": {"type": "string", "description": "Visitor's industry."},
             "budget": {"type": "string", "description": "Visitor's budget."},
-            "voice_confirmation": {
-                "type": "boolean",
-                "description": "Voice-only safety gate: set true only after the visitor explicitly confirmed the repeated spelling of the contact details in this turn or earlier in the call.",
-            },
         },
         ["bot_id", "name", "email"],
-    ),
-    _tool(
-        "confirm_contact_detail",
-        "Mark one spoken contact detail as explicitly confirmed by the visitor. "
-        "Voice calls must repeat the spelling and ask for a clear yes before calling this. "
-        "Pass the exact character-by-character or voice-friendly read-back in spelling; "
-        "set confirmed=true only after the visitor explicitly says yes/correct, and this tool never saves a lead by itself.",
-        {
-            "field": {
-                "type": "string",
-                "enum": ["name", "email", "phone", "company", "job_title"],
-                "description": "The single contact field the visitor just confirmed.",
-            },
-            "value": {"type": "string", "description": "The exact spelling/value the visitor confirmed."},
-            "spelling": {
-                "type": "string",
-                "description": "Exact read-back used for confirmation: e.g. S-H-I-J-A for a name, or s h i j a at example dot com for an email.",
-            },
-            "confirmed": {
-                "type": "boolean",
-                "description": "True only when the visitor explicitly confirmed this exact read-back with yes, correct, or equivalent.",
-            },
-        },
-        ["field", "value", "spelling", "confirmed"],
     ),
     _tool(
         "reschedule_meeting",
@@ -1369,7 +1261,6 @@ async def _create_lead(args: dict, user: dict, supabase) -> dict:
     standard_keys = [
         "bot_id", "session_id", "name", "email", "phone", "company", "company_name",
         "job_title", "country", "city", "region", "lat", "lon", "industry", "budget",
-        "voice_confirmation",
     ]
     custom_fields = {k: v for k, v in args.items() if k not in standard_keys and v is not None}
 
@@ -1799,58 +1690,7 @@ async def execute(
             return await _reschedule_meeting(args, user, supabase, context=context)
         if name == "cancel_meeting":
             return await _cancel_meeting(args, user, supabase, context=context)
-        if name == "confirm_contact_detail":
-            field = str(args.get("field") or "").strip().lower()
-            if field not in {"name", "email", "phone", "company", "job_title"}:
-                return {"error": "field must be one of name, email, phone, company, or job_title"}
-            if not context or not context.get("voice_mode"):
-                return {"error": "confirm_contact_detail is only available during a voice call"}
-            if args.get("confirmed") is not True:
-                return {
-                    "error": (
-                        "The visitor has not explicitly confirmed this read-back. Ask a clear yes/no question, "
-                        "wait for yes/correct, then call confirm_contact_detail again with confirmed=true."
-                    ),
-                    "needs_confirmation": True,
-                }
-            if not args.get("spelling"):
-                return {
-                    "error": (
-                        f"Do not save this {field} yet. Repeat it explicitly and pass the exact read-back in "
-                        "spelling (for example S-H-I-J-A or s h i j a at example dot com), then ask the visitor "
-                        "to confirm."
-                    ),
-                    "needs_confirmation": True,
-                }
-            if not _voice_spelling_matches(field, args.get("value"), args.get("spelling")):
-                return {
-                    "error": (
-                        f"The spoken spelling does not match the captured {field}. Discard the draft, ask the "
-                        "visitor to spell it one character at a time, repeat the new spelling, and ask again. "
-                        "Do not call create_lead yet."
-                    ),
-                    "needs_confirmation": True,
-                }
-            if not _register_voice_confirmation(context, field, args.get("value")):
-                return {"error": "A non-empty contact value is required"}
-            return {"success": True, "field": field, "message": "Contact detail confirmed; it may now be saved when all required fields are present."}
         if name == "create_lead":
-            # Spoken names and emails are high-risk transcription fields. The
-            # voice orchestrators set voice_mode on the tool context; require
-            # the model to acknowledge the explicit spelling confirmation
-            # before anything can be persisted. Text chat keeps its existing
-            # immediate lead-capture behavior.
-            if context and context.get("voice_mode"):
-                unconfirmed = [
-                    field for field in ("name", "email")
-                    if args.get(field) and not _voice_value_was_confirmed(context, field, args.get(field))
-                ]
-                if unconfirmed or not args.get("voice_confirmation"):
-                    fields = ", ".join(unconfirmed) or "the spoken contact details"
-                    return {
-                        "error": f"Contact details were not saved yet. Explicitly repeat and confirm {fields}, call confirm_contact_detail for each confirmed value, then call create_lead with voice_confirmation=true.",
-                        "needs_confirmation": True,
-                    }
             return await _create_lead(args, user, supabase)
         if name == "web_search":
             return await _web_search(args, user, supabase)

@@ -20,12 +20,9 @@ import {
   LayoutGrid,
   Upload,
   MessageCircle,
-  Phone,
   Bell,
   RefreshCw,
   X,
-  MicOff,
-  PhoneOff,
   Play,
   Smile,
   Paperclip,
@@ -106,8 +103,8 @@ interface CustomizerTabProps {
   suggestedColors: string[];
   launcherShape: string;
   setLauncherShape: (s: string) => void;
-  previewView: "live" | "chat" | "call";
-  setPreviewView: (v: "live" | "chat" | "call") => void;
+  previewView: "live" | "chat";
+  setPreviewView: (v: "live" | "chat") => void;
   dashHeaderLogo: (iconCls: string) => React.ReactNode;
   dashAvatar: (iconCls: string) => React.ReactNode;
   hideBranding: boolean;
@@ -976,7 +973,6 @@ export function CustomizerTab({
             {([
               { value: "live" as const, label: "Live Widget", icon: LayoutGrid },
               { value: "chat" as const, label: "Mockup", icon: MessageCircle },
-              { value: "call" as const, label: "Call", icon: Phone },
             ]).map((t) => (
               <button
                 key={t.value}
@@ -1044,43 +1040,6 @@ export function CustomizerTab({
               </div>
             </div>
 
-            {previewView === "call" ? (
-              <div className="flex-1 flex flex-col p-4 text-xs">
-                <div className="flex items-center gap-3 w-full pb-3 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
-                  <div
-                    className="shrink-0 rounded-full flex items-center justify-center size-9"
-                    style={{
-                      background: `radial-gradient(circle at 35% 30%, ${primaryColor}dd, ${primaryColor}88)`,
-                      boxShadow: `0 0 12px ${primaryColor}55`,
-                    }}
-                  >
-                    <div className="rounded-full bg-white/25 backdrop-blur-sm size-5" />
-                  </div>
-                  <p className="flex-1 min-w-0 text-xs font-semibold text-neutral-500 dark:text-neutral-400 tracking-wide truncate">00:14</p>
-                </div>
-                <div className="flex-1 min-h-0 w-full overflow-y-auto py-3 space-y-2.5">
-                  <div className="flex justify-start">
-                    <div className="bot-bubble max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-bl-md">
-                      Hi! How can I help you today?
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <div className="user-bubble max-w-[80%] px-3 py-2 text-xs leading-relaxed rounded-br-md">
-                      What are your pricing plans?
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-center gap-4 pb-1 pt-1 shrink-0">
-                  <div className="size-12 rounded-full flex items-center justify-center border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300">
-                    <MicOff className="size-5" />
-                  </div>
-                  <div className="size-14 rounded-full flex items-center justify-center bg-red-500 text-white shadow-lg">
-                    <PhoneOff className="size-6" />
-                  </div>
-                </div>
-              </div>
-            ) : (
-            <>
             {/* Messages list */}
             <div className="flex-1 p-4 space-y-3 overflow-y-auto text-xs">
               <div className="flex gap-2 max-w-[85%]">
@@ -1264,8 +1223,6 @@ export function CustomizerTab({
                 </div>
               );
             })()}
-            </>
-            )}
           </div>
           </>
           )}

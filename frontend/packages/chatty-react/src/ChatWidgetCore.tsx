@@ -11,7 +11,6 @@ import { SafeMarkdownLink } from "./safe-markdown-link";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "./quick-emoji-picker";
 import { AttachMenu } from "./attach-menu";
-import VoiceCallWidget from "./voice-call-widget";
 import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
@@ -26,7 +25,7 @@ import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
 // package's README for the two imports a consumer needs to add once.
 import {
   Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
-  Paperclip, Smile, AudioWaveform, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
+  Paperclip, Smile, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Play, Pause, Trash2,
   BookOpen, Home, HelpCircle, Megaphone, Compass, Clock, Calendar,
@@ -529,7 +528,6 @@ export interface WidgetThemeData {
   font_family?: string | null;
   font_size_percent?: number;
   voice_message_mode?: "transcribe" | "audio";
-  voice_enabled?: boolean;
   panel_size?: string;
 }
 
@@ -701,8 +699,6 @@ function IdentifiedChatWidget({
   const [fontSizePercent, setFontSizePercent] = useState(100);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [voiceCallOpen, setVoiceCallOpen] = useState(false);
   // What a finished in-chat voice recording turns into - set on
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
@@ -1702,45 +1698,6 @@ function IdentifiedChatWidget({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [botId, sessionId]);
 
-  // One-shot manual refetch of any new messages since the last poll - used
-  // right after a voice call ends so the transcript (written server-side by
-  // the voice worker) shows up promptly instead of waiting for the next
-  // SSE/poll cycle.
-  const refetchNow = async () => {
-    try {
-      const url = `${BACKEND_URL}/api/widget/poll?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}`;
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const d = await res.json();
-      setLiveAgent(!!d.ai_paused);
-      if (d.assigned_agent_name) setActiveAgentName(d.assigned_agent_name);
-      if (d.assigned_agent_avatar) setActiveAgentAvatar(d.assigned_agent_avatar);
-      if (Array.isArray(d.messages) && d.messages.length) {
-        lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-        const newMsgs = d.messages.map((m: {
-          content: string;
-          sender?: "human" | "ai";
-          sender_name?: string;
-          sender_avatar?: string;
-          created_at?: string;
-        }) => ({
-          role: "assistant" as const,
-          content: m.content,
-          sender: "human" as const,
-          sender_name: m.sender_name || d.assigned_agent_name,
-          sender_avatar: m.sender_avatar || d.assigned_agent_avatar,
-          created_at: m.created_at || new Date().toISOString(),
-        }));
-        const lastM = newMsgs[newMsgs.length - 1];
-        if (lastM.sender_name) setActiveAgentName(lastM.sender_name);
-        if (lastM.sender_avatar) setActiveAgentAvatar(lastM.sender_avatar);
-        setMessages((p) => [...p, ...newMsgs]);
-        notifyParent();
-      }
-      fetchActiveMeeting();
-    } catch {}
-  };
-
   const getHost = (): string => {
     try { if (typeof document !== "undefined" && document.referrer) return new URL(document.referrer).hostname; } catch {}
     try { if (typeof window !== "undefined") return new URLSearchParams(window.location.search).get("host") || ""; } catch {}
@@ -1785,7 +1742,6 @@ function IdentifiedChatWidget({
           setHideBranding(!!bot.hide_branding);
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
-          setVoiceEnabled(!!bot.voice_enabled);
           setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
@@ -1829,7 +1785,6 @@ function IdentifiedChatWidget({
               trigger_rules: bot.trigger_rules,
               font_family: bot.font_family ?? null,
               font_size_percent: bot.font_size_percent || 100,
-              voice_enabled: !!bot.voice_enabled,
               panel_size: bot.panel_size,
             });
           }
@@ -2673,26 +2628,9 @@ function IdentifiedChatWidget({
                 size="size-7"
               />
             )}
-          {voiceEnabled && (
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.85 }}
-              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-              onClick={() => setVoiceCallOpen(true)}
-              className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
-              style={{ opacity: 0.8, backgroundColor: "color-mix(in srgb, currentColor 0%, transparent)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 0%, transparent)")}
-              aria-label="Start voice call"
-              title="Talk to the assistant"
-            >
-              <AudioWaveform className="size-4" />
-            </motion.button>
-          )}
-          {!voiceCallOpen && (
             <button
               onClick={pushGranted ? toggleMute : requestPushPermission}
-              className={`${voiceEnabled || (tab === "home" && teamProfiles.length > 0) ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
+              className={`${tab === "home" && teamProfiles.length > 0 ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
               style={{ opacity: 0.8 }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -2711,8 +2649,7 @@ function IdentifiedChatWidget({
                 <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
               )}
             </button>
-          )}
-          {!voiceCallOpen && tab === "messages" && (
+          {tab === "messages" && (
             <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -2731,18 +2668,8 @@ function IdentifiedChatWidget({
       </div>
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`flex-1 widget-panel flex flex-col relative ${voiceCallOpen ? "overflow-hidden" : "overflow-y-auto scrollbar-thin"}`}>
-        {voiceCallOpen ? (
-          <VoiceCallWidget
-            botId={botId}
-            sessionId={sessionId}
-            backendUrl={BACKEND_URL}
-            originToken={effectiveOriginToken}
-            visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
-            primaryColor={primaryColor}
-            onClose={() => { setVoiceCallOpen(false); refetchNow(); }}
-          />
-        ) : showCsat ? (
+      <div ref={chatBodyRef} className="flex-1 widget-panel flex flex-col relative overflow-y-auto scrollbar-thin">
+        {showCsat ? (
           /* CSAT Feedback Modal */
           // Colors here are deliberately currentColor-relative (style props,
           // not text-neutral-* / dark:* classes) rather than the pattern
@@ -3553,7 +3480,7 @@ function IdentifiedChatWidget({
       </div>
 
       {/* Composer (Messages tab only) */}
-      {tab === "messages" && chatView === "conversation" && !voiceCallOpen && (
+      {tab === "messages" && chatView === "conversation" && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           {!showOfflineForm && !emailCaptureDismissed && (
             <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/70 px-2.5 py-1.5">
@@ -3778,9 +3705,6 @@ function IdentifiedChatWidget({
               <div className="flex items-center gap-0.5">
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
-                {voiceEnabled && (
-                  <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => setVoiceCallOpen(true)} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Start voice call" title="Talk to the assistant"><AudioWaveform className="size-4" /></motion.button>
-                )}
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
@@ -3805,7 +3729,7 @@ function IdentifiedChatWidget({
       )}
 
       {/* ── Persistent Bottom Navigation Bar ── */}
-      {!voiceCallOpen && !showCsat && !showOfflineForm && (
+      {!showCsat && !showOfflineForm && (
         <>
           {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
             (() => {

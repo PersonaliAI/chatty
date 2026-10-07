@@ -28,22 +28,3 @@ litellm==1.98.0
 mcp==1.28.1
 
 sentry-sdk[fastapi]==2.59.0
-
-# LiveKit voice worker (Phase B) — pinned to versions verified installed
-# and importable together in this environment.
-livekit-agents==1.6.10
-livekit-api==1.2.0
-livekit-plugins-google==1.6.10
-livekit-plugins-silero==1.6.10
-
-# LiveKit voice worker STT/TTS provider matrix (Phase C, BYOK) — pinned to
-# versions verified installed and importable together in this environment.
-livekit-plugins-deepgram==1.6.10
-livekit-plugins-assemblyai==1.6.10
-livekit-plugins-soniox==1.6.10
-livekit-plugins-openai==1.6.10
-livekit-plugins-cartesia==1.6.10
-livekit-plugins-elevenlabs==1.6.10
-livekit-plugins-fishaudio==1.6.10
-# Optional self-hosted WebRTC AEC/NS/AGC for the voice worker.
-livekit-plugins-denoise==0.1.1

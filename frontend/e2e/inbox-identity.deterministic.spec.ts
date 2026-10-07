@@ -15,7 +15,7 @@ test("mobile widget clears composer and private history on identify/logout", asy
       expect(route.request().headers()["x-chatty-visitor"]).toBeTruthy();
       await route.fulfill({ json: { ok: true } });
     } else if (url.pathname.endsWith("/theme")) {
-      await route.fulfill({ json: { name: "Identity test", welcome_message: "Welcome", primary_color: "#f97316", widget_style: "minimal", voice_enabled: false, csat_enabled: false } });
+      await route.fulfill({ json: { name: "Identity test", welcome_message: "Welcome", primary_color: "#f97316", widget_style: "minimal", csat_enabled: false } });
     } else if (url.pathname.endsWith("/live")) {
       await route.fulfill({ contentType: "text/event-stream", body: ": connected\n\n" });
     } else {

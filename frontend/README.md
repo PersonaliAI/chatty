@@ -40,8 +40,7 @@ The script mounts directly into an isolated **Shadow DOM** container, rendering 
 ## Architecture
 
 The frontend and API are portable containers. Supabase remains the managed
-system of record, while LiveKit can run in the cloud or on infrastructure you
-operate yourself.
+system of record.
 
 ```mermaid
 flowchart TB
@@ -66,7 +65,6 @@ flowchart TB
     subgraph runtime["Chatty runtime"]
         direction LR
         api["FastAPI API · chat · RAG · webhooks"]:::app
-        voice["Voice worker · LiveKit Agents"]:::app
     end
     subgraph data["Managed Supabase — default profile"]
         direction LR
@@ -80,7 +78,6 @@ flowchart TB
         llm["LLM providers"]:::integration
         calendar["Calendar providers"]:::integration
         channelsApi["WhatsApp / Slack"]:::integration
-        livekit["LiveKit Cloud or self-hosted"]:::integration
         billing["Billing + webhooks"]:::integration
     end
     subgraph deploy["Deployment targets"]
@@ -96,7 +93,6 @@ flowchart TB
     channels --> api
     tls --> web
     web -->|HTTPS| api
-    api --> voice
     api --> auth
     api --> postgres
     api --> storage
@@ -104,7 +100,6 @@ flowchart TB
     api --> llm
     api --> calendar
     api --> channelsApi
-    voice --> livekit
     api --> billing
     deploy -. runs .-> runtime
 ```
@@ -127,29 +122,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 ```
-
-## Embed the standalone voice agent
-
-Chatty also provides a dedicated voice-call surface for websites that want a
-“Talk to voice agent” experience instead of opening the chat drawer. It has an
-animated speaking orb, real microphone activity, live visitor/agent
-transcription, mute and hang-up controls, and booking support.
-
-```html
-<iframe
-  src="https://chatty.personaliai.com/voice/YOUR_BOT_UUID"
-  title="Talk to our voice agent"
-  width="100%"
-  height="760"
-  style="border:0;border-radius:24px;overflow:hidden"
-  allow="microphone"
-></iframe>
-```
-
-Add the parent site to the bot allow list before publishing. Keep
-`allow="microphone"` on the iframe; the visitor will be asked for permission
-when the call starts. You can also link a custom button directly to
-`/voice/YOUR_BOT_UUID` or open that URL in a modal.
 
 ## Local Development
 

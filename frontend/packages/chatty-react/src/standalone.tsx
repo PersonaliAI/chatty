@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { visitorIdentityClient, useVisitorIdentity } from "./visitor-identity";
+import { visitorIdentityClient } from "./visitor-identity";
 import { createRoot, type Root } from "react-dom/client";
 import ChatWidgetCore, { type ChatWidgetCoreProps } from "./ChatWidgetCore";
-import VoiceCallWidget from "./voice-call-widget";
 import { getOnColor, hexToRgb } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 import "./standalone.css";
@@ -15,7 +14,6 @@ import {
   Sparkles,
   MessageSquare,
   MessageCircle,
-  AudioWaveform,
   User,
   X,
   type LucideIcon,
@@ -87,9 +85,6 @@ export interface ChattyWidgetApi {
   open: () => void;
   close: () => void;
   toggle: () => void;
-  openVoice: () => void;
-  closeVoice: () => void;
-  toggleVoice: () => void;
 }
 
 export interface StandaloneMountOptions {
@@ -122,10 +117,6 @@ export function ChattyStandaloneApp({
 }: StandaloneMountOptions) {
   const side = position === "left" ? "left" : "right";
   const [open, setOpen] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const voiceIdentity = useVisitorIdentity(botId, BACKEND_URL);
-  const voiceSessionId = voiceIdentity.value?.session_id || "";
   const [unread, setUnread] = useState(0);
   const [coreReady, setCoreReady] = useState(false);
   const [themeLoaded, setThemeLoaded] = useState(false);
@@ -268,7 +259,6 @@ export function ChattyStandaloneApp({
     if (logo) setCustomIconUrl(logo);
 
     if (d.panel_size && PANEL_SIZE_PRESETS[d.panel_size]) setPanelSize(d.panel_size);
-    if (typeof d.voice_enabled === "boolean") setVoiceEnabled(d.voice_enabled);
 
     if (d.teaser_message || d.welcome_message) {
       setTeaserText(d.teaser_message || d.welcome_message);
@@ -362,14 +352,11 @@ export function ChattyStandaloneApp({
   useEffect(() => {
     if (!onApiReady || !revealed) return;
     onApiReady({
-      identify: (token) => { setVoiceOpen(false); return visitorIdentityClient(botId, BACKEND_URL).identify(token); },
-      logout: () => { setVoiceOpen(false); return visitorIdentityClient(botId, BACKEND_URL).logout(); },
+      identify: (token) => visitorIdentityClient(botId, BACKEND_URL).identify(token),
+      logout: () => visitorIdentityClient(botId, BACKEND_URL).logout(),
       open: () => handleOpen(true),
       close: () => handleOpen(false),
       toggle: () => handleOpen(!openRef.current),
-      openVoice: () => setVoiceOpen(true),
-      closeVoice: () => setVoiceOpen(false),
-      toggleVoice: () => setVoiceOpen((current) => !current),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onApiReady, revealed]);
@@ -680,59 +667,6 @@ export function ChattyStandaloneApp({
         </button>
       )}
 
-      {/* Separate voice-agent surface. It is intentionally independent from
-          the chat drawer, but opens only from a host-controlled trigger
-          (`window.Chatty.openVoice()` / `useChatty().openVoice()`). This keeps
-          the default widget uncluttered while preserving a fully embeddable
-          voice-agent surface for sites that want their own button. */}
-      {voiceEnabled && voiceOpen && voiceIdentity.value && (
-        <>
-          <div aria-hidden="true" onClick={() => setVoiceOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.42)", backdropFilter: "blur(8px)", zIndex: 2147483646, animation: "chatty-voice-backdrop-in .25s ease-out" }} />
-          <div
-            role="dialog"
-            aria-label="Voice assistant"
-            style={{
-              position: "fixed",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "min(860px, calc(100vw - 32px))",
-              height: "min(760px, calc(100vh - 48px))",
-              maxHeight: "calc(100vh - 48px)",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-              borderRadius: isMobile ? "22px" : "30px",
-              border: `1px solid ${iconColor}35`,
-              background: "rgba(255,255,255,.98)",
-              boxShadow: "0 30px 120px rgba(0,0,0,.42), 0 0 0 1px rgba(255,255,255,.24)",
-              zIndex: 2147483647,
-              animation: "chatty-voice-dock-in .35s cubic-bezier(.16,1,.3,1)",
-            }}
-          >
-          <div style={{ height: 52, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", borderBottom: "1px solid rgba(15,23,42,.08)", fontFamily: "system-ui, -apple-system, sans-serif" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center", color: iconColor, background: `${launcherBg.startsWith("#") ? launcherBg : "#f97316"}18` }}><AudioWaveform style={{ width: 16, height: 16 }} /></span>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#111827" }}>Voice assistant</div>
-                <div style={{ fontSize: 10, color: "#64748b" }}>Live transcription · booking enabled</div>
-              </div>
-            </div>
-            <button type="button" onClick={() => setVoiceOpen(false)} aria-label="Close voice assistant" style={{ width: 32, height: 32, border: 0, borderRadius: "50%", background: "transparent", color: "#64748b", cursor: "pointer", display: "grid", placeItems: "center" }}><X style={{ width: 18, height: 18 }} /></button>
-          </div>
-          <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-            <VoiceCallWidget
-              botId={botId}
-              sessionId={voiceSessionId}
-              backendUrl={BACKEND_URL}
-              visitorTimezone={typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC"}
-              primaryColor={launcherBg.startsWith("#") ? launcherBg : "#f97316"}
-              onClose={() => setVoiceOpen(false)}
-            />
-          </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }

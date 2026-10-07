@@ -13,7 +13,6 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![LiveKit](https://img.shields.io/badge/Voice-LiveKit-FF6600)](https://livekit.io)
 [![MCP](https://img.shields.io/badge/Agent%20Control-MCP-8b5cf6)](#mcp-サーバーとエージェント制御)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -61,7 +60,6 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 ## ✨ 機能
 
 - 💬 **埋め込み可能チャットウィジェット** — `<script>` タグ1行で導入可能。ストリーミング応答に対応し、あらゆるWebサイトで動作
-- 🎙️ **リアルタイム音声エージェント** — LiveKit を活用した電話のような双方向音声通話。チャットウィジェットと同一の頭脳・ナレッジベースを共有
 - 📚 **独自ナレッジベースによるRAG** — PDF / DOCX / PPTX / XLSX のアップロードやURLクローリングに対応。テキストの自動チャンク分割およびベクトル埋め込み（Embedding）を実行
 - 🛠️ **ツール呼び出し (Tool-calling)** — ミーティング予約（Google Meet / Microsoft Teams / Zoom リンクの発行）、リード獲得、カレンダー空き枠の確認を自動化
 - 🔌 **オムニチャネル対応** — Webウィジェットに加え、WhatsApp および Slack にも対応
@@ -72,7 +70,6 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 
 ## アーキテクチャ
 
-公開リポジトリは標準的なアプリケーション構成を採用しています。`frontend/` には Next.js ダッシュボードとウィジェットが含まれ、`backend/` には FastAPI API、ワーカー、外部連携機能、データベースマイグレーションが含まれます。アプリケーションはマネージド Supabase プロジェクトと連携して動作します（Chatty Cloud と同一の構成です）。オプションの音声ワーカーは、LiveKit Cloud または `backend/voice-agent` 配下の独立したセルフホスト LiveKit メディアプレーンスタックを利用できます。この構成は Supabase、Postgres、Auth、Storage、Chatty API を置き換えるものではありません。
 
 ```mermaid
 flowchart TB
@@ -97,7 +94,6 @@ flowchart TB
     subgraph runtime["Chatty runtime"]
         direction LR
         api["FastAPI API · chat · RAG · webhooks"]:::app
-        voice["Voice worker · LiveKit Agents"]:::app
     end
     subgraph managed["Managed Supabase — default profile"]
         direction LR
@@ -111,7 +107,6 @@ flowchart TB
         llm["LLM providers"]:::integration
         calendar["Calendar providers"]:::integration
         channelsApi["WhatsApp / Slack"]:::integration
-        livekit["LiveKit Cloud or self-hosted"]:::integration
         billing["Billing + webhooks"]:::integration
     end
     subgraph targets["Deployment targets"]
@@ -135,7 +130,6 @@ flowchart TB
     api --> llm
     api --> calendar
     api --> channelsApi
-    voice --> livekit
     api --> billing
     targets -. runs .-> runtime
     linkStyle default stroke:#64748b,stroke-width:1.5px
@@ -149,7 +143,6 @@ chatty/
 │   ├── plugins/      Google/Microsoft連携、RAG、ウィジェットオーケストレーション
 │   ├── supabase/     データベーススキーマおよびマイグレーション (順次適用)
 │   ├── scripts/      apply_migrations.py などの運用スクリプト
-│   ├── voice-agent/  LiveKit 音声ワーカーエージェント + VPS向けセルフホスト Docker スタック
 │   └── tests/        pytest スモークテストおよびユニットテスト
 └── docker-compose.yml
 ```
@@ -159,7 +152,6 @@ chatty/
 | プロファイル | データおよび認証サービス | 使用用途 |
 |---|---|---|
 | `managed_supabase` (デフォルト) | Supabase Auth、Postgres、Storage、pgvector、RLS | Chatty Cloud およびサポート対象のすべてのアプリケーションデプロイ |
-| 音声メディアプレーン (オプション) | VPS 上の LiveKit + プライベート Redis | 音声メディア処理を独自の VPS 上に維持しつつ、アプリケーションデータは Supabase に保持 |
 
 ### 対応デプロイプラットフォーム
 
@@ -182,7 +174,6 @@ chatty/
 | [Supabase](https://supabase.com) アカウント | 無料枠 (Free tier) | データベース (Postgres + Auth + Storage + pgvector) |
 | [Google AI Studio](https://aistudio.google.com/apikey) API キー | 無料枠 (Free tier) | デフォルト LLM (Gemini) |
 
-その他（音声通話用の LiveKit、WhatsApp / Slack トークン、Google / Microsoft OAuth、Lemon Squeezy 決済、Sentry、Upstash Redis など）はすべて**任意（オプション）**です。環境変数を空にしておくだけで該当機能が無効化されるだけであり、システム全体の動作に影響はありません。
 
 ## 🚀 クイックスタート (Docker Compose)
 
@@ -242,7 +233,6 @@ npm run dev
 **音声ワーカー (オプション):**
 ```bash
 cd backend
-python voice-agent/voice_worker.py dev
 ```
 
 ## MCP サーバーとエージェント制御
@@ -271,7 +261,6 @@ MCP クライアントの設定例:
 すべての環境変数は [`backend/.env.example`](backend/.env.example) および [`frontend/.env.example`](frontend/.env.example) に詳細なコメント付きで記載されています。
 
 - **バックエンド必須**: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_DB_HOST`, `SUPABASE_DB_PASSWORD`, `FUNCTION_SECRET`, `BYOK_ENCRYPTION_KEY`, `GEMINI_API_KEY`
-- **バックエンド任意（機能別）**: LiveKit (音声), WhatsApp / Slack (外部連携), Google / Microsoft OAuth (カレンダー予約), Zoom (ミーティング発行), Sentry (エラー監視) など
 - **フロントエンド必須**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_BACKEND_URL`
 
 ## 🤝 コントリビューション

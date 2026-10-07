@@ -18,6 +18,10 @@ from __future__ import annotations
 
 import logging
 import os
+import ast
+import inspect
+import json
+import re
 import time
 from typing import Any, Optional
 
@@ -43,6 +47,111 @@ class PartialStreamError(RuntimeError):
         self.model = model
         self.emitted_chars = emitted_chars
         self.cause = cause
+
+
+_TEXT_TOOL_CALL_MARKER_RE = re.compile(
+    r"(?:^|\s)(?:tool_code|default_api\.)|print\s*\(\s*default_api\.",
+    re.IGNORECASE,
+)
+_TEXT_TOOL_PREFIXES = ("tool_code", "<tool_code>", "default_api.", "print(default_api.")
+
+
+def _extract_text_tool_calls(text: str) -> tuple[str, list[dict[str, Any]]]:
+    """Convert Gemini-style textual tool syntax into normal tool calls.
+
+    Some Gemini/LiteLLM combinations have emitted e.g.
+    ``tool_code print(default_api.create_lead(...))`` as assistant text
+    instead of populating ``message.tool_calls``. Treating that as visible
+    content makes voice TTS speak internal implementation details. Parse only
+    a constrained ``default_api.<name>(keyword=value, ...)`` expression with
+    ``ast.literal_eval``; never execute model-produced Python.
+    """
+    if not text or not _TEXT_TOOL_CALL_MARKER_RE.search(text):
+        return text, []
+
+    calls: list[dict[str, Any]] = []
+    spans: list[tuple[int, int]] = []
+    cursor = 0
+    while True:
+        match = re.search(r"default_api\.([A-Za-z_]\w*)\s*\(", text[cursor:])
+        if not match:
+            break
+        start = cursor + match.start()
+        open_index = cursor + match.end() - 1
+        depth = 0
+        quote: str | None = None
+        escaped = False
+        close_index: int | None = None
+        for index in range(open_index, len(text)):
+            char = text[index]
+            if quote:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = None
+                continue
+            if char in ("'", '"'):
+                quote = char
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    close_index = index + 1
+                    break
+        if close_index is None:
+            break
+
+        source = text[start:close_index]
+        try:
+            expression = ast.parse(source, mode="eval").body
+            if not isinstance(expression, ast.Call) or not isinstance(expression.func, ast.Attribute):
+                raise ValueError("not a default_api call")
+            if not isinstance(expression.func.value, ast.Name) or expression.func.value.id != "default_api":
+                raise ValueError("unexpected tool receiver")
+            if expression.args or any(keyword.arg is None for keyword in expression.keywords):
+                raise ValueError("only named literal arguments are supported")
+            arguments = {
+                keyword.arg: ast.literal_eval(keyword.value)
+                for keyword in expression.keywords
+            }
+        except (SyntaxError, ValueError, TypeError, MemoryError, RecursionError):
+            cursor = close_index
+            continue
+
+        calls.append({
+            "id": f"text-tool-call-{len(calls) + 1}",
+            "type": "function",
+            "function": {
+                "name": expression.func.attr,
+                "arguments": json.dumps(arguments, default=str),
+            },
+        })
+        spans.append((start, close_index))
+        cursor = close_index
+
+    if not calls:
+        # Even an unparseable tool marker must not be spoken. The caller will
+        # produce a normal recovery answer instead of exposing model syntax.
+        return "", []
+
+    visible = text
+    for start, end in reversed(spans):
+        visible = visible[:start] + visible[end:]
+    visible = re.sub(r"print\s*\(\s*\)", "", visible, flags=re.IGNORECASE)
+    visible = re.sub(r"<\/?tool_code>", "", visible, flags=re.IGNORECASE)
+    visible = re.sub(r"\btool_code\b", "", visible, flags=re.IGNORECASE)
+    return visible.strip(), calls
+
+
+def _looks_like_text_tool_call(text: str) -> bool:
+    """Return true once a streamed prefix is clearly internal tool syntax."""
+    value = (text or "").lstrip().lower()
+    if any(marker in value for marker in ("tool_code", "default_api.", "print(default_api.")):
+        return True
+    return any(prefix.startswith(value) for prefix in _TEXT_TOOL_PREFIXES if value)
 
 # Drop kwargs a given provider doesn't support instead of raising - Gemini,
 # Anthropic, and OpenAI don't all accept the same completion params (e.g.
@@ -369,6 +478,32 @@ async def chat_stream(
         text_parts: list[str] = []
         tool_calls: dict[int, dict] = {}
         emitted_chars = 0
+        pending_text = ""
+        suppress_internal_text = False
+
+        async def _emit_text(delta_text: str) -> None:
+            nonlocal emitted_chars, pending_text, suppress_internal_text
+            if not on_token or suppress_internal_text:
+                return
+            candidate = pending_text + delta_text
+            if _looks_like_text_tool_call(candidate):
+                suppress_internal_text = True
+                pending_text = ""
+                return
+            # Hold only a short prefix that could still become the
+            # `tool_code` marker. Ordinary model text remains fully streamed.
+            stripped = candidate.lstrip().lower()
+            if stripped and len(stripped) < 16 and any(
+                prefix.startswith(stripped) for prefix in _TEXT_TOOL_PREFIXES
+            ):
+                pending_text = candidate
+                return
+            pending_text = ""
+            result = on_token(candidate)
+            if inspect.isawaitable(result):
+                await result
+            emitted_chars += len(candidate)
+
         try:
             async for chunk in stream:
                 raw_chunks.append(chunk)
@@ -378,9 +513,7 @@ async def chat_stream(
                 delta = choice.delta
                 if delta and delta.content:
                     text_parts.append(delta.content)
-                    emitted_chars += len(delta.content)
-                    if on_token:
-                        await on_token(delta.content)
+                    await _emit_text(delta.content)
                 if delta and delta.tool_calls:
                     for tc in delta.tool_calls:
                         slot = tool_calls.setdefault(tc.index, {
@@ -407,8 +540,16 @@ async def chat_stream(
                 )
                 raise PartialStreamError(m, emitted_chars, exc) from exc
             raise
-        text = "".join(text_parts).strip()
+        raw_text = "".join(text_parts).strip()
+        text, text_tool_calls = _extract_text_tool_calls(raw_text)
+        if on_token and not suppress_internal_text and pending_text and not text_tool_calls:
+            result = on_token(pending_text)
+            if inspect.isawaitable(result):
+                await result
+            emitted_chars += len(pending_text)
         ordered_tool_calls = [tool_calls[k] for k in sorted(tool_calls)]
+        if text_tool_calls:
+            ordered_tool_calls.extend(text_tool_calls)
         message = {"role": "assistant", "content": text or None}
         if ordered_tool_calls:
             message["tool_calls"] = ordered_tool_calls
@@ -463,13 +604,21 @@ async def chat_stream(
                            max_attempts=1, bot_id=bot_id, session_id=session_id,
                            call_type=call_type, **kwargs)
         msg = resp.choices[0].message
-        text = (msg.content or "").strip()
-        if on_token and text and not getattr(msg, "tool_calls", None):
-            await on_token(text)
+        text, text_tool_calls = _extract_text_tool_calls((msg.content or "").strip())
+        model_tool_calls = [tc.model_dump() for tc in (msg.tool_calls or [])] if getattr(msg, "tool_calls", None) else []
+        all_tool_calls = [*model_tool_calls, *text_tool_calls]
+        if on_token and text and not all_tool_calls:
+            result = on_token(text)
+            if inspect.isawaitable(result):
+                await result
         return {
             "text": text,
-            "tool_calls": [tc.model_dump() for tc in (msg.tool_calls or [])] if getattr(msg, "tool_calls", None) else [],
-            "message": msg.model_dump() if hasattr(msg, "model_dump") else dict(msg),
+            "tool_calls": all_tool_calls,
+            "message": {
+                "role": "assistant",
+                "content": text or None,
+                **({"tool_calls": all_tool_calls} if all_tool_calls else {}),
+            },
             "usage": getattr(resp, "usage", None),
         }
 

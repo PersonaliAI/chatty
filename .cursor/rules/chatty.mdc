@@ -12,7 +12,6 @@ When developing, auditing, or configuring chatbots within the Chatty ecosystem, 
 - **Backend**: Python 3.11+, FastAPI, Pydantic v2, located in `backend/app/`.
 - **Frontend**: Next.js 16 (App Router), React 19, Tailwind CSS v4, located in `frontend/`.
 - **Database & Auth**: Managed Supabase PostgreSQL with `pgvector` & Row-Level Security (RLS).
-- **Voice Agent**: LiveKit WebRTC SFU with Silero VAD, located in `backend/voice-agent/`.
 - **MCP Server**: FastMCP ASGI sub-app mounted at `/mcp` with OAuth 2.0 + PKCE.
 
 ## 2. MCP Tools & Operations
@@ -22,7 +21,6 @@ Chatty exposes 55 MCP tools across 10 operational categories:
 - **Knowledge & RAG**: `list_knowledge_sources`, `add_chatbot_knowledge`, `test_rag_retrieval`, `trigger_website_crawl`.
 - **Visual Flows**: `get_flow_graph`, `generate_flow_with_ai`, `optimize_flow_draft`, `dry_run_flow`.
 - **Campaigns**: `list_campaigns`, `create_campaign`, `suggest_campaign_audience`, `preview_campaign_schedule`.
-- **Voice**: `get_voice_config`, `update_voice_personality`, `list_available_voices`.
 - **Inbox & Live Support**: `list_inbox_threads`, `get_thread_messages`, `send_inbox_reply`, `claim_thread`.
 
 ## 3. Bot Starter Templates

@@ -26,7 +26,6 @@ from app.schemas.bots_api import (
     WidgetColorSchemeInput,
     CampaignCreateRequest,
     CampaignUpdateRequest,
-    VoiceAgentConfigRequest,
     LeadCaptureConfigRequest,
     CalendarIntegrationRequest,
     GuardrailsConfigRequest,
@@ -38,7 +37,6 @@ from app.services import (
     bots_service,
     mcp_design_service,
     mcp_campaign_service,
-    mcp_voice_service,
     mcp_inbox_service,
     mcp_kb_service,
 )
@@ -67,7 +65,7 @@ mcp = FastMCP(
     name="chatty",
     instructions=(
         "Full-featured MCP server for Chatty AI chatbots: create, customize, and manage "
-        "bots, flows, campaigns, voice agents, knowledge bases, lead capture, calendar meetings, "
+        "bots, flows, campaigns, knowledge bases, lead capture, calendar meetings, "
         "analytics, design audits, and secure signed customer identity for website widgets. "
         "Customer identity tokens are minted by the customer's server, never by an MCP client."
     ),
@@ -358,51 +356,6 @@ async def get_campaign_analytics(bot_id: str, campaign_id: str) -> dict:
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
     return await mcp_campaign_service.get_campaign_analytics(principal, bot_id, campaign_id)
-
-
-# ===========================================================================
-# 5. VOICE AGENT (LiveKit Real-Time Audio)
-# ===========================================================================
-
-
-@mcp.tool()
-async def configure_voice_agent(
-    bot_id: str,
-    enabled: bool = True,
-    tts_provider: str = "openai",
-    voice_id: str = "alloy",
-    voice_temperature: float = 0.7,
-    stt_provider: str = "deepgram",
-    language: str = "en",
-    interruption_enabled: bool = True,
-    vad_sensitivity: str = "medium",
-    endpointing_delay_ms: int = 500,
-    voice_system_prompt: Optional[str] = None,
-) -> dict:
-    """Configure LiveKit real-time voice parameters, STT/TTS models, and turn-detection."""
-    principal = await _current_principal()
-    _oauth.check_principal_scope(principal, "write")
-    body = VoiceAgentConfigRequest(
-        enabled=enabled,
-        tts_provider=tts_provider,
-        voice_id=voice_id,
-        voice_temperature=voice_temperature,
-        stt_provider=stt_provider,
-        language=language,
-        interruption_enabled=interruption_enabled,
-        vad_sensitivity=vad_sensitivity,
-        endpointing_delay_ms=endpointing_delay_ms,
-        voice_system_prompt=voice_system_prompt,
-    )
-    return await mcp_voice_service.configure_voice_agent(principal, bot_id, body)
-
-
-@mcp.tool()
-async def mint_voice_token(bot_id: str, visitor_timezone: str = "UTC") -> dict:
-    """Generate a LiveKit JWT token and dispatch the real-time voice worker for a room."""
-    principal = await _current_principal()
-    _oauth.check_principal_scope(principal, "read")
-    return await mcp_voice_service.mint_voice_token(principal, bot_id, visitor_timezone)
 
 
 # ===========================================================================

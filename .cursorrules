@@ -1,12 +1,11 @@
 # Chatty AI Platform Rules for Cursor
 
-You are an expert AI assistant working on Chatty by PersonaliAI — an open-source AI customer support platform (Chat widget + LiveKit Voice Agent + 55-tool MCP Server).
+You are an expert AI assistant working on Chatty by PersonaliAI — an open-source AI customer support platform (Chat widget + MCP Server).
 
 ## Tech Stack
 - Backend: Python 3.11, FastAPI, Supabase PostgREST, pgvector, Pydantic v2
 - Frontend: Next.js 16 (App Router), React 19, Tailwind CSS v4
 - Database: Managed Supabase Postgres with Row-Level Security (RLS)
-- Audio: LiveKit WebRTC SFU with Silero VAD
 - Agent Control: Model Context Protocol (FastMCP) with OAuth 2.0 PKCE
 
 ## Key Capabilities & Tools

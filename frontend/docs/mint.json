@@ -69,7 +69,6 @@
         "features/knowledge-base",
         "features/flow-architect",
         "features/meeting-scheduler",
-        "features/voice-agent",
         "features/campaigns",
         "features/team-permissions",
         "features/mcp-server"
@@ -122,10 +121,6 @@
           ]
         },
         {
-          "group": "Voice Agent",
-          "pages": ["api-reference/voice/token"]
-        },
-        {
           "group": "Webhooks",
           "pages": ["api-reference/webhooks/create"]
         },
@@ -147,7 +142,6 @@
         "guides/webhooks",
         "guides/byok",
         "guides/languages",
-        "guides/voice-self-hosting"
       ]
     },
     {

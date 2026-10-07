@@ -21,6 +21,6 @@ For an existing checkout:
 git submodule update --init --recursive
 ```
 
-The standalone `ai-voice-agents` project and the iOS, Android, React Native,
-and Flutter SDKs are intentionally not vendored here. They remain separate
+The iOS, Android, React Native, and Flutter SDKs are intentionally not vendored
+here. They remain separate
 projects and are integrated through their documented APIs/packages.

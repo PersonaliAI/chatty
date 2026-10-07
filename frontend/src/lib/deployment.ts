@@ -1,8 +1,7 @@
 /** Runtime deployment switches shared by browser and server code.
  *
  * Chatty's application data plane is Supabase-backed in every supported
- * deployment. Only the LiveKit voice media plane may be self-hosted (see
- * backend/voice-agent); the retired full-stack OIDC deployment is deliberately
+ * deployment. The retired full-stack OIDC deployment is deliberately
  * disabled so an old environment variable cannot silently select dead routes.
  */
 export const SELF_HOST_MODE = false;

@@ -27,7 +27,7 @@ A clear and concise description of what actually happened.
 - **Browser**: [e.g. Chrome 120, Firefox 121, Safari 17]
 - **Deployment Method**: [e.g. Docker Compose, Kubernetes, Helm, Chatty Cloud, Bare Metal]
 - **Chatty Version / Commit**: [e.g. v1.0.0 or commit hash]
-- **Component Affected**: [e.g. Chat Widget, Voice Agent, MCP Server, Dashboard, REST API]
+- **Component Affected**: [e.g. Chat Widget, MCP Server, Dashboard, REST API]
 
 ## Logs
 ```text

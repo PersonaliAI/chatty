@@ -39,7 +39,7 @@ We follow coordinated disclosure. We will not take legal action against research
 
 ### Out of Scope
 
-- Third-party managed services (Supabase, LiveKit Cloud, LLM providers, Lemon Squeezy) — report to those vendors directly
+- Third-party managed services (Supabase, LLM providers, Lemon Squeezy) — report to those vendors directly
 - Social engineering attacks against project maintainers
 - Denial of service (DoS/DDoS)
 - Vulnerabilities in dependencies — report upstream; we monitor via Dependabot and `pip-audit`
@@ -61,7 +61,7 @@ We follow coordinated disclosure. We will not take legal action against research
 - **Authorization Code with PKCE** (RFC 7636) — mandatory code verifier/challenge for all MCP client authorization
 - **Dynamic Client Registration** (RFC 7591) — MCP clients self-register without pre-shared secrets
 - **Authorization Server Metadata** (RFC 8414) — auto-discoverable at `/.well-known/oauth-authorization-server`
-- **Scoped access tokens** — `read`, `write`, `knowledge`, `voice`, `actions`, `admin`
+- **Scoped access tokens** — `read`, `write`, `knowledge`, `actions`, `admin`
 
 ### Encryption
 
@@ -101,7 +101,6 @@ We follow coordinated disclosure. We will not take legal action against research
 - **Never** commit a filled `.env` file — all `.env` files are gitignored
 - Use a secret manager (Vault, AWS Secrets Manager, GCP Secret Manager, Railway/Render built-in secrets) in production
 - OAuth client secrets (Google, Microsoft, Zoom) should be rotated annually
-- LiveKit API keys can be rotated independently without affecting non-voice features
 
 ---
 

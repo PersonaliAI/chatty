@@ -107,7 +107,7 @@ Frontend variables:
 Copy the complete optional feature list from
 [backend/.env.example](../backend/.env.example) and
 [frontend/.env.example](../frontend/.env.example). WhatsApp, Slack, Google,
-Microsoft, Zoom, LiveKit, billing, Sentry, and web crawling remain opt-in;
+Microsoft, Zoom, billing, Sentry, and web crawling remain opt-in;
 blank values disable only that feature.
 
 ## 3. Local smoke test (required before a hosted deploy)

@@ -326,7 +326,7 @@ async def analytics_channels(
     to_date: Optional[str] = Query(None, alias="to"),
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Return per-channel session counts (web, email, whatsapp, voice, slack, …)."""
+    """Return per-channel session counts (web, email, whatsapp, slack, …)."""
     await _require_bot_access(bot_id, user)
 
     now = datetime.now(timezone.utc)
@@ -671,89 +671,6 @@ async def analytics_ai_cost(
         },
         "by_model": model_rows,
         "daily_series": daily_series,
-    }
-
-
-# ---------------------------------------------------------------------------
-# 8. Voice agent health and capacity
-# ---------------------------------------------------------------------------
-
-@router.get("/api/admin/analytics/voice", tags=["Dashboard - Analytics"])
-async def analytics_voice(
-    bot_id: str = Query(...),
-    from_date: Optional[str] = Query(None, alias="from"),
-    to_date: Optional[str] = Query(None, alias="to"),
-    user: dict[str, Any] = Depends(require_user),
-):
-    """Return aggregate voice latency, resource and cost telemetry only."""
-    await _require_bot_access(bot_id, user)
-    now = datetime.now(timezone.utc)
-    to_dt = _parse_date_param(to_date, now)
-    from_dt = _parse_date_param(from_date, to_dt - timedelta(days=30))
-    columns = (
-        "mode, provider, model, duration_seconds, input_tokens, output_tokens, cost_usd, "
-        "peak_rss_mb, cpu_seconds, avg_cpu_percent, first_response_latency_ms, turn_count, "
-        "nudge_count, error_count, created_at"
-    )
-    try:
-        res = await run_db(lambda: supabase.table("chatty_voice_calls")
-            .select(columns)
-            .eq("bot_id", bot_id)
-            .gte("created_at", _iso(from_dt)).lte("created_at", _iso(to_dt))
-            .execute())
-        rows = res.data or []
-    except Exception:
-        # Rolling deploys can briefly run before the additive telemetry
-        # migration. Fall back to the legacy columns so calls/duration/cost
-        # remain visible instead of turning the panel blank.
-        logger.warning("voice analytics telemetry columns unavailable; using legacy fields")
-        try:
-            res = await run_db(lambda: supabase.table("chatty_voice_calls")
-                .select("mode, provider, model, duration_seconds, input_tokens, output_tokens, cost_usd, created_at")
-                .eq("bot_id", bot_id)
-                .gte("created_at", _iso(from_dt)).lte("created_at", _iso(to_dt))
-                .execute())
-            rows = res.data or []
-        except Exception:
-            logger.exception("voice analytics query failed")
-            rows = []
-
-    def nums(name: str) -> list[float]:
-        out: list[float] = []
-        for row in rows:
-            try:
-                if row.get(name) is not None:
-                    out.append(float(row[name]))
-            except (TypeError, ValueError):
-                pass
-        return out
-
-    duration = nums("duration_seconds")
-    latency = nums("first_response_latency_ms")
-    rss = nums("peak_rss_mb")
-    cpu = nums("avg_cpu_percent")
-    costs = _priced_cost_stats(rows)
-    by_mode: dict[str, dict[str, Any]] = defaultdict(lambda: {"calls": 0, "cost_usd": 0.0})
-    for row in rows:
-        mode = str(row.get("mode") or "unknown")
-        by_mode[mode]["calls"] += 1
-        if row.get("cost_usd") is not None:
-            try: by_mode[mode]["cost_usd"] += float(row["cost_usd"])
-            except (TypeError, ValueError): pass
-
-    return {
-        "period": {"from": _iso(from_dt), "to": _iso(to_dt)},
-        "calls": len(rows),
-        "duration_seconds": {"avg": round(sum(duration) / len(duration), 2) if duration else None, "p95": _percentile(duration, 95)},
-        "first_response_latency_ms": {"avg": round(sum(latency) / len(latency), 2) if latency else None, "p95": _percentile(latency, 95)},
-        "peak_rss_mb": {"avg": round(sum(rss) / len(rss), 2) if rss else None, "p95": _percentile(rss, 95)},
-        "avg_cpu_percent": {"avg": round(sum(cpu) / len(cpu), 2) if cpu else None, "p95": _percentile(cpu, 95)},
-        "turns": sum(int(row.get("turn_count") or 0) for row in rows),
-        "nudges": sum(int(row.get("nudge_count") or 0) for row in rows),
-        "errors": sum(int(row.get("error_count") or 0) for row in rows),
-        "cost_usd": round(costs[0], 6),
-        "cost_status": {"priced_calls": costs[1], "unpriced_calls": costs[2], "complete": costs[2] == 0},
-        "by_mode": [{"mode": mode, "calls": value["calls"], "cost_usd": round(value["cost_usd"], 6)} for mode, value in sorted(by_mode.items())],
     }
 
 

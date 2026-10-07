@@ -45,7 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ## Programmatic Control with `useChatty()`
 
-Control the chat drawer or open the independent bottom-docked voice agent from custom buttons or navbar triggers:
+Control the chat drawer from custom buttons or navbar triggers:
 
 ```tsx title="components/HelpButton.tsx"
 "use client";
@@ -53,44 +53,17 @@ Control the chat drawer or open the independent bottom-docked voice agent from c
 import { useChatty } from "@personaliai/react-widget";
 
 export function HelpButton() {
-  const { open, close, toggle, openVoice } = useChatty();
+  const { open, close, toggle } = useChatty();
 
   return (
     <div>
       <button onClick={open} className="btn-help">
         💬 Chat with Support
       </button>
-      <button onClick={openVoice} className="btn-voice">
-        🎙️ Talk to Support
-      </button>
     </div>
   );
 }
 ```
-
-When voice is enabled for the bot in Chatty, the hosted widget keeps the
-default launcher uncluttered. Your site can open the responsive bottom-docked
-LiveKit call surface with an animated speaking orb, real microphone activity
-bars, live visitor/agent transcription, mute and hang-up controls, and booking
-events using `window.Chatty.openVoice()` or the `openVoice()` hook above. It
-does not replace or interrupt the normal chat drawer, so you can place your
-own branded voice button wherever it fits your site.
-
-For a dedicated, full-page voice experience, embed the standalone voice route
-instead of the chat widget:
-
-```tsx
-<iframe
-  src="https://chatty.personaliai.com/voice/YOUR_BOT_UUID"
-  title="Talk to our voice agent"
-  allow="microphone"
-  style={{ width: "100%", height: 760, border: 0, borderRadius: 24 }}
-/>
-```
-
-That surface has its own animated call layout, live transcription, real-time
-microphone waveform, mute/hang-up controls, and booking support. The bot's
-allow list still protects the route; add the parent website before publishing.
 
 ---
 

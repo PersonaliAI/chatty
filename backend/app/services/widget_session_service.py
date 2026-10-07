@@ -36,7 +36,7 @@ async def upsert_session(
                 profile = contacts[0].get("profile") or {}
                 visitor_name, visitor_email = profile.get("name"), profile.get("email")
     session_channel = (channel or "").strip().lower() or ("whatsapp" if session_id.startswith("wa:") else "web")
-    if session_channel not in {"web", "email", "whatsapp", "voice", "slack", "api"}:
+    if session_channel not in {"web", "email", "whatsapp", "slack", "api"}:
         session_channel = "web"
     try:
         existing = await run_db(lambda: supabase.table("chatty_sessions").select("*").eq(

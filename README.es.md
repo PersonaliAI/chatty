@@ -4,7 +4,6 @@
 
 # Chatty by PersonaliAI
 
-**Plataforma de soporte al cliente con IA de código abierto: widget de chat + agente de voz en tiempo real + servidor MCP completo, basado en tu propia base de conocimientos.**
 
 Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras mantienes Supabase Auth, Postgres, Storage y Realtime gestionados. El mismo contrato de despliegue funciona en un VPS, Railway, Render u otro host Docker sin modificar tu proyecto activo de Supabase.
 
@@ -15,12 +14,10 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![LiveKit](https://img.shields.io/badge/Voice-LiveKit-FF6600)](https://livekit.io)
 [![MCP](https://img.shields.io/badge/Agent%20Control-MCP-8b5cf6)](#servidor-mcp-y-control-de-agentes)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (alojado)](https://chatty.personaliai.com) · [Documentación](https://docs.chatty.personaliai.com) · [Inicio Rápido](#-inicio-rápido-docker-compose) · [Guía de despliegue](docs/SELF_HOST_MANAGED_SUPABASE.md) · [Guía de voz](backend/voice-agent/README.md) · [Características](#-características) · [Servidor MCP](#servidor-mcp-y-control-de-agentes) · [Arquitectura](#arquitectura) · [Contribuciones](#-contribuciones)
 
 </div>
 
@@ -45,21 +42,18 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 
 ## ¿Por qué Chatty?
 
-La mayoría de las plataformas SaaS de chatbots cobran por usuario o por mensaje y retienen tus datos de conversación. Chatty es de código abierto: ejecútalo tú mismo de forma gratuita o utiliza [Chatty Cloud](https://chatty.personaliai.com) —nuestra versión gestionada de este mismo repositorio— si prefieres delegar la infraestructura operativa. En ambos casos dispones del mismo conjunto de funciones: chat en streaming, agente de voz en tiempo real, RAG sobre tus propios documentos, reserva de reuniones, captura de leads, canales de WhatsApp y Slack, y un [servidor MCP](#servidor-mcp-y-control-de-agentes) completo para que un agente de IA administre todo el panel por ti.
 
 |  | Chatbots SaaS de código cerrado | **Chatty** |
 |---|---|---|
 | **Tus datos de conversación** | Residen en sus servidores de forma permanente | En tu proyecto de Supabase, ya sea autohospedado o en Chatty Cloud |
 | **Precios** | Por usuario / por mensaje, sin nivel gratuito | Autohospedaje gratuito o plan gestionado en Chatty Cloud |
 | **LLM** | Restringido a su propio modelo | **Trae tu propia clave (BYOK)**: Gemini por defecto, o claves de OpenAI/Anthropic/OpenRouter |
-| **Agente de voz** | Generalmente un plan separado y más costoso | Incluido, conectado a la misma base de conocimientos que el chat |
 | **Acceso para agentes/automatización** | Generalmente inexistente o complemento de pago | **Servidor MCP completo incluido**: 55 herramientas protegidas por OAuth 2.0 |
 | **Código fuente** | Propietario / cerrado | **Licencia MIT**: audítalo, modifícalo, amplíalo y ejecútalo donde prefieras |
 
 ## ✨ Características
 
 - 💬 **Widget de chat integrable**: una sola etiqueta `<script>`, respuestas en streaming y compatibilidad con cualquier sitio web.
-- 🎙️ **Agente de voz en tiempo real**: conversaciones fluidas estilo llamada telefónica con LiveKit, compartiendo la misma base de conocimiento del chat.
 - 📚 **RAG sobre tu propia base de conocimientos**: carga archivos PDF, DOCX, PPTX o XLSX y rastrea URLs, con segmentación automática y generación de embeddings.
 - 🛠️ **Llamada a herramientas (Tool-calling)**: agenda reuniones reales (enlaces a Google Meet, Microsoft Teams o Zoom), captura leads y consulta disponibilidad en calendarios.
 - 🔌 **Omnicanalidad**: soporte integrado para WhatsApp y Slack, además del widget web.
@@ -70,7 +64,6 @@ La mayoría de las plataformas SaaS de chatbots cobran por usuario o por mensaje
 
 ## Arquitectura
 
-El repositorio cuenta con una estructura canónica: `frontend/` incluye el panel de administración y el widget en Next.js, mientras que `backend/` alberga la API en FastAPI, workers, integraciones y migraciones. La aplicación se ejecuta vinculada a un proyecto gestionado de Supabase (el mismo estándar que utiliza Chatty Cloud). El worker de voz opcional puede operar con LiveKit Cloud o con la infraestructura aislada de LiveKit en `backend/voice-agent`.
 
 ```mermaid
 flowchart TB
@@ -95,7 +88,6 @@ flowchart TB
     subgraph runtime["Chatty runtime"]
         direction LR
         api["FastAPI API · chat · RAG · webhooks"]:::app
-        voice["Voice worker · LiveKit Agents"]:::app
     end
     subgraph managed["Managed Supabase — default profile"]
         direction LR
@@ -109,7 +101,6 @@ flowchart TB
         llm["LLM providers"]:::integration
         calendar["Calendar providers"]:::integration
         channelsApi["WhatsApp / Slack"]:::integration
-        livekit["LiveKit Cloud or self-hosted"]:::integration
         billing["Billing + webhooks"]:::integration
     end
     subgraph targets["Deployment targets"]
@@ -133,7 +124,6 @@ flowchart TB
     api --> llm
     api --> calendar
     api --> channelsApi
-    voice --> livekit
     api --> billing
     targets -. runs .-> runtime
     linkStyle default stroke:#64748b,stroke-width:1.5px
@@ -147,7 +137,6 @@ chatty/
 │   ├── plugins/      Integraciones (Google, Microsoft), RAG y orquestación del widget
 │   ├── supabase/     Esquema de base de datos y migraciones ordenadas
 │   ├── scripts/      apply_migrations.py y utilidades operativas
-│   ├── voice-agent/  Agente de voz LiveKit + stack Docker para VPS
 │   └── tests/        Pruebas unitarias y de integración con pytest
 └── docker-compose.yml
 ```
@@ -157,7 +146,6 @@ chatty/
 | Perfil | Servicios de datos e identidad | Cuándo usarlo |
 |---|---|---|
 | `managed_supabase` (predeterminado) | Supabase Auth, Postgres, Storage, pgvector y RLS | Chatty Cloud y todos los despliegues de aplicación soportados |
-| Plano de medios de voz (opcional) | LiveKit + Redis privado en un VPS | Para alojar tráfico de medios y audio en tu VPS mientras los datos persisten en Supabase |
 
 ## 📋 Requisitos
 
@@ -169,7 +157,6 @@ chatty/
 | Cuenta en [Supabase](https://supabase.com) | Nivel gratuito | Base de datos (Postgres + Auth + Storage + Realtime) |
 | Clave de API de [Google AI Studio](https://aistudio.google.com/apikey) | Nivel gratuito | LLM predeterminado (Gemini) |
 
-Cualquier otra integración (LiveKit para voz, tokens de WhatsApp/Slack, credenciales de Google/Microsoft OAuth, facturación con Lemon Squeezy, Sentry o Upstash Redis) es **opcional**: las variables de entorno que no configures desactivarán únicamente esa funcionalidad sin afectar al resto del sistema.
 
 ## 🚀 Inicio Rápido (Docker Compose)
 
@@ -241,10 +228,8 @@ npm install
 npm run dev
 ```
 
-**Worker de voz (opcional):**
 ```bash
 cd backend
-python voice-agent/voice_worker.py dev
 ```
 
 ## 🧪 Pruebas e Integración Continua

@@ -4,7 +4,6 @@
 # Backend
 /backend/ @PersonaliAI/backend
 /backend/plugins/ @PersonaliAI/backend
-/backend/voice-agent/ @PersonaliAI/voice
 
 # Frontend
 /frontend/ @PersonaliAI/frontend

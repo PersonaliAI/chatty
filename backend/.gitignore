@@ -4,7 +4,6 @@
 .env.local
 .env.*.local
 env.yaml
-env.voice-worker.yaml
 
 # Supabase
 supabase/.temp/

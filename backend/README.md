@@ -22,7 +22,6 @@ main.py             FastAPI app entrypoint
 app/                Routers, core (auth/security/db helpers), schemas
 plugins/            Google/Microsoft integrations, RAG, the widget assistant
                      orchestration (widget_brain.py), notifications, agent tools
-voice-agent/        LiveKit voice worker with Cloud or self-hosted VPS mode
 tests/               pytest smoke + unit tests
 sql/, supabase/      Database schema and migrations
 ```
@@ -59,11 +58,6 @@ WhatsApp Business Account to the app, and enable the `messages` webhook field.
 python -m venv .venv && .venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
-```
-
-Voice worker (optional):
-```bash
-python voice-agent/voice_worker.py dev
 ```
 
 ## Deployment

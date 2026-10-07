@@ -508,7 +508,7 @@
 
 /* Thin, modern scrollbars - replaces the browser's default full-width
  * scroller. `.scrollbar-thin` is referenced on the message list (and
- * voice-call transcript) but was never actually defined anywhere; it's
+ * transcript styling) but was never actually defined anywhere; it's
  * been a no-op, so those have always rendered the OS default scrollbar
  * too. `.epr-body` is emoji-picker-react's own internal scroll
  * container (its class, not ours) for the emoji grid. */

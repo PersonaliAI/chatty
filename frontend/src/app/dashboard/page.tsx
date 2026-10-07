@@ -106,14 +106,11 @@ import {
   BookOpen,
   CreditCard,
   Megaphone,
-  Phone,
   LayoutGrid,
   Workflow,
   Pencil,
   Info,
   Play,
-  MicOff,
-  PhoneOff,
   Lock,
   Cpu,
   Shield,
@@ -149,7 +146,6 @@ import { BillingTab } from "./tabs/BillingTab";
 import { AdminAffiliatesTab } from "./tabs/AdminAffiliatesTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { MeetingsTab } from "./tabs/MeetingsTab";
-import { VoiceAgentTab } from "./tabs/VoiceAgentTab";
 import { HomeTab } from "./tabs/HomeTab";
 import { PlaygroundTab } from "./tabs/PlaygroundTab";
 import { CustomizerTab } from "./tabs/CustomizerTab";
@@ -260,11 +256,10 @@ export default function Dashboard() {
   const widgetStyleRef = useRef(widgetStyle);
   const settingsChangeVersionRef = useRef(0);
   // Which view the Customizer's live preview shows - a static mockup of the
-  // in-chat text conversation, or of the voice-call screen (orb, live
+  // in-chat text conversation,
   // transcript bubbles, mute/hangup). Both are hand-built mockups (like the
   // rest of #customizer-live-preview), not the real ChatWidgetCore/
-  // VoiceCallWidget components, for the same zero-reload-lag reason.
-  const [previewView, setPreviewView] = useState<"live" | "chat" | "call">("live");
+const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   // null = keep the active design preset's own default font. 100 = normal
   // text size; the scale is a percentage of that, not an absolute px value.
   const [fontFamily, setFontFamily] = useState<string | null>(null);
@@ -335,29 +330,6 @@ export default function Dashboard() {
   const [byokApiKeyInput, setByokApiKeyInput] = useState("");
   const [byokConfigured, setByokConfigured] = useState(false);
   const [savingByok, setSavingByok] = useState(false);
-  // Voice agent - STT/TTS provider selection + optional BYOK keys, mirrors the
-  // LLM BYOK pattern above; keys are never round-tripped, only *_configured is.
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [voiceSttProvider, setVoiceSttProvider] = useState("google");
-  const [voiceTtsProvider, setVoiceTtsProvider] = useState("google");
-  const [voiceTtsVoice, setVoiceTtsVoice] = useState("");
-  const [voiceSttConfigured, setVoiceSttConfigured] = useState(false);
-  const [voiceTtsConfigured, setVoiceTtsConfigured] = useState(false);
-  const [voiceSttApiKeyInput, setVoiceSttApiKeyInput] = useState("");
-  const [voiceTtsApiKeyInput, setVoiceTtsApiKeyInput] = useState("");
-  const [savingVoiceStt, setSavingVoiceStt] = useState(false);
-  const [savingVoiceTts, setSavingVoiceTts] = useState(false);
-  const [voiceAgentRole, setVoiceAgentRole] = useState("general");
-  const [voiceMaxDurationMinutes, setVoiceMaxDurationMinutes] = useState(15);
-  // Realtime mode (Gemini Live / OpenAI Realtime - speech-to-speech, no
-  // separate STT/TTS stage). voiceTtsVoice above is reused as the realtime
-  // voice when this mode is active, same as the backend column reuse.
-  const [voiceMode, setVoiceMode] = useState<"pipeline" | "realtime">("pipeline");
-  const [voiceRealtimeProvider, setVoiceRealtimeProvider] = useState<"google" | "openai">("google");
-  const [voiceRealtimeModel, setVoiceRealtimeModel] = useState("");
-  const [voiceRealtimeApiKeyInput, setVoiceRealtimeApiKeyInput] = useState("");
-  const [voiceRealtimeConfigured, setVoiceRealtimeConfigured] = useState(false);
-  const [savingVoiceRealtime, setSavingVoiceRealtime] = useState(false);
   const [systemInstructions, setSystemInstructions] = useState(
     "You are a helpful customer support agent for my business. You must only answer questions based on the provided knowledge. Be concise and polite."
   );
@@ -1986,16 +1958,6 @@ export default function Dashboard() {
     if (botId && activeTab === "settings") {
       loadTeam();
       loadByokStatus(botId);
-      loadVoiceSettings(botId);
-    }
-    // The Voice Agent tab reads/writes the same voiceEnabled/voiceStt.../
-    // voiceTts... state as the Settings tab's voice section, but is its own
-    // separate tab - this was never in the list of tabs that trigger
-    // loadVoiceSettings, so opening it always showed the untouched default
-    // state (voiceEnabled=false) regardless of what's actually saved,
-    // making the toggle look broken/unsaved even though writes were fine.
-    if (botId && activeTab === "voice_agent") {
-      loadVoiceSettings(botId);
     }
     if (botId && activeTab === "knowledge") {
       loadDriveSyncSchedule();
@@ -2594,10 +2556,6 @@ export default function Dashboard() {
           booking_limit_one_active: bookingLimitOneActive,
           booking_require_business_email: bookingRequireBusinessEmail,
           allowed_domains: allowedDomains,
-          voice_enabled: voiceEnabled,
-          voice_stt_provider: voiceSttProvider,
-          voice_tts_provider: voiceTtsProvider,
-          voice_tts_voice: voiceTtsVoice || null,
           whatsapp_enabled: whatsappEnabled,
           whatsapp_phone_number_id: whatsappPhoneNumberId.trim() || null,
           whatsapp_waba_id: whatsappWabaId.trim() || null,
@@ -2708,10 +2666,6 @@ export default function Dashboard() {
                 booking_limit_one_active: bookingLimitOneActive,
                 booking_require_business_email: bookingRequireBusinessEmail,
                 allowed_domains: allowedDomains,
-                voice_enabled: voiceEnabled,
-                voice_stt_provider: voiceSttProvider,
-                voice_tts_provider: voiceTtsProvider,
-                voice_tts_voice: voiceTtsVoice || null,
               }
             : b
         )
@@ -3606,164 +3560,6 @@ export default function Dashboard() {
     }
   };
 
-  const loadVoiceSettings = async (bId: string) => {
-    try {
-      const res = await fetchWithFallback(`/api/bots/${bId}/voice-settings`);
-      if (res.ok) {
-        const d = await res.json();
-        setVoiceEnabled(!!d.voice_enabled);
-        setVoiceMode(d.voice_mode === "realtime" ? "realtime" : "pipeline");
-        setVoiceSttProvider(d.voice_stt_provider || "google");
-        setVoiceTtsProvider(d.voice_tts_provider || "google");
-        setVoiceTtsVoice(d.voice_tts_voice || "");
-        setVoiceSttConfigured(!!d.voice_stt_configured);
-        setVoiceTtsConfigured(!!d.voice_tts_configured);
-        setVoiceAgentRole(d.voice_agent_role || "general");
-        setVoiceMaxDurationMinutes(d.voice_max_duration_minutes || 15);
-        setVoiceRealtimeProvider(d.voice_realtime_provider === "openai" ? "openai" : "google");
-        setVoiceRealtimeModel(d.voice_realtime_model || "");
-        setVoiceRealtimeConfigured(!!d.voice_realtime_configured);
-      }
-    } catch (err) {
-      console.error("Failed to load voice settings:", err);
-    }
-  };
-
-  // Auto-saves voice_enabled / voice_stt_provider / voice_tts_provider /
-  // voice_tts_voice / voice_agent_role / voice_max_duration_minutes
-  // immediately on change, instead of requiring the user to notice the
-  // floating "Save Changes" banner and click it separately - these are
-  // simple non-secret fields (same direct-Supabase-write pattern
-  // handleSaveChanges uses), so there's no reason to make the user hunt for
-  // a save button just for a toggle/dropdown.
-  const [savingVoiceField, setSavingVoiceField] = useState(false);
-  const [generatingVoiceWelcome, setGeneratingVoiceWelcome] = useState(false);
-  const handleAutoSaveVoiceField = async (fields: {
-    voice_enabled?: boolean;
-    voice_mode?: "pipeline" | "realtime";
-    voice_stt_provider?: string;
-    voice_tts_provider?: string;
-    voice_tts_voice?: string | null;
-    voice_agent_role?: string;
-    voice_max_duration_minutes?: number;
-    voice_realtime_provider?: "google" | "openai";
-    voice_realtime_model?: string | null;
-    welcome_message?: string;
-    voice_message_mode?: string;
-  }) => {
-    if (!botId) return;
-    if (fields.voice_message_mode !== undefined) {
-      setVoiceMessageMode(fields.voice_message_mode);
-    }
-    setSavingVoiceField(true);
-    try {
-      // Route dashboard writes through the authenticated API in every
-      // deployment. Direct browser Supabase updates can be rejected by RLS
-      // for team members and made provider changes appear to save while the
-      // voice worker continued using the previous configuration.
-      const { welcome_message: welcomeMessage, ...voiceFields } = fields;
-      if (Object.keys(voiceFields).length > 0) {
-        let saved = false;
-        try {
-          const response = await fetchWithFallback(`/api/bots/${botId}/voice-settings`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(voiceFields),
-          });
-          if (response.ok) saved = true;
-        } catch {
-          // Dedicated endpoint failed, will try general bot update
-        }
-        if (!saved) {
-          const patchRes = await fetchWithFallback(`/api/bots/${botId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(voiceFields),
-          });
-          if (patchRes.ok) {
-            saved = true;
-          } else if (supabase) {
-            const { error: sbErr } = await (supabase as any).from("chatty_bots").update(voiceFields).eq("id", botId);
-            if (!sbErr) saved = true;
-          }
-        }
-        if (!saved) {
-          throw new Error("Voice settings save failed across all endpoints.");
-        }
-      }
-      if (welcomeMessage !== undefined) {
-        const response = await fetchWithFallback(`/api/bots/${botId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ welcome_message: welcomeMessage }),
-        });
-        if (!response.ok) {
-          const details = await response.text().catch(() => "");
-          throw new Error(`Welcome message save failed (${response.status})${details ? `: ${details}` : ""}`);
-        }
-      }
-      setUserBots((prev) => prev.map((b) => (b.id === botId ? { ...b, ...fields } : b)));
-      showToast("Voice settings saved.", "success");
-    } catch (err) {
-      console.error("Failed to save voice setting:", err);
-      showToast("Failed to save voice setting.", "error");
-    } finally {
-      setSavingVoiceField(false);
-    }
-  };
-
-  const generateVoiceWelcome = async () => {
-    if (!botId || generatingVoiceWelcome) return;
-    setGeneratingVoiceWelcome(true);
-    try {
-      const response = await fetchWithFallback(`/api/bots/${botId}/generate-voice-welcome`, { method: "POST" });
-      if (!response.ok) throw new Error(`Welcome generation failed (${response.status})`);
-      const data = await response.json();
-      const message = String(data?.welcome_message || "").trim();
-      if (!message) throw new Error("Empty generated welcome");
-      setWelcomeMsg(message);
-      await handleAutoSaveVoiceField({ welcome_message: message });
-      showToast("Voice welcome generated from your knowledge base.", "success");
-    } catch (err) {
-      console.error("Failed to generate voice welcome:", err);
-      showToast("Could not generate a voice welcome.", "error");
-    } finally {
-      setGeneratingVoiceWelcome(false);
-    }
-  };
-
-  const handleSaveVoiceByok = async (kind: "stt" | "tts" | "realtime", clear = false) => {
-    if (!botId) return;
-    const setSaving = kind === "stt" ? setSavingVoiceStt : kind === "tts" ? setSavingVoiceTts : setSavingVoiceRealtime;
-    const keyInput = kind === "stt" ? voiceSttApiKeyInput : kind === "tts" ? voiceTtsApiKeyInput : voiceRealtimeApiKeyInput;
-    const setKeyInput = kind === "stt" ? setVoiceSttApiKeyInput : kind === "tts" ? setVoiceTtsApiKeyInput : setVoiceRealtimeApiKeyInput;
-    setSaving(true);
-    try {
-      const body = kind === "stt"
-        ? { voice_stt_api_key: clear ? "" : keyInput }
-        : kind === "tts"
-        ? { voice_tts_api_key: clear ? "" : keyInput }
-        : { voice_realtime_api_key: clear ? "" : keyInput };
-      const res = await fetchWithFallback(`/api/bots/${botId}/voice-settings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        setKeyInput("");
-        await loadVoiceSettings(botId);
-        showToast(clear ? "Voice key removed." : "Voice key saved.", "success");
-      } else {
-        showToast("Failed to save voice key.", "error");
-      }
-    } catch (err) {
-      console.error("Failed to save voice key:", err);
-      showToast("Failed to save voice key.", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleSaveByok = async (clear = false) => {
     if (!botId) return;
     setSavingByok(true);
@@ -4269,7 +4065,6 @@ export default function Dashboard() {
               { id: "feedback", label: "Feedback", icon: Star },
               { id: "map", label: "Map", icon: MapPin },
               { id: "meetings", label: t("meetings"), icon: Calendar },
-              { id: "voice_agent", label: "Voice Agent", icon: Phone },
               { id: "mailbox", label: "Mailbox", icon: Mail },
               { id: "notifications", label: t("notifications"), icon: Bell },
               { id: "audit_log", label: t("audit_log"), icon: FileText },
@@ -5045,52 +4840,7 @@ export default function Dashboard() {
             />
           )}
 
-          {/* TAB: VOICE AGENT */}
-          {activeTab === "voice_agent" && (
-            <VoiceAgentTab
-              botId={botId || ""}
-              voiceEnabled={voiceEnabled}
-              setVoiceEnabled={setVoiceEnabled}
-              handleAutoSaveVoiceField={handleAutoSaveVoiceField}
-              savingVoiceField={savingVoiceField}
-              voiceAgentRole={voiceAgentRole}
-              setVoiceAgentRole={setVoiceAgentRole}
-              setActiveTab={setActiveTab}
-              voiceMode={voiceMode}
-              setVoiceMode={setVoiceMode}
-              voiceRealtimeProvider={voiceRealtimeProvider}
-              setVoiceRealtimeProvider={setVoiceRealtimeProvider}
-              voiceRealtimeModel={voiceRealtimeModel}
-              setVoiceRealtimeModel={setVoiceRealtimeModel}
-              voiceTtsVoice={voiceTtsVoice}
-              setVoiceTtsVoice={setVoiceTtsVoice}
-              voiceRealtimeConfigured={voiceRealtimeConfigured}
-              voiceRealtimeApiKeyInput={voiceRealtimeApiKeyInput}
-              setVoiceRealtimeApiKeyInput={setVoiceRealtimeApiKeyInput}
-              handleSaveVoiceByok={handleSaveVoiceByok}
-              savingVoiceRealtime={savingVoiceRealtime}
-              voiceSttProvider={voiceSttProvider}
-              setVoiceSttProvider={setVoiceSttProvider}
-              voiceSttConfigured={voiceSttConfigured}
-              voiceSttApiKeyInput={voiceSttApiKeyInput}
-              setVoiceSttApiKeyInput={setVoiceSttApiKeyInput}
-              savingVoiceStt={savingVoiceStt}
-              voiceTtsProvider={voiceTtsProvider}
-              setVoiceTtsProvider={setVoiceTtsProvider}
-              voiceTtsConfigured={voiceTtsConfigured}
-              voiceTtsApiKeyInput={voiceTtsApiKeyInput}
-              setVoiceTtsApiKeyInput={setVoiceTtsApiKeyInput}
-              savingVoiceTts={savingVoiceTts}
-              voiceMaxDurationMinutes={voiceMaxDurationMinutes}
-              setVoiceMaxDurationMinutes={setVoiceMaxDurationMinutes}
-              welcomeMsg={welcomeMsg}
-              setWelcomeMsg={setWelcomeMsg}
-              generateVoiceWelcome={generateVoiceWelcome}
-              generatingVoiceWelcome={generatingVoiceWelcome}
-              voiceMessageMode={voiceMessageMode}
-            />
-          )}
-
+          {/* TAB: MAILBOX */}
           {/* TAB: MAILBOX */}
           {activeTab === "mailbox" && (
             <MailboxTab

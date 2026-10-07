@@ -1240,7 +1240,7 @@ async def widget_theme(bot_id: str, response: Response):
     base_columns = (
         "user_id, name, primary_color, widget_style, logo_url, welcome_message, "
         "send_button_style, conversation_starters, teaser_message, avatar_icon, avatar_url, "
-        "hide_branding, custom_css, custom_js, voice_enabled, show_sender_tag, csat_enabled, "
+        "hide_branding, custom_css, custom_js, show_sender_tag, csat_enabled, "
         "color_scheme, calendar_scheduling_enabled, meeting_provider"
     )
     try:
@@ -1459,7 +1459,6 @@ async def widget_theme(bot_id: str, response: Response):
         "hide_branding": hide_branding,
         "custom_css": b.get("custom_css") or "",
         "custom_js": b.get("custom_js") or "",
-        "voice_enabled": bool(b.get("voice_enabled")),
         "show_sender_tag": bool(b.get("show_sender_tag")),
         "csat_enabled": bool(b.get("csat_enabled", True)),
         "color_scheme": b.get("color_scheme"),

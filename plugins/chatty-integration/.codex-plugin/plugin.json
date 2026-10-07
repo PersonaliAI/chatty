@@ -14,10 +14,10 @@
   "interface": {
     "displayName": "Chatty",
     "shortDescription": "Run your Chatty dashboard through the hosted MCP server.",
-    "longDescription": "Chatty connects Codex to the same hosted Model Context Protocol server used by the Chatty dashboard, exposing bot management, knowledge, leads, inbox, campaigns, voice, calendar scheduling, guardrails, team, billing, and GDPR operations through conversational tools.",
+    "longDescription": "Chatty connects Codex to the same hosted Model Context Protocol server used by the Chatty dashboard, exposing bot management, knowledge, leads, inbox, campaigns, calendar scheduling, guardrails, team, billing, and GDPR operations through conversational tools.",
     "developerName": "PersonaliAI",
     "category": "Productivity",
-    "capabilities": ["MCP", "OAuth", "Bot management", "Knowledge base", "Inbox", "Calendar booking", "Voice agents"],
+    "capabilities": ["MCP", "OAuth", "Bot management", "Knowledge base", "Inbox", "Calendar booking"],
     "websiteURL": "https://chatty.personaliai.com/",
     "privacyPolicyURL": "https://chatty.personaliai.com/privacy",
     "termsOfServiceURL": "https://chatty.personaliai.com/terms",

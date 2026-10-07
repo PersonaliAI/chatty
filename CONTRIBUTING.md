@@ -12,7 +12,6 @@ See [README.md](README.md#-local-development-without-docker) for running the fro
 
 ## Good first areas
 
-- **STT/TTS provider plugins** - the voice agent already supports several providers (`backend/voice_worker.py`); adding another follows the same pattern.
 - **Channel integrations** - WhatsApp/Slack/Telegram exist as a reference for adding e.g. Discord or Instagram DM.
 - **Docs** - setup edge cases, deployment guides for platforms beyond Docker Compose (Railway, Render, Fly.io).
 - **Tests** - `backend/tests/` has room for more coverage.

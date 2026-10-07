@@ -146,7 +146,7 @@ WHITELABEL_PLANS = {"pro", "executive", "chatty_business"}
 
 # Kin plan-gated features. These used to be advertised on pricing but only
 # the message quota was actually enforced anywhere - audited and fixed.
-PAID_PLANS = {"basic", "pro", "executive"}       # daily briefing, voice
+PAID_PLANS = {"basic", "pro", "executive"}       # daily briefing
 PRO_PLUS_PLANS = {"pro", "executive"}             # custom system prompt
 PRIORITY_PLANS = {"pro", "executive"}             # more retries before
 # falling back to the weaker model under capacity contention
@@ -576,7 +576,6 @@ from app.routers import oauth as _router_oauth  # noqa: E402
 from app.routers import onboarding as _router_onboarding  # noqa: E402
 from app.routers import public_api as _router_public_api  # noqa: E402
 from app.routers import team as _router_team  # noqa: E402
-from app.routers import voice as _router_voice  # noqa: E402
 from app.routers import webhooks as _router_webhooks  # noqa: E402
 from app.routers import widget as _router_widget  # noqa: E402
 from app.routers import email_inbound as _router_email_inbound  # noqa: E402
@@ -590,7 +589,6 @@ from app.services.contact_identity import guard_widget_session
 app.include_router(_router_contact_identity.router)
 app.include_router(_router_marketing.router)
 app.include_router(_router_widget.router, dependencies=[Depends(guard_widget_session)])
-app.include_router(_router_voice.router, dependencies=[Depends(guard_widget_session)])
 app.include_router(_router_webhooks.router)
 app.include_router(_router_email_inbound.router)
 app.include_router(_router_affiliate.router)

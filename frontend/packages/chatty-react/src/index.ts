@@ -43,9 +43,6 @@ export interface ChattyAPI {
   open: () => void;
   close: () => void;
   toggle: () => void;
-  openVoice: () => void;
-  closeVoice: () => void;
-  toggleVoice: () => void;
 }
 
 declare global {
@@ -123,8 +120,7 @@ export const ChatWidget = ChattyWidget;
 export type ChatWidgetProps = ChattyWidgetProps;
 
 /**
- * Hook to programmatically open, close, or toggle Chatty's chat drawer and
- * independent bottom-docked voice agent.
+ * Hook to programmatically open, close, or toggle Chatty's chat drawer.
  *
  * @example
  * ```tsx
@@ -155,18 +151,6 @@ export function useChatty() {
     }
   }, []);
 
-  const openVoice = useCallback(() => {
-    if (typeof window !== "undefined" && window.Chatty && typeof window.Chatty.openVoice === "function") window.Chatty.openVoice();
-  }, []);
-
-  const closeVoice = useCallback(() => {
-    if (typeof window !== "undefined" && window.Chatty && typeof window.Chatty.closeVoice === "function") window.Chatty.closeVoice();
-  }, []);
-
-  const toggleVoice = useCallback(() => {
-    if (typeof window !== "undefined" && window.Chatty && typeof window.Chatty.toggleVoice === "function") window.Chatty.toggleVoice();
-  }, []);
-
   const identify = useCallback((token: string) => {
     if (!window.Chatty) return Promise.reject(new Error("Chatty is not ready"));
     return window.Chatty.identify(token);
@@ -175,7 +159,7 @@ export function useChatty() {
     if (!window.Chatty) return Promise.reject(new Error("Chatty is not ready"));
     return window.Chatty.logout();
   }, []);
-  return { open, close, toggle, openVoice, closeVoice, toggleVoice, identify, logout };
+  return { open, close, toggle, identify, logout };
 }
 
 export { ProductCard, type ProductCardData } from "./product-card";

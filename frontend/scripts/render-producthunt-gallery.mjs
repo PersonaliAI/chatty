@@ -857,46 +857,6 @@ const htmlContent = `<!DOCTYPE html>
     }
 
     /* =========================================================
-       SLIDE 5: VOICE CALL & MCP PLATFORM (ELECTRIC INDIGO)
-       ========================================================= */
-    #slide-5 {
-      background: #312e81;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    .s5-content {
-      flex: 1;
-      padding: 26px 34px;
-      background: #f8fafc;
-      display: grid;
-      grid-template-columns: 460px 1fr;
-      gap: 30px;
-    }
-    .s5-voice-box {
-      background: #0f172a;
-      border-radius: 16px;
-      padding: 24px;
-      color: #ffffff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      position: relative;
-      overflow: hidden;
-    }
-    .s5-mcp-box {
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    /* =========================================================
        SLIDE 6: 21 MODULES ALL-IN-ONE (DEEP SUNSET AMBER)
        ========================================================= */
     #slide-6 {
@@ -1018,10 +978,6 @@ const htmlContent = `<!DOCTYPE html>
               </div>
             </div>
             <div class="c-header-actions">
-              <!-- Voice Phone Button -->
-              <div class="c-icon-btn" title="Voice Call">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-              </div>
               <!-- Bell Notification Button -->
               <div class="c-icon-btn" title="Notifications">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -1136,8 +1092,6 @@ const htmlContent = `<!DOCTYPE html>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>
                   <!-- Paperclip Attachment -->
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                  <!-- Voice Mic -->
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
                 </div>
                 <div class="c-send-btn">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -1545,109 +1499,6 @@ const htmlContent = `<!DOCTYPE html>
   </div>
 
   <!-- =========================================================
-       SLIDE 5: VOICE CALL & MCP PLATFORM (ELECTRIC INDIGO)
-       ========================================================= -->
-  <div class="slide" id="slide-5">
-    <!-- Floating Sticker Pills -->
-    <div class="sticker-pill sticker-orange" style="top: 20px; left: 80px; transform: rotate(-3deg);">
-      <span>🎙️</span> 450ms Voice Latency
-    </div>
-    <div class="sticker-pill sticker-purple" style="top: 18px; right: 120px; transform: rotate(4deg);">
-      <span>🛠️</span> 55+ MCP Tool Server
-    </div>
-    <div class="sticker-pill sticker-emerald" style="bottom: 18px; left: 140px; transform: rotate(2deg);">
-      <span>⚡</span> LiveKit WebRTC
-    </div>
-    <div class="sticker-pill sticker-blue" style="bottom: 18px; right: 140px; transform: rotate(-3deg);">
-      <span>🔌</span> Open Protocol Ready
-    </div>
-
-    <div class="full-window mac-window">
-      <div class="mac-titlebar">
-        <div class="mac-dots">
-          <div class="mac-dot close"></div>
-          <div class="mac-dot min"></div>
-          <div class="mac-dot max"></div>
-        </div>
-        <div class="mac-urlbar">
-          <img src="${chattyIcon}" style="width:14px;height:14px;" />
-          <span>chatty.personaliai.com/dashboard/voice-and-mcp</span>
-        </div>
-      </div>
-      <div class="s5-content">
-        <!-- Voice Widget Box -->
-        <div class="s5-voice-box">
-          <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
-            <div style="font-size:13px;font-weight:800;display:flex;align-items:center;gap:6px;">
-              <span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span> LiveKit Real-time Voice
-            </div>
-            <span style="font-size:10px;background:rgba(255,255,255,0.15);padding:2px 8px;border-radius:9999px;">02:14</span>
-          </div>
-
-          <!-- Pulsing Animated Voice Orb -->
-          <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin:20px 0;">
-            <div style="width:90px;height:90px;border-radius:50%;background:radial-gradient(circle, #f97316 0%, #c2410c 70%);box-shadow:0 0 50px rgba(249,115,22,0.6);display:flex;align-items:center;justify-content:center;position:relative;">
-              <img src="${chattyIcon}" style="width:42px;height:42px;filter:brightness(1.2);" />
-            </div>
-            <div style="display:flex;align-items:center;gap:3px;height:24px;">
-              <span style="width:3px;height:12px;background:#f97316;border-radius:2px;"></span>
-              <span style="width:3px;height:22px;background:#f97316;border-radius:2px;"></span>
-              <span style="width:3px;height:16px;background:#f97316;border-radius:2px;"></span>
-              <span style="width:3px;height:24px;background:#f97316;border-radius:2px;"></span>
-              <span style="width:3px;height:18px;background:#f97316;border-radius:2px;"></span>
-              <span style="width:3px;height:10px;background:#f97316;border-radius:2px;"></span>
-            </div>
-            <div style="font-size:11.5px;color:rgba(255,255,255,0.9);font-weight:600;">Agent Speaking · 450ms Latency</div>
-          </div>
-
-          <!-- Real-time Transcription Stream -->
-          <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);padding:10px 14px;border-radius:10px;font-size:11px;line-height:1.45;color:#e2e8f0;width:100%;">
-            "I've verified your enterprise license and scheduled the onboarding call for tomorrow at 2:30 PM."
-          </div>
-        </div>
-
-        <!-- MCP Developer Panel -->
-        <div class="s5-mcp-box">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <div style="font-size:14px;font-weight:800;color:#0f172a;">Model Context Protocol (MCP) Server</div>
-            <span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:2px 8px;border-radius:6px;">55 Tools Loaded</span>
-          </div>
-
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <div style="font-size:12px;font-weight:700;color:#0f172a;font-family:'JetBrains Mono', monospace;">calendar.book_slot()</div>
-                <div style="font-size:10.5px;color:#64748b;">Invokes 2-way Google Cal / Outlook sync</div>
-              </div>
-              <span style="font-size:10px;font-weight:700;color:#10b981;">Active ✓</span>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <div style="font-size:12px;font-weight:700;color:#0f172a;font-family:'JetBrains Mono', monospace;">rag.query_pgvector()</div>
-                <div style="font-size:10.5px;color:#64748b;">HNSW similarity search across indexed docs</div>
-              </div>
-              <span style="font-size:10px;font-weight:700;color:#10b981;">Active ✓</span>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <div style="font-size:12px;font-weight:700;color:#0f172a;font-family:'JetBrains Mono', monospace;">crm.upsert_lead()</div>
-                <div style="font-size:10.5px;color:#64748b;">Syncs attendee to HubSpot, Salesforce & webhook</div>
-              </div>
-              <span style="font-size:10px;font-weight:700;color:#10b981;">Active ✓</span>
-            </div>
-          </div>
-
-          <div style="background:#0f172a;padding:12px;border-radius:10px;font-family:'JetBrains Mono', monospace;font-size:10px;color:#38bdf8;line-height:1.45;margin-top:auto;">
-            <span style="color:#a855f7;">POST</span> /mcp/v1/tools/call<br>
-            <span style="color:#64748b;">{ "name": "calendar.book_slot", "args": { "slot": "2026-09-16T14:30:00Z" } }</span><br>
-            <span style="color:#4ade80;">HTTP/2 200 OK (0.08s latency)</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- =========================================================
        SLIDE 6: 21 MODULES ALL-IN-ONE (DEEP SUNSET AMBER)
        ========================================================= -->
   <div class="slide" id="slide-6">
@@ -1686,7 +1537,6 @@ const htmlContent = `<!DOCTYPE html>
           <div style="color:#475569;font-size:12px;font-weight:600;padding:8px 10px;">💬 Chat Widget (10 Presets)</div>
           <div style="color:#475569;font-size:12px;font-weight:600;padding:8px 10px;">📥 Omnichannel Inbox</div>
           <div style="color:#475569;font-size:12px;font-weight:600;padding:8px 10px;">📅 Calendar & Bookings</div>
-          <div style="color:#475569;font-size:12px;font-weight:600;padding:8px 10px;">🎙️ LiveKit Voice Call</div>
           <div style="color:#475569;font-size:12px;font-weight:600;padding:8px 10px;">🛠️ MCP Developer Server</div>
         </div>
 
@@ -1717,10 +1567,6 @@ const htmlContent = `<!DOCTYPE html>
               <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4;">Web, WhatsApp, Telegram, Messenger with live human takeover & SLA alerts.</div>
             </div>
             <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:14px;border-radius:12px;">
-              <div style="font-size:22px;margin-bottom:6px;">🎙️</div>
-              <div style="font-size:13px;font-weight:800;color:#0f172a;">Real-Time Voice Agent</div>
-              <div style="font-size:11px;color:#64748b;margin-top:4px;line-height:1.4;">Sub-500ms WebRTC voice calls powered by LiveKit with live voice transcription.</div>
-            </div>
             <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:14px;border-radius:12px;">
               <div style="font-size:22px;margin-bottom:6px;">🛠️</div>
               <div style="font-size:13px;font-weight:800;color:#0f172a;">55+ MCP Tool Server</div>
@@ -1754,7 +1600,6 @@ async function renderGallery() {
     { id: '#slide-2', name: '02_knowledge_vector_rag_training' },
     { id: '#slide-3', name: '03_in_chat_calendar_booking_crm' },
     { id: '#slide-4', name: '04_omnichannel_live_inbox_sla' },
-    { id: '#slide-5', name: '05_voice_agent_mcp_developer' },
     { id: '#slide-6', name: '06_all_in_one_21_modules_suite' },
   ];
 

@@ -9,9 +9,9 @@ from fastapi import HTTPException
 from app.core.clients import supabase
 from app.core.db import run_db
 
-ALL_TABS = ("inbox", "sources", "design", "settings", "voice", "team", "meetings", "billing", "byok", "webhooks")
+ALL_TABS = ("inbox", "sources", "design", "settings", "team", "meetings", "billing", "byok", "webhooks")
 OWNER_ONLY_TABS = frozenset({"billing", "byok", "webhooks"})
-DEFAULT_ADMIN_PERMISSIONS = ["inbox", "sources", "design", "settings", "voice", "team", "meetings"]
+DEFAULT_ADMIN_PERMISSIONS = ["inbox", "sources", "design", "settings", "team", "meetings"]
 DEFAULT_AGENT_PERMISSIONS = ["inbox"]
 
 
@@ -42,6 +42,6 @@ async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tup
 
 async def verify_bot_permission(bot_id: str, user: dict[str, Any], tab: str) -> str:
     role, permissions = await get_bot_role_and_permissions(bot_id, user)
-    if role == "owner" or tab in permissions or (tab == "voice" and "settings" in permissions):
+    if role == "owner" or tab in permissions:
         return role
     raise HTTPException(status_code=403, detail=f"You don't have access to '{tab}' for this bot")

@@ -1,8 +1,8 @@
 # Managed Supabase hosting
 
 Chatty uses Supabase Auth, Postgres, Storage, and Realtime as its managed data
-layer. The application containers and the voice worker can run on any Docker
-host without provisioning a replacement database or object store.
+layer. The application containers can run on any Docker host without
+provisioning a replacement database or object store.
 
 ## Required environment
 
@@ -33,17 +33,3 @@ the API and one for the Next.js frontend, set the public frontend/backend URLs,
 and inject the same managed-Supabase secrets. Heroku-style platforms can run
 the same images; use a separate web service for each container and the existing
 Supabase project for persistence.
-
-For voice, deploy `voice-agent/` as a persistent worker. Choose LiveKit Cloud
-for a managed media plane, or run the optional `self-hosted` Compose profile
-on an Ubuntu VPS. The self-hosted profile contains only LiveKit, its private
-Redis coordination service, and Caddy TLS; Supabase remains the managed source
-of truth and no replacement database, auth, storage, or Chatty API is started.
-
-```bash
-# LiveKit Cloud
-cd voice-agent && docker compose up -d --build
-
-# Self-hosted LiveKit on a VPS (after DNS and .env are ready)
-cd voice-agent && sudo ./setup.sh
-```

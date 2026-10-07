@@ -1,6 +1,6 @@
 ---
 name: chatty
-description: Use the Chatty MCP integration to manage Chatty bots, knowledge bases, leads, inbox conversations, campaigns, voice agents, booking, analytics, team access, billing, and compliance from Codex.
+description: Use the Chatty MCP integration to manage Chatty bots, knowledge bases, leads, inbox conversations, campaigns, booking, analytics, team access, billing, and compliance from Codex.
 ---
 
 # Chatty Integration
@@ -9,7 +9,7 @@ Use the bundled `chatty` MCP server for Chatty account work. The server is the h
 
 ## When to use
 
-- The user asks to manage Chatty bots, flows, campaigns, lead capture, inbox conversations, knowledge sources, analytics, voice agents, booking, guardrails, team access, billing, or GDPR/compliance exports.
+- The user asks to manage Chatty bots, flows, campaigns, lead capture, inbox conversations, knowledge sources, analytics, booking, guardrails, team access, billing, or GDPR/compliance exports.
 - The user asks to audit or optimize a Chatty bot using live account data.
 - The user asks to create, update, inspect, or troubleshoot Chatty resources without manually clicking through the dashboard.
 

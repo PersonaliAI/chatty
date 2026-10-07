@@ -2,7 +2,7 @@
 embedded website widget (/api/widget/*).
 
 Extracted out of main.py (pure refactor, no behavior change) so a separate
-process - e.g. the voice worker - can import `run_widget_assistant` without
+processes can import `run_widget_assistant` without
 importing the whole FastAPI app (main.py builds the ASGI app, mounts every
 router, and inits Sentry at module load; none of that belongs in a
 long-running worker process). Fully self-contained - nothing here imports
@@ -68,116 +68,6 @@ from app.core.config import (  # noqa: E402
     GEMINI_FALLBACK_MODELS,
     USE_VERTEX_AI,
 )
-
-# Model tried first for voice-mode requests (run_widget_assistant(voice_mode=True))
-# before falling through to the same GEMINI_FALLBACK_MODELS chain used by text.
-# Keep the default on a current stable, low-latency text model. The Live API
-# realtime model is intentionally not used by pipeline calls; this is the
-# ordinary LLM turn between Google streaming STT and the selected TTS provider.
-GEMINI_VOICE_MODEL = (
-    os.environ.get("GEMINI_VOICE_MODEL")
-    or os.environ.get("GEMMA_VOICE_MODEL")
-    or os.environ.get("GEMMA_MODEL")
-    or ("vertex_ai/gemini-2.5-flash-lite" if (USE_VERTEX_AI or not GEMINI_API_KEY) else "gemini-2.5-flash-lite")
-)
-# Keep a voice turn bounded at the model boundary as well as in the prompt. A
-# prompt-only limit is advisory; this hard cap prevents a long knowledge-base
-# answer from holding the TTS turn open and making the agent sound stuck. A
-# concise voice budget leaves room for booking/lead confirmations while keeping
-# first-audio latency predictable; normal text chat keeps its existing budget.
-VOICE_MAX_OUTPUT_TOKENS = 220
-# A provider that stops returning stream chunks must not hold the call forever.
-# This timeout is deliberately voice-only; the regular widget keeps its normal
-# retry behavior and response budget.
-try:
-    _voice_llm_timeout = float(os.environ.get("VOICE_LLM_TIMEOUT_SECONDS", "18"))
-except (TypeError, ValueError):
-    _voice_llm_timeout = 18.0
-VOICE_LLM_TIMEOUT_SECONDS = max(8.0, min(30.0, _voice_llm_timeout))
-
-# Dashboard-configured persona/focus lean for voice calls (chatty_bots.
-# voice_agent_role) - shapes tone/emphasis only, does NOT gate which tools
-# are available (that stays controlled by calendar_scheduling_enabled etc.
-# regardless of role, so e.g. "Info & FAQ" can still politely offer to book
-# a meeting if the visitor explicitly asks, it just doesn't lead with it).
-_VOICE_ROLE_INSTRUCTIONS: dict[str, str] = {
-    "booking": (
-        "VOICE CALL FOCUS - Order & Booking: your primary job on this call is "
-        "to help the visitor book a meeting or place an order. Once you "
-        "understand what they need, proactively offer available times or "
-        "next steps rather than waiting to be asked. Still answer general "
-        "questions if raised, but steer back toward getting the booking done.\n\n"
-    ),
-    "info": (
-        "VOICE CALL FOCUS - Information & FAQ: your primary job on this call "
-        "is answering questions accurately from the business knowledge base. "
-        "Don't proactively push booking or lead capture - only do those if "
-        "the visitor explicitly asks. Prioritize being thorough and correct "
-        "over being brief.\n\n"
-    ),
-    "lead": (
-        "VOICE CALL FOCUS - Lead Qualification: your primary job on this call "
-        "is understanding the visitor's needs and capturing their contact "
-        "details so the team can follow up. Ask clarifying questions about "
-        "what they're looking for, and once you have enough context, "
-        "naturally ask for their name and best contact info.\n\n"
-    ),
-    "general": "",
-}
-
-# Voice transcription is useful but it is not authoritative for contact data:
-# one misheard letter can make a lead impossible to reach. Keep this as a
-# separate, late prompt block so it overrides the generic "save as soon as a
-# value is available" guidance below for voice calls.
-_VOICE_LEAD_VERIFICATION_INSTRUCTIONS = (
-    "VOICE CONTACT VERIFICATION (mandatory for spoken lead details):\n"
-    "- Treat speech-to-text for names, email addresses, phone numbers, and company names as an uncertain draft until the visitor explicitly confirms it.\n"
-    "- Capture and verify one field at a time. Never call `create_lead` with a newly heard name or email before confirmation.\n"
-    "- For a name, repeat the spelling clearly character-by-character and ask for confirmation. Example: if you heard Shija, say: `I heard S-H-I-J-A. Is that correct?` Do not guess similar spellings.\n"
-    "- For an email, read it back slowly in a voice-friendly spelling (for example, `s h i j a at example dot com`) and ask `Did I get that right?` Never infer punctuation or silently correct a character.\n"
-    "- If the visitor says no, sounds unsure, or gives a correction, discard the unconfirmed value, ask them to spell the field one character at a time, repeat the new spelling, and ask again.\n"
-    "- Only after an explicit confirmation such as `yes`, `correct`, or `that's right` may you use a value for lead capture. After each explicit confirmation, call `confirm_contact_detail` with both the captured value, the exact read-back in its `spelling` argument (for example `S-H-I-J-A` for a name or `s h i j a at example dot com` for an email), and `confirmed=true`. The server rejects missing/mismatched spelling or a missing explicit confirmation, so discard the draft and retry instead of guessing. Keep confirmed fields in context and do not ask for them again. When both required fields (name and email) are confirmed, call `create_lead` with `voice_confirmation=true`; if only one is confirmed, keep it in context and ask for the other.\n"
-    "- If the visitor declines, respect that and continue without saving that field. Existing leads may be updated with later fields; never create a duplicate.\n\n"
- )
-
-_VOICE_TEXT_INPUT_INSTRUCTIONS = (
-    "VOICE + TEXT INPUT (mandatory): This is one shared conversation. Treat typed messages from the composer as a normal turn in the same context, answer them, speak the answer, and show the text transcript. Do not announce or explain that the visitor can type or that you will read replies aloud - simply converse naturally like a real phone call.\n\n"
-    "COURTESY & POLITENESS (CRITICAL): Always be exceptionally polite, warm, welcoming, respectful, and helpful. "
-    "Greet callers warmly (e.g. 'Hello! How may I assist you today?' or 'Good morning, thanks for reaching out!'). "
-    "Use courteous, natural phrasing like 'Certainly!', 'I\\'d be delighted to help with that!', 'Thank you so much', 'Please let me know if there\\'s anything else I can assist you with', 'Have a wonderful day!'. "
-    "Never be blunt, dismissive, or robotic. When assisting with bookings or scheduling, respond enthusiastically and politely acknowledge their preferred schedule.\n\n"
-    "VOICE PACING & NATURAL SPOKEN RESPONSES (mandatory): Always begin your response with a natural, complete phrase (for example 'Sure, I can help with that,' or 'Got it, let's look into that,' or 'Certainly, here is what you need to know,'). Never start with isolated single words like 'Take', 'Well', or markdown bullet hyphens (-). Keep each spoken answer to 1-2 concise, conversational sentences (under 60 words) unless the caller asks for more detail. NEVER use markdown formatting like bullet points, tables, bold asterisks (**), or headers (#) in voice mode - use natural spoken language. Answer directly and conclude with one helpful question to keep the conversation flowing. Keep the tone warm, confident, and professional.\n\n"
-    "VOICE LANGUAGE SWITCHING (mandatory): Follow the latest visitor language. If they ask to speak in another language, switch to that language immediately. An explicit spoken or typed request always wins.\n\n"
-)
-
-# Tool calls with a lasting real-world side effect (sends something, creates
-# a recurring automation, deletes something) that we refuse to let the
-# weaker fallback model execute unsupervised - see the fallback-model write
-# guard in run_assistant. A bad read is annoying; a bad write persists.
-SENSITIVE_WRITE_TOOLS = frozenset({
-    "create_scheduled_task",
-    "delete_scheduled_task",
-    "send_email",
-    "reply_email",
-    "reply_to_thread",
-    "send_followup_nudge",
-    "draft_email",
-    "trash_email",
-    "delete_email_permanent",
-    "send_outlook_email",
-    "reply_outlook_email",
-    "delete_outlook_message",
-    "share_drive_item",
-    "share_onedrive_item",
-    "create_calendar_event",
-    "delete_calendar_event",
-    "create_outlook_event",
-    "delete_outlook_event",
-    "declutter_gmail_sender",
-    "create_email_trigger",
-    "delete_email_trigger",
-})
-
 
 async def _web_search(query: str) -> str:
     """Live web search via Jina's search endpoint (s.jina.ai). Returns a trimmed
@@ -272,11 +162,7 @@ async def search_knowledge(
     bot_id: str, owner_user: dict[str, Any], bot: dict[str, Any], query: str, *,
     translate_query: bool = True,
 ) -> tuple[str, list[dict]]:
-    """The RAG step run_widget_assistant does at the start of every turn -
-    extracted so it's reusable outside the text-chat tool-calling loop, e.g.
-    as a callable tool for a voice_mode="realtime" (Gemini Live/OpenAI
-    Realtime) session, which has no discrete "build a prompt, call the LLM
-    once" step of its own to hook this into."""
+    """Retrieve the RAG context used at the start of a widget turn."""
     knowledge_context = ""
     query_text = (query or "").strip()
     if not query_text:
@@ -328,16 +214,13 @@ async def search_knowledge(
 
 
 def scheduling_tool_names(
-    bot: dict[str, Any], owner_user: dict[str, Any], *, include_voice_confirmation: bool = False,
+    bot: dict[str, Any], owner_user: dict[str, Any],
 ) -> list[str]:
     """Which calendar/booking tool names (from agent_tools.DECLARATIONS) a
     session should get, given this bot's scheduling config and the owner's
     connected calendar. Single source of truth for both the text/pipeline
-    tool-calling loop below and the realtime voice agent
-    (voice-agent/voice_worker.py::_build_realtime_tools) - they previously
-    each hand-rolled their own version of this list and had drifted out of
-    parity (realtime never got Outlook/Teams support, reschedule_meeting,
-    or the newer get_available_slots-based flow)."""
+    tool-calling loop below. Keeping this list centralized prevents the text
+    assistant and booking flows from drifting out of parity."""
     provider = bot.get("meeting_provider") or "google_meet"
     # See the longer comment at this same check further down in
     # run_widget_assistant: meeting_provider alone decides Teams vs Google,
@@ -350,12 +233,6 @@ def scheduling_tool_names(
         elif owner_user.get("google_access_token") or bot.get("google_connected_account_id"):
             names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
-    # Spoken names/emails require an explicit, server-validated read-back
-    # before create_lead may persist them. Keep this tool out of normal text
-    # chat, but expose it to both voice implementations so their prompt and
-    # server-side safety gate are actually reachable.
-    if include_voice_confirmation:
-        names.append("confirm_contact_detail")
     return names
 
 
@@ -403,7 +280,6 @@ async def run_widget_assistant(
     media_mime: Optional[str] = None,
     visitor_geo: Optional[dict[str, Any]] = None,
     on_token=None,
-    voice_mode: bool = False,
     flow_context: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     visitor_country = (visitor_geo or {}).get("country")
@@ -545,7 +421,7 @@ async def run_widget_assistant(
 
     # 2. RAG Context
     knowledge_context, source_refs = await search_knowledge(
-        bot_id, owner_user, bot, text, translate_query=not voice_mode,
+        bot_id, owner_user, bot, text, translate_query=True,
     )
 
     # Multimodal RAG: Image/Video/Product Catalog search
@@ -773,13 +649,6 @@ async def run_widget_assistant(
     else:
         lead_capture_block = ""
 
-    # This is deliberately appended after the generic lead-capture and
-    # booking instructions so voice calls cannot shortcut verification by
-    # following the earlier "save as soon as available" wording.
-    voice_lead_verification_block = (
-        _VOICE_LEAD_VERIFICATION_INSTRUCTIONS if voice_mode and lead_capture_enabled else ""
-    )
-
     bot_display_name = bot.get("name") or "the assistant"
     has_knowledge = bool(knowledge_context.strip())
 
@@ -984,17 +853,6 @@ async def run_widget_assistant(
             "collect the visitor's name and email so the team can follow up, and keep it friendly.\n\n"
         )
 
-    # Voice-only persona/focus hint - a dashboard-configured lean, not a
-    # capability gate (booking/lead-capture tools stay controlled by the
-    # bot's normal calendar_scheduling_enabled/etc. settings regardless of
-    # role; this only shapes tone/emphasis on what the agent leads with).
-    voice_role_block = ""
-    if voice_mode:
-        voice_role_block = (
-            _VOICE_ROLE_INSTRUCTIONS.get(bot.get("voice_agent_role") or "general", "")
-            + _VOICE_TEXT_INPUT_INSTRUCTIONS
-        )
-
     # ── VISITOR MEMORY & ACTIVE APPOINTMENTS (Context Awareness) ──
     lead_row = None
     lead_memory_lines: list[str] = []
@@ -1130,7 +988,6 @@ async def run_widget_assistant(
 
     system_instruction = (
         f"{persona}"
-        f"{voice_role_block}"
         f"{flow_directive_block}"
         f"Business owner's custom instructions: {bot.get('system_instructions', '') or '(none)'}\n\n"
         f"=== BUSINESS KNOWLEDGE ===\n"
@@ -1138,7 +995,6 @@ async def run_widget_assistant(
         f"=== END KNOWLEDGE ===\n\n"
         f"{scheduling_block}"
         f"{lead_capture_block}"
-        f"{voice_lead_verification_block}"
         f"{visitor_memory_block}"
         f"{language_continuity_block}"
         f"(Internal - never share: Bot ID {bot_id})"
@@ -1185,9 +1041,7 @@ async def run_widget_assistant(
             )
 
     # 5. Build Tools list
-    allowed_tool_names = scheduling_tool_names(
-        bot, owner_user, include_voice_confirmation=voice_mode,
-    )
+    allowed_tool_names = scheduling_tool_names(bot, owner_user)
 
     # Gate create_calendar_event / create_outlook_event until visitor email is present:
     # A booking cannot succeed without the attendee's real email address. Removing the
@@ -1235,20 +1089,13 @@ async def run_widget_assistant(
     booking_correction_attempted = False
     called_tools_this_turn: set[str] = set()
 
-    # Model to try first - GEMINI_VOICE_MODEL for voice-mode requests or audio attachments,
-    # MODEL_NAME (today's default) otherwise - falling through to the same fallback chain.
+    # Audio attachments use the low-latency model; ordinary text uses the default.
     is_audio_req = bool(media_bytes and media_mime and media_mime.startswith("audio/"))
-    primary_model = ai_client.resolve_gemini_model(GEMINI_VOICE_MODEL if (voice_mode or is_audio_req) else MODEL_NAME)
-    fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
-    # Gemini 3 explicitly recommends temperature=1.0; lower values can cause
-    # infinite loops and degraded reasoning. Voice turns are latency-sensitive
-    # and use GEMINI_VOICE_MODEL by default, so do not carry the text-chat
-    # determinism setting into the speech pipeline.
-    generation_temperature = (
-        1.0
-        if voice_mode and primary_model.lower().startswith("gemini-3")
-        else 0.2
+    primary_model = ai_client.resolve_gemini_model(
+        os.environ.get("GEMMA_MODEL") if is_audio_req and os.environ.get("GEMMA_MODEL") else MODEL_NAME
     )
+    fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
+    generation_temperature = 0.2
 
     # 6. Tool-calling Loop.
     # Every model call goes through ai_client.chat_stream. When on_token is
@@ -1283,35 +1130,26 @@ async def run_widget_assistant(
 
     for round_idx in range(MAX_TOOL_ROUNDS):
         must_buffer = bool(
-            not voice_mode
-            and (
-                bool(catalog_items)
-                or (
-                    scheduling_enabled
-                    and not booking_tool_succeeded
-                    and (current_turn_asked_booking or bool(called_tools_this_turn & cal_tool_names))
-                )
+            bool(catalog_items)
+            or (
+                scheduling_enabled
+                and not booking_tool_succeeded
+                and (current_turn_asked_booking or bool(called_tools_this_turn & cal_tool_names))
             )
         )
         stream_live = None if must_buffer else on_token
-
-        extra_stream_kwargs: dict[str, Any] = {}
-        if voice_mode and "2.5" in primary_model.lower():
-            extra_stream_kwargs["thinking"] = {"budget_tokens": 0}
 
         gen = await ai_client.chat_stream(
             model=primary_model,
             messages=[{"role": "system", "content": system_instruction}] + messages,
             fallback_models=fallback_models,
             tools=tools,
-            max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096,
+            max_tokens=4096,
             temperature=generation_temperature,
             on_token=stream_live,
             bot_id=bot_id,
             session_id=session_id,
             call_type="widget_chat",
-            timeout=VOICE_LLM_TIMEOUT_SECONDS if voice_mode else None,
-            **extra_stream_kwargs,
         )
 
         tool_calls = gen["tool_calls"]
@@ -1320,7 +1158,7 @@ async def run_widget_assistant(
                 gen["text"]
                 or "I'm sorry, I wasn't able to process that. Could you try rephrasing your request?"
             )
-            if not voice_mode and not booking_tool_succeeded and _claims_booking_success(reply):
+            if not booking_tool_succeeded and _claims_booking_success(reply):
                 if not booking_correction_attempted:
                     # First offense: give the model one chance to actually book it.
                     # Nothing has been streamed for this round (stream_live is
@@ -1376,17 +1214,6 @@ async def run_widget_assistant(
 
         messages.append(gen["message"])
 
-        # In voice mode, bridge the 2-5 second tool execution latency with an immediate natural
-        # filler so the caller never experiences dead air while the calendar or tool query runs.
-        if voice_mode and stream_live and round_idx == 0 and tool_calls:
-            first_fn = tool_calls[0]["function"]["name"]
-            if first_fn in ("get_available_slots", "check_calendar_availability"):
-                await stream_live("One moment, let me check the calendar... ")
-            elif first_fn in ("create_calendar_event", "create_outlook_event"):
-                await stream_live("Booking that for you now... ")
-            elif first_fn == "web_search":
-                await stream_live("One moment, looking that up... ")
-
         for tc in tool_calls:
             fn_name = tc["function"]["name"]
             called_tools_this_turn.add(fn_name)
@@ -1433,7 +1260,7 @@ async def run_widget_assistant(
                 args,
                 user=owner_user,
                 supabase=supabase,
-                context={"source": "widget", "session_id": session_id, "bot_id": bot_id, "bot": bot, "visitor_timezone": visitor_timezone, "voice_mode": voice_mode},
+                context={"source": "widget", "session_id": session_id, "bot_id": bot_id, "bot": bot, "visitor_timezone": visitor_timezone},
             )
             if fn_name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
                 booking_tool_succeeded = True
@@ -1448,12 +1275,11 @@ async def run_widget_assistant(
         model=primary_model,
         messages=[{"role": "system", "content": final_system_instruction}] + messages,
         fallback_models=fallback_models,
-        max_tokens=VOICE_MAX_OUTPUT_TOKENS if voice_mode else 4096,
+        max_tokens=4096,
         on_token=stream_live,
         bot_id=bot_id,
         session_id=session_id,
         call_type="widget_chat_final",
-        timeout=VOICE_LLM_TIMEOUT_SECONDS if voice_mode else None,
     )
     reply = final["text"] or "I'm sorry, I wasn't able to complete that request."
     if not booking_tool_succeeded and _claims_booking_success(reply):

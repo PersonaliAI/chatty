@@ -14,7 +14,6 @@ from app.schemas.bots_api import (
     WidgetStylingUpdateRequest,
     CampaignCreateRequest,
     CampaignUpdateRequest,
-    VoiceAgentConfigRequest,
     LeadCaptureConfigRequest,
     CalendarIntegrationRequest,
     GuardrailsConfigRequest,
@@ -25,7 +24,6 @@ from app.services import (
     bots_service,
     mcp_design_service,
     mcp_campaign_service,
-    mcp_voice_service,
     mcp_inbox_service,
 )
 
@@ -34,7 +32,7 @@ def _mock_principal(scopes: list[str] = None) -> dict:
     return {
         "auth_type": "oauth",
         "user_id": "test-user-123",
-        "scopes": scopes or ["read", "write", "knowledge", "voice", "actions", "admin"],
+        "scopes": scopes or ["read", "write", "knowledge", "actions", "admin"],
         "client_id": "test-client-id",
     }
 
@@ -281,43 +279,6 @@ def test_campaign_lifecycle():
             analytics = asyncio.run(mcp_campaign_service.get_campaign_analytics(principal, "bot-abc-123", "camp-1"))
             assert "ctr_percent" in analytics
             assert analytics["conversions"] > 0
-
-
-# ===========================================================================
-# 5. VOICE AGENT
-# ===========================================================================
-
-
-def test_configure_voice_agent_and_token():
-    principal = _mock_principal()
-    bot_data = {"id": "bot-abc-123", "user_id": "test-user-123", "voice_enabled": True}
-
-    with patch("app.core.oauth.require_bot_access", return_value=bot_data):
-        with patch("app.services.mcp_voice_service.supabase.table") as mock_table:
-            mock_table.return_value = _mock_query_result([bot_data])
-
-            # Config - real chatty_bots columns only (voice_tts_provider/voice_tts_voice,
-            # not the fictional tts_provider/voice_id fields the old schema had).
-            mock_table.return_value = _mock_query_result([{
-                "id": "bot-abc-123", "voice_enabled": True, "voice_mode": "pipeline",
-                "voice_stt_provider": None, "voice_tts_provider": "elevenlabs", "voice_tts_voice": "rachel",
-            }])
-            config = asyncio.run(mcp_voice_service.configure_voice_agent(
-                principal, "bot-abc-123", VoiceAgentConfigRequest(voice_tts_provider="elevenlabs", voice_tts_voice="rachel")
-            ))
-            assert config["voice_tts_provider"] == "elevenlabs"
-            assert config["voice_tts_voice"] == "rachel"
-
-            # Token - mint_voice_token delegates to the real LiveKit dispatch
-            # logic in voice_service, which isn't configured in unit tests;
-            # mock that boundary rather than the DB layer.
-            with patch(
-                "app.services.mcp_voice_service.voice_service.mint_voice_session",
-                return_value={"token": "fake-jwt", "livekit_url": "wss://example.livekit.cloud", "room_name": "room-1", "session_id": "sess-1"},
-            ):
-                token_res = asyncio.run(mcp_voice_service.mint_voice_token(principal, "bot-abc-123"))
-            assert "token" in token_res
-            assert "room_name" in token_res
 
 
 # ===========================================================================

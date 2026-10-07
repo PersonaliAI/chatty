@@ -2,8 +2,7 @@
 
 This runbook describes the supported production path. Chatty keeps the
 application portable across Docker hosts while Supabase remains the managed
-data service. The production Chatty voice worker runs on the dedicated VPS
-Compose stack documented in `voice-agent/DEPLOY_VPS.md`.
+data service.
 
 ## Environments
 
@@ -11,7 +10,6 @@ Compose stack documented in `voice-agent/DEPLOY_VPS.md`.
 |---|---|---|---|---|
 | Local | Next.js dev server | FastAPI/Uvicorn | Managed Supabase project | Developer |
 | Hosted | Firebase App Hosting | Cloud Run | Managed PostgreSQL/Supabase | PersonaliAI |
-| Voice worker | Production VPS | Docker Compose worker + LiveKit | Managed Supabase + Gemini/AI providers + private LiveKit/Redis | Operator |
 
 Never copy production secrets into `.env.example`, a Docker image, a browser
 bundle, or a GitHub repository. Use Secret Manager, an equivalent vault, or a
@@ -35,8 +33,7 @@ repository scanner.
 ## Cloud Run release checklist
 
 The production Cloud Run service is `chatty-api` in project `personaliai`,
-region `us-central1`. The voice worker is intentionally not a Cloud Run
-service; capture its current VPS image/container before every release.
+region `us-central1`.
 
 ```powershell
 $project = "personaliai"
@@ -57,32 +54,19 @@ git diff --check
    gcloud run deploy chatty-api --source . --region $region --project $project --clear-base-image --quiet
    ```
 
-3. Deploy the voice worker to the VPS, never Cloud Run:
-
-   ```bash
-   cd /opt/chatty/backend/voice-agent
-   git fetch origin
-   git checkout --detach <reviewed-commit-sha>
-   docker compose --profile self-hosted config --quiet
-   docker compose --profile self-hosted build --pull voice-worker
-   docker compose --profile self-hosted up -d --no-deps voice-worker
-   docker inspect --format '{{.State.Health.Status}}' chatty-voice-voice-worker-1
-   ```
-
-4. Verify readiness and traffic before considering the release successful:
+3. Verify readiness and traffic before considering the release successful:
 
    ```powershell
    Invoke-WebRequest "https://api.chatty.personaliai.com/health" -UseBasicParsing
    Invoke-WebRequest "https://api.chatty.personaliai.com/ready" -UseBasicParsing
    gcloud run services describe chatty-api --project $project --region $region --format="value(status.latestReadyRevisionName,status.traffic)"
-   ssh <vps-host> 'cd /opt/chatty/backend/voice-agent && docker compose --profile self-hosted ps'
    ```
 
    The API smoke should return HTTP 200 with `status=ready`; protected catalog
    routes should return 401 without a session rather than 500. For an
    authenticated staging smoke, verify widget theme, text streaming, booking,
-   catalog creation/update, signed catalog webhook, and voice connect/greeting.
-5. Keep the previous revision serving until the smoke checks and startup logs
+    catalog creation/update, and signed catalog webhook.
+4. Keep the previous revision serving until the smoke checks and startup logs
    are clean. Record both new revision names, image digests, migration version,
    test output, and the captured rollback names.
 
@@ -94,11 +78,10 @@ Use the revision names captured before deployment:
 ```powershell
 gcloud run services update-traffic chatty-api `
   --to-revisions ${apiPrevious}=100 --project $project --region $region --quiet
-ssh <vps-host> 'cd /opt/chatty/backend/voice-agent && docker compose --profile self-hosted up -d --no-deps voice-worker'
 ```
 
-Re-run `/health`, `/ready`, the voice connect smoke, and the relevant authenticated flow
-after rollback. Preserve the failed revision's logs and request IDs before
+Re-run `/health`, `/ready`, and the relevant authenticated flow after rollback.
+Preserve the failed revision's logs and request IDs before
 redeploying a fix. A database migration is not rolled back by changing Cloud
 Run traffic; use an additive forward migration or a verified backup restore
 plan after reviewing the migration's data impact.

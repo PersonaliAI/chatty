@@ -159,26 +159,7 @@ SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
 SENTRY_ENV = os.environ.get("SENTRY_ENV", "production")
 SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.05"))
 
-# LiveKit - voice agent worker + token-minting endpoint (Phase B).
-LIVEKIT_URL = os.environ.get("LIVEKIT_URL", "")
-LIVEKIT_API_KEY = os.environ.get("LIVEKIT_API_KEY", "")
-LIVEKIT_API_SECRET = os.environ.get("LIVEKIT_API_SECRET", "")
-
-# Voice worker STT/TTS provider matrix (Phase C) - server-side shared
-# fallback keys, used only when a bot selects a non-google provider but has
-# no BYOK key of its own configured. Mirrors GEMINI_API_KEY's role as a
-# shared fallback above. OpenAI already has a key used elsewhere for the
-# text-chat BYOK feature (plugins/llm_providers.py reads it straight from
-# the customer-supplied key, not from here), so a dedicated constant is
-# still added here for the voice worker's own fallback use.
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
-DEEPGRAM_API_KEY = os.environ.get("DEEPGRAM_API_KEY", "")
-ASSEMBLYAI_API_KEY = os.environ.get("ASSEMBLYAI_API_KEY", "")
-SONIOX_API_KEY = os.environ.get("SONIOX_API_KEY", "")
-CARTESIA_API_KEY = os.environ.get("CARTESIA_API_KEY", "")
-ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
-FISH_API_KEY = os.environ.get("FISH_API_KEY", "")
 
 # Admin / billing bypass emails (comma-separated, e.g. "admin@example.com,owner@domain.com")
 ADMIN_BYPASS_EMAILS = {

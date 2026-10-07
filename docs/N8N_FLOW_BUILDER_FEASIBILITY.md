@@ -8,7 +8,7 @@ Scope: Integrate n8n as a customer flow builder in Chatty.
 
 The integration is technically possible. Chatty already has the application services needed around n8n: Supabase authentication, per-bot permissions, billing, quotas, webhooks, and workers.
 
-Use the n8n editor as an automation workspace for CRM, notifications, booking integrations, and post-call processing. Keep the chat and voice interaction loop in Chatty. A complete replacement of the conversational flow runtime needs additional state and UI adapters.
+Use the n8n editor as an automation workspace for CRM, notifications, booking integrations, and post-conversation processing. A complete replacement of the conversational flow runtime needs additional state and UI adapters.
 
 For customers to use the n8n editor inside Chatty, obtain the OEM agreement. Treat n8n as a separate service. Do not copy its editor into the React application as a component.
 
@@ -21,7 +21,6 @@ The removed code includes:
 - `backend/app/routers/n8n.py`: status, workflow provisioning, and event trigger routes.
 - `backend/app/services/n8n_service.py`: health checks, workflow lookup, starter templates, and webhook execution.
 - `frontend/src/components/n8n-workflow-tab.tsx`: an editor iframe, test trigger, and fullscreen controls.
-- `backend/voice-agent/custom-n8n/`: authentication overlay and custom Chatty nodes.
 - Compose and reverse-proxy configuration, integration tests, and `docs/n8n-readiness.md`.
 
 The prior readiness document explicitly says acceptance work remained. Its deployment and test claims describe that earlier checkpoint. I did not verify those claims against a live service.
@@ -97,7 +96,7 @@ Use a hybrid design first:
 3. n8n returns a bounded result or uses a scoped Chatty action API.
 4. Chatty resumes the conversation or delivers an asynchronous update.
 
-If you want n8n to author the entire conversation, define custom Chatty nodes and a runtime contract for messages, questions, choices, handoff, booking, waiting, and resume. Persist conversation and execution correlation. Validate responses and enforce session ownership. Keep latency-sensitive voice processing in Chatty's voice runtime; start with post-call automations.
+If you want n8n to author the entire conversation, define custom Chatty nodes and a runtime contract for messages, questions, choices, handoff, booking, waiting, and resume. Persist conversation and execution correlation. Validate responses and enforce session ownership.
 
 The removed custom action node mainly formats lead data, calculates duration fields, and formats responses. It does not supply a complete authenticated booking, inbox, or conversation integration. The previous starter templates also need real runtime validation. For example, their response expressions use `True`, while n8n expressions use JavaScript `true`.
 
@@ -140,7 +139,7 @@ Chatty's MIT license does not change n8n's license. Keep the n8n dependency and 
 - Events cannot select a different customer's workflow or bot action.
 - Browser iframe login works under the supported domain and cookie configuration.
 - Upgrade, backup restore, credential recovery, and customer deletion are verified.
-- Concurrent load verifies queue wait, chat latency, voice latency, and usage enforcement.
+- Concurrent load verifies queue wait, chat latency, and usage enforcement.
 
 ## Assessment limits
 

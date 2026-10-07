@@ -142,9 +142,6 @@ window.Chatty.open();
 window.Chatty.close();
 window.Chatty.toggle();
 
-// Launch real-time WebRTC Voice call directly
-window.Chatty.openVoice();
-
 // Identify a logged-in customer with a short-lived token minted by your server.
 // Never pass raw profile fields or your signing secret from browser code.
 window.addEventListener("chatty:ready", async () => {

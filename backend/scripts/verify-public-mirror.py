@@ -16,7 +16,6 @@ MIRRORED_PREFIXES = (
     "scripts/",
     "requirements.txt",
     "Dockerfile",
-    "voice-agent/",
     "env.yaml",
     "env.yaml.example",
     "supabase/migrations/",

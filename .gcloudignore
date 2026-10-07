@@ -9,11 +9,6 @@ node_modules/
 **/*.pyc
 *.log
 *.json
-!backend/voice-agent/*.json
-!backend/voice-agent/*.yaml
-!backend/voice-agent/*.py
 !backend/requirements.txt
 !backend/app/**
 !backend/Dockerfile
-!backend/voice-agent/Dockerfile
-!backend/voice-agent/cloudbuild.voice-worker.yaml

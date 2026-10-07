@@ -54,7 +54,6 @@
     "emoji-picker-react": "^4.19.1",
     "framer-motion": "^12.38.0",
     "katex": "^0.16.45",
-    "livekit-client": "^2.22.0",
     "lucide-react": "^1.14.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

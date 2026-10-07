@@ -340,13 +340,6 @@ def test_scheduling_tool_names_enables_google_via_connected_account():
     assert "get_available_slots" in names
 
 
-def test_scheduling_tool_names_exposes_voice_contact_confirmation_only_for_voice():
-    bot = {"calendar_scheduling_enabled": False}
-    assert "confirm_contact_detail" not in wb.scheduling_tool_names(bot, {})
-    assert "confirm_contact_detail" in wb.scheduling_tool_names(
-        bot, {}, include_voice_confirmation=True,
-    )
-
 def test_is_probably_english_recognizes_english_and_non_english():
     assert wb._is_probably_english("What is your pricing?") is True
     assert wb._is_probably_english("Hello, what does Chatty do?") is True
@@ -364,4 +357,3 @@ def test_translate_skips_ai_chat_for_obvious_english(monkeypatch):
     result = asyncio.run(wb._translate_to_english_for_rag("What is your pricing?"))
     assert result == "What is your pricing?"
     chat_mock.assert_not_called()
-

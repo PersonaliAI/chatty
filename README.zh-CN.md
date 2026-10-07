@@ -17,7 +17,6 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![LiveKit](https://img.shields.io/badge/Voice-LiveKit-FF6600)](https://livekit.io)
 [![MCP](https://img.shields.io/badge/Agent%20Control-MCP-8b5cf6)](#mcp-服务器与智能体控制)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -61,7 +60,6 @@
 ## ✨ 功能特性
 
 - 💬 **可嵌入式聊天组件** - 仅需一行 `<script>` 标签，支持流式打字机回复，兼容任何网站。
-- 🎙️ **实时语音代理** - 基于 LiveKit 实现低延迟电话级双向语音互动，与聊天组件共享同等上下文认知。
 - 📚 **基于自有知识库的 RAG** - 支持上传 PDF、DOCX、PPTX、XLSX 或抓取 URL 网页，自动切片、向量化并检索召回。
 - 🛠️ **工具调用 (Tool-calling)** - 自动预约会议（生成 Google Meet / Microsoft Teams / Zoom 链接）、捕获销售线索与核对日历冲突。
 - 🔌 **全渠道触达 (Omnichannel)** - 除了网页组件，原生支持 WhatsApp 与 Slack 渠道接入。
@@ -72,7 +70,6 @@
 
 ## 架构
 
-代码仓库采用标准的统一应用结构：`frontend/` 包含 Next.js 仪表盘、内嵌组件与 `widget.js` 加载器；`backend/` 包含基于 FastAPI 的 API 服务、后台 Worker 任务、第三方集成以及数据库迁移脚本。系统通过托管的 Supabase 项目运行（与 Chatty Cloud 架构标准完全一致）。可选的语音 Worker 服务可以使用 LiveKit Cloud，也可使用 `backend/voice-agent` 下独立的自建 LiveKit 媒体面；该媒体层不会替代 Supabase Postgres、Auth、Storage 或 Chatty API。
 
 ```mermaid
 flowchart TB
@@ -97,7 +94,6 @@ flowchart TB
     subgraph runtime["Chatty runtime"]
         direction LR
         api["FastAPI API · chat · RAG · webhooks"]:::app
-        voice["Voice worker · LiveKit Agents"]:::app
     end
     subgraph managed["Managed Supabase — default profile"]
         direction LR
@@ -111,7 +107,6 @@ flowchart TB
         llm["LLM providers"]:::integration
         calendar["Calendar providers"]:::integration
         channelsApi["WhatsApp / Slack"]:::integration
-        livekit["LiveKit Cloud or self-hosted"]:::integration
         billing["Billing + webhooks"]:::integration
     end
     subgraph targets["Deployment targets"]
@@ -135,7 +130,6 @@ flowchart TB
     api --> llm
     api --> calendar
     api --> channelsApi
-    voice --> livekit
     api --> billing
     targets -. runs .-> runtime
     linkStyle default stroke:#64748b,stroke-width:1.5px
@@ -149,7 +143,6 @@ chatty/
 │   ├── plugins/      Google/Microsoft 集成、RAG、挂件编排
 │   ├── supabase/     数据库 Schema 与迁移文件 (按序执行)
 │   ├── scripts/      apply_migrations.py 与运维脚本
-│   ├── voice-agent/  LiveKit 语音 Worker 与自托管 Docker 编排
 │   └── tests/        pytest 冒烟与单元测试
 └── docker-compose.yml
 ```
@@ -159,9 +152,7 @@ chatty/
 | 配置文件 | 数据与身份认证服务 | 适用场景 |
 |---|---|---|
 | `managed_supabase`（默认） | Supabase Auth、Postgres、Storage、pgvector 与 RLS | Chatty Cloud 以及所有官方支持的应用部署方式 |
-| 语音媒体面（可选） | VPS 上的 LiveKit + 私有 Redis | 音视频流运行在自己的 VPS 上，业务数据仍保留在 Supabase |
 
-语音服务的独立部署说明请查阅 [`backend/voice-agent/README.md`](backend/voice-agent/README.md)。
 
 ## 📋 环境依赖
 
@@ -173,7 +164,6 @@ chatty/
 | [Supabase](https://supabase.com) 账号 | 免费层即可 | 核心数据库 (Postgres + Auth + Storage) |
 | [Google AI Studio](https://aistudio.google.com/apikey) API 密钥 | 免费层即可 | 默认大语言模型 (Gemini) |
 
-其余集成（用于语音的 LiveKit、WhatsApp/Slack 令牌、Google/Microsoft OAuth、Lemon Squeezy 支付、Sentry 异常监控、Upstash Redis 限流等）均为**完全可选**配置——未填写的环境变量将仅停用对应单个功能，不会影响系统主体正常运行。
 
 ## 🚀 快速开始 (Docker Compose)
 
@@ -244,7 +234,6 @@ Chatty 内置了完整的 [Model Context Protocol (MCP)](https://modelcontextpro
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: 需与后端连接的同一 Supabase 项目保持一致。
 - `NEXT_PUBLIC_BACKEND_URL`: 前端调用后端的 API 地址（本地开发为 `http://localhost:8000`，生产环境为真实域名）。
 
-**可选功能变量**：包括语音（LiveKit）、WhatsApp、Slack、Google/Microsoft 日历预约、Zoom 会议、Lemon Squeezy 支付、Upstash Redis、Sentry 异常监控等。
 
 ## 🧪 测试与持续集成
 

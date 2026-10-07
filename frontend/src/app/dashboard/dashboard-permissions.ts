@@ -1,8 +1,8 @@
-export const CHATTY_TEAM_TABS = ["inbox", "sources", "design", "settings", "voice", "team", "meetings", "billing", "byok", "webhooks"] as const;
+export const CHATTY_TEAM_TABS = ["inbox", "sources", "design", "settings", "team", "meetings", "billing", "byok", "webhooks"] as const;
 export type ChattyTeamTab = (typeof CHATTY_TEAM_TABS)[number];
 
 export const OWNER_ONLY_TABS = new Set<ChattyTeamTab>(["billing", "byok", "webhooks"]);
-export const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ["inbox", "sources", "design", "settings", "voice", "team", "meetings"];
+export const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ["inbox", "sources", "design", "settings", "team", "meetings"];
 export const DEFAULT_AGENT_TABS: ChattyTeamTab[] = ["inbox"];
 
 export const TAB_LABELS: Record<ChattyTeamTab, string> = {
@@ -10,7 +10,6 @@ export const TAB_LABELS: Record<ChattyTeamTab, string> = {
   sources: "Knowledge",
   design: "Customizer",
   settings: "Settings",
-  voice: "Voice Agent",
   team: "Team",
   meetings: "Meetings",
   billing: "Billing",
@@ -37,7 +36,6 @@ export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   feedback: "inbox",
   map: "inbox",
   meetings: "inbox",
-  voice_agent: "voice",
   mailbox: "inbox",
   notifications: "settings",
   audit_log: "settings",

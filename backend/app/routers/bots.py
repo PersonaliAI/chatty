@@ -27,7 +27,6 @@ from app.schemas.bots import (
     BYOKUpdate,
     DashboardWebhookCreateRequest,
     GenerateBusinessRequest,
-    VoiceSettingsUpdate,
 )
 from app.schemas.bots_api import CampaignCreateRequest, CampaignSuggestRequest, CampaignUpdateRequest, _parse_campaign_datetime
 from plugins import ai_client
@@ -467,7 +466,7 @@ _DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
     "meeting_provider", "business_hours_start", "business_hours_end", "working_days", "buffer_minutes",
     "advance_notice_hours", "max_daily_meetings", "max_weekly_meetings", "booking_email_verification",
     "booking_block_disposable_emails", "booking_limit_one_active", "booking_require_business_email",
-    "allowed_domains", "voice_enabled", "voice_stt_provider", "voice_tts_provider", "voice_tts_voice",
+    "allowed_domains",
     "whatsapp_enabled", "whatsapp_phone_number_id", "whatsapp_waba_id", "whatsapp_access_token",
     "whatsapp_verify_token", "whatsapp_app_secret", "whatsapp_quick_replies", "onboarding_step",
     "onboarding_completed", "lead_fields", "lead_capture_enabled", "lead_required_fields",
@@ -888,59 +887,6 @@ async def generate_business(
         raise HTTPException(status_code=502, detail="Could not generate. Please try again.")
 
 
-@router.post("/api/bots/{bot_id}/generate-voice-welcome")
-async def generate_voice_welcome(
-    bot_id: str,
-    user: dict[str, Any] = Depends(require_user),
-):
-    """Generate a short voice greeting from the bot's current profile and KB."""
-    await verify_bot_permission(bot_id, user, "settings")
-    # Keep this endpoint compatible with installations that predate the optional
-    # profile-description column.  The welcome prompt already works without it,
-    # and selecting a missing column would fail before generation starts.
-    bot_res = await run_db(lambda: supabase.table("chatty_bots").select(
-        "name, system_instructions, welcome_message"
-    ).eq("id", bot_id).limit(1).execute())
-    if not bot_res.data:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    bot = bot_res.data[0]
-    source_res = await run_db(lambda: supabase.table("chatty_sources").select(
-        "name, content"
-    ).eq("bot_id", bot_id).eq("status", "trained").order("created_at", desc=False).limit(20).execute())
-    sources = source_res.data or []
-    knowledge = "\n\n".join(
-        f"[{s.get('name', 'Knowledge source')}]\n{str(s.get('content') or '')[:5000]}"
-        for s in sources
-    )[:30000]
-    prompt = (
-        "Write one concise, natural welcome message for a website voice assistant. "
-        "Use the business profile and knowledge below. It must sound good when spoken aloud, "
-        "be no more than two short sentences, invite the visitor to ask a question, and never "
-        "claim capabilities that are not supported. Return only the message text.\n\n"
-        f"Business: {bot.get('name') or 'the business'}\n"
-        f"Description: {bot.get('description') or ''}\n"
-        f"Instructions: {bot.get('system_instructions') or ''}\n"
-        f"Knowledge base:\n{knowledge or '(no trained sources yet)'}"
-    )
-    try:
-        response = await ai_client.chat(
-            model=ai_client.resolve_gemini_model(MODEL_NAME),
-            messages=[{"role": "user", "content": prompt}],
-            fallback_models=[ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS],
-            temperature=0.5,
-            max_tokens=180,
-            bot_id=bot_id,
-            call_type="generate_voice_welcome",
-        )
-        message = (response.choices[0].message.content or "").strip().strip('"')[:300]
-        if not message:
-            raise ValueError("empty generated welcome")
-        return {"welcome_message": message}
-    except Exception as exc:
-        logger.exception("generate voice welcome failed")
-        raise HTTPException(status_code=502, detail="Could not generate a voice welcome right now.") from exc
-
-
 @router.get("/api/bots/{bot_id}/byok")
 async def get_byok_status(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Never returns the decrypted key - only whether one is configured.
@@ -973,106 +919,6 @@ async def set_byok(bot_id: str, req: BYOKUpdate, user: dict[str, Any] = Depends(
         update["byok_api_key_encrypted"] = None  # clearing BYOK entirely
 
     await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
-    return {"success": True}
-
-
-@router.get("/api/bots/{bot_id}/voice-settings")
-async def get_voice_settings(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Never returns decrypted BYOK keys - only whether one is configured."""
-    await verify_bot_permission(bot_id, user, "voice")
-    try:
-        res = await run_db(lambda: supabase.table("chatty_bots").select(
-            "voice_enabled, voice_mode, voice_stt_provider, voice_stt_byok_key_encrypted, "
-            "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
-            "voice_agent_role, voice_max_duration_minutes, "
-            "voice_realtime_provider, voice_realtime_model, voice_realtime_byok_key_encrypted, "
-            "voice_message_mode, user_id"
-        ).eq("id", bot_id).execute())
-    except Exception:
-        # voice_mode/voice_realtime_*'s migration (20260829030000) may not be
-        # applied to this environment yet - fall back to the columns that
-        # are guaranteed to exist rather than 400ing the whole request.
-        res = await run_db(lambda: supabase.table("chatty_bots").select(
-            "voice_enabled, voice_stt_provider, voice_stt_byok_key_encrypted, "
-            "voice_tts_provider, voice_tts_byok_key_encrypted, voice_tts_voice, "
-            "voice_agent_role, voice_max_duration_minutes, voice_message_mode, user_id"
-        ).eq("id", bot_id).execute())
-    if not res.data:
-        raise HTTPException(status_code=404, detail="Bot not found")
-    row = res.data[0]
-    return {
-        "voice_enabled": bool(row.get("voice_enabled")),
-        "voice_mode": row.get("voice_mode") or "pipeline",
-        "voice_stt_provider": row.get("voice_stt_provider") or "google",
-        "voice_tts_provider": row.get("voice_tts_provider") or "google",
-        "voice_tts_voice": row.get("voice_tts_voice"),
-        "voice_stt_configured": bool(row.get("voice_stt_byok_key_encrypted")),
-        "voice_tts_configured": bool(row.get("voice_tts_byok_key_encrypted")),
-        "voice_agent_role": row.get("voice_agent_role") or "general",
-        "voice_max_duration_minutes": row.get("voice_max_duration_minutes") or 15,
-        "voice_realtime_provider": row.get("voice_realtime_provider") or "google",
-        "voice_realtime_model": row.get("voice_realtime_model"),
-        "voice_realtime_configured": bool(row.get("voice_realtime_byok_key_encrypted")),
-        "voice_message_mode": row.get("voice_message_mode"),
-    }
-
-
-@router.post("/api/bots/{bot_id}/voice-settings")
-async def set_voice_settings(
-    bot_id: str, req: VoiceSettingsUpdate, user: dict[str, Any] = Depends(require_user)
-):
-    await verify_bot_permission(bot_id, user, "voice")
-
-    update: dict[str, Any] = {}
-    if req.voice_enabled is not None:
-        update["voice_enabled"] = req.voice_enabled
-    if req.voice_mode is not None:
-        if req.voice_mode not in ("pipeline", "realtime"):
-            raise HTTPException(status_code=400, detail="voice_mode must be 'pipeline' or 'realtime'")
-        update["voice_mode"] = req.voice_mode
-    if req.voice_realtime_provider is not None:
-        if req.voice_realtime_provider not in ("google", "openai"):
-            raise HTTPException(status_code=400, detail="voice_realtime_provider must be 'google' or 'openai'")
-        update["voice_realtime_provider"] = req.voice_realtime_provider
-        if req.voice_realtime_provider == "google":
-            update["voice_realtime_byok_key_encrypted"] = None  # no key needed for the default
-    if req.voice_realtime_model is not None:
-        update["voice_realtime_model"] = req.voice_realtime_model or None
-    if req.voice_realtime_api_key is not None:
-        update["voice_realtime_byok_key_encrypted"] = (
-            llm_providers.encrypt_api_key(req.voice_realtime_api_key) if req.voice_realtime_api_key else None
-        )
-    if req.voice_stt_provider is not None:
-        update["voice_stt_provider"] = req.voice_stt_provider
-        if req.voice_stt_provider == "google":
-            update["voice_stt_byok_key_encrypted"] = None  # no key needed for the default
-    if req.voice_tts_provider is not None:
-        update["voice_tts_provider"] = req.voice_tts_provider
-        if req.voice_tts_provider == "google":
-            update["voice_tts_byok_key_encrypted"] = None
-    if req.voice_tts_voice is not None:
-        update["voice_tts_voice"] = req.voice_tts_voice or None
-    if req.voice_stt_api_key is not None:
-        update["voice_stt_byok_key_encrypted"] = (
-            llm_providers.encrypt_api_key(req.voice_stt_api_key) if req.voice_stt_api_key else None
-        )
-    if req.voice_tts_api_key is not None:
-        update["voice_tts_byok_key_encrypted"] = (
-            llm_providers.encrypt_api_key(req.voice_tts_api_key) if req.voice_tts_api_key else None
-        )
-    if req.voice_agent_role is not None:
-        update["voice_agent_role"] = req.voice_agent_role
-    if req.voice_max_duration_minutes is not None:
-        update["voice_max_duration_minutes"] = max(1, min(60, req.voice_max_duration_minutes))
-    if req.voice_message_mode is not None:
-        update["voice_message_mode"] = req.voice_message_mode
-
-    if update:
-        try:
-            await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
-        except Exception as e:
-            logger.exception("Failed to update voice settings for bot %s: %s", bot_id, e)
-            raise HTTPException(status_code=500, detail=f"Database update failed: {str(e)}")
     return {"success": True}
 
 

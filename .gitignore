@@ -4,7 +4,6 @@
 .env.local
 .env.*.local
 env.yaml
-env.voice-worker.yaml
 
 # Node
 node_modules/
@@ -37,4 +36,3 @@ Thumbs.db
 *gcp-key*.json
 gcp-key.json
 *.key.json
-

@@ -132,12 +132,6 @@ const MEGA_MENU_RESOURCES = [
     external: false,
   },
   {
-    title: "Voice AI Demo",
-    desc: "Test bidirectional voice agents with real-time speech models.",
-    href: "/voice-demo",
-    external: false,
-  },
-  {
     title: "Zoom App Integration",
     desc: "Connect Chatty directly to your Zoom workspaces.",
     href: "/zoom",
@@ -2419,12 +2413,6 @@ export default function LandingClient() {
                 className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
               >
                 Pricing Plans
-              </Link>
-              <Link
-                href="/voice-demo"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Voice AI Demo
               </Link>
               <Link
                 href="/zoom"

@@ -1,6 +1,6 @@
 # Chatty: Comprehensive Technical Documentation & Platform Manual
 
-Welcome to the complete technical documentation for **Chatty** — the enterprise conversational AI, live omnichannel helpdesk, intelligent scheduling, and real-time voice platform.
+Welcome to the complete technical documentation for **Chatty** — the enterprise conversational AI, live omnichannel helpdesk, intelligent scheduling, and support platform.
 
 ---
 
@@ -15,7 +15,6 @@ Welcome to the complete technical documentation for **Chatty** — the enterpris
 7. [Enterprise Knowledge Base & Help Center](#7-enterprise-knowledge-base--help-center)
 8. [Omnichannel Live Inbox & SLA Routing](#8-omnichannel-live-inbox--sla-routing)
 9. [Intelligent Calendar & Meeting Booking](#9-intelligent-calendar--meeting-booking)
-10. [LiveKit Real-Time Voice Agent](#10-livekit-real-time-voice-agent)
 11. [Complete REST API Reference](#11-complete-rest-api-reference)
 12. [Model Context Protocol (MCP) Server](#12-model-context-protocol-mcp-server)
 13. [Webhooks & Events Reference](#13-webhooks--events-reference)
@@ -35,7 +34,6 @@ graph TB
         WidgetReact["@personaliai/react-widget<br/>(ChatWidgetCore)"]
         WidgetScript["Standalone Embed Script<br/>(chatty-app.js)"]
         KBPortal["Public Knowledge Base & Help Center<br/>(/kb/[botId])"]
-        VoiceWidget["LiveKit WebRTC Voice Call Interface"]
     end
 
     subgraph BackendServices["Backend Microservices (api.chatty.personaliai.com)"]
@@ -43,7 +41,6 @@ graph TB
         WidgetBrain["Widget Brain & Agent Tool Loop"]
         AvailabilityEngine["Availability & Round-Robin Meeting Engine"]
         DocRAG["Document Indexing & Semantic Vector RAG"]
-        VoiceWorker["LiveKit Real-time Voice Worker<br/>(Cartesia + Deepgram)"]
         MCPRouter["Model Context Protocol (MCP) Server"]
     end
 
@@ -51,7 +48,6 @@ graph TB
         Supabase["Supabase PostgreSQL 15+<br/>(pgvector, Auth, Realtime, Storage)"]
         LLMs["Multi-Provider LLMs<br/>(Gemini, OpenAI, Anthropic, Groq, BYOK)"]
         Calendars["Google Calendar & Outlook 365 (OAuth2)"]
-        VoiceServices["LiveKit Cloud / WebRTC SFU"]
         Payments["Stripe / Lemon Squeezy"]
         Webhooks["HMAC-SHA256 Outbound & Inbound Email (Resend)"]
     end
@@ -61,7 +57,6 @@ graph TB
     FastAPI --> AvailabilityEngine
     FastAPI --> DocRAG
     FastAPI --> MCPRouter
-    Clients --> VoiceWorker
     FastAPI --> Supabase
     WidgetBrain --> LLMs
     DocRAG --> Supabase
@@ -85,11 +80,6 @@ graph TB
   - **Primary Models**: Google Gemini 2.5 Flash / 3.x Flash-Lite, OpenAI GPT-4o / GPT-4o-mini, Anthropic Claude 3.5 Sonnet / Haiku, Groq Llama 3.3 70B.
   - **Embeddings**: Google `text-embedding-004` (768 dimensions) & OpenAI `text-embedding-3-small` (1536 dimensions).
   - **Vector Database**: PostgreSQL with `pgvector` extension and HNSW indexing for sub-millisecond semantic retrieval.
-- **Voice Agent Infrastructure**:
-  - **WebRTC SFU**: LiveKit WebRTC server with SIP trunking capabilities.
-  - **STT (Speech-to-Text)**: Deepgram Nova-2 with real-time streaming transcription.
-  - **TTS (Text-to-Speech)**: Cartesia Sonic with ultra-low latency voice synthesis (<100ms first audio chunk).
-  - **VAD (Voice Activity Detection)**: Silero VAD for instant interruption handling.
 
 ---
 
@@ -131,8 +121,6 @@ The root bot entity representing an AI agent instance.
 - `panel_size` (`text`): Dimensions (`compact`, `standard`, `spacious`, `fullscreen`).
 - `allowed_domains` (`text[]`): Domain origin allowlist for embed widgets.
 - `notification_emails` (`text[]`): Recipient list for instant lead and handoff alerts.
-- `voice_enabled` (`boolean`): Toggle for LiveKit real-time voice call capability.
-- `voice_role` (`text`): Voice personality preset (`friendly_support`, `executive_assistant`, `technical_specialist`).
 - `csat_enabled` (`boolean`): Whether to display post-chat CSAT star rating widget.
 
 #### `chatty_sessions`
@@ -280,7 +268,6 @@ The Chatty Dashboard (`/dashboard`) delivers an all-in-one suite across 21 speci
 | **9. Feedback** | `feedback` | CSAT analytics: 1-5 star ratings, feedback breakdown, customer sentiment trends. |
 | **10. Map** | `map` | Interactive geospatial world map displaying visitor distribution and regional density. |
 | **11. Meetings** | `meetings` | Booked appointments calendar: Google Meet / Outlook links, attendee data, cancellation management. |
-| **12. Voice Agent** | `voice_agent` | Real-time voice caller controls: LiveKit room monitor, Cartesia voice library, Deepgram speech recognition. |
 | **13. Mailbox** | `mailbox` | Inbound email ticketing: Postmark/Resend webhook ingestion, customer email threading, staff email replies. |
 | **14. Notifications** | `notifications` | Alert dispatcher: Configure instant alerts to Slack, Discord, Telegram, or Webhooks for new leads and tickets. |
 | **15. Audit Log** | `audit_log` | Security audit trail: Searchable, immutable record of staff logins, bot edits, API requests, and data exports. |
@@ -483,18 +470,6 @@ Chatty includes a native scheduling engine (`plugins/availability_engine.py` & `
 
 ---
 
-## 10. LiveKit Real-Time Voice Agent
-
-Chatty features real-time bidirectional voice calling (`voice-agent/voice_worker.py`) using WebRTC.
-
-### Audio Pipeline Architecture
-1. **Audio Capture**: Browser or mobile app captures audio via WebRTC audio track.
-2. **Voice Activity Detection**: Silero VAD runs on the audio stream to detect user speech start and stop with zero perceptible delay.
-3. **Real-time STT**: Deepgram Nova-2 streams transcribed user speech into the LLM context.
-4. **LLM Generation**: Gemini 2.5 Flash produces conversational replies with tool execution support.
-5. **Ultra-Low Latency TTS**: Cartesia Sonic streams voice chunks back over WebRTC (<100ms response time).
-6. **Barge-In Support**: If the user speaks while the bot is talking, playback immediately halts and the agent listens.
-
 ---
 
 ## 11. Complete REST API Reference
@@ -630,7 +605,7 @@ Chatty offers enterprise encryption for BYOK credentials. When customers provide
 ### Repository Architecture
 
 `PersonaliAI/chatty` is the single canonical repository. It contains the
-frontend, backend, voice worker, deployment configuration, tests, and docs.
+frontend, backend, deployment configuration, tests, and docs.
 Changes are committed and pushed directly to its `main` branch. There is no
 private source repository or mirroring step.
 

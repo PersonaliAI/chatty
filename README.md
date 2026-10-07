@@ -11,9 +11,9 @@
   <a href="README.es.md">Español</a>
 </p>
 
-**Open-source AI customer support: chat widget + real-time voice agent + a full MCP server, grounded in your own knowledge base.**
+**Open-source AI customer support: chat widget + a full MCP server, grounded in your own knowledge base.**
 
-Chatty is an open-source, self-hostable **Zendesk alternative** and **Intercom alternative** for teams that need an AI chat widget, a shared support inbox, and voice agents. Chatty is an independent project and is not affiliated with or endorsed by Zendesk or Intercom.
+Chatty is an open-source, self-hostable **Zendesk alternative** and **Intercom alternative** for teams that need an AI chat widget and a shared support inbox. Chatty is an independent project and is not affiliated with or endorsed by Zendesk or Intercom.
 
 Run the application containers on your own host while keeping Supabase Auth,
 Postgres, Storage, and Realtime managed. The same deployment contract works on
@@ -25,7 +25,6 @@ Supabase project.
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![LiveKit](https://img.shields.io/badge/Voice-LiveKit-FF6600)](https://livekit.io)
 [![MCP](https://img.shields.io/badge/Agent%20Control-MCP-8b5cf6)](#mcp-server--agent-control)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -68,21 +67,19 @@ Supabase project.
 
 ## Why Chatty
 
-Every hosted chatbot SaaS charges per-seat or per-message and holds your conversation data. Chatty is open-core: run it yourself for free, or use [Chatty Cloud](https://chatty.personaliai.com) - our own hosted version of this exact repo, if you'd rather skip the ops work. Either way you get the same feature set - streaming chat, a real-time voice agent, RAG over your own documents, meeting booking, lead capture, WhatsApp/Slack channels, and a full [MCP server](#mcp-server--agent-control) so an AI agent can run the whole dashboard for you.
+Every hosted chatbot SaaS charges per-seat or per-message and holds your conversation data. Chatty is open-core: run it yourself for free, or use [Chatty Cloud](https://chatty.personaliai.com) - our own hosted version of this exact repo, if you'd rather skip the ops work. Either way you get the same feature set - streaming chat, RAG over your own documents, meeting booking, lead capture, WhatsApp/Slack channels, and a full [MCP server](#mcp-server--agent-control) so an AI agent can run the whole dashboard for you.
 
 |  | Closed-source SaaS chatbots | **Chatty** |
 |---|---|---|
 | Your conversation data | Lives on their servers, always | Your Supabase project - whether you self-host or use Chatty Cloud |
 | Pricing | Per-seat / per-message, no free tier | Self-host for free, or a straightforward hosted plan on Chatty Cloud |
 | LLM | Locked to their model | **Bring your own** - Gemini by default, or BYOK OpenAI/Anthropic/OpenRouter |
-| Voice agent | Usually a separate, pricier tier | Included, same knowledge base as chat |
 | Agent/automation access | Usually none, or a paid add-on | **Full MCP server included** - 55 tools, OAuth 2.0 secured |
 | Source code | Closed | **MIT licensed** - fork it, audit it, extend it, run it anywhere |
 
 ## ✨ Features
 
 - 💬 **Embeddable Chat Widget** — One `<script>` tag, streaming SSE replies, crisp vector Shadow DOM rendering on any site.
-- 🎙️ **Real-Time Voice Agent** — Sub-150ms telephone-grade WebRTC voice calls via LiveKit, sharing the same knowledge brain.
 - 📚 **RAG Knowledge Hub** — Ingest PDF, DOCX, TXT, CSV, or crawl website sitemaps with `pgvector` semantic retrieval.
 - 🛠️ **Autonomous Tool-Calling** — Schedules real meetings (Google Meet, Teams, Zoom), qualifies leads, and checks calendars.
 - 🔌 **Omnichannel Ingress** — Web widget, WhatsApp Cloud API, Slack events, and inbound email ticketing.
@@ -112,9 +109,7 @@ Published widget flows execute their control nodes too: `delay` is capped at fiv
 
 The public repository has one canonical application layout: `frontend/` contains the Next.js dashboard and widget, while
 `backend/` contains the FastAPI API, workers, integrations, and migrations. The application runs against a managed
-Supabase project (the same contract used by Chatty Cloud). The optional voice worker can use LiveKit Cloud or the
-isolated self-hosted LiveKit media-plane stack under `backend/voice-agent`; that stack does not replace Supabase,
-Postgres, Auth, Storage, or the Chatty API.
+Supabase project (the same contract used by Chatty Cloud).
 
 ```mermaid
 flowchart TB
@@ -139,7 +134,6 @@ flowchart TB
     subgraph runtime["Chatty runtime"]
         direction LR
         api["FastAPI API · chat · RAG · webhooks"]:::app
-        voice["Voice worker · LiveKit Agents"]:::app
     end
     subgraph managed["Managed Supabase — default profile"]
         direction LR
@@ -153,7 +147,6 @@ flowchart TB
         llm["LLM providers"]:::integration
         calendar["Calendar providers"]:::integration
         channelsApi["WhatsApp / Slack"]:::integration
-        livekit["LiveKit Cloud or self-hosted"]:::integration
         billing["Billing + webhooks"]:::integration
     end
     subgraph targets["Deployment targets"]
@@ -169,7 +162,6 @@ flowchart TB
     channels --> api
     tls --> web
     web -->|HTTPS| api
-    api --> voice
     api --> auth
     api --> postgres
     api --> storage
@@ -177,7 +169,6 @@ flowchart TB
     api --> llm
     api --> calendar
     api --> channelsApi
-    voice --> livekit
     api --> billing
     targets -. runs .-> runtime
     linkStyle default stroke:#64748b,stroke-width:1.5px
@@ -191,7 +182,6 @@ chatty/
 │   ├── plugins/       Google/Microsoft integrations, RAG, widget orchestration
 │   ├── supabase/      Database schema and migrations (applied in order)
 │   ├── scripts/       apply_migrations.py and other one-off ops scripts
-│   ├── voice-agent/   LiveKit voice worker agent + self-hosted VPS Docker stack
 │   └── tests/          pytest smoke + unit tests
 └── docker-compose.yml
 ```
@@ -201,10 +191,6 @@ chatty/
 | Profile | Data and identity services | When to use |
 |---|---|---|
 | `managed_supabase` (default) | Supabase Auth, Postgres, Storage, pgvector, and RLS | Chatty Cloud and every supported application deployment |
-| Voice media plane (optional) | LiveKit + private Redis on a VPS | Keep audio media on your own VPS while the application data remains in Supabase |
-
-For voice deployment, follow [`backend/voice-agent/README.md`](backend/voice-agent/README.md) and
-[`frontend/docs/guides/voice-self-hosting.mdx`](frontend/docs/guides/voice-self-hosting.mdx).
 
 ### Deployment-platform compatibility
 
@@ -221,9 +207,7 @@ health checks, verification, rollback, and troubleshooting, is in
 | ![Render](https://img.shields.io/badge/Render-46E3B7?logo=render&logoColor=111827) | [`render.yaml`](render.yaml) / [Render Blueprint reference](https://render.com/docs/blueprint-spec) | **Blueprint included**; it creates the API + frontend services and prompts for secrets. |
 | ![Heroku](https://img.shields.io/badge/Heroku-430098?logo=heroku&logoColor=white) | [Heroku container runtime](https://devcenter.heroku.com/articles/container-registry-and-runtime) | **Supported as two container apps**; no full-stack Button is claimed. |
 
-For every supported application deployment keep `DEPLOYMENT_PROFILE=managed_supabase`. LiveKit self-hosting is an
-independent media-plane choice configured only in `backend/voice-agent/.env`; it does not introduce a second database,
-object store, or authentication system.
+For every supported application deployment keep `DEPLOYMENT_PROFILE=managed_supabase`.
 
 ## 📋 Requirements
 
@@ -235,7 +219,7 @@ object store, or authentication system.
 | [Supabase](https://supabase.com) account | free tier | Database (Postgres + Auth + Storage) |
 | [Google AI Studio](https://aistudio.google.com/apikey) API key | free tier | Default LLM (Gemini) |
 
-Everything else (LiveKit for voice, WhatsApp/Slack tokens, Google/Microsoft OAuth, Lemon Squeezy billing, Sentry, Upstash Redis) is **optional** - each env var you leave blank just disables that one feature; nothing else breaks.
+Everything else (WhatsApp/Slack tokens, Google/Microsoft OAuth, Lemon Squeezy billing, Sentry, Upstash Redis) is **optional** - each env var you leave blank just disables that one feature; nothing else breaks.
 
 ## 🚀 Quick Start (Docker Compose)
 
@@ -367,7 +351,6 @@ Each of these is opt-in - set the relevant env vars in `backend/.env` and restar
 
 | Feature | Env vars | Notes |
 |---|---|---|
-| **Voice agent** | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Free tier at [cloud.livekit.io](https://cloud.livekit.io), or self-host LiveKit. Run the worker from [`backend/voice-agent`](backend/voice-agent) as a separate service; the managed-Supabase compose keeps it opt-in. |
 | **WhatsApp channel** | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN` | Meta Cloud API - see [Meta's developer docs](https://developers.facebook.com/docs/whatsapp/cloud-api). |
 | **Slack channel** | `SLACK_SIGNING_SECRET` | From your Slack app's **Basic Information** page. |
 | **Google Calendar/Gmail booking** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Create OAuth credentials at [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials). |
@@ -385,9 +368,7 @@ It covers `DEPLOYMENT_PROFILE=managed_supabase`, secret-manager setup, domains,
 health checks, production verification, rollback, and security boundaries.
 
 The retired provider-neutral Postgres/Redis/object-store stack is intentionally
-not part of this repository. Do not use old `install-self-host.ps1` instructions;
-the supported self-hosted component is the LiveKit voice media plane described
-in [`backend/voice-agent/README.md`](backend/voice-agent/README.md).
+not part of this repository. Do not use old `install-self-host.ps1` instructions.
 
 ### Step 9 - Updating
 
@@ -407,7 +388,6 @@ cd .. && docker compose up --build backend frontend
 | Dashboard loads but sign-up fails | `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` in `frontend/.env` don't match the project you ran migrations against. |
 | Widget embeds but never replies | Check `docker compose logs backend` for a Gemini API error - usually an invalid/missing `GEMINI_API_KEY`, or the free tier's rate limit. |
 | MCP/OAuth client can't discover the server once deployed | `CHATTY_BACKEND_URL` is still the default (`https://api.chatty.personaliai.com`) instead of your own domain - set it explicitly once you're not on `localhost`. |
-| Voice agent never joins the call | `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` unset, or the `voice-worker` service isn't running (`docker compose up --build` with no service names starts it; `docker compose up backend frontend` doesn't). |
 
 Still stuck? [Open an issue](https://github.com/PersonaliAI/chatty/issues) with your `docker compose logs` output (redact secrets first).
 
@@ -428,19 +408,13 @@ npm install
 npm run dev
 ```
 
-**Voice worker** (optional):
-```bash
-cd backend
-python voice-agent/voice_worker.py dev
-```
-
 ## MCP Server & Agent Control
 
 Chatty ships a full [Model Context Protocol](https://modelcontextprotocol.io) server - connect Claude, ChatGPT, or any MCP-compatible client and run the entire dashboard from a conversation instead of clicking through screens.
 
 - **Auth**: OAuth 2.0 authorization-code flow with mandatory PKCE (RFC 7636), dynamic client registration (RFC 7591), and authorization server metadata discovery (RFC 8414) - no API key to paste into a config file.
-- **Scopes**: `read`, `write`, `knowledge`, `voice`, `actions`, `admin` - a client only gets what it's granted.
-- **55 tools** across 10 categories: bot lifecycle, customizer & design, visual flow builder, proactive campaigns, voice agent, knowledge base & RAG, inbox & human takeover, leads/calendar/meetings, analytics & self-healing, and settings/guardrails/BYOK/team RBAC.
+- **Scopes**: `read`, `write`, `knowledge`, `actions`, `admin` - a client only gets what it's granted.
+- **53 tools** across 9 categories: bot lifecycle, customizer & design, visual flow builder, proactive campaigns, knowledge base & RAG, inbox & human takeover, leads/calendar/meetings, analytics & self-healing, and settings/guardrails/BYOK/team RBAC.
 - **Real data only** - every tool reads and writes the exact same tables the dashboard does; nothing simulated.
 
 Connect by pointing an MCP client at:
@@ -473,7 +447,7 @@ Every environment variable is documented inline in [`backend/.env.example`](back
 | `BYOK_ENCRYPTION_KEY` | Encrypts customer-supplied BYOK API keys at rest |
 | `GEMINI_API_KEY` | Default LLM |
 
-**Backend - optional, one per feature:** voice (LiveKit), WhatsApp, Slack, Google/Microsoft OAuth (calendar booking), Zoom (Server-to-Server OAuth), transactional email (OneSignal), web crawl (Jina), billing (Lemon Squeezy), rate limiting (Upstash Redis), error monitoring (Sentry), and `CHATTY_BACKEND_URL`/`CHATTY_FRONTEND_URL` (only needed once you're deployed under your own domain - see [MCP Server & Agent Control](#mcp-server--agent-control)). Full list with setup links: [`backend/.env.example`](backend/.env.example).
+**Backend - optional, one per feature:** WhatsApp, Slack, Google/Microsoft OAuth (calendar booking), Zoom (Server-to-Server OAuth), transactional email (OneSignal), web crawl (Jina), billing (Lemon Squeezy), rate limiting (Upstash Redis), error monitoring (Sentry), and `CHATTY_BACKEND_URL`/`CHATTY_FRONTEND_URL` (only needed once you're deployed under your own domain - see [MCP Server & Agent Control](#mcp-server--agent-control)). Full list with setup links: [`backend/.env.example`](backend/.env.example).
 
 **Frontend - required:**
 

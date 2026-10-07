@@ -67,7 +67,7 @@ path = sys.argv[1]
 MIRRORED_PREFIXES = (
     "main.py", "app/", "plugins/", "tests/", "sql/", "scripts/",
     "requirements.txt", "Dockerfile", "docker-compose.managed-supabase.yml",
-    "env.yaml", "env.yaml.example", "voice-agent/",
+    "env.yaml", "env.yaml.example",
     "supabase/migrations/", "docs/",
 )
 

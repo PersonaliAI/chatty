@@ -370,18 +370,6 @@ class CampaignSuggestRequest(BaseModel):
     audience: Optional[str] = Field(None, max_length=500)
 
 
-class VoiceAgentConfigRequest(BaseModel):
-    # Matches app/routers/bots.py's real voice-settings columns exactly -
-    # the earlier version of this schema (tts_provider/voice_id/
-    # voice_temperature/vad_sensitivity/endpointing_delay_ms/...) named
-    # columns that don't exist on chatty_bots at all.
-    enabled: Optional[bool] = None
-    voice_mode: Optional[str] = Field(None, description="pipeline or realtime")
-    voice_stt_provider: Optional[str] = None
-    voice_tts_provider: Optional[str] = None
-    voice_tts_voice: Optional[str] = None
-
-
 class LeadCaptureConfigRequest(BaseModel):
     # chatty_bots only has lead_capture_enabled (bool) and lead_required_fields
     # (text[], default {name,email} - the fields plugins/widget_brain.py

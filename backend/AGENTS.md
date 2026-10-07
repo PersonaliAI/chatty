@@ -3,7 +3,7 @@
 ## Single canonical repository
 
 `PersonaliAI/chatty` is the single canonical repository. The frontend,
-backend, voice worker, deployment configuration, tests, and docs live in this
+backend, deployment configuration, tests, and docs live in this
 checkout. Do not mirror changes to a private repository or maintain a second
 source checkout.
 

@@ -6,7 +6,7 @@
  * Injects a native vector DOM chat assistant directly into an isolated Shadow DOM container.
  * 100% Crisp-level vector font sharpness at all zoom levels, zero iframe bitmap scaling.
  *
- * JS API: window.Chatty.open() / .close() / .toggle() / .openVoice()
+ * JS API: window.Chatty.open() / .close() / .toggle()
  */
 (function () {
   "use strict";
@@ -73,9 +73,6 @@
     open: queueOrCall("open"),
     close: queueOrCall("close"),
     toggle: queueOrCall("toggle"),
-    openVoice: queueOrCall("openVoice"),
-    closeVoice: queueOrCall("closeVoice"),
-    toggleVoice: queueOrCall("toggleVoice"),
   };
   function onApiReady(api) {
     chattyApi = api;

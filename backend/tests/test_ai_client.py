@@ -59,6 +59,60 @@ def test_split_provider_model():
     assert ai_client._split_provider_model("bare-model-no-slash") == ("unknown", "bare-model-no-slash")
 
 
+def test_text_tool_code_is_converted_without_executing_model_python():
+    visible, calls = ai_client._extract_text_tool_calls(
+        "tool_code print(default_api.create_lead(bot_id='b1', name='Okay', email='Okay'))"
+    )
+
+    assert visible == ""
+    assert len(calls) == 1
+    assert calls[0]["function"]["name"] == "create_lead"
+    assert '"name": "Okay"' in calls[0]["function"]["arguments"]
+
+
+def test_text_tool_code_with_natural_prefix_preserves_only_the_prefix():
+    visible, calls = ai_client._extract_text_tool_calls(
+        "I will check that now. tool_code print(default_api.get_available_slots(near='tomorrow'))"
+    )
+
+    assert visible == "I will check that now."
+    assert calls[0]["function"]["name"] == "get_available_slots"
+
+
+def test_text_tool_marker_without_parseable_call_is_never_visible():
+    visible, calls = ai_client._extract_text_tool_calls("tool_code print(default_api.create_lead(")
+
+    assert visible == ""
+    assert calls == []
+
+
+def test_chat_stream_does_not_emit_textual_tool_code_to_voice(monkeypatch):
+    emitted = []
+
+    async def fake_stream():
+        for content in ("tool", "_code print(default_api.create_lead(", "name='Okay'))"):
+            yield SimpleNamespace(choices=[SimpleNamespace(
+                delta=SimpleNamespace(content=content, tool_calls=None),
+            )])
+
+    async def fake_acompletion(*, stream=False, **kwargs):
+        assert stream is True
+        return fake_stream()
+
+    monkeypatch.setattr(ai_client.litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(ai_client.litellm, "stream_chunk_builder", lambda *args, **kwargs: None)
+    monkeypatch.setattr(ai_client, "_log_usage", lambda **kwargs: _async_noop())
+
+    result = asyncio.run(ai_client.chat_stream(
+        model="gemini/primary",
+        messages=[{"role": "user", "content": "okay"}],
+        on_token=emitted.append,
+    ))
+
+    assert emitted == []
+    assert result["tool_calls"][0]["function"]["name"] == "create_lead"
+
+
 def test_embed_model_default_is_not_the_retired_text_embedding_004():
     # text-embedding-004 was retired from the Gemini API (404s on
     # embedContent) - regression guard against reintroducing it as the

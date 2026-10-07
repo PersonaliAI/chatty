@@ -11,7 +11,6 @@ import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
-import VoiceCallWidget from "@/components/voice-call-widget";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
@@ -529,12 +528,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   const [fontSizePercent, setFontSizePercent] = useState(100);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
   // What a finished in-chat voice recording turns into - set on
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
-  const [voiceCallOpen, setVoiceCallOpen] = useState(false);
-  const [voiceUiSettings, setVoiceUiSettings] = useState<any>(null);
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>(paramTab === "messages" || paramTab === "articles" ? paramTab : "home");
@@ -1816,42 +1812,6 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     return () => { stopped = true; ctrl.abort(); };
   }, [botId, sessionId]);
 
-  // One-shot manual refetch of any new messages since the last poll - used
-  // right after a voice call ends so the transcript (written server-side by
-  // the voice worker) shows up promptly instead of waiting for the next
-  // SSE/poll cycle. The voice worker writes both sides of a turn, whereas
-  // the normal poll intentionally returns human-agent replies only.
-  const refetchNow = async () => {
-    try {
-      const url = `${BACKEND_URL}/api/widget/poll?bot_id=${botId}&session_id=${encodeURIComponent(sessionId)}&after=${encodeURIComponent(lastPollRef.current)}&include_voice=true`;
-      const res = await fetch(url);
-      if (!res.ok) return;
-      const d = await res.json();
-      setLiveAgent(!!d.ai_paused);
-      if (Array.isArray(d.messages) && d.messages.length) {
-        lastPollRef.current = d.messages[d.messages.length - 1].created_at;
-        const newMsgs: Message[] = d.messages.map((m: { content: string; role?: string; created_at?: string }) => ({
-          role: m.role === "user" ? "user" as const : "assistant" as const,
-          content: m.content,
-          sender: m.role === "user" ? undefined : "ai" as const,
-          channel: "voice" as const,
-          created_at: m.created_at || new Date().toISOString(),
-        }));
-        setMessages((p) => {
-          const seen = new Set(p.map((m) => `${m.role}|${m.created_at || ""}|${m.content}`));
-          return [...p, ...newMsgs.filter((m) => {
-            const key = `${m.role}|${m.created_at || ""}|${m.content}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          })];
-        });
-        notifyParent();
-      }
-    } catch {}
-    fetchActiveMeeting();
-  };
-
   const getHost = (): string => {
     try { if (typeof document !== "undefined" && document.referrer) return new URL(document.referrer).hostname; } catch {}
     return searchParams.get("host") || "";
@@ -1895,13 +1855,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           setHideBranding(!!bot.hide_branding);
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
-          setVoiceEnabled(!!bot.voice_enabled);
           setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
-          try {
-            if (bot.voice_message_mode && typeof bot.voice_message_mode === "string" && bot.voice_message_mode.startsWith("{")) {
-              setVoiceUiSettings(JSON.parse(bot.voice_message_mode));
-            }
-          } catch {}
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
@@ -2673,18 +2627,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               type="button"
               whileTap={{ scale: 0.85 }}
               onClick={() => {
-                // The header back affordance should return to the visitor's
-                // conversation, not discard it. This is especially important
-                // after leaving the voice surface: the persisted voice turns
-                // are visible in the same thread with their Voice/Text labels.
-                if (voiceCallOpen) {
-                  setVoiceCallOpen(false);
-                  setChatView("chat");
-                  setTab("messages");
-                  void refetchNow().finally(() => {
-                    requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }));
-                  });
-                } else if (activeArticle) {
+                if (activeArticle) {
                   setActiveArticle(null);
                 } else if (tab === "messages" && chatView === "chat") {
                   // A thread's back affordance returns to the conversation
@@ -2755,25 +2698,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 size="size-7"
               />
             )}
-          {voiceEnabled && (
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.85 }}
-              transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-              onClick={() => setVoiceCallOpen(true)}
-              className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
-              style={{ opacity: 0.8, backgroundColor: "color-mix(in srgb, currentColor 0%, transparent)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 0%, transparent)")}
-              aria-label="Start voice call"
-              title="Talk to the assistant"
-            >
-              <AudioWaveform className="size-4" />
-            </motion.button>
-          )}
           <button
             onClick={pushGranted ? toggleMute : requestPushPermission}
-            className={`${voiceEnabled || (tab === "home" && teamProfiles.length > 0) ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
+            className={`${tab === "home" && teamProfiles.length > 0 ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
             style={{ opacity: 0.8 }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -2812,37 +2739,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
 
       {/* Body */}
       <div ref={chatBodyRef} className="flex-1 overflow-y-auto scrollbar-thin widget-panel flex flex-col">
-        {voiceCallOpen ? (
-          <VoiceCallWidget
-            botId={botId}
-            sessionId={sessionId}
-            backendUrl={BACKEND_URL}
-            originToken={originToken}
-            visitorTimezone={visitorTimezone}
-            primaryColor={primaryColor}
-            voiceUiSettings={voiceUiSettings}
-            onClose={() => {
-              setVoiceCallOpen(false);
-              setChatView("chat");
-              setTab("messages");
-              void refetchNow().finally(() => {
-                requestAnimationFrame(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }));
-              });
-            }}
-            onBookingSuccess={(meeting) => {
-              setMessages((prev) => {
-                const updated = [...prev];
-                for (let idx = updated.length - 1; idx >= 0; idx--) {
-                  if (updated[idx].role === "assistant") {
-                    updated[idx] = { ...updated[idx], confirmedMeeting: meeting };
-                    return updated;
-                  }
-                }
-                return updated;
-              });
-            }}
-          />
-        ) : showCsat ? (
+        {showCsat ? (
           /* CSAT Feedback Modal */
           <div className="relative flex h-full flex-col justify-center overflow-hidden bg-linear-to-b from-white to-neutral-50/80 p-5 dark:from-neutral-950 dark:to-neutral-900">
             <div className="pointer-events-none absolute inset-x-8 top-8 h-24 rounded-full blur-3xl opacity-20" style={{ backgroundColor: primaryColor }} />
@@ -3764,7 +3661,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       </div>
 
       {/* Composer (Messages tab active chat only) */}
-      {tab === "messages" && chatView === "chat" && !voiceCallOpen && (
+      {tab === "messages" && chatView === "chat" && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
@@ -3916,9 +3813,6 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               <div className="flex items-center gap-0.5">
                 <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
                 <motion.button ref={attachButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Attach file"><Paperclip className="size-4" /></motion.button>
-                {voiceEnabled && (
-                  <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => setVoiceCallOpen(true)} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Start voice call" title="Talk to the assistant"><AudioWaveform className="size-4" /></motion.button>
-                )}
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
@@ -3943,7 +3837,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       )}
 
       {/* ── Persistent Bottom Navigation Bar ── */}
-      {!voiceCallOpen && !showCsat && !showOfflineForm && (
+      {!showCsat && !showOfflineForm && (
         <>
           {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
             (() => {

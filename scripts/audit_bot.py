@@ -130,7 +130,6 @@ def generate_sample_audit(bot_id: str = "demo-bot-sample") -> dict:
         "recommendations": [
             "Enable exit-intent campaign triggers to recover an estimated 8-12% more abandoning cart visitors.",
             "Add FAQ chunks for international shipping to resolve the remaining 10.6% support escalations.",
-            "Consider enabling LiveKit Voice Agent for high-intent visitors on product demo pages."
         ]
     }
 

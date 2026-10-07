@@ -19,7 +19,7 @@ This guide details how to deploy the Chatty FastAPI Backend service to Google Cl
    ```bash
    cd backend
    cp env.yaml.example env.yaml
-   # Fill in SUPABASE_URL, SUPABASE_SECRET_KEY, GEMINI_API_KEY, and the LIVEKIT_* keys from your VPS!
+   # Fill in SUPABASE_URL, SUPABASE_SECRET_KEY, and GEMINI_API_KEY.
    ```
 
 ---
