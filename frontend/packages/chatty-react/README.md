@@ -87,11 +87,12 @@ short-lived token from Chatty and never receives LiveKit or provider secrets.
 Install the LiveKit peer dependencies when using this component:
 
 ```bash
-npm install @personaliai/react-widget @livekit/components-react livekit-client
+npm install @personaliai/react-widget @livekit/components-react @livekit/components-styles livekit-client
 ```
 
 ```tsx
 import { VoiceAgent } from "@personaliai/react-widget";
+import "@personaliai/react-widget/styles.css";
 
 export function SupportVoice() {
   return <VoiceAgent botId="YOUR_BOT_UUID" title="Talk to support" />;
