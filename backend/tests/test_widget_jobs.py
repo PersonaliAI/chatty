@@ -112,6 +112,27 @@ def test_widget_webhook_is_published_to_durable_queue(monkeypatch):
     assert queue.calls[0]["payload"]["event"] == "message.user"
 
 
+def test_widget_webhook_queue_failure_falls_back_without_raising(monkeypatch):
+    class FailingQueue:
+        async def enqueue(self, **kwargs):
+            raise RuntimeError("max requests limit exceeded")
+
+    fallback = AsyncMock()
+    monkeypatch.setattr(widget, "_widget_job_queue", FailingQueue())
+    monkeypatch.setattr(widget.notify, "enqueue_webhook_event", fallback)
+    tasks = widget.BackgroundTasks()
+
+    mode = asyncio.run(widget._schedule_widget_webhook(
+        tasks, bot_id="bot-1", event="message.assistant",
+        session_id="session-1", data={"content": "hello"},
+    ))
+    asyncio.run(tasks())
+
+    assert mode == "background"
+    fallback.assert_awaited_once()
+    assert fallback.await_args.kwargs["event"] == "message.assistant"
+
+
 def test_widget_webhook_worker_fans_out_event():
     payload = {
         "bot_id": "bot-1", "event": "message.user", "session_id": "session-1",

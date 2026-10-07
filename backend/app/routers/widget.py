@@ -148,19 +148,40 @@ async def _schedule_widget_webhook(
     background_tasks: BackgroundTasks,
     *, bot_id: str, event: str, session_id: str, data: dict[str, Any],
 ) -> str:
-    """Publish webhook fan-out durably before returning the chat response."""
+    """Schedule webhook fan-out without making chat depend on Redis health.
+
+    Webhook delivery is a side effect of a chat turn, not a prerequisite for
+    generating the assistant reply.  A provider quota, transient network
+    failure, or unavailable queue must therefore degrade webhook delivery to a
+    best-effort background task instead of turning a successful chat into a
+    5xx response.
+    """
     if not _widget_job_queue:
         background_tasks.add_task(
             notify.enqueue_webhook_event, supabase, bot_id=bot_id, event=event,
             session_id=session_id, data=data,
         )
         return "background"
-    await _widget_job_queue.enqueue(
-        name="webhook.fanout",
-        payload={"bot_id": bot_id, "event": event, "session_id": session_id, "data": data},
-        idempotency_key=f"webhook.fanout:{uuid.uuid4().hex}",
-    )
-    return "queued"
+    try:
+        await _widget_job_queue.enqueue(
+            name="webhook.fanout",
+            payload={"bot_id": bot_id, "event": event, "session_id": session_id, "data": data},
+            idempotency_key=f"webhook.fanout:{uuid.uuid4().hex}",
+        )
+        return "queued"
+    except Exception:
+        logger.exception(
+            "Widget webhook queue unavailable; using best-effort background delivery "
+            "bot=%s event=%s session=%s",
+            bot_id,
+            event,
+            session_id,
+        )
+        background_tasks.add_task(
+            notify.enqueue_webhook_event, supabase, bot_id=bot_id, event=event,
+            session_id=session_id, data=data,
+        )
+        return "background"
 
 _ALLOWED_MEDIA_PREFIXES = ("image/", "audio/", "application/pdf", "text/")
 _MEDIA_MAX_BYTES = 20 * 1024 * 1024  # 20MB
