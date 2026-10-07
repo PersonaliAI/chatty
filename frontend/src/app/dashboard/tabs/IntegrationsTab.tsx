@@ -577,8 +577,25 @@ export function IntegrationsTab({
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/60 p-3">
             <div className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Self-hosted server</div>
             <code className="text-[11px] text-violet-700 dark:text-violet-300 break-all">wss://livekit.personaliai.com</code>
-            <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">Use the SDK helper in iOS, Android, Flutter, or React Native. The complete browser UI is available through the embed.</p>
+            <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">Use the token contract with a native LiveKit SDK, or use the React component below for the complete browser UI.</p>
           </div>
+        </div>
+        <div className="rounded-xl border border-cyan-200/80 dark:border-cyan-900/70 bg-cyan-50/50 dark:bg-cyan-950/20 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">React / Next.js voice surface</div>
+              <p className="mt-1 text-[10px] text-neutral-600 dark:text-neutral-400">Uses LiveKit Agents UI controls, audio visualization, realtime transcript messages, consent, interruption, and secure short-lived tokens.</p>
+            </div>
+            <code className="rounded-full bg-white px-2.5 py-1 text-[10px] text-cyan-700 shadow-sm dark:bg-neutral-950 dark:text-cyan-300">@personaliai/react-widget</code>
+          </div>
+          <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-950 p-3 text-[10px] leading-relaxed text-neutral-200"><code>{`npm install @personaliai/react-widget @livekit/components-react @livekit/components-styles livekit-client
+
+import { VoiceAgent } from "@personaliai/react-widget";
+
+export function SupportVoice() {
+  return <VoiceAgent botId="${botId || "YOUR_BOT_ID"}" title="Talk to support" />;
+}`}</code></pre>
+          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">The component calls <code>/api/widget/voice/token</code> through the configured API origin. Never put LiveKit API secrets or provider keys in this component.</p>
         </div>
         <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Official LiveKit controls</span>

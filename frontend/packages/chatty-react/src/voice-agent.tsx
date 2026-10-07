@@ -18,6 +18,7 @@ import { TokenSource, type TokenSourceResponseObject } from "livekit-client";
 import { MessageCircle, Phone, PhoneOff, ShieldCheck, X } from "lucide-react";
 
 import "@livekit/components-styles";
+import "./voice-agent.css";
 
 export interface VoiceAgentProps {
   /** Chatty bot UUID from the dashboard. */

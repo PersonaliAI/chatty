@@ -164,6 +164,6 @@ export function useChatty() {
 
 export { ProductCard, type ProductCardData } from "./product-card";
 export { VideoCard, type VideoClipData } from "./video-card";
-export { VoiceAgent, type VoiceAgentProps } from "./voice-agent";
+export { VoiceAgent, type VoiceAgentHandle, type VoiceAgentProps } from "./voice-agent";
 
 export default ChattyWidget;
