@@ -25,5 +25,8 @@ Thumbs.db
 
 # Untracked / local test directories
 load_testing/
+
+# Local-only voice-agent experiments; never include them in Chatty deployments.
+voice_agent_cli/
 frontend/
 
