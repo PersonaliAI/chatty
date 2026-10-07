@@ -23,7 +23,7 @@ type VoiceConfig = {
 const defaults: VoiceConfig = {
   enabled: false, mode: 'pipeline', expression_enabled: true, visualizer: 'aura', agent_name: 'chatty-voice-agent',
   llm_provider: 'google', llm_model: 'gemini-2.5-flash', stt_provider: 'google', stt_model: 'chirp_3', stt_language: 'en-US',
-  tts_provider: 'google', tts_model: 'gemini-3.1-flash-tts-preview', tts_voice: 'Kore', max_duration_minutes: 15,
+  tts_provider: 'google', tts_model: 'gemini-3.8-flash-tts', tts_voice: 'Kore', max_duration_minutes: 15,
 };
 
 const visualizerInfo: { value: Visualizer; label: string; color: string; description: string }[] = [

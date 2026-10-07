@@ -89,10 +89,10 @@ class VoiceSettings:
             llm_timeout_seconds=_float_env("VOICE_LLM_TIMEOUT_SECONDS", 30.0),
             stt_model=_env("VOICE_STT_MODEL", "chirp_3"),
             stt_language=_env("VOICE_STT_LANGUAGE", "en-US"),
-            # 3.1 is the stable Vertex TTS baseline. Gemini 3.8 expressive
-            # per-part metadata is enabled only when the deployed LiveKit
-            # Google plugin supports the corresponding request envelope.
-            tts_model=_env("VOICE_TTS_MODEL", "gemini-3.1-flash-tts-preview"),
+            # Keep the worker default aligned with the Chatty migration and
+            # dashboard catalog. Provider/model validation still belongs to
+            # the selected LiveKit plugin, not this environment loader.
+            tts_model=_env("VOICE_TTS_MODEL", "gemini-3.8-flash-tts"),
             tts_voice=_env("VOICE_TTS_VOICE", "Kore"),
             agent_name=_env("LIVEKIT_AGENT_NAME", "chatty-voice-agent"),
             session_id=_env("VOICE_SESSION_ID"),

@@ -11,7 +11,7 @@ from starlette.requests import Request
 # ``main`` and the app registers all routers during that module's import.
 import main  # noqa: F401, E402
 from app.routers import voice
-from app.schemas.voice import VoiceTokenRequest
+from app.schemas.voice import VoiceConfigUpdate, VoiceTokenRequest
 
 
 def _request() -> Request:
@@ -58,3 +58,15 @@ async def test_widget_voice_token_uses_public_livekit_agent_dispatch(monkeypatch
     padded = payload + "=" * (-len(payload) % 4)
     claims = json.loads(__import__("base64").urlsafe_b64decode(padded))
     assert claims["roomConfig"]["agents"][0]["agentName"] == "chatty-voice-agent"
+
+
+def test_voice_config_accepts_livekit_inference_for_each_model_role():
+    config = VoiceConfigUpdate(
+        llm_provider="livekit-inference",
+        stt_provider="livekit-inference",
+        tts_provider="livekit-inference",
+    )
+
+    assert config.llm_provider == "livekit-inference"
+    assert config.stt_provider == "livekit-inference"
+    assert config.tts_provider == "livekit-inference"

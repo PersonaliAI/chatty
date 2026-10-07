@@ -57,7 +57,7 @@ def _public_voice_config(bot: dict[str, Any]) -> dict[str, Any]:
         "stt_model": bot.get("voice_stt_model") or "chirp_3",
         "stt_language": bot.get("voice_stt_language") or "en-US",
         "tts_provider": bot.get("voice_tts_provider") or "google",
-        "tts_model": bot.get("voice_tts_model") or "gemini-3.1-flash-tts-preview",
+        "tts_model": bot.get("voice_tts_model") or "gemini-3.8-flash-tts",
         "tts_voice": bot.get("voice_tts_voice") or "Kore",
         "max_duration_minutes": bot.get("voice_max_duration_minutes") or 15,
     }
