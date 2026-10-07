@@ -156,10 +156,13 @@ async def analytics_overview(
     sessions = sess_res.data or []
     total_sessions = sess_res.count or 0
 
+    # User Messages is a channel-independent KPI. Filtering by ``sender``
+    # would omit voice transcript rows and older rows without a sender, while
+    # AI credits correctly include every persisted user turn.
     msg_res = await run_db(lambda: supabase.table("chatty_conversations")
-        .select("id, sender, created_at", count="exact")
+        .select("id, role, created_at", count="exact")
         .eq("bot_id", bot_id)
-        .in_("sender", ["user", "visitor"])
+        .eq("role", "user")
         .gte("created_at", from_iso).lte("created_at", to_iso)
         .execute())
     total_messages = msg_res.count or 0
@@ -231,7 +234,7 @@ async def analytics_overview(
 
     prev_msg_res = await run_db(lambda: supabase.table("chatty_conversations")
         .select("id", count="exact")
-        .eq("bot_id", bot_id).in_("sender", ["user", "visitor"])
+        .eq("bot_id", bot_id).eq("role", "user")
         .gte("created_at", prev_from_iso).lte("created_at", prev_to_iso)
         .execute())
     prev_messages = prev_msg_res.count or 0
