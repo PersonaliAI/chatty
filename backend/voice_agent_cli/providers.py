@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.crypto import decrypt_secret
+from livekit.agents import inference
 from livekit.plugins import google
 
 from .config import VoiceSettings
@@ -39,7 +40,13 @@ def build_components(
     stt_provider = _value(bot, "voice_stt_provider", "google").lower()
     tts_provider = _value(bot, "voice_tts_provider", "google").lower()
 
-    if llm_provider == "google":
+    if llm_provider == "livekit-inference":
+        llm = inference.LLM(
+            model=_value(bot, "voice_llm_model", "google/gemma-4-31b-it"),
+            api_key=settings.livekit_api_key,
+            api_secret=settings.livekit_api_secret,
+        )
+    elif llm_provider == "google":
         llm_kwargs: dict[str, Any] = {
             "model": _value(bot, "voice_llm_model", settings.llm_model),
             "vertexai": True,
@@ -70,7 +77,14 @@ def build_components(
     else:
         raise RuntimeError(f"Unsupported voice LLM provider: {llm_provider}")
 
-    if stt_provider == "google":
+    if stt_provider == "livekit-inference":
+        stt = inference.STT(
+            model=_value(bot, "voice_stt_model", "deepgram/nova-3"),
+            language=_value(bot, "voice_stt_language", settings.stt_language),
+            api_key=settings.livekit_api_key,
+            api_secret=settings.livekit_api_secret,
+        )
+    elif stt_provider == "google":
         stt = google.STT(
             model=_value(bot, "voice_stt_model", settings.stt_model),
             languages=_value(bot, "voice_stt_language", settings.stt_language),
@@ -116,7 +130,15 @@ def build_components(
     else:
         raise RuntimeError(f"Unsupported voice STT provider: {stt_provider}")
 
-    if tts_provider == "google":
+    if tts_provider == "livekit-inference":
+        tts = inference.TTS(
+            model=_value(bot, "voice_tts_model", "cartesia/sonic-3"),
+            voice=_value(bot, "voice_tts_voice", ""),
+            language=_value(bot, "voice_stt_language", settings.stt_language),
+            api_key=settings.livekit_api_key,
+            api_secret=settings.livekit_api_secret,
+        )
+    elif tts_provider == "google":
         tts = google.beta.GeminiTTS(
             model=_value(bot, "voice_tts_model", settings.tts_model),
             voice_name=_value(bot, "voice_tts_voice", settings.tts_voice),

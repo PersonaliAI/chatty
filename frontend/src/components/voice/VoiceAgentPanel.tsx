@@ -2,9 +2,8 @@
 
 import '@livekit/components-styles';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  BarVisualizer,
   RoomAudioRenderer,
   SessionProvider,
   useAgent,
@@ -13,9 +12,10 @@ import {
   useSessionMessages,
   useVoiceAssistant,
   VoiceAssistantControlBar,
+  useAudioWaveform,
 } from '@livekit/components-react';
 import { TokenSource, type TokenSourceResponseObject } from 'livekit-client';
-import { AlertCircle, AudioWaveform, Check, Headphones, Loader2, Mic, Phone, PhoneOff, Settings2, ShieldCheck, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
 
 type VoiceAgentPanelProps = {
@@ -58,13 +58,44 @@ function LiveKitTranscript() {
   );
 }
 
-function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose }: { compact?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void }) {
+function VoiceOrb({ state, audioTrack }: { state: ReturnType<typeof useAgent>['state']; audioTrack: ReturnType<typeof useVoiceAssistant>['audioTrack'] }) {
+  const { bars } = useAudioWaveform(audioTrack, { barCount: 18, updateInterval: 90, volMultiplier: 1.4 });
+  const level = Math.min(1, Math.max(0.08, bars.length ? Math.max(...bars) : 0));
+  const speaking = state === 'speaking';
+  const listening = state === 'listening';
+  const label = speaking ? 'Speaking…' : listening ? 'Listening…' : 'Ready when you are';
+  const orbStyle = {
+    '--voice-level': level.toFixed(3),
+    '--voice-scale': (1 + level * 0.16).toFixed(3),
+  } as CSSProperties;
+
+  return (
+    <div className="flex flex-col items-center" aria-live="polite">
+      <div className={`chatty-voice-orb ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`} style={orbStyle}>
+        <div className="chatty-voice-orb__halo" />
+        <div className="chatty-voice-orb__surface">
+          <div className="chatty-voice-orb__glow" />
+          <div className="chatty-voice-orb__bars" aria-hidden="true">
+            {bars.map((bar, index) => <span key={index} style={{ height: `${Math.max(8, Math.round(bar * 42))}%` }} />)}
+          </div>
+          {!speaking && !listening && <Phone className="relative z-10 size-7 text-neutral-950" aria-hidden="true" />}
+        </div>
+      </div>
+      <p className="mt-6 text-center text-sm font-medium text-neutral-500 dark:text-neutral-400">{label}</p>
+      <p className="mt-1 text-center text-xs text-neutral-400 dark:text-neutral-500">{speaking ? 'You can interrupt at any time' : listening ? 'Ask anything about this business' : 'Your microphone is off'}</p>
+    </div>
+  );
+}
+
+function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, onFullscreen }: { compact?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
   const session = useSessionContext();
   const { state } = useAgent();
   const { audioTrack } = useVoiceAssistant();
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   useEffect(() => {
     if (!started) return;
@@ -89,66 +120,59 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose }: 
     if (session.connectionState === 'disconnected' && started) setStarted(false);
   }, [session.connectionState, started]);
 
-  const connectionLabel = starting ? 'Connecting' : started ? (state === 'speaking' ? 'Agent speaking' : state === 'listening' ? 'Listening' : 'Connected') : 'Ready to talk';
+  const connectionLabel = starting ? 'Connecting' : started ? (state === 'speaking' ? 'Speaking' : state === 'listening' ? 'Listening' : 'Connected') : 'Ready to talk';
   const endSession = async () => {
     setStarted(false);
     await session.end();
   };
+  const requestStart = () => {
+    setError(null);
+    setConsentOpen(true);
+  };
+  const acceptConsent = () => {
+    setConsentOpen(false);
+    setStarted(true);
+  };
 
   return (
-    <div className={`flex min-h-0 flex-col overflow-hidden ${compact ? 'gap-2' : 'gap-4'}`}>
-      <header className="flex items-start justify-between gap-3 border-b border-neutral-200/80 bg-white/85 px-4 py-3 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/85">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="relative flex size-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-amber-400 text-white shadow-lg shadow-orange-500/20">
-            <AudioWaveform className="size-5" aria-hidden="true" />
-            {started && <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-emerald-500 dark:border-neutral-950" />}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="truncate text-sm font-semibold text-neutral-950 dark:text-white">Chatty Voice</h3>
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-medium capitalize text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">{connectionLabel}</span>
-            </div>
-            <p className="mt-0.5 truncate text-[11px] text-neutral-500">LiveKit realtime audio and transcription</p>
-          </div>
+    <div className={`chatty-voice-panel relative flex min-h-0 flex-col overflow-hidden bg-white text-neutral-950 dark:bg-neutral-950 dark:text-white ${compact ? 'gap-2' : 'gap-4'}`} data-visualizer={visualizer}>
+      <header className="flex items-center justify-between gap-3 px-4 pb-1 pt-4 sm:px-6 sm:pt-6">
+        <div className="flex min-w-0 items-center gap-2">
+          {started && <div className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"><MessageCircle className="size-4" aria-hidden="true" /></div>}
+          <button type="button" className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300" aria-label="Voice language: English">
+            <span className="text-sm" aria-hidden="true">🇺🇸</span><span>English</span><ChevronDown className="size-3.5" />
+          </button>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <span className="hidden items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 sm:inline-flex dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300"><ShieldCheck className="size-3" /> Secure</span>
-          {onClose && <button type="button" onClick={onClose} className="rounded-lg p-2 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-900 dark:hover:text-white" aria-label="Close voice agent"><X className="size-4" /></button>}
+        <div className="flex items-center gap-1.5">
+          <span className="hidden items-center gap-1 rounded-full px-2 text-[10px] font-medium text-emerald-600 sm:inline-flex dark:text-emerald-400"><ShieldCheck className="size-3" /> Secure</span>
+          <button type="button" onClick={onFullscreen} className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800" aria-label="Expand voice agent"><Maximize2 className="size-4" /></button>
+          {onClose && <button type="button" onClick={onClose} className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white" aria-label="Close voice agent"><X className="size-4" /></button>}
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3 sm:px-4 sm:pb-4">
+      <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-6 sm:pb-6">
         {error && (
-          <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-200">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            <div className="min-w-0 flex-1"><p className="font-semibold">Voice connection failed</p><p className="mt-0.5 break-words opacity-85">{error}</p></div>
-            <button type="button" onClick={() => setError(null)} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss voice error"><X className="size-3.5" /></button>
+          <div role="alert" className="mt-3 flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-200">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" /><div className="min-w-0 flex-1"><p className="font-semibold">Voice connection failed</p><p className="mt-0.5 break-words opacity-85">{error}</p></div><button type="button" onClick={() => setError(null)} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss voice error"><X className="size-3.5" /></button>
           </div>
         )}
 
-        <div className="relative overflow-hidden rounded-2xl border border-orange-200/70 bg-gradient-to-br from-orange-50 via-white to-amber-50 p-3 shadow-sm dark:border-orange-900/50 dark:from-orange-950/30 dark:via-neutral-950 dark:to-amber-950/20" data-visualizer={visualizer}>
-          <div className="pointer-events-none absolute -right-10 -top-16 size-40 rounded-full bg-orange-300/20 blur-3xl dark:bg-orange-500/10" />
-          <div className="relative mb-1 flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.14em] text-orange-700/80 dark:text-orange-300/80"><span>Audio activity</span><span className="capitalize">{visualizer ?? 'wave'} view</span></div>
-          <BarVisualizer state={state} track={audioTrack} barCount={compact ? 12 : ({ wave: 28, bar: 18, grid: 22, radial: 16, aura: 12 }[visualizer ?? 'wave'])} className="h-20 w-full text-orange-500" aria-label={`${visualizer ?? 'wave'} audio visualizer`} />
-          {!started && <div className="absolute inset-x-0 bottom-2 text-center text-[11px] text-neutral-500">Your microphone stays off until you start</div>}
+        <div className="flex min-h-[300px] flex-1 flex-col items-center justify-center py-8 sm:min-h-[360px]">
+          <VoiceOrb state={state} audioTrack={audioTrack} />
+          {!started && <p className="mt-7 max-w-[260px] text-center text-sm leading-5 text-neutral-500 dark:text-neutral-400">Discover answers, book meetings, and get help from your Chatty assistant.</p>}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col gap-2">
-          <div className="flex items-center justify-between px-1"><div className="flex items-center gap-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200"><span className="flex size-6 items-center justify-center rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-300"><Headphones className="size-3.5" /></span>Realtime transcript</div><span className="text-[10px] text-neutral-400">LiveKit Agents UI</span></div>
-          <LiveKitTranscript />
-        </div>
+        {showTranscript && <div className="mb-3 flex min-h-0 max-h-48 flex-col gap-2"><div className="flex items-center justify-between px-1 text-xs font-semibold text-neutral-700 dark:text-neutral-200"><span>Live transcript</span><span className="text-[10px] font-normal text-neutral-400">LiveKit Agents UI</span></div><LiveKitTranscript /></div>}
 
-        <div className="rounded-2xl border border-neutral-200 bg-white/90 p-2 shadow-sm dark:border-neutral-800 dark:bg-neutral-950/90">
-          {started && <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-neutral-50 px-2.5 py-2 dark:bg-neutral-900"><div className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300"><Mic className="size-3.5 text-orange-500" />Microphone enabled</div><Settings2 className="size-3.5 text-neutral-400" aria-hidden="true" /></div>}
-          {started && <VoiceAssistantControlBar controls={{ microphone: true, leave: false }} />}
-          <button type="button" className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 ${started ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700' : 'bg-neutral-950 text-white shadow-lg shadow-neutral-950/15 hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200'}`} onClick={() => { setError(null); if (started) void endSession(); else setStarted(true); }} disabled={starting}>
-            {starting ? <Loader2 className="size-4 animate-spin" /> : started ? <PhoneOff className="size-4" /> : <Phone className="size-4" />}
-            {starting ? 'Connecting…' : started ? 'End voice session' : 'Start voice conversation'}
-          </button>
-          {!started && <p className="mt-2 flex items-center justify-center gap-1 text-[10px] text-neutral-400"><Check className="size-3 text-emerald-500" />Interrupt anytime — the agent will stop speaking</p>}
+        <div className="mx-auto flex w-full max-w-[360px] flex-col gap-3">
+          {started ? <div className="chatty-livekit-controls flex items-center justify-center gap-3"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="flex size-12 items-center justify-center rounded-full bg-neutral-950 text-white shadow-lg transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950" aria-label="End voice session"><PhoneOff className="size-5" /></button></div> : <button type="button" className="mx-auto flex size-16 items-center justify-center rounded-full bg-neutral-950 text-white shadow-xl shadow-neutral-950/20 transition hover:scale-105 hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-4 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200" onClick={requestStart} disabled={starting} aria-label="Start voice conversation">{starting ? <span className="size-6 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-neutral-950/30 dark:border-t-neutral-950" /> : <Phone className="size-6" />}</button>}
+          <div className="flex items-center justify-center gap-3 text-xs text-neutral-400"><button type="button" onClick={() => setShowTranscript((value) => !value)} className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"><MessageCircle className="size-3.5" />{showTranscript ? 'Hide transcript' : 'Show transcript'}</button><span aria-hidden="true">·</span><span className="inline-flex items-center gap-1.5"><Mic className="size-3.5" />{connectionLabel}</span></div>
+          {!started && <p className="flex items-center justify-center gap-1 text-[10px] text-neutral-400"><Check className="size-3 text-emerald-500" />Interrupt anytime — the agent will stop speaking</p>}
         </div>
       </div>
       <RoomAudioRenderer />
+
+      {consentOpen && <div className="absolute inset-0 z-20 flex items-end bg-white/70 p-3 backdrop-blur-sm dark:bg-neutral-950/75 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="voice-consent-title"><div className="w-full rounded-[24px] border border-neutral-200 bg-white p-5 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"><div className="mb-4 flex items-start justify-between gap-3"><div><div className="mb-2 flex size-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800"><ShieldCheck className="size-5" /></div><h2 id="voice-consent-title" className="text-base font-semibold">Before we start</h2><p className="mt-1 text-sm leading-5 text-neutral-500 dark:text-neutral-400">Chatty needs microphone access to have a real-time voice conversation with you.</p></div><button type="button" onClick={() => setConsentOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Cancel voice start"><X className="size-4" /></button></div><ul className="space-y-2.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300"><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />You can mute or end the call at any time.</li><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />Your conversation may be transcribed to provide the service.</li><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />Your microphone stays off until you agree.</li></ul><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setConsentOpen(false)} className="rounded-full border border-neutral-200 px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Cancel</button><button type="button" onClick={acceptConsent} className="rounded-full bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200">I agree</button></div></div></div>}
     </div>
   );
 }
@@ -182,16 +206,28 @@ export function VoiceAgentPanel({
     [backendUrl, botId, sessionId, widgetToken],
   );
   const session = useSession(tokenSource);
+  const panelRef = useRef<HTMLElement>(null);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void panelRef.current?.requestFullscreen();
+  };
 
   return (
-    <section className={`flex min-h-0 flex-col overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 ${className}`}>
+    <section ref={panelRef} className={`flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-neutral-200 bg-white shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800 dark:bg-neutral-950 ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent compact={compact} visualizer={visualizer} onClose={onClose} />
+        <ConnectedVoiceAgent compact={compact} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
+      <VoiceAgentPanelStyles />
     </section>
   );
 }
 
 export function VoiceAgentLoading() {
-  return <Loader2 className="size-4 animate-spin" aria-label="Loading voice agent" />;
+  return <span className="size-4 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-900" aria-label="Loading voice agent" />;
+}
+
+// Keep LiveKit's official control bar behavior while matching Chatty's compact voice surface.
+// The classes are scoped to this panel so the dashboard's other LiveKit surfaces are unchanged.
+export function VoiceAgentPanelStyles() {
+  return <style jsx global>{`\n    .chatty-voice-panel .chatty-livekit-controls .lk-agent-control-bar { display: flex; padding: 0; gap: .75rem; background: transparent; border: 0; }\n    .chatty-voice-panel .chatty-livekit-controls .lk-button { width: 3rem; height: 3rem; border-radius: 9999px; border: 1px solid rgb(229 229 229); background: rgb(250 250 250); color: rgb(38 38 38); box-shadow: none; }\n    .chatty-voice-panel .chatty-livekit-controls .lk-button:hover { background: rgb(245 245 245); }\n    .dark .chatty-voice-panel .chatty-livekit-controls .lk-button { border-color: rgb(64 64 64); background: rgb(38 38 38); color: white; }\n    .chatty-voice-panel:fullscreen { border-radius: 0; min-height: 100dvh; }\n    .chatty-voice-orb { position: relative; width: min(46vw, 13rem); height: min(46vw, 13rem); min-width: 9.5rem; min-height: 9.5rem; transform: scale(var(--voice-scale)); transition: transform 160ms ease-out; }\n    .chatty-voice-orb__halo { position: absolute; inset: -1rem; border-radius: 9999px; background: conic-gradient(from 210deg, rgba(255, 174, 82, .55), rgba(55, 190, 255, .5), rgba(255, 235, 114, .55), rgba(255, 174, 82, .55)); filter: blur(1.25rem); opacity: .68; animation: chatty-voice-breathe 4s ease-in-out infinite; }\n    .chatty-voice-orb__surface { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 9999px; background: radial-gradient(circle at 28% 24%, #fff9a8 0, #a9debd 27%, #77c9ec 58%, #2798db 100%); box-shadow: inset -1.25rem -1.25rem 2.75rem rgba(8, 101, 163, .32), inset 1rem 1rem 2rem rgba(255,255,255,.5), 0 1rem 3rem rgba(32, 155, 220, .18); }\n    .chatty-voice-orb__glow { position: absolute; inset: -20%; background: conic-gradient(from 30deg, transparent 0 18%, rgba(255,255,255,.45) 25%, transparent 38% 63%, rgba(255, 228, 108, .5) 74%, transparent 86%); filter: blur(.65rem); animation: chatty-voice-orb-spin 8s linear infinite; }\n    .chatty-voice-orb__bars { position: absolute; inset: 25%; display: flex; align-items: center; justify-content: center; gap: .18rem; opacity: .75; }\n    .chatty-voice-orb__bars span { width: .22rem; min-height: .35rem; border-radius: 9999px; background: rgba(255,255,255,.82); transition: height 100ms ease-out; }\n    .chatty-voice-orb.is-speaking .chatty-voice-orb__halo { animation-duration: 1.45s; opacity: .95; }\n    .chatty-voice-orb.is-listening .chatty-voice-orb__surface { box-shadow: inset -1.25rem -1.25rem 2.75rem rgba(8, 101, 163, .32), inset 1rem 1rem 2rem rgba(255,255,255,.5), 0 0 0 .5rem rgba(72, 184, 229, .08), 0 1rem 3rem rgba(32, 155, 220, .18); }\n    @keyframes chatty-voice-breathe { 0%, 100% { transform: scale(.95); } 50% { transform: scale(1.06); } }\n    @keyframes chatty-voice-orb-spin { to { transform: rotate(360deg); } }\n    @media (prefers-reduced-motion: reduce) { .chatty-voice-orb, .chatty-voice-orb__halo, .chatty-voice-orb__glow { animation: none; transition: none; } }\n  `}</style>;
 }

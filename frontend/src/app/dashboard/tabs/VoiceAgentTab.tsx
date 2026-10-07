@@ -2,172 +2,69 @@
 
 import * as React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AudioWaveform, CheckCircle2, ExternalLink, KeyRound, Save, Settings2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AudioWaveform, CheckCircle2, ExternalLink, Info, KeyRound, Mic2, Radio, Save, Settings2, Sparkles, Volume2, Waves, Zap } from 'lucide-react';
 
-import { VoiceAgentPanel } from '@/components/voice/VoiceAgentPanel';
 import { ModernAlert } from '@/components/ui/modern-alert';
-import { ModernSelect } from '@/components/ui/modern-select';
+import { ModernSelect, type ModernSelectOption } from '@/components/ui/modern-select';
 import { ModernSwitch } from '@/components/ui/modern-switch';
+import { VoiceAgentPanel } from '@/components/voice/VoiceAgentPanel';
+import { PROVIDER_OPTIONS, modelOptions, type VoiceModelKind } from './voice-model-catalog';
 
 type FetchBackend = (path: string, options?: RequestInit) => Promise<Response>;
-
+type Visualizer = 'wave' | 'bar' | 'grid' | 'radial' | 'aura';
 type VoiceConfig = {
-  enabled: boolean;
-  mode: 'pipeline' | 'realtime';
-  expression_enabled: boolean;
-  visualizer: 'wave' | 'bar' | 'grid' | 'radial' | 'aura';
-  agent_name: string;
-  llm_provider: string;
-  llm_model: string;
-  stt_provider: string;
-  stt_model: string;
-  stt_language: string;
-  tts_provider: string;
-  tts_model: string;
-  tts_voice: string;
-  max_duration_minutes: number;
-  llm_key_configured?: boolean;
-  stt_key_configured?: boolean;
-  tts_key_configured?: boolean;
-  livekit_url?: string;
+  enabled: boolean; mode: 'pipeline' | 'realtime'; expression_enabled: boolean; visualizer: Visualizer;
+  agent_name: string; llm_provider: string; llm_model: string; stt_provider: string; stt_model: string;
+  stt_language: string; tts_provider: string; tts_model: string; tts_voice: string; max_duration_minutes: number;
+  llm_key_configured?: boolean; stt_key_configured?: boolean; tts_key_configured?: boolean;
 };
 
 const defaults: VoiceConfig = {
-  enabled: false,
-  mode: 'pipeline',
-  expression_enabled: true,
-  visualizer: 'wave',
-  agent_name: 'chatty-voice-agent',
-  llm_provider: 'google',
-  llm_model: 'gemini-2.5-flash',
-  stt_provider: 'google',
-  stt_model: 'chirp_3',
-  stt_language: 'en-US',
-  tts_provider: 'google',
-  tts_model: 'gemini-3.8-flash-tts',
-  tts_voice: 'Kore',
-  max_duration_minutes: 15,
+  enabled: false, mode: 'pipeline', expression_enabled: true, visualizer: 'aura', agent_name: 'chatty-voice-agent',
+  llm_provider: 'google', llm_model: 'gemini-2.5-flash', stt_provider: 'google', stt_model: 'chirp_3', stt_language: 'en-US',
+  tts_provider: 'google', tts_model: 'gemini-3.1-flash-tts-preview', tts_voice: 'Kore', max_duration_minutes: 15,
 };
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
-  return (
-    <label className="grid gap-1.5 text-sm">
-      <span className="font-medium text-neutral-900 dark:text-neutral-100">{label}</span>
-      {children}
-      {hint && <span className="text-xs text-neutral-500">{hint}</span>}
-    </label>
-  );
+const visualizerInfo: { value: Visualizer; label: string; color: string; description: string }[] = [
+  { value: 'aura', label: 'Aura', color: '#1fd5f9', description: 'Ambient energy field, designed with Unicorn Studio.' },
+  { value: 'wave', label: 'Wave', color: '#fa954c', description: 'Warm oscillating waveform for natural conversation.' },
+  { value: 'radial', label: 'Radial', color: '#04a43a', description: 'Bright energetic ring for an active agent.' },
+  { value: 'grid', label: 'Grid', color: '#c04cfa', description: 'Lo-fi dot matrix for a technical assistant.' },
+  { value: 'bar', label: 'Bar', color: '#4ca3fa', description: 'Clean classic bars with clear speech activity.' },
+];
+const fieldClass = 'h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-400 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/10 dark:border-neutral-800 dark:bg-neutral-950';
+
+function Select({ value, options, onChange, label }: { value: string; options: ModernSelectOption[]; onChange: (value: string) => void; label: string }) {
+  return <ModernSelect value={value} options={options} onChange={onChange} searchable aria-label={label} className="w-full" />;
 }
 
-function Select({ value, onChange, children }: { value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  const options = React.Children.toArray(children).flatMap((child) => {
-    if (!React.isValidElement<{ value?: string; children?: React.ReactNode }>(child)) return [];
-    return [{ value: String(child.props.value ?? ''), label: String(child.props.children ?? '') }];
-  });
-  return <ModernSelect value={value} onChange={onChange} options={options} aria-label="Select voice setting" className="w-full" />;
+function Card({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
+  return <section className="rounded-[26px] border border-neutral-200/80 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-6"><div className="flex items-start gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-300">{icon}</div><div><h2 className="font-semibold tracking-tight">{title}</h2><p className="mt-1 text-sm leading-5 text-neutral-500">{description}</p></div></div>{children}</section>;
+}
+
+function Preview({ selected, onSelect }: { selected: Visualizer; onSelect: (value: Visualizer) => void }) {
+  const current = visualizerInfo.find((item) => item.value === selected) ?? visualizerInfo[0];
+  return <section className="overflow-hidden rounded-[26px] border border-neutral-800 bg-[#090b0f] text-white shadow-2xl shadow-cyan-950/10"><div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row"><div className="min-w-0 flex-1"><div className="mb-5 flex items-center justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">Agents UI visualizer</p><h2 className="mt-1 text-lg font-semibold">Give your agent a visual personality</h2></div><span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2.5 py-1 text-[10px] text-cyan-200">LiveKit</span></div><div className="relative flex min-h-[260px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_center,rgba(22,74,99,.3),transparent_56%)]"><div className="absolute inset-0 opacity-25 [background-image:radial-gradient(#6c8190_1px,transparent_1px)] [background-size:8px_8px]" />{selected === 'aura' && <div className="relative size-36 animate-[spin_7s_linear_infinite] rounded-full bg-[conic-gradient(from_35deg,transparent,#1fd5f9,#8cf3ff,transparent,#176eff,transparent)] p-5 shadow-[0_0_48px_rgba(31,213,249,.45)]"><div className="size-full rounded-full bg-[#090b0f]" /></div>}{selected === 'wave' && <div className="flex w-56 items-center justify-center gap-1.5">{Array.from({ length: 9 }).map((_, index) => <span key={index} className="h-10 w-1 rounded-full bg-[#fa954c] shadow-[0_0_16px_#fa954c] animate-pulse" style={{ animationDelay: `${index * 90}ms`, transform: `scaleY(${0.45 + (index % 4) * 0.18})` }} />)}</div>}{selected === 'radial' && <div className="relative size-44">{Array.from({ length: 24 }).map((_, index) => <span key={index} className="absolute left-[calc(50%-3px)] top-[calc(50%-24px)] h-12 w-1.5 origin-[3px_24px] rounded-full bg-[#04a43a] shadow-[0_0_16px_#04a43a]" style={{ transform: `rotate(${index * 15}deg) translateY(-4.75rem)` }} />)}</div>}{selected === 'grid' && <div className="grid w-40 grid-cols-11 gap-1.5">{Array.from({ length: 121 }).map((_, index) => <span key={index} className="size-1.5 rounded-full bg-[#c04cfa] animate-pulse" style={{ animationDelay: `${(index % 11) * 70}ms`, opacity: 0.25 + ((index % 7) / 10) }} />)}</div>}{selected === 'bar' && <div className="flex h-32 items-center gap-3">{[35, 62, 88, 72, 46].map((height) => <span key={height} className="w-5 rounded-full bg-[#4ca3fa] shadow-[0_0_16px_#4ca3fa] animate-pulse" style={{ height: `${height}%` }} />)}</div>}<span className="absolute bottom-4 text-xs text-neutral-400">Agent is listening, ask a question</span></div></div><div className="lg:w-[280px] lg:border-l lg:border-white/10 lg:pl-6"><div className="mb-3 flex items-center gap-2 text-xs font-semibold text-neutral-300"><Radio className="size-3.5 text-cyan-300" /> Preview states</div><div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 p-1 text-[10px] text-neutral-400"><span className="rounded-lg px-2 py-2 text-center">Connecting</span><span className="rounded-lg bg-cyan-400/15 px-2 py-2 text-center text-cyan-200">Listening</span><span className="rounded-lg px-2 py-2 text-center">Speaking</span><span className="rounded-lg px-2 py-2 text-center">Thinking</span></div><p className="mt-6 text-sm font-medium">{current.label} visualizer</p><p className="mt-1 text-xs leading-5 text-neutral-400">{current.description}</p><div className="mt-6 flex flex-wrap gap-2">{visualizerInfo.map((item) => <button key={item.value} type="button" onClick={() => onSelect(item.value)} className={`rounded-full border px-3 py-1.5 text-[11px] font-medium transition ${selected === item.value ? 'border-cyan-300 bg-cyan-300 text-[#071017]' : 'border-white/10 bg-white/[0.04] text-neutral-400 hover:border-white/25 hover:text-white'}`}>{item.label}</button>)}</div></div></div></section>;
+}
+
+function ProviderCard({ kind, title, icon, provider, model, keyConfigured, apiKey, onProvider, onModel, onKey }: { kind: VoiceModelKind; title: string; icon: React.ReactNode; provider: string; model: string; keyConfigured?: boolean; apiKey: string; onProvider: (value: string) => void; onModel: (value: string) => void; onKey: (value: string) => void }) {
+  const providerOptions = PROVIDER_OPTIONS[kind].map((item) => ({ value: item.value, label: item.label, hint: item.hint }));
+  const models = modelOptions(kind, provider).map((item) => ({ value: item.value, label: item.label, hint: item.hint }));
+  const modelOptionsForField = models.length ? models : [{ value: model, label: model || 'Choose a model', hint: 'Provider catalog unavailable' }];
+  return <div className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-4 dark:border-neutral-800 dark:bg-neutral-900/50"><div className="flex items-center gap-2"><div className="flex size-8 items-center justify-center rounded-xl bg-white text-cyan-600 shadow-sm dark:bg-neutral-950 dark:text-cyan-300">{icon}</div><div><h3 className="text-sm font-semibold">{title}</h3><p className="text-[10px] uppercase tracking-[0.14em] text-neutral-400">{kind}</p></div></div><div className="mt-4 grid gap-3"><Select value={provider} options={providerOptions} onChange={onProvider} label={`${title} provider`} /><Select value={model} options={modelOptionsForField} onChange={onModel} label={`${title} model`} /><input type="password" value={apiKey} onChange={(event) => onKey(event.target.value)} className={fieldClass} placeholder={keyConfigured ? 'BYOK key configured' : 'Optional provider API key'} /></div></div>;
 }
 
 export function VoiceAgentTab({ botId, fetchBackend }: { botId: string; fetchBackend: FetchBackend }) {
   const [config, setConfig] = useState<VoiceConfig>(defaults);
   const [draftKey, setDraftKey] = useState({ llm: '', stt: '', tts: '' });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetchBackend(`/api/bots/${botId}/voice`);
-      if (response.ok) setConfig({ ...defaults, ...(await response.json()) });
-    } finally {
-      setLoading(false);
-    }
-  }, [botId, fetchBackend]);
-
+  const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => { setLoading(true); try { const response = await fetchBackend(`/api/bots/${botId}/voice`); if (response.ok) setConfig({ ...defaults, ...(await response.json()) }); } finally { setLoading(false); } }, [botId, fetchBackend]);
   useEffect(() => { void load(); }, [load]);
-
   const sessionId = useMemo(() => `dashboard-voice-${botId}`, [botId]);
-  const set = <K extends keyof VoiceConfig>(key: K, value: VoiceConfig[K]) => setConfig((current) => ({ ...current, [key]: value }));
-
-  const save = async () => {
-    setSaving(true);
-    setSaved(false);
-    setError(null);
-    try {
-      const response = await fetchBackend(`/api/bots/${botId}/voice`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...config,
-          llm_api_key: draftKey.llm || undefined,
-          stt_api_key: draftKey.stt || undefined,
-          tts_api_key: draftKey.tts || undefined,
-        }),
-      });
-      if (!response.ok) throw new Error(await response.text());
-      const updated = await response.json();
-      setConfig((current) => ({ ...current, ...updated }));
-      setDraftKey({ llm: '', stt: '', tts: '' });
-      setSaved(true);
-    } catch (error) {
-      console.error('voice config save failed', error);
-      setError(error instanceof Error ? error.message : 'Could not save voice settings.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading) return <div className="p-8 text-sm text-neutral-500">Loading voice-agent configuration…</div>;
-
-  return (
-    <div className="mx-auto grid max-w-7xl gap-6 bg-gradient-to-b from-orange-50/40 via-transparent to-transparent p-4 pb-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:p-8 dark:from-orange-950/10">
-      <div className="grid gap-6">
-        <section className="relative overflow-hidden rounded-3xl border border-neutral-200/80 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-          <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-orange-300/20 blur-3xl dark:bg-orange-500/10" />
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="relative min-w-0">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-orange-500"><AudioWaveform className="size-4" /> Voice agent</div>
-              <h2 className="text-2xl font-semibold tracking-tight">A production voice experience</h2>
-              <p className="mt-1 max-w-2xl text-sm text-neutral-500">Use the same Chatty tools, RAG, booking, lead capture, and multimodal context through a LiveKit session.</p>
-            </div>
-            <div className="relative flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900">
-              <div><p className="text-xs font-semibold">Voice access</p><p className="text-[10px] text-neutral-500">{config.enabled ? 'Available in widget and embed' : 'Hidden from visitors'}</p></div>
-              <ModernSwitch checked={config.enabled} onChange={(value) => set('enabled', value)} aria-label="Enable voice agent" activeLabel="" inactiveLabel="" />
-            </div>
-          </div>
-          {error && <ModernAlert variant="error" title="Could not save voice settings" className="relative mt-5">{error}</ModernAlert>}
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <Field label="Agent mode" hint="Pipeline supports Google STT → LLM → TTS; realtime is reserved for a realtime model.">
-              <Select value={config.mode} onChange={(value) => set('mode', value as VoiceConfig['mode'])}><option value="pipeline">Pipeline</option><option value="realtime">Realtime</option></Select>
-            </Field>
-            <Field label="LiveKit visualizer">
-              <Select value={config.visualizer} onChange={(value) => set('visualizer', value as VoiceConfig['visualizer'])}>{['wave', 'bar', 'grid', 'radial', 'aura'].map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</Select>
-            </Field>
-            <Field label="Agent dispatch name"><input value={config.agent_name} onChange={(event) => set('agent_name', event.target.value)} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" /></Field>
-            <Field label="Maximum call duration"><input type="number" min={1} max={60} value={config.max_duration_minutes} onChange={(event) => set('max_duration_minutes', Number(event.target.value))} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" /></Field>
-          </div>
-          <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-orange-100 bg-orange-50/60 px-4 py-3 dark:border-orange-950/50 dark:bg-orange-950/20"><div><p className="text-sm font-semibold">Expressive speech mode</p><p className="mt-0.5 text-xs text-neutral-500">Provider/model dependent; adds more natural prosody when supported.</p></div><ModernSwitch checked={config.expression_enabled} onChange={(value) => set('expression_enabled', value)} aria-label="Enable expressive speech mode" activeLabel="" inactiveLabel="" /></div>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-900"><Save className="size-4" />{saving ? 'Saving…' : 'Save voice settings'}</button>
-            {saved && <span className="inline-flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 className="size-4" /> Saved</span>}
-          </div>
-        </section>
-
-        <section className="grid gap-4 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
-          <div><h3 className="font-semibold">LiveKit provider configuration</h3><p className="mt-1 text-sm text-neutral-500">Google Vertex/ADC is the default. Other official LiveKit provider plugins use the bot-scoped BYOK key saved below.</p></div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="grid gap-3 rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800"><h4 className="font-medium">LLM</h4><Select value={config.llm_provider} onChange={(value) => set('llm_provider', value)}><option value="google">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="openrouter">OpenRouter</option></Select><input value={config.llm_model} onChange={(event) => set('llm_model', event.target.value)} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder="Model" /><input type="password" value={draftKey.llm} onChange={(event) => setDraftKey((key) => ({ ...key, llm: event.target.value }))} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder={config.llm_key_configured ? 'BYOK configured' : 'Optional BYOK key'} /></div>
-            <div className="grid gap-3 rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800"><h4 className="font-medium">STT</h4><Select value={config.stt_provider} onChange={(value) => set('stt_provider', value)}><option value="google">Google Speech</option><option value="deepgram">Deepgram</option><option value="assemblyai">AssemblyAI</option><option value="soniox">Soniox</option><option value="openai">OpenAI</option></Select><input value={config.stt_model} onChange={(event) => set('stt_model', event.target.value)} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder="Model" /><input value={config.stt_language} onChange={(event) => set('stt_language', event.target.value)} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder="Language" /><input type="password" value={draftKey.stt} onChange={(event) => setDraftKey((key) => ({ ...key, stt: event.target.value }))} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder={config.stt_key_configured ? 'BYOK configured' : 'Optional BYOK key'} /></div>
-            <div className="grid gap-3 rounded-2xl border border-neutral-200 p-4 dark:border-neutral-800"><h4 className="font-medium">TTS</h4><Select value={config.tts_provider} onChange={(value) => set('tts_provider', value)}><option value="google">Google Gemini TTS</option><option value="cartesia">Cartesia</option><option value="elevenlabs">ElevenLabs</option><option value="openai">OpenAI</option><option value="fishaudio">Fish Audio</option></Select><input value={config.tts_model} onChange={(event) => set('tts_model', event.target.value)} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder="Model" /><input value={config.tts_voice} onChange={(event) => set('tts_voice', event.target.value)} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder="Voice" /><input type="password" value={draftKey.tts} onChange={(event) => setDraftKey((key) => ({ ...key, tts: event.target.value }))} className="h-10 rounded-xl border border-neutral-200 px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" placeholder={config.tts_key_configured ? 'BYOK configured' : 'Optional BYOK key'} /></div>
-          </div>
-          <div className="flex items-start gap-2 rounded-2xl bg-neutral-50 p-4 text-xs text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400"><KeyRound className="mt-0.5 size-4 shrink-0" />BYOK values are encrypted server-side and never returned to the browser after save.</div>
-        </section>
-
-        <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-950"><div className="flex items-center gap-2"><Settings2 className="size-4 text-orange-500" /><h3 className="font-semibold">Integration contract</h3></div><p className="mt-2 text-sm text-neutral-500">Use the same backend token endpoint in your website embed or SDK. Never put LiveKit API secrets in a client app.</p><pre className="mt-4 overflow-x-auto rounded-2xl bg-neutral-950 p-4 text-xs text-neutral-100">{`POST /api/widget/voice/token\n{ "bot_id": "${botId}", "session_id": "visitor-session-id" }\n\nResponse: { serverUrl, participantToken, roomName }`}</pre><a href="https://docs.livekit.io/frontends/build/agents/" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-orange-600 hover:underline">Read LiveKit agent UI docs <ExternalLink className="size-3.5" /></a></section>
-      </div>
-
-      <aside className="min-h-[560px] lg:sticky lg:top-4 lg:h-[calc(100vh-140px)]"><VoiceAgentPanel botId={botId} sessionId={sessionId} visualizer={config.visualizer} className="h-full" /></aside>
-    </div>
-  );
+  const update = <K extends keyof VoiceConfig>(key: K, value: VoiceConfig[K]) => { setSaved(false); setConfig((current) => ({ ...current, [key]: value })); };
+  const changeProvider = (kind: VoiceModelKind, provider: string) => { const first = modelOptions(kind, provider)[0]?.value; setConfig((current) => ({ ...current, [`${kind}_provider`]: provider, ...(first ? { [`${kind}_model`]: first } : {}) })); };
+  const save = async () => { setSaving(true); setSaved(false); setError(null); try { const response = await fetchBackend(`/api/bots/${botId}/voice`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...config, llm_api_key: draftKey.llm || undefined, stt_api_key: draftKey.stt || undefined, tts_api_key: draftKey.tts || undefined }) }); if (!response.ok) throw new Error(await response.text()); const savedConfig = (await response.json()) as Partial<VoiceConfig>; setConfig((current) => ({ ...current, ...savedConfig })); setDraftKey({ llm: '', stt: '', tts: '' }); setSaved(true); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save voice settings.'); } finally { setSaving(false); } };
+  if (loading) return <div className="flex min-h-[400px] items-center justify-center text-sm text-neutral-500"><span className="mr-2 size-4 animate-spin rounded-full border-2 border-neutral-300 border-t-cyan-500" />Loading voice-agent studio…</div>;
+  return <div className="min-h-full bg-gradient-to-b from-cyan-50/50 via-white to-white p-4 pb-28 dark:from-cyan-950/10 dark:via-neutral-950 dark:to-neutral-950 sm:p-6 lg:p-8"><div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"><main className="grid min-w-0 gap-6"><section className="relative overflow-hidden rounded-[30px] border border-neutral-200/80 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-7"><div className="pointer-events-none absolute -right-20 -top-24 size-80 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" /><div className="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between"><div><div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-300"><AudioWaveform className="size-4" /> Voice agent studio</div><h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">A voice experience people want to use.</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-500">Design a real-time agent with the same Chatty knowledge, tools, booking, lead capture, and guardrails your text agent already uses.</p></div><div className="flex items-center gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 dark:border-cyan-950/60 dark:bg-cyan-950/20"><div><p className="text-xs font-semibold">Voice access</p><p className="mt-0.5 text-[11px] text-neutral-500">{config.enabled ? 'Live in widget and embeds' : 'Hidden from visitors'}</p></div><ModernSwitch checked={config.enabled} onChange={(value) => update('enabled', value)} aria-label="Enable voice agent" activeLabel="" inactiveLabel="" /></div></div>{error && <ModernAlert variant="error" title="Could not save voice settings" className="relative mt-5">{error}</ModernAlert>}<div className="relative mt-7 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900"><p className="text-[10px] uppercase tracking-[0.16em] text-neutral-400">Session mode</p><p className="mt-1 text-sm font-semibold capitalize">{config.mode}</p></div><div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900"><p className="text-[10px] uppercase tracking-[0.16em] text-neutral-400">Interruption</p><p className="mt-1 text-sm font-semibold text-emerald-600">Instant barge-in</p></div><div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900"><p className="text-[10px] uppercase tracking-[0.16em] text-neutral-400">Transcription</p><p className="mt-1 text-sm font-semibold">Realtime LiveKit UI</p></div></div></section><Preview selected={config.visualizer} onSelect={(value) => update('visualizer', value)} /><Card icon={<Settings2 className="size-5" />} title="Session design" description="Choose how the agent connects, speaks, and behaves during a visitor session."><div className="mt-6 grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-sm"><span className="font-medium">Agent mode</span><Select value={config.mode} onChange={(value) => update('mode', value as VoiceConfig['mode'])} label="Agent mode" options={[{ value: 'pipeline', label: 'Pipeline', hint: 'STT → LLM → TTS' }, { value: 'realtime', label: 'Realtime', hint: 'full-duplex model' }]} /></label><label className="grid gap-2 text-sm"><span className="font-medium">Maximum call duration</span><input type="number" min={1} max={60} value={config.max_duration_minutes} onChange={(event) => update('max_duration_minutes', Number(event.target.value))} className={fieldClass} /></label><label className="grid gap-2 text-sm sm:col-span-2"><span className="font-medium">Agent dispatch name</span><input value={config.agent_name} onChange={(event) => update('agent_name', event.target.value)} className={fieldClass} /></label></div><div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-cyan-100 bg-cyan-50/60 px-4 py-3 dark:border-cyan-950/50 dark:bg-cyan-950/20"><div><p className="text-sm font-semibold">Expressive speech mode</p><p className="mt-0.5 text-xs text-neutral-500">Provider/model dependent; LiveKit adds emotion, pacing, and non-verbal delivery where supported.</p></div><ModernSwitch checked={config.expression_enabled} onChange={(value) => update('expression_enabled', value)} aria-label="Enable expressive speech mode" activeLabel="" inactiveLabel="" /></div></Card><Card icon={<Zap className="size-5" />} title="AI model routing" description="Every official LiveKit Inference model is searchable alongside direct provider BYOK models."><div className="mt-6 grid gap-4 lg:grid-cols-3"><ProviderCard kind="llm" title="Reasoning / LLM" icon={<Sparkles className="size-4" />} provider={config.llm_provider} model={config.llm_model} keyConfigured={config.llm_key_configured} apiKey={draftKey.llm} onProvider={(value) => changeProvider('llm', value)} onModel={(value) => update('llm_model', value)} onKey={(value) => setDraftKey((current) => ({ ...current, llm: value }))} /><ProviderCard kind="stt" title="Speech recognition" icon={<Mic2 className="size-4" />} provider={config.stt_provider} model={config.stt_model} keyConfigured={config.stt_key_configured} apiKey={draftKey.stt} onProvider={(value) => changeProvider('stt', value)} onModel={(value) => update('stt_model', value)} onKey={(value) => setDraftKey((current) => ({ ...current, stt: value }))} /><ProviderCard kind="tts" title="Voice synthesis" icon={<Volume2 className="size-4" />} provider={config.tts_provider} model={config.tts_model} keyConfigured={config.tts_key_configured} apiKey={draftKey.tts} onProvider={(value) => changeProvider('tts', value)} onModel={(value) => update('tts_model', value)} onKey={(value) => setDraftKey((current) => ({ ...current, tts: value }))} /></div><div className="mt-5 flex items-start gap-2 rounded-2xl bg-neutral-50 p-4 text-xs leading-5 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400"><KeyRound className="mt-0.5 size-4 shrink-0 text-cyan-600" />BYOK values are encrypted server-side, organization scoped, and never returned to the browser. LiveKit Inference requires the corresponding hosted gateway entitlement.</div></Card><Card icon={<Waves className="size-5" />} title="Language and voice" description="Passed to the selected official LiveKit provider at session creation."><div className="mt-6 grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-sm"><span className="font-medium">STT language</span><input value={config.stt_language} onChange={(event) => update('stt_language', event.target.value)} className={fieldClass} placeholder="en-US" /></label><label className="grid gap-2 text-sm"><span className="font-medium">TTS voice</span><input value={config.tts_voice} onChange={(event) => update('tts_voice', event.target.value)} className={fieldClass} placeholder="Kore or provider voice ID" /></label></div></Card><section className="rounded-[26px] border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-6"><div className="flex items-start gap-3"><div className="flex size-10 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"><Info className="size-5" /></div><div><h2 className="font-semibold">Safe integration contract</h2><p className="mt-1 text-sm leading-5 text-neutral-500">Client apps receive short-lived room tokens only. LiveKit API secrets and provider keys remain server-side.</p></div></div><div className="mt-5 flex flex-wrap gap-3"><a href="https://docs.livekit.io/frontends/agents-ui/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium hover:border-cyan-300 hover:text-cyan-700 dark:border-neutral-800 dark:hover:border-cyan-700">Agents UI docs <ExternalLink className="size-3.5" /></a><a href="https://docs.livekit.io/agents/models/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium hover:border-cyan-300 hover:text-cyan-700 dark:border-neutral-800 dark:hover:border-cyan-700">Model catalog <ExternalLink className="size-3.5" /></a></div></section></main><aside className="min-h-[590px] xl:sticky xl:top-4 xl:h-[calc(100vh-140px)]"><VoiceAgentPanel botId={botId} sessionId={sessionId} visualizer={config.visualizer} className="h-full" /></aside></div><div className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200/80 bg-white/90 px-4 py-3 backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-950/90"><div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3"><p className="hidden text-xs text-neutral-500 sm:block">Changes apply to new voice sessions.</p><div className="flex items-center gap-3"><AnimatePresence>{saved && <motion.span initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="inline-flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 className="size-4" /> Saved</motion.span>}</AnimatePresence><button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-full bg-[#0b1117] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-900/10 transition hover:bg-[#14212b] disabled:opacity-50 dark:bg-white dark:text-neutral-950"><Save className="size-4" />{saving ? 'Saving…' : 'Save changes'}</button></div></div></div></div>;
 }
