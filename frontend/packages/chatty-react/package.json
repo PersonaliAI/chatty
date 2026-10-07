@@ -43,12 +43,17 @@
     "dev": "tsup --watch"
   },
   "peerDependencies": {
+    "@livekit/components-react": "^2.9.24",
+    "livekit-client": "^2.22.3",
     "react": ">=18",
     "react-dom": ">=18"
   },
   "dependencies": {},
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@livekit/components-react": "^2.9.24",
+    "@livekit/components-styles": "^1.2.0",
+    "livekit-client": "^2.22.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "emoji-picker-react": "^4.19.1",

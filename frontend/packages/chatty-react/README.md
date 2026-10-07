@@ -80,6 +80,31 @@ export function HelpButton() {
 | `sound` | `boolean` | `true` | Whether to play sound chimes on incoming AI replies. |
 | `widgetUrl` | `string` | `"https://chatty.personaliai.com/widget.js"` | Custom widget script URL (for self-hosting). |
 
+## Standalone voice agent
+
+The SDK also exports a first-class LiveKit voice surface. It requests a
+short-lived token from Chatty and never receives LiveKit or provider secrets.
+Install the LiveKit peer dependencies when using this component:
+
+```bash
+npm install @personaliai/react-widget @livekit/components-react livekit-client
+```
+
+```tsx
+import { VoiceAgent } from "@personaliai/react-widget";
+
+export function SupportVoice() {
+  return <VoiceAgent botId="YOUR_BOT_UUID" title="Talk to support" />;
+}
+```
+
+`VoiceAgent` includes official LiveKit session controls, realtime transcript
+updates, audio visualization, consent, interruption, and connection errors.
+Use `backendUrl` for a self-hosted API and `widgetToken` for signed embedded
+deployments. For host-controlled sessions, attach a React ref and call
+`start()`, `stop()`, or `toggleMicrophone()`; `onStateChange` and
+`onTranscript` expose realtime session events without exposing provider keys.
+
 ---
 
 ## License
