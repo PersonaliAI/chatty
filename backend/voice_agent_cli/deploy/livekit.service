@@ -1,0 +1,16 @@
+[Unit]
+Description=LiveKit SFU for Chatty
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/livekit-server --config /etc/livekit/config.yaml
+Restart=always
+RestartSec=5
+User=root
+NoNewPrivileges=true
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

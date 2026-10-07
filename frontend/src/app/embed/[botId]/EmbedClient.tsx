@@ -11,6 +11,7 @@ import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
+import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
@@ -445,6 +446,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   const paramFont = searchParams.get("font");
   const paramFontSizePercent = searchParams.get("font_size_percent");
   const paramTab = searchParams.get("tab") as Tab | null;
+  const voiceOnly = searchParams.get("voice") === "only";
 
   // Scope stored session + history per embedding site, so different host sites
   // (and the dashboard playground) don't share one conversation.
@@ -531,6 +533,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   // What a finished in-chat voice recording turns into - set on
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
+  const [voiceAgentEnabled, setVoiceAgentEnabled] = useState(false);
+  const [voiceVisualizer, setVoiceVisualizer] = useState<'wave' | 'bar' | 'grid' | 'radial' | 'aura'>('wave');
+  const [voiceAgentOpen, setVoiceAgentOpen] = useState(voiceOnly);
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>(paramTab === "messages" || paramTab === "articles" ? paramTab : "home");
@@ -1855,7 +1860,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           setHideBranding(!!bot.hide_branding);
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
-          setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
+        setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
+          setVoiceAgentEnabled(Boolean(bot.voice_enabled));
+          setVoiceVisualizer(['wave', 'bar', 'grid', 'radial', 'aura'].includes(bot.voice_visualizer) ? bot.voice_visualizer : 'wave');
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
@@ -2698,6 +2705,11 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 size="size-7"
               />
             )}
+            {voiceAgentEnabled && (
+              <button type="button" onClick={() => setVoiceAgentOpen((open) => !open)} className={`rounded-full p-1.5 transition-colors ${voiceAgentOpen ? "bg-orange-500 text-white" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`} aria-label="Open voice agent" title="Voice agent">
+                <AudioWaveform className="size-4" />
+              </button>
+            )}
           <button
             onClick={pushGranted ? toggleMute : requestPushPermission}
             className={`${tab === "home" && teamProfiles.length > 0 ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
@@ -2738,7 +2750,12 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       </div>
 
       {/* Body */}
-      <div ref={chatBodyRef} className="flex-1 overflow-y-auto scrollbar-thin widget-panel flex flex-col">
+      <div ref={chatBodyRef} className="relative flex-1 overflow-y-auto scrollbar-thin widget-panel flex flex-col">
+        {voiceAgentOpen && voiceAgentEnabled && (
+          <div className="absolute inset-0 z-30 bg-white/95 p-3 dark:bg-neutral-950/95">
+            <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact className="h-full" />
+          </div>
+        )}
         {showCsat ? (
           /* CSAT Feedback Modal */
           <div className="relative flex h-full flex-col justify-center overflow-hidden bg-linear-to-b from-white to-neutral-50/80 p-5 dark:from-neutral-950 dark:to-neutral-900">
@@ -3816,6 +3833,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
+                {voiceAgentEnabled && <button type="button" onClick={() => setVoiceAgentOpen(true)} className="chat-input-bar-icon rounded-full p-1 text-orange-500 hover:text-orange-600" aria-label="Start live voice agent" title="Live voice agent"><AudioWaveform className="size-4" /></button>}
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;

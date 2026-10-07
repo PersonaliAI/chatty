@@ -28,3 +28,4 @@ litellm==1.98.0
 mcp==1.28.1
 
 sentry-sdk[fastapi]==2.59.0
+livekit-api>=1.2.0,<2

@@ -26,7 +26,12 @@ Thumbs.db
 # Untracked / local test directories
 load_testing/
 
-# Local-only voice-agent experiments; never include them in Chatty deployments.
-voice_agent_cli/
+# The modular voice agent is production source. Keep only local credentials and
+# generated runtime artifacts out of the repository.
+voice_agent_cli/__pycache__/
+voice_agent_cli/tests/__pycache__/
+voice_agent_cli/.env.livekit.local
+voice_agent_cli/*.env
+voice_agent_cli/*.json
+voice_agent_cli/*.key
 frontend/
-

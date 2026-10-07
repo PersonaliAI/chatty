@@ -1278,13 +1278,13 @@ async def widget_theme(bot_id: str, response: Response):
     )
     try:
         res = await run_db(lambda: supabase.table("chatty_bots").select(
-            f"{base_columns}, font_family, font_size_percent, voice_message_mode, panel_size").eq("id", bot_id).execute())
+            f"{base_columns}, font_family, font_size_percent, voice_message_mode, panel_size, voice_enabled, voice_visualizer, voice_expression_enabled").eq("id", bot_id).execute())
     except Exception:
         try:
             # panel_size's migration (20260902070328) may not be applied to
             # this environment yet - retry without it before falling further back.
             res = await run_db(lambda: supabase.table("chatty_bots").select(
-                f"{base_columns}, font_family, font_size_percent, voice_message_mode").eq("id", bot_id).execute())
+                f"{base_columns}, font_family, font_size_percent, voice_message_mode, voice_enabled").eq("id", bot_id).execute())
         except Exception:
             try:
                 # voice_message_mode's migration (20260829020000) may not be
@@ -1498,6 +1498,9 @@ async def widget_theme(bot_id: str, response: Response):
         "font_family": b.get("font_family"),
         "font_size_percent": b.get("font_size_percent") or 100,
         "voice_message_mode": b.get("voice_message_mode") or "transcribe",
+        "voice_enabled": bool(b.get("voice_enabled")),
+        "voice_visualizer": b.get("voice_visualizer") or "wave",
+        "voice_expression_enabled": bool(b.get("voice_expression_enabled", True)),
         "panel_size": b.get("panel_size") or "default",
         "calendar_scheduling_enabled": bool(b.get("calendar_scheduling_enabled")),
         "meeting_provider": b.get("meeting_provider") or "google_meet",

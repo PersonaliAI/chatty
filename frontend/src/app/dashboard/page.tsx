@@ -151,6 +151,7 @@ import { PlaygroundTab } from "./tabs/PlaygroundTab";
 import { CustomizerTab } from "./tabs/CustomizerTab";
 import { KnowledgeTab } from "./tabs/KnowledgeTab";
 import { SettingsTab } from "./tabs/SettingsTab";
+import { VoiceAgentTab } from "./tabs/VoiceAgentTab";
 import { FlowManager } from "@/app/flow/flow-builder/flow-manager";
 
 // Section Colors rows whose "text" property is really an icon/dot color
@@ -4070,6 +4071,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               { id: "audit_log", label: t("audit_log"), icon: FileText },
               { id: "analytics", label: t("analytics"), icon: BarChart3 },
               { id: "integrations", label: t("integrations"), icon: Code2 },
+              { id: "voice", label: "Voice agent", icon: Headphones },
               { id: "mcp", label: "MCP", icon: Cpu },
               { id: "developer", label: "Developer API", icon: Puzzle },
               { id: "billing", label: "Billing", icon: CreditCard },
@@ -4640,6 +4642,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               showToast={showToast}
               authToken={authToken}
             />
+          )}
+
+          {/* TAB: LIVEKIT VOICE AGENT */}
+          {activeTab === "voice" && botId && (
+            <VoiceAgentTab botId={botId} fetchBackend={fetchWithFallback} />
           )}
 
           {/* TAB: MCP */}

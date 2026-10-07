@@ -470,6 +470,10 @@ _DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
     "whatsapp_enabled", "whatsapp_phone_number_id", "whatsapp_waba_id", "whatsapp_access_token",
     "whatsapp_verify_token", "whatsapp_app_secret", "whatsapp_quick_replies", "onboarding_step",
     "onboarding_completed", "lead_fields", "lead_capture_enabled", "lead_required_fields",
+    "voice_enabled", "voice_mode", "voice_expression_enabled", "voice_visualizer",
+    "voice_agent_name", "voice_llm_provider", "voice_llm_model", "voice_stt_provider",
+    "voice_stt_model", "voice_stt_language", "voice_tts_provider", "voice_tts_model",
+    "voice_tts_voice", "voice_max_duration_minutes",
 })
 
 

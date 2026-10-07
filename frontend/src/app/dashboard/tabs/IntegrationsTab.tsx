@@ -539,6 +539,7 @@ export function IntegrationsTab({
       <nav className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95" aria-label="Integration sections">
         {[
           { id: "whatsapp", label: "WhatsApp" },
+          { id: "voice", label: "LiveKit voice" },
           { id: "embed", label: "Embed & SDKs" },
           { id: "domains", label: "Security" },
         ].map((item) => (
@@ -552,6 +553,40 @@ export function IntegrationsTab({
           </button>
         ))}
       </nav>
+
+      <div id="integration-voice" className="order-1 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-violet-200/80 dark:border-violet-900/60 rounded-2xl space-y-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold flex items-center gap-2">
+              <span className="inline-flex size-7 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">〰</span>
+              LiveKit voice agent
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-2xl">
+              The widget and SDKs use a short-lived Chatty token to connect to the self-hosted LiveKit server. LiveKit and provider secrets never ship to a browser or mobile app.
+            </p>
+          </div>
+          <a href="https://docs.livekit.io/agents/" target="_blank" rel="noopener noreferrer" className="text-[11px] text-violet-600 dark:text-violet-300 hover:underline inline-flex items-center gap-1">
+            LiveKit docs <ExternalLink className="size-3" />
+          </a>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/60 p-3">
+            <div className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Voice token request</div>
+            <pre className="overflow-x-auto text-[10px] leading-relaxed text-neutral-600 dark:text-neutral-300"><code>{`POST /api/widget/voice/token\n{\n  "bot_id": "${botId || "YOUR_BOT_ID"}",\n  "session_id": "chatty-session-id",\n  "participant_name": "Visitor"\n}`}</code></pre>
+          </div>
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/60 p-3">
+            <div className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Self-hosted server</div>
+            <code className="text-[11px] text-violet-700 dark:text-violet-300 break-all">wss://livekit.personaliai.com</code>
+            <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">Use the SDK helper in iOS, Android, Flutter, or React Native. The complete browser UI is available through the embed.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Official LiveKit controls</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Real-time transcription</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Google Vertex + BYOK</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">SDK token helpers</span>
+        </div>
+      </div>
 
       <div id="integration-embed" className="order-2 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold">Embed Chatbot</h3>

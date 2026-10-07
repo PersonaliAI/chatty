@@ -1,0 +1,172 @@
+"""Build tenant-scoped LiveKit provider components from Chatty settings.
+
+Provider API keys are decrypted only in the worker process and passed directly
+to the official LiveKit plugin constructors. They are never copied into global
+environment variables or returned to a client.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from app.core.crypto import decrypt_secret
+from livekit.plugins import google
+
+from .config import VoiceSettings
+from .organization import OrganizationContext
+
+
+def _value(bot: dict[str, Any], key: str, default: str) -> str:
+    return str(bot.get(key) or default).strip()
+
+
+def _secret(bot: dict[str, Any], key: str) -> str | None:
+    raw = str(bot.get(key) or "").strip()
+    return decrypt_secret(raw) if raw else None
+
+
+def build_components(
+    organization: OrganizationContext, settings: VoiceSettings
+) -> tuple[Any, Any, Any]:
+    """Return ``(stt, llm, tts)`` using the bot's configured providers.
+
+    Google uses the account's Vertex ADC configuration. Other providers use
+    the encrypted BYOK value saved on the bot and are imported lazily so a
+    Google-only installation does not need every optional provider package.
+    """
+    bot = organization.bot
+    llm_provider = _value(bot, "voice_llm_provider", "google").lower()
+    stt_provider = _value(bot, "voice_stt_provider", "google").lower()
+    tts_provider = _value(bot, "voice_tts_provider", "google").lower()
+
+    if llm_provider == "google":
+        llm_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_llm_model", settings.llm_model),
+            "vertexai": True,
+            "location": settings.google_cloud_location,
+        }
+        if settings.google_cloud_project:
+            llm_kwargs["project"] = settings.google_cloud_project
+        llm = google.LLM(**llm_kwargs)
+    elif llm_provider in {"openai", "openrouter", "anthropic"}:
+        if llm_provider == "anthropic":
+            from livekit.plugins import anthropic  # type: ignore[import-not-found]
+
+            llm = anthropic.LLM(
+                model=_value(bot, "voice_llm_model", "claude-3-5-sonnet-latest"),
+                api_key=_secret(bot, "voice_llm_byok_key_encrypted"),
+            )
+        else:
+            from livekit.plugins import openai  # type: ignore[import-not-found]
+
+            llm_kwargs = {
+                "model": _value(bot, "voice_llm_model", "gpt-4o-mini"),
+                "api_key": _secret(bot, "voice_llm_byok_key_encrypted"),
+            }
+            if llm_provider == "openrouter":
+                llm_kwargs["base_url"] = "https://openrouter.ai/api/v1"
+                llm_kwargs["_provider_fmt"] = "openai"
+            llm = openai.LLM(**llm_kwargs)
+    else:
+        raise RuntimeError(f"Unsupported voice LLM provider: {llm_provider}")
+
+    if stt_provider == "google":
+        stt = google.STT(
+            model=_value(bot, "voice_stt_model", settings.stt_model),
+            languages=_value(bot, "voice_stt_language", settings.stt_language),
+            project=settings.google_cloud_project,
+            location=settings.stt_location,
+        )
+    elif stt_provider == "openai":
+        from livekit.plugins import openai  # type: ignore[import-not-found]
+
+        stt = openai.STT(
+            model=_value(bot, "voice_stt_model", "gpt-4o-mini-transcribe"),
+            language=_value(bot, "voice_stt_language", "en"),
+            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
+        )
+    elif stt_provider == "deepgram":
+        from livekit.plugins import deepgram  # type: ignore[import-not-found]
+
+        stt = deepgram.STT(
+            model=_value(bot, "voice_stt_model", "nova-3"),
+            language=_value(bot, "voice_stt_language", "en-US"),
+            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
+        )
+    elif stt_provider == "cartesia":
+        from livekit.plugins import cartesia  # type: ignore[import-not-found]
+
+        stt = cartesia.STT(
+            model=_value(bot, "voice_stt_model", "ink-2"),
+            language=_value(bot, "voice_stt_language", "en"),
+            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
+        )
+    elif stt_provider == "assemblyai":
+        from livekit.plugins import assemblyai  # type: ignore[import-not-found]
+
+        stt = assemblyai.STT(
+            model=_value(bot, "voice_stt_model", "universal-3-6-pro"),
+            language_code=_value(bot, "voice_stt_language", "en"),
+            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
+        )
+    elif stt_provider == "soniox":
+        from livekit.plugins import soniox  # type: ignore[import-not-found]
+
+        stt = soniox.STT(api_key=_secret(bot, "voice_stt_byok_key_encrypted"))
+    else:
+        raise RuntimeError(f"Unsupported voice STT provider: {stt_provider}")
+
+    if tts_provider == "google":
+        tts = google.beta.GeminiTTS(
+            model=_value(bot, "voice_tts_model", settings.tts_model),
+            voice_name=_value(bot, "voice_tts_voice", settings.tts_voice),
+            vertexai=True,
+            project=settings.google_cloud_project,
+            location=settings.tts_location,
+        )
+    elif tts_provider == "openai":
+        from livekit.plugins import openai  # type: ignore[import-not-found]
+
+        tts = openai.TTS(
+            model=_value(bot, "voice_tts_model", "gpt-4o-mini-tts"),
+            voice=_value(bot, "voice_tts_voice", "alloy"),
+            api_key=_secret(bot, "voice_tts_byok_key_encrypted"),
+        )
+    elif tts_provider == "cartesia":
+        from livekit.plugins import cartesia  # type: ignore[import-not-found]
+
+        tts = cartesia.TTS(
+            model=_value(bot, "voice_tts_model", "sonic-3"),
+            voice=_value(bot, "voice_tts_voice", "f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+            api_key=_secret(bot, "voice_tts_byok_key_encrypted"),
+        )
+    elif tts_provider == "deepgram":
+        from livekit.plugins import deepgram  # type: ignore[import-not-found]
+
+        tts = deepgram.TTS(
+            model=_value(bot, "voice_tts_model", "aura-2-thalia-en"),
+            api_key=_secret(bot, "voice_tts_byok_key_encrypted"),
+        )
+    elif tts_provider == "elevenlabs":
+        from livekit.plugins import elevenlabs  # type: ignore[import-not-found]
+
+        tts = elevenlabs.TTS(
+            model=_value(bot, "voice_tts_model", "eleven_turbo_v2_5"),
+            voice_id=_value(bot, "voice_tts_voice", "21m00Tcm4TlvDq8ikWAM"),
+            api_key=_secret(bot, "voice_tts_byok_key_encrypted"),
+        )
+    elif tts_provider == "fishaudio":
+        from livekit.plugins import fishaudio  # type: ignore[import-not-found]
+
+        fish_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_tts_model", "s2.1-pro"),
+            "api_key": _secret(bot, "voice_tts_byok_key_encrypted"),
+        }
+        voice_id = str(bot.get("voice_tts_voice") or "").strip()
+        if voice_id:
+            fish_kwargs["voice_id"] = voice_id
+        tts = fishaudio.TTS(**fish_kwargs)
+    else:
+        raise RuntimeError(f"Unsupported voice TTS provider: {tts_provider}")
+
+    return stt, llm, tts

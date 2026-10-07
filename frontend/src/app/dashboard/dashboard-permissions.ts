@@ -41,6 +41,7 @@ export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   audit_log: "settings",
   analytics: "inbox",
   integrations: "settings",
+  voice: "settings",
   developer: "webhooks",
   mcp: "webhooks",
   billing: "billing",

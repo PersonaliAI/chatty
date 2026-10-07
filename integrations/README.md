@@ -24,3 +24,10 @@ git submodule update --init --recursive
 The iOS, Android, React Native, and Flutter SDKs are intentionally not vendored
 here. They remain separate
 projects and are integrated through their documented APIs/packages.
+
+## LiveKit voice agent
+
+See [`voice-agent.md`](voice-agent.md) for the token contract, embedded widget
+behavior, provider/BYOK model, and native SDK integration. The browser widget
+uses official LiveKit React controls and real-time session transcript UI;
+credentials remain server-side.

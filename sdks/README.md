@@ -19,3 +19,13 @@ For an existing checkout:
 ```bash
 git submodule update --init --recursive
 ```
+
+## Voice agent
+
+Each SDK exposes a `createVoiceToken` helper on its Chatty client. The helper
+returns a short-lived token for the official LiveKit client SDK; it never
+exposes LiveKit API keys or provider BYOK values. The existing embed
+component/screen renders the complete Chatty web voice UI, including the
+LiveKit visualizer and real-time transcript. See
+[`../integrations/voice-agent.md`](../integrations/voice-agent.md) for the
+shared contract.

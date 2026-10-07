@@ -1,0 +1,4 @@
+# Pinned to the official LiveKit Agents workspace version validated with the
+# Chatty voice runtime. Optional providers are installed so dashboard BYOK
+# selections fail only on credentials, not missing runtime packages.
+livekit-agents[google,openai,deepgram,cartesia,elevenlabs,anthropic,assemblyai,fishaudio,soniox,turn-detector,mcp]==1.8.5

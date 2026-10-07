@@ -20,7 +20,14 @@ __pycache__/
 *.pyc
 backend/.venv/
 backend/venv/
-backend/voice_agent_cli/
+# The modular voice agent is production source; exclude only local runtime
+# credentials and generated artifacts.
+backend/voice_agent_cli/__pycache__/
+backend/voice_agent_cli/tests/__pycache__/
+backend/voice_agent_cli/.env.livekit.local
+backend/voice_agent_cli/*.env
+backend/voice_agent_cli/*.json
+backend/voice_agent_cli/*.key
 
 # Supabase
 backend/supabase/.temp/

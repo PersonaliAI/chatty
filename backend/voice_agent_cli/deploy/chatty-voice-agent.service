@@ -1,0 +1,24 @@
+[Unit]
+Description=Chatty LiveKit voice agent
+After=network-online.target livekit.service
+Wants=network-online.target
+Requires=livekit.service
+
+[Service]
+Type=simple
+User=chatty
+Group=chatty
+WorkingDirectory=/opt/chatty/backend
+EnvironmentFile=/etc/chatty/voice-agent.env
+Environment=PYTHONPATH=/opt/chatty/backend
+ExecStart=/opt/chatty-voice/.venv/bin/python -m voice_agent_cli start
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/chatty /opt/chatty-voice /var/lib/chatty
+
+[Install]
+WantedBy=multi-user.target
