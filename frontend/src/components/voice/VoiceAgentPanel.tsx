@@ -2,7 +2,7 @@
 
 import '@livekit/components-styles';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   RoomAudioRenderer,
   SessionProvider,
@@ -12,11 +12,11 @@ import {
   useSessionMessages,
   useVoiceAssistant,
   VoiceAssistantControlBar,
-  useAudioWaveform,
 } from '@livekit/components-react';
 import { TokenSource, type TokenSourceResponseObject } from 'livekit-client';
 import { AlertCircle, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
+import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
 
 type VoiceAgentPanelProps = {
   botId: string;
@@ -58,28 +58,17 @@ function LiveKitTranscript() {
   );
 }
 
-function VoiceOrb({ state, audioTrack }: { state: ReturnType<typeof useAgent>['state']; audioTrack: ReturnType<typeof useVoiceAssistant>['audioTrack'] }) {
-  const { bars } = useAudioWaveform(audioTrack, { barCount: 18, updateInterval: 90, volMultiplier: 1.4 });
-  const level = Math.min(1, Math.max(0.08, bars.length ? Math.max(...bars) : 0));
+function VoiceOrb({ state, audioTrack, visualizer }: { state: ReturnType<typeof useAgent>['state']; audioTrack: ReturnType<typeof useVoiceAssistant>['audioTrack']; visualizer: VoiceAgentPanelProps['visualizer'] }) {
   const speaking = state === 'speaking';
   const listening = state === 'listening';
   const label = speaking ? 'Speaking…' : listening ? 'Listening…' : 'Ready when you are';
-  const orbStyle = {
-    '--voice-level': level.toFixed(3),
-    '--voice-scale': (1 + level * 0.16).toFixed(3),
-  } as CSSProperties;
+  const colors = { aura: '#1FD5F9', wave: '#FA954C', radial: '#04A43A', grid: '#C04CFA', bar: '#4CA3FA' } as const;
 
   return (
     <div className="flex flex-col items-center" aria-live="polite">
-      <div className={`chatty-voice-orb ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`} style={orbStyle}>
-        <div className="chatty-voice-orb__halo" />
-        <div className="chatty-voice-orb__surface">
-          <div className="chatty-voice-orb__glow" />
-          <div className="chatty-voice-orb__bars" aria-hidden="true">
-            {bars.map((bar, index) => <span key={index} style={{ height: `${Math.max(8, Math.round(bar * 42))}%` }} />)}
-          </div>
-          {!speaking && !listening && <Phone className="relative z-10 size-7 text-neutral-950" aria-hidden="true" />}
-        </div>
+      <div className={`chatty-livekit-visualizer relative flex size-[min(68vw,20rem)] max-w-[320px] items-center justify-center ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`}>
+        <LiveKitAgentVisualizer visualizer={visualizer ?? 'wave'} state={state ?? 'disconnected'} audioTrack={audioTrack} color={colors[visualizer ?? 'wave']} className="h-full w-full" />
+        {!speaking && !listening && <div className="absolute inset-0 flex items-center justify-center"><div className="flex size-14 items-center justify-center rounded-full bg-white/90 shadow-lg"><Phone className="size-6 text-neutral-950" aria-hidden="true" /></div></div>}
       </div>
       <p className="mt-6 text-center text-sm font-medium text-neutral-500 dark:text-neutral-400">{label}</p>
       <p className="mt-1 text-center text-xs text-neutral-400 dark:text-neutral-500">{speaking ? 'You can interrupt at any time' : listening ? 'Ask anything about this business' : 'Your microphone is off'}</p>
@@ -158,7 +147,7 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
         )}
 
         <div className="flex min-h-[300px] flex-1 flex-col items-center justify-center py-8 sm:min-h-[360px]">
-          <VoiceOrb state={state} audioTrack={audioTrack} />
+          <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} />
           {!started && <p className="mt-7 max-w-[260px] text-center text-sm leading-5 text-neutral-500 dark:text-neutral-400">Discover answers, book meetings, and get help from your Chatty assistant.</p>}
         </div>
 
