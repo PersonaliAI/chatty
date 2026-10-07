@@ -2706,8 +2706,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               />
             )}
             {voiceAgentEnabled && (
-              <button type="button" onClick={() => setVoiceAgentOpen((open) => !open)} className={`rounded-full p-1.5 transition-colors ${voiceAgentOpen ? "bg-orange-500 text-white" : "hover:bg-neutral-100 dark:hover:bg-neutral-800"}`} aria-label="Open voice agent" title="Voice agent">
-                <AudioWaveform className="size-4" />
+              <button type="button" onClick={() => setVoiceAgentOpen((open) => !open)} className={`group inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 transition-all ${voiceAgentOpen ? "bg-white text-orange-600 shadow-sm" : "bg-white/15 text-white hover:bg-white/25"}`} aria-label="Open voice agent" title="Live voice agent">
+                <span className={`flex size-6 items-center justify-center rounded-full ${voiceAgentOpen ? "bg-orange-100" : "bg-white/20"}`}><AudioWaveform className="size-4" /></span>
+                <span className="hidden text-[10px] font-semibold tracking-wide sm:inline">Voice</span>
               </button>
             )}
           <button
@@ -2753,7 +2754,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       <div ref={chatBodyRef} className="relative flex-1 overflow-y-auto scrollbar-thin widget-panel flex flex-col">
         {voiceAgentOpen && voiceAgentEnabled && (
           <div className="absolute inset-0 z-30 bg-white/95 p-3 dark:bg-neutral-950/95">
-            <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact className="h-full" />
+            <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact onClose={() => setVoiceAgentOpen(false)} className="h-full" />
           </div>
         )}
         {showCsat ? (
@@ -3833,7 +3834,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
-                {voiceAgentEnabled && <button type="button" onClick={() => setVoiceAgentOpen(true)} className="chat-input-bar-icon rounded-full p-1 text-orange-500 hover:text-orange-600" aria-label="Start live voice agent" title="Live voice agent"><AudioWaveform className="size-4" /></button>}
+                {voiceAgentEnabled && <button type="button" onClick={() => setVoiceAgentOpen(true)} className="group inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2 py-1 text-orange-600 shadow-sm transition hover:border-orange-300 hover:bg-orange-100 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300 dark:hover:bg-orange-950/50" aria-label="Start live voice agent" title="Live voice agent"><AudioWaveform className="size-4" /><span className="hidden text-[10px] font-semibold sm:inline">Voice</span></button>}
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;

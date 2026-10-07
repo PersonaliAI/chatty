@@ -1,9 +1,13 @@
 'use client';
 
+import * as React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AudioWaveform, CheckCircle2, ExternalLink, KeyRound, Save, Settings2 } from 'lucide-react';
 
 import { VoiceAgentPanel } from '@/components/voice/VoiceAgentPanel';
+import { ModernAlert } from '@/components/ui/modern-alert';
+import { ModernSelect } from '@/components/ui/modern-select';
+import { ModernSwitch } from '@/components/ui/modern-switch';
 
 type FetchBackend = (path: string, options?: RequestInit) => Promise<Response>;
 
@@ -56,11 +60,11 @@ function Field({ label, children, hint }: { label: string; children: React.React
 }
 
 function Select({ value, onChange, children }: { value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none focus:border-orange-500 dark:border-neutral-700 dark:bg-neutral-950">
-      {children}
-    </select>
-  );
+  const options = React.Children.toArray(children).flatMap((child) => {
+    if (!React.isValidElement<{ value?: string; children?: React.ReactNode }>(child)) return [];
+    return [{ value: String(child.props.value ?? ''), label: String(child.props.children ?? '') }];
+  });
+  return <ModernSelect value={value} onChange={onChange} options={options} aria-label="Select voice setting" className="w-full" />;
 }
 
 export function VoiceAgentTab({ botId, fetchBackend }: { botId: string; fetchBackend: FetchBackend }) {
@@ -69,6 +73,7 @@ export function VoiceAgentTab({ botId, fetchBackend }: { botId: string; fetchBac
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,6 +93,7 @@ export function VoiceAgentTab({ botId, fetchBackend }: { botId: string; fetchBac
   const save = async () => {
     setSaving(true);
     setSaved(false);
+    setError(null);
     try {
       const response = await fetchBackend(`/api/bots/${botId}/voice`, {
         method: 'PUT',
@@ -106,6 +112,7 @@ export function VoiceAgentTab({ botId, fetchBackend }: { botId: string; fetchBac
       setSaved(true);
     } catch (error) {
       console.error('voice config save failed', error);
+      setError(error instanceof Error ? error.message : 'Could not save voice settings.');
     } finally {
       setSaving(false);
     }
@@ -114,19 +121,22 @@ export function VoiceAgentTab({ botId, fetchBackend }: { botId: string; fetchBac
   if (loading) return <div className="p-8 text-sm text-neutral-500">Loading voice-agent configuration…</div>;
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-6 p-4 pb-12 lg:grid-cols-[minmax(0,1fr)_380px] lg:p-8">
+    <div className="mx-auto grid max-w-7xl gap-6 bg-gradient-to-b from-orange-50/40 via-transparent to-transparent p-4 pb-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:p-8 dark:from-orange-950/10">
       <div className="grid gap-6">
-        <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+        <section className="relative overflow-hidden rounded-3xl border border-neutral-200/80 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="pointer-events-none absolute -right-20 -top-24 size-64 rounded-full bg-orange-300/20 blur-3xl dark:bg-orange-500/10" />
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
+            <div className="relative min-w-0">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-orange-500"><AudioWaveform className="size-4" /> Voice agent</div>
-              <h2 className="text-xl font-semibold">LiveKit voice for this bot</h2>
+              <h2 className="text-2xl font-semibold tracking-tight">A production voice experience</h2>
               <p className="mt-1 max-w-2xl text-sm text-neutral-500">Use the same Chatty tools, RAG, booking, lead capture, and multimodal context through a LiveKit session.</p>
             </div>
-            <button type="button" onClick={() => set('enabled', !config.enabled)} className={`rounded-full px-4 py-2 text-sm font-semibold ${config.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900'}`}>
-              {config.enabled ? 'Enabled' : 'Disabled'}
-            </button>
+            <div className="relative flex items-center gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900">
+              <div><p className="text-xs font-semibold">Voice access</p><p className="text-[10px] text-neutral-500">{config.enabled ? 'Available in widget and embed' : 'Hidden from visitors'}</p></div>
+              <ModernSwitch checked={config.enabled} onChange={(value) => set('enabled', value)} aria-label="Enable voice agent" activeLabel="" inactiveLabel="" />
+            </div>
           </div>
+          {error && <ModernAlert variant="error" title="Could not save voice settings" className="relative mt-5">{error}</ModernAlert>}
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <Field label="Agent mode" hint="Pipeline supports Google STT → LLM → TTS; realtime is reserved for a realtime model.">
               <Select value={config.mode} onChange={(value) => set('mode', value as VoiceConfig['mode'])}><option value="pipeline">Pipeline</option><option value="realtime">Realtime</option></Select>
@@ -137,7 +147,7 @@ export function VoiceAgentTab({ botId, fetchBackend }: { botId: string; fetchBac
             <Field label="Agent dispatch name"><input value={config.agent_name} onChange={(event) => set('agent_name', event.target.value)} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" /></Field>
             <Field label="Maximum call duration"><input type="number" min={1} max={60} value={config.max_duration_minutes} onChange={(event) => set('max_duration_minutes', Number(event.target.value))} className="h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm dark:border-neutral-700 dark:bg-neutral-950" /></Field>
           </div>
-          <label className="mt-5 flex items-center gap-3 text-sm"><input type="checkbox" checked={config.expression_enabled} onChange={(event) => set('expression_enabled', event.target.checked)} className="size-4 accent-orange-500" /> Enable expressive speech mode</label>
+          <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-orange-100 bg-orange-50/60 px-4 py-3 dark:border-orange-950/50 dark:bg-orange-950/20"><div><p className="text-sm font-semibold">Expressive speech mode</p><p className="mt-0.5 text-xs text-neutral-500">Provider/model dependent; adds more natural prosody when supported.</p></div><ModernSwitch checked={config.expression_enabled} onChange={(value) => set('expression_enabled', value)} aria-label="Enable expressive speech mode" activeLabel="" inactiveLabel="" /></div>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button type="button" onClick={() => void save()} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-50 dark:bg-white dark:text-neutral-900"><Save className="size-4" />{saving ? 'Saving…' : 'Save voice settings'}</button>
             {saved && <span className="inline-flex items-center gap-1 text-sm text-emerald-600"><CheckCircle2 className="size-4" /> Saved</span>}

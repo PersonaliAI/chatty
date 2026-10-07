@@ -144,23 +144,24 @@ async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
     identity = f"chatty-visitor-{uuid.uuid4().hex}"
     participant_name = (body.participant_name or "Visitor").strip()[:120]
     from livekit import api
-    from livekit.protocol import room
 
     # One worker process currently registers one LiveKit dispatch name. Keep
     # the dashboard label descriptive, but never dispatch to an arbitrary
     # unregistered name saved on a bot.
-    dispatch = room.RoomAgentDispatch(
+    dispatch = api.RoomAgentDispatch(
         agent_name=default_agent_name,
         metadata=json.dumps({"bot_id": body.bot_id, "session_id": body.session_id}),
     )
     token = (
-        api.AccessToken(api_key, api_secret, identity=identity, name=participant_name)
+        api.AccessToken(api_key, api_secret)
+        .with_identity(identity)
+        .with_name(participant_name)
         .with_ttl(timedelta(minutes=15))
         .with_grants(api.VideoGrants(
             room_join=True, room=room_name, can_publish=True,
             can_publish_data=True, can_subscribe=True,
         ))
-        .with_room_config(room.RoomConfiguration(agents=[dispatch]))
+        .with_room_config(api.RoomConfiguration(agents=[dispatch]))
         .to_jwt()
     )
     return {

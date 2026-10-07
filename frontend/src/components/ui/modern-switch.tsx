@@ -14,6 +14,7 @@ interface ModernSwitchProps {
   activeColor?: string;
   id?: string;
   className?: string;
+  "aria-label"?: string;
 }
 
 export function ModernSwitch({
@@ -27,6 +28,7 @@ export function ModernSwitch({
   activeColor = "#f97316",
   id,
   className = "",
+  "aria-label": ariaLabel,
 }: ModernSwitchProps) {
   const switchId = id || (label ? `switch-${label.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
@@ -57,7 +59,7 @@ export function ModernSwitch({
         role="switch"
         type="button"
         aria-checked={checked}
-        aria-label={label || activeLabel || "Toggle switch"}
+        aria-label={ariaLabel || label || activeLabel || "Toggle switch"}
         disabled={disabled}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
