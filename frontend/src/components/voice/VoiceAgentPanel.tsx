@@ -88,6 +88,9 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
   sessionRef.current = session;
   const startingRef = useRef(false);
   const connectedRef = useRef(false);
+  const intentionalEndRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<number | null>(null);
   const { state } = useAgent();
   const { audioTrack } = useVoiceAssistant();
   const [started, setStarted] = useState(false);
@@ -95,6 +98,17 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
   const [error, setError] = useState<string | null>(null);
   const [consentOpen, setConsentOpen] = useState(false);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [canRetry, setCanRetry] = useState(false);
+
+  const clearReconnectTimer = () => {
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => clearReconnectTimer, []);
 
   useEffect(() => {
     if (!started) return;
@@ -115,6 +129,10 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
       .then(() => {
         if (!active) return;
         connectedRef.current = true;
+        reconnectAttemptRef.current = 0;
+        setError(null);
+        setRetrying(false);
+        setCanRetry(false);
         return activeSession.room.localParticipant.setMicrophoneEnabled(true);
       })
       .catch((cause) => {
@@ -122,6 +140,8 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
         if (active) {
           setError(cause instanceof Error ? cause.message : 'Unable to connect to the voice agent.');
           setStarted(false);
+          setRetrying(false);
+          setCanRetry(true);
         }
       })
       .finally(() => {
@@ -137,23 +157,70 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
   }, [started]);
 
   useEffect(() => {
-    if (session.connectionState === 'disconnected' && started && connectedRef.current && !startingRef.current) {
-      connectedRef.current = false;
-      setStarted(false);
+    if (
+      session.connectionState !== 'disconnected' ||
+      !started ||
+      !connectedRef.current ||
+      startingRef.current ||
+      intentionalEndRef.current
+    ) {
+      return;
+    }
+
+    connectedRef.current = false;
+    const attempt = reconnectAttemptRef.current + 1;
+    reconnectAttemptRef.current = attempt;
+    setStarted(false);
+    setError('The voice connection was interrupted.');
+
+    if (attempt <= 2) {
+      setRetrying(true);
+      reconnectTimerRef.current = window.setTimeout(() => {
+        reconnectTimerRef.current = null;
+        if (!intentionalEndRef.current) setStarted(true);
+      }, attempt * 1500);
+    } else {
+      setRetrying(false);
+      setCanRetry(true);
     }
   }, [session.connectionState, started]);
 
-  const connectionLabel = starting ? 'Connecting' : started ? (state === 'speaking' ? 'Speaking' : state === 'listening' ? 'Listening' : 'Connected') : 'Ready to talk';
+  const connectionLabel = retrying
+    ? 'Reconnecting'
+    : starting
+      ? 'Connecting'
+      : started
+        ? (state === 'speaking' ? 'Speaking' : state === 'listening' ? 'Listening' : 'Connected')
+        : 'Ready to talk';
   const endSession = async () => {
+    intentionalEndRef.current = true;
+    clearReconnectTimer();
+    setRetrying(false);
+    setCanRetry(false);
     setStarted(false);
     await session.end();
   };
-  const requestStart = () => {
+  const retrySession = () => {
+    intentionalEndRef.current = false;
+    reconnectAttemptRef.current = 0;
+    clearReconnectTimer();
     setError(null);
+    setCanRetry(false);
+    setRetrying(true);
+    setStarted(true);
+  };
+  const requestStart = () => {
+    intentionalEndRef.current = false;
+    setError(null);
+    setCanRetry(false);
     setConsentOpen(true);
   };
   const acceptConsent = () => {
+    intentionalEndRef.current = false;
+    reconnectAttemptRef.current = 0;
     setConsentOpen(false);
+    setError(null);
+    setCanRetry(false);
     setStarted(true);
   };
 
@@ -176,7 +243,7 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
       <div className={`chatty-voice-scrollbar flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-6 sm:pb-5 ${showTranscript ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {error && (
           <div role="alert" className="mt-3 flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-200">
-            <AlertCircle className="mt-0.5 size-4 shrink-0" /><div className="min-w-0 flex-1"><p className="font-semibold">Voice connection failed</p><p className="mt-0.5 break-words opacity-85">{error}</p></div><button type="button" onClick={() => setError(null)} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss voice error"><X className="size-3.5" /></button>
+            <AlertCircle className="mt-0.5 size-4 shrink-0" /><div className="min-w-0 flex-1"><p className="font-semibold">Voice connection interrupted</p><p className="mt-0.5 break-words opacity-85">{error}</p></div>{canRetry && <button type="button" onClick={retrySession} className="shrink-0 rounded-full border border-rose-300 px-2.5 py-1 text-[11px] font-semibold hover:bg-rose-100 dark:border-rose-800 dark:hover:bg-rose-900/50">Reconnect</button>}<button type="button" onClick={() => setError(null)} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss voice error"><X className="size-3.5" /></button>
           </div>
         )}
 
@@ -198,14 +265,14 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
         )}
 
         <div className="mx-auto flex w-full shrink-0 max-w-[360px] flex-col gap-2.5">
-          {started ? <div className="chatty-livekit-controls flex items-center justify-center gap-2"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="flex size-10 items-center justify-center rounded-full bg-neutral-950 text-white shadow-lg transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950" aria-label="End voice session"><PhoneOff className="size-4" /></button></div> : <button type="button" className="mx-auto flex size-14 items-center justify-center rounded-full bg-neutral-950 text-white shadow-xl shadow-neutral-950/20 transition hover:scale-105 hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-4 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200" onClick={requestStart} disabled={starting} aria-label="Start voice conversation">{starting ? <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-neutral-950/30 dark:border-t-neutral-950" /> : <Phone className="size-5" />}</button>}
+          {started ? <div className="chatty-livekit-controls flex items-center justify-center gap-2"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="flex size-10 items-center justify-center rounded-full bg-neutral-950 text-white shadow-lg transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950" aria-label="End voice session"><PhoneOff className="size-4" /></button></div> : <button type="button" className="mx-auto flex size-14 items-center justify-center rounded-full bg-neutral-950 text-white shadow-xl shadow-neutral-950/20 transition hover:scale-105 hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-4 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200" onClick={requestStart} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-neutral-950/30 dark:border-t-neutral-950" /> : <Phone className="size-5" />}</button>}
           <div className="flex items-center justify-center gap-2 text-[11px] text-neutral-400"><button type="button" onClick={() => setShowTranscript((value) => !value)} className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"><MessageCircle className="size-3.5" />{showTranscript ? 'Hide transcript' : 'Show transcript'}</button><span aria-hidden="true">·</span><span className="inline-flex items-center gap-1.5"><Mic className="size-3.5" />{connectionLabel}</span></div>
-          {!started && <p className="flex items-center justify-center gap-1 text-[10px] text-neutral-400"><Check className="size-3 text-emerald-500" />Interrupt anytime — the agent will stop speaking</p>}
+          {!started && !retrying && <p className="flex items-center justify-center gap-1 text-[10px] text-neutral-400"><Check className="size-3 text-emerald-500" />Interrupt anytime — the agent will stop speaking</p>}
         </div>
       </div>
       <RoomAudioRenderer />
 
-      {consentOpen && <div className="absolute inset-0 z-20 flex items-end bg-white/70 p-3 backdrop-blur-sm dark:bg-neutral-950/75 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="voice-consent-title"><div className="w-full rounded-[24px] border border-neutral-200 bg-white p-5 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"><div className="mb-4 flex items-start justify-between gap-3"><div><div className="mb-2 flex size-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800"><ShieldCheck className="size-5" /></div><h2 id="voice-consent-title" className="text-base font-semibold">Before we start</h2><p className="mt-1 text-sm leading-5 text-neutral-500 dark:text-neutral-400">Chatty needs microphone access to have a real-time voice conversation with you.</p></div><button type="button" onClick={() => setConsentOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Cancel voice start"><X className="size-4" /></button></div><ul className="space-y-2.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300"><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />You can mute or end the call at any time.</li><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />Your conversation may be transcribed to provide the service.</li><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />Your microphone stays off until you agree.</li></ul><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setConsentOpen(false)} className="rounded-full border border-neutral-200 px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Cancel</button><button type="button" onClick={acceptConsent} className="rounded-full bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200">I agree</button></div></div></div>}
+      {consentOpen && <div className="absolute inset-0 z-20 flex items-end bg-white/70 p-3 backdrop-blur-sm dark:bg-neutral-950/75 sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="voice-consent-title"><div className="w-full rounded-[24px] border border-neutral-200 bg-white p-5 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"><div className="mb-4 flex items-start justify-between gap-3"><div><div className="mb-2 flex size-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800"><ShieldCheck className="size-5" /></div><h2 id="voice-consent-title" className="text-base font-semibold">Before we start</h2><p className="mt-1 text-sm leading-5 text-neutral-500 dark:text-neutral-400">Chatty needs microphone access to have a real-time voice conversation with you.</p></div><button type="button" onClick={() => setConsentOpen(false)} className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label="Cancel voice start"><X className="size-4" /></button></div><ul className="space-y-2.5 text-xs leading-5 text-neutral-600 dark:text-neutral-300"><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />You can mute or end the call at any time.</li><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />Your conversation may be transcribed to provide the service.</li><li className="flex gap-2"><Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />Your microphone stays off until you agree.</li></ul><div className="mt-5 grid grid-cols-2 gap-2"><button type="button" onClick={() => setConsentOpen(false)} className="rounded-full border border-neutral-200 px-4 py-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 dark:border-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-800">Cancel</button><button type="button" onClick={acceptConsent} className="rounded-full bg-neutral-950 px-4 py-3 text-sm font-semibold text-white dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200">I agree</button></div></div></div>}
     </div>
   );
 }
