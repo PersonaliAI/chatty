@@ -34,6 +34,17 @@ class WidgetContactRequest(BaseModel):
     marketing_consent: bool = False
 
 
+class WidgetPushRegistrationRequest(BaseModel):
+    """Push identity supplied by OneSignal or a native SDK adapter."""
+    bot_id: str
+    session_id: Optional[str] = None
+    external_id: Optional[str] = None
+    subscription_id: Optional[str] = None
+    platform: str = "web"
+    channel: str = "push"
+    metadata: dict = Field(default_factory=dict)
+
+
 class WidgetChatResponse(BaseModel):
     reply: str
     session_id: str

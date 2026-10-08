@@ -252,10 +252,15 @@ async def process_widget_booking(
             "status": admin_status,
         })
 
+        client_subscriptions = await notify.get_push_subscription_ids(
+            supabase=supabase, bot_id=bot_id,
+            external_ids=[session_id or "", visitor_email],
+        )
         client_push_status = await notify.deliver_push(
             headings="Meeting Booked",
             contents=f"Your meeting is set for {start_invitation_label}.",
-            external_id=visitor_email,
+            external_id=session_id or visitor_email,
+            subscription_ids=client_subscriptions,
         )
         await _insert_notification({
             "bot_id": bot_id,
@@ -268,10 +273,16 @@ async def process_widget_booking(
             "status": client_push_status,
         })
 
+        admin_external_id = bot_owner_auth_id or user.get("auth_user_id")
+        admin_subscriptions = await notify.get_push_subscription_ids(
+            supabase=supabase, bot_id=bot_id,
+            external_ids=[str(admin_external_id or "")],
+        )
         admin_push_status = await notify.deliver_push(
             headings="New Booking",
             contents=f"New meeting scheduled by {visitor_name}.",
-            external_id=bot_owner_auth_id or user.get("auth_user_id"),
+            external_id=admin_external_id,
+            subscription_ids=admin_subscriptions,
         )
         await _insert_notification({
             "bot_id": bot_id,

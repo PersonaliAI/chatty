@@ -58,6 +58,7 @@ from app.schemas.widget import (
     WidgetFeedbackRequest,
     WidgetCampaignEventRequest,
     WidgetContactRequest,
+    WidgetPushRegistrationRequest,
     WidgetMediaResponse,
     WidgetVerifyOriginRequest,
 )
@@ -93,6 +94,48 @@ _widget_job_queue = (
 
 def _allow_ephemeral_jobs() -> bool:
     return os.environ.get("CHATTY_ALLOW_EPHEMERAL_JOBS", "false").strip().lower() in {"1", "true", "yes"}
+
+
+@router.post("/api/widget/notifications/register")
+async def register_widget_push(body: WidgetPushRegistrationRequest, request: Request):
+    """Register a OneSignal/native push identity for future notifications."""
+    if not body.bot_id or len(body.bot_id) > 80:
+        raise HTTPException(status_code=422, detail="invalid bot id")
+    platform = str(body.platform or "web").strip().lower()
+    if platform not in {"web", "ios", "android", "react_native", "flutter", "webview"}:
+        raise HTTPException(status_code=422, detail="unsupported push platform")
+    external_id = str(body.external_id or body.session_id or "").strip()[:200]
+    subscription_id = str(body.subscription_id or "").strip()[:200] or None
+    if not external_id and not subscription_id:
+        raise HTTPException(status_code=422, detail="external_id or subscription_id is required")
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", body.bot_id).maybe_single().execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="bot not found")
+    await _widget_rate_limit_or_429(
+        {"id": body.bot_id, "allowed_domains": []}, body.bot_id,
+        request.client.host if request.client else "unknown",
+        request.headers.get("x-widget-token"),
+    )
+    metadata = body.metadata if isinstance(body.metadata, dict) else {}
+    metadata = {str(k)[:80]: str(v)[:500] for k, v in list(metadata.items())[:20]}
+    row = {
+        "bot_id": body.bot_id,
+        "session_id": (str(body.session_id)[:200] if body.session_id else None),
+        "external_id": external_id or subscription_id,
+        "subscription_id": subscription_id,
+        "platform": platform,
+        "channel": str(body.channel or "push")[:32],
+        "metadata": metadata,
+        "last_seen_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        result = await run_db(lambda: supabase.table("chatty_push_subscriptions").upsert(
+            row, on_conflict="bot_id,external_id,platform"
+        ).execute())
+    except Exception as exc:
+        logger.exception("push registration failed")
+        raise HTTPException(status_code=503, detail="push registration unavailable") from exc
+    return {"registered": True, "id": (result.data[0].get("id") if result.data else None)}
 
 
 async def _enqueue_widget_ticket_escalation(

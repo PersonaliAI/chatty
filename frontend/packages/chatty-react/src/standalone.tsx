@@ -575,6 +575,14 @@ export function ChattyStandaloneApp({
             if (!open) {
               setUnread((u) => u + 1);
               playChime();
+              if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+                try {
+                  const notification = new Notification("New reply from Chatty", {
+                    body: "You have a new message waiting.",
+                  });
+                  notification.onclick = () => { window.focus(); handleOpen(true); };
+                } catch {}
+              }
             }
           }}
           onRequestNotificationPermission={() => {
@@ -588,7 +596,7 @@ export function ChattyStandaloneApp({
               typeof window === "undefined" ||
               !("Notification" in window) ||
               Notification.permission !== "granted" ||
-              document.visibilityState === "visible"
+              open
             )
               return;
             try {

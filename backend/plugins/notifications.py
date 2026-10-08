@@ -370,19 +370,39 @@ async def send_booking_otp_email(*, to: str, code: str, bot_name: str, supabase=
     return False
 
 
+async def get_push_subscription_ids(*, supabase, bot_id: str,
+                                    external_ids: list[str]) -> list[str]:
+    ids = [str(value).strip() for value in external_ids if str(value).strip()]
+    if not ids or not bot_id:
+        return []
+    try:
+        result = await run_db(lambda: supabase.table("chatty_push_subscriptions")
+            .select("subscription_id").eq("bot_id", bot_id).in_("external_id", ids)
+            .not_.is_("subscription_id", "null").order("last_seen_at", desc=True)
+            .limit(20).execute())
+        return list(dict.fromkeys(str(row.get("subscription_id")) for row in (result.data or []) if row.get("subscription_id")))
+    except Exception:
+        logger.warning("push subscription lookup unavailable", exc_info=True)
+        return []
+
+
 async def deliver_push(*, headings: str, contents: str,
-                       external_id: Optional[str] = None) -> str:
+                       external_id: Optional[str] = None,
+                       subscription_ids: Optional[list[str]] = None) -> str:
     """Best-effort OneSignal push. Returns 'delivered' or 'logged'.
     Without a target subscription/external_id we can't push, so we log."""
-    if not onesignal_configured() or not external_id:
+    if not onesignal_configured() or (not external_id and not subscription_ids):
         return "logged"
     payload = {
         "app_id": ONESIGNAL_APP_ID,
         "headings": {"en": headings},
         "contents": {"en": contents},
-        "include_aliases": {"external_id": [external_id]},
         "target_channel": "push",
     }
+    if subscription_ids:
+        payload["include_subscription_ids"] = list(dict.fromkeys(subscription_ids))[:200]
+    else:
+        payload["include_aliases"] = {"external_id": [external_id]}
     headers = {
         "Authorization": f"Key {ONESIGNAL_REST_API_KEY}",
         "Content-Type": "application/json",
@@ -390,7 +410,17 @@ async def deliver_push(*, headings: str, contents: str,
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.post(_ONESIGNAL_URL, json=payload, headers=headers)
-        return "delivered" if r.status_code < 300 else "logged"
+        if r.status_code >= 300:
+            logger.warning("OneSignal push failed (%s): %s", r.status_code, r.text[:300])
+            return "logged"
+        try:
+            recipients = r.json().get("recipients")
+        except Exception:
+            recipients = None
+        if recipients == 0:
+            logger.info("OneSignal accepted push but found no subscribed recipients")
+            return "logged"
+        return "delivered"
     except Exception:
         logger.exception("OneSignal push request errored")
         return "logged"
