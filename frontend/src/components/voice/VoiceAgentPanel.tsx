@@ -80,6 +80,8 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
   const session = useSessionContext();
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  const startingRef = useRef(false);
+  const connectedRef = useRef(false);
   const { state } = useAgent();
   const { audioTrack } = useVoiceAssistant();
   const [started, setStarted] = useState(false);
@@ -92,24 +94,37 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
     if (!started) return;
     let active = true;
     const activeSession = sessionRef.current;
+    startingRef.current = true;
+    connectedRef.current = false;
     setStarting(true);
-    void activeSession.start().catch((cause) => {
-      console.error('LiveKit voice session failed to start', cause);
-      if (active) {
-        setError(cause instanceof Error ? cause.message : 'Unable to connect to the voice agent.');
-        setStarted(false);
-      }
-    }).finally(() => {
-      if (active) setStarting(false);
-    });
+    void activeSession.start()
+      .then(() => {
+        if (active) connectedRef.current = true;
+      })
+      .catch((cause) => {
+        console.error('LiveKit voice session failed to start', cause);
+        if (active) {
+          setError(cause instanceof Error ? cause.message : 'Unable to connect to the voice agent.');
+          setStarted(false);
+        }
+      })
+      .finally(() => {
+        startingRef.current = false;
+        if (active) setStarting(false);
+      });
     return () => {
       active = false;
+      startingRef.current = false;
+      connectedRef.current = false;
       void activeSession.end();
     };
   }, [started]);
 
   useEffect(() => {
-    if (session.connectionState === 'disconnected' && started) setStarted(false);
+    if (session.connectionState === 'disconnected' && started && connectedRef.current && !startingRef.current) {
+      connectedRef.current = false;
+      setStarted(false);
+    }
   }, [session.connectionState, started]);
 
   const connectionLabel = starting ? 'Connecting' : started ? (state === 'speaking' ? 'Speaking' : state === 'listening' ? 'Listening' : 'Connected') : 'Ready to talk';
