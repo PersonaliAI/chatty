@@ -2706,9 +2706,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               />
             )}
             {voiceAgentEnabled && (
-              <button type="button" onClick={() => setVoiceAgentOpen((open) => !open)} className={`group inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 transition-all ${voiceAgentOpen ? "bg-white text-orange-600 shadow-sm" : "bg-white/15 text-white hover:bg-white/25"}`} aria-label="Open voice agent" title="Live voice agent">
-                <span className={`flex size-6 items-center justify-center rounded-full ${voiceAgentOpen ? "bg-orange-100" : "bg-white/20"}`}><AudioWaveform className="size-4" /></span>
-                <span className="hidden text-[10px] font-semibold tracking-wide sm:inline">Voice</span>
+              <button type="button" onClick={() => setVoiceAgentOpen((open) => !open)} className={`group relative flex size-7 items-center justify-center rounded-full p-0 transition-colors ${voiceAgentOpen ? "bg-white/90 text-orange-700 ring-1 ring-white/60" : "bg-white/15 text-white/90 hover:bg-white/25"}`} aria-label="Open voice agent" title="Live voice agent">
+                <AudioWaveform className="size-3.5 stroke-[1.8] transition-transform duration-200 group-hover:scale-110" />
+                <span className="sr-only">Voice</span>
               </button>
             )}
           <button
