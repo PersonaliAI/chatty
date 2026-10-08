@@ -25,9 +25,7 @@ def test_conversation_recorder_persists_only_user_and_assistant_text(monkeypatch
     monkeypatch.setitem(
         sys.modules,
         "app.services.widget_session_service",
-        SimpleNamespace(
-            log_unanswered_if_needed=lambda *args: unanswered.append(args)
-        ),
+        SimpleNamespace(log_unanswered_if_needed=lambda *args: unanswered.append(args)),
     )
     organization = OrganizationContext(
         owner_user={"id": "owner-1"},
@@ -102,3 +100,84 @@ def test_history_hydration_reuses_chatty_rows(monkeypatch):
         ("user", "Earlier question"),
         ("assistant", "Earlier answer"),
     ]
+
+
+def test_conversation_recorder_recovers_after_transient_write_failure(monkeypatch):
+    calls = []
+
+    class FakeRepository:
+        def __init__(self, _supabase):
+            self.attempts = 0
+
+        async def append_message(self, **kwargs):
+            self.attempts += 1
+            calls.append(kwargs)
+            if self.attempts < 3:
+                raise RuntimeError("temporary database outage")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app.adapters.supabase_conversations",
+        SimpleNamespace(SupabaseConversationRepository=FakeRepository),
+    )
+    monkeypatch.setattr("voice_agent_cli.conversation.asyncio.sleep", _no_wait)
+    organization = OrganizationContext(
+        owner_user={"id": "owner-1"},
+        bot={"id": "bot-1"},
+        modules=SimpleNamespace(supabase="fake-supabase"),
+    )
+
+    async def exercise():
+        recorder = ConversationRecorder(organization, "voice-room-1")
+        recorder.handle(
+            SimpleNamespace(item=SimpleNamespace(role="user", raw_text_content="Hello"))
+        )
+        await recorder.flush()
+
+    asyncio.run(exercise())
+
+    assert len(calls) == 3
+
+
+def test_conversation_recorder_keeps_accepting_turns_after_persistent_failure(
+    monkeypatch,
+):
+    calls = []
+
+    class FakeRepository:
+        def __init__(self, _supabase):
+            pass
+
+        async def append_message(self, **kwargs):
+            calls.append(kwargs)
+            raise RuntimeError("database unavailable")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app.adapters.supabase_conversations",
+        SimpleNamespace(SupabaseConversationRepository=FakeRepository),
+    )
+    monkeypatch.setattr("voice_agent_cli.conversation.asyncio.sleep", _no_wait)
+    organization = OrganizationContext(
+        owner_user={"id": "owner-1"},
+        bot={"id": "bot-1"},
+        modules=SimpleNamespace(supabase="fake-supabase"),
+    )
+
+    async def exercise():
+        recorder = ConversationRecorder(organization, "voice-room-1")
+        for text in ("first", "second"):
+            recorder.handle(
+                SimpleNamespace(
+                    item=SimpleNamespace(role="user", raw_text_content=text)
+                )
+            )
+        await recorder.flush()
+
+    asyncio.run(exercise())
+
+    assert len(calls) == 6
+
+
+async def _no_wait(_seconds):
+    return None
