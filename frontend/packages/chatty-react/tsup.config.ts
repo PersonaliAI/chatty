@@ -29,7 +29,11 @@ export default defineConfig([
       options.alias = {
         ...(options.alias ?? {}),
         react: path.join(frontendNodeModules, "react"),
+        "react/jsx-runtime": path.join(frontendNodeModules, "react/jsx-runtime.js"),
+        "react/jsx-dev-runtime": path.join(frontendNodeModules, "react/jsx-dev-runtime.js"),
+        "react/compiler-runtime": path.join(frontendNodeModules, "react/compiler-runtime.js"),
         "react-dom": path.join(frontendNodeModules, "react-dom"),
+        "react-dom/client": path.join(frontendNodeModules, "react-dom/client.js"),
       };
     },
     noExternal: [/.*/],
