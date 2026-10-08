@@ -538,6 +538,15 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   const [voiceAgentOpen, setVoiceAgentOpen] = useState(voiceOnly);
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
+  useEffect(() => {
+    if (voiceAgentOpen && chatBodyRef.current) {
+      // The widget body is normally a scroll container. Reset its previous
+      // home/articles scroll position before mounting the full voice mode so
+      // the native voice surface starts at the top and fully covers the body.
+      chatBodyRef.current.scrollTop = 0;
+    }
+  }, [voiceAgentOpen]);
+
   const [tab, setTab] = useState<Tab>(paramTab === "messages" || paramTab === "articles" ? paramTab : "home");
 
   useEffect(() => {
@@ -2758,7 +2767,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       </div>
 
       {/* Body */}
-      <div ref={chatBodyRef} className="relative flex-1 overflow-y-auto scrollbar-thin widget-panel flex flex-col">
+      <div ref={chatBodyRef} className={`relative flex-1 scrollbar-thin widget-panel flex flex-col ${voiceAgentOpen ? "overflow-hidden" : "overflow-y-auto"}`}>
         {voiceAgentOpen && voiceAgentEnabled && (
           <div className="absolute inset-0 z-30 bg-white/95 p-3 dark:bg-neutral-950/95">
             <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact widgetMode onClose={() => setVoiceAgentOpen(false)} className="h-full" />
