@@ -245,6 +245,23 @@ _AI_UNAVAILABLE_REPLY = (
     "Please try again in a moment, or leave your contact details and our team will follow up."
 )
 
+_CAMPAIGN_BASE_COLUMNS = (
+    "id,name,type,message,url_patterns,trigger_type,trigger_value,target_devices,"
+    "is_active,start_date,end_date"
+)
+_CAMPAIGN_OPTIONAL_COLUMNS = "channels,audience_rules,safety_config"
+
+
+def _campaign_projection_is_legacy_error(exc: Exception) -> bool:
+    """Return whether the deployed database lacks newer campaign columns.
+
+    Campaign delivery is an optional enhancement to the public widget. Older
+    managed databases may still have the original campaign table without the
+    intelligence columns. Keep those databases compatible while migrations
+    catch up instead of turning every widget load into a 500.
+    """
+    return str(getattr(exc, "code", "")) == "42703" and "chatty_campaigns" in str(exc)
+
 
 @router.get("/api/widget/campaigns")
 async def widget_campaigns(
@@ -271,10 +288,39 @@ async def widget_campaigns(
         bounded_intent_score = max(0, min(100, int(intent_score)))
     except (TypeError, ValueError):
         bounded_intent_score = 0
-    result = await run_db(lambda: supabase.table("chatty_campaigns").select(
-        "id,name,type,message,url_patterns,trigger_type,trigger_value,target_devices,"
-        "channels,audience_rules,safety_config,is_active,start_date,end_date"
-    ).eq("bot_id", bot_id).eq("is_active", True).limit(100).execute())
+    table = supabase.table("chatty_campaigns")
+    try:
+        result = await run_db(lambda: table.select(
+            f"{_CAMPAIGN_BASE_COLUMNS},{_CAMPAIGN_OPTIONAL_COLUMNS}"
+        ).eq("bot_id", bot_id).eq("is_active", True).limit(100).execute())
+    except Exception as exc:
+        if _campaign_projection_is_legacy_error(exc):
+            logger.warning(
+                "Widget campaign intelligence columns are unavailable; "
+                "using legacy projection bot=%s code=%s",
+                bot_id,
+                getattr(exc, "code", "unknown"),
+            )
+            try:
+                result = await run_db(lambda: supabase.table("chatty_campaigns").select(
+                    _CAMPAIGN_BASE_COLUMNS
+                ).eq("bot_id", bot_id).eq("is_active", True).limit(100).execute())
+            except Exception as fallback_exc:
+                logger.warning(
+                    "Widget campaign lookup unavailable; returning no campaigns "
+                    "bot=%s error=%s",
+                    bot_id,
+                    type(fallback_exc).__name__,
+                )
+                return {"campaigns": []}
+        else:
+            logger.warning(
+                "Widget campaign lookup unavailable; returning no campaigns "
+                "bot=%s error=%s",
+                bot_id,
+                type(exc).__name__,
+            )
+            return {"campaigns": []}
     campaigns: list[dict[str, Any]] = []
     for row in result.data or []:
         if not campaign_is_active_now(row):
