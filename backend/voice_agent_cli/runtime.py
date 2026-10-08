@@ -41,9 +41,10 @@ def _setup_job_process(proc: JobProcess) -> None:
     synchronous imports, so loading them here keeps the first assigned room
     from blocking the audio/event loop for several seconds.
     """
-    from .bootstrap import load_chatty_modules
+    from .bootstrap import load_chatty_modules, warm_voice_dependencies
 
     load_chatty_modules(settings)
+    warm_voice_dependencies()
     proc.userdata["chatty_modules_warmed"] = True
     logger.debug(
         "Chatty voice modules warmed in LiveKit job process",

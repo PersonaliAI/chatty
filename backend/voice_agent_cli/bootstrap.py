@@ -39,6 +39,37 @@ def prepare_environment(settings: VoiceSettings) -> None:
     settings.apply_provider_environment()
 
 
+def warm_voice_dependencies() -> None:
+    """Warm one-time provider and transcript dependencies in the job process.
+
+    Google STT lazily imports gRPC credential helpers and builds protobuf
+    schemas on the first stream. LiveKit's transcript synchronizer also
+    lazily constructs its word hyphenator. Doing that work during the first
+    room makes the audio loop report a several-hundred-millisecond stall.
+    These imports are intentionally best-effort: a worker configured for a
+    different provider must still be able to start and report its own
+    provider error at session construction time.
+    """
+    try:
+        import grpc._plugin_wrapping  # noqa: F401, PLC0415
+    except Exception:
+        pass
+
+    try:
+        from livekit.agents.tokenize import basic  # noqa: PLC0415
+
+        basic.hyphenate_word("Chatty")
+    except Exception:
+        pass
+
+    try:
+        from google.cloud.speech_v2.types import cloud_speech  # noqa: PLC0415
+
+        cloud_speech.RecognitionFeatures()
+    except Exception:
+        pass
+
+
 def load_chatty_modules(settings: VoiceSettings) -> ChattyModules:
     """Import Chatty modules after environment setup has completed."""
     core = load_chatty_core(settings)

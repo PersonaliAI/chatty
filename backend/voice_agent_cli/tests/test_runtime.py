@@ -31,6 +31,24 @@ def test_job_process_setup_warms_chatty_modules(monkeypatch):
     assert process.userdata["chatty_modules_warmed"] is True
 
 
+def test_voice_dependency_warmup_is_best_effort(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(
+        "voice_agent_cli.bootstrap.warm_voice_dependencies",
+        lambda: calls.append(True),
+    )
+    monkeypatch.setattr(
+        "voice_agent_cli.bootstrap.load_chatty_modules",
+        lambda _settings: None,
+    )
+
+    process = SimpleNamespace(userdata={}, pid=123)
+    runtime._setup_job_process(process)
+
+    assert calls == [True]
+
+
 def test_pipeline_provider_construction_runs_off_event_loop(monkeypatch):
     calls = []
 
