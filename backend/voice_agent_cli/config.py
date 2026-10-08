@@ -96,10 +96,10 @@ class VoiceSettings:
             llm_timeout_seconds=_float_env("VOICE_LLM_TIMEOUT_SECONDS", 30.0),
             stt_model=_env("VOICE_STT_MODEL", "chirp_3"),
             stt_language=_env("VOICE_STT_LANGUAGE", "en-US"),
-            # Keep the worker default aligned with the Chatty migration and
-            # dashboard catalog. Provider/model validation still belongs to
-            # the selected LiveKit plugin, not this environment loader.
-            tts_model=_env("VOICE_TTS_MODEL", "gemini-3.8-flash-tts"),
+            # Keep the worker default aligned with the pinned LiveKit Google
+            # plugin. Provider/model validation still belongs to the selected
+            # LiveKit plugin, not this environment loader.
+            tts_model=_env("VOICE_TTS_MODEL", "gemini-3.1-flash-tts-preview"),
             tts_voice=_env("VOICE_TTS_VOICE", "Kore"),
             agent_name=_env("LIVEKIT_AGENT_NAME", "chatty-voice-agent"),
             session_id=_env("VOICE_SESSION_ID"),

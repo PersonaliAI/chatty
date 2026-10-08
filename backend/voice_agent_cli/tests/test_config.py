@@ -20,7 +20,7 @@ def test_defaults_to_the_fixed_personaliai_account(monkeypatch):
     assert settings.organization_email == DEFAULT_ORGANIZATION_EMAIL
     assert settings.llm_model == "gemini-2.5-flash"
     assert settings.stt_model == "chirp_3"
-    assert settings.tts_model == "gemini-3.8-flash-tts"
+    assert settings.tts_model == "gemini-3.1-flash-tts-preview"
     assert settings.tts_voice == "Kore"
     assert settings.enable_video_input is False
 

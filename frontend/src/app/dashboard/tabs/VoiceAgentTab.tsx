@@ -75,7 +75,7 @@ const defaults: VoiceConfig = {
   stt_model: "chirp_3",
   stt_language: "en-US",
   tts_provider: "google",
-  tts_model: "gemini-3.8-flash-tts",
+  tts_model: "gemini-3.1-flash-tts-preview",
   tts_voice: "Kore",
   max_duration_minutes: 15,
   livekit_inference_available: false,

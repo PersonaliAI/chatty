@@ -74,12 +74,12 @@ export const LIVEKIT_INFERENCE_MODELS: Record<VoiceModelKind, VoiceModelOption[]
  * from the STT → LLM → TTS pipeline and require the corresponding BYOK key. */
 export const REALTIME_MODELS: Record<string, VoiceModelOption[]> = {
   google: ids(['gemini-3.8-live', 'gemini-3.8-live-extended-thinking', 'gemini-3.1-flash-live-preview', 'gemini-live-2.5-flash-native-audio', 'gemini-2.5-flash-native-audio-preview-12-2025'], 'Google Gemini Live'),
-  openai: ids(['gpt-realtime', 'gpt-4o-realtime-preview', 'gpt-live'], 'OpenAI Realtime'),
-  azure: ids(['gpt-realtime', 'gpt-4o-realtime-preview'], 'Azure OpenAI Realtime'),
-  aws: ids(['amazon.nova-2.5-sonic-v1:0', 'amazon.nova-2-sonic-v1:0', 'amazon.nova-sonic-v1:0'], 'Amazon Nova Sonic'),
-  nvidia: ids(['nvidia/personaplex-7b-v1'], 'NVIDIA PersonaPlex'),
+  openai: ids(['gpt-live-1'], 'OpenAI GPT-Live'),
+  azure: ids(['gpt-realtime', 'gpt-4.1', 'phi4-mm-realtime'], 'Azure Voice Live'),
+  aws: ids(['amazon.nova-2-5-sonic', 'amazon.nova-2-sonic-v1:0', 'amazon.nova-sonic-v1:0'], 'Amazon Nova Sonic'),
+  nvidia: ids(['personaplex'], 'NVIDIA PersonaPlex'),
   phonic: ids(['phonic_v1_1', 'phonic_v1', 'phonic_v0_5'], 'Phonic'),
-  spacexai: ids(['grok-voice-1', 'grok-voice-1.1'], 'xAI Grok Voice'),
+  spacexai: ids(['grok-voice-latest', 'grok-voice-think-fast-2.0', 'grok-voice-think-fast-1.0', 'grok-voice-fast-1.0'], 'xAI Grok Voice'),
   ultravox: ids(['fixie-ai/ultravox'], 'Ultravox'),
 };
 
@@ -96,9 +96,9 @@ export const REALTIME_PROVIDER_OPTIONS = [
 
 export const DIRECT_MODELS: Record<string, Record<VoiceModelKind, VoiceModelOption[]>> = {
   google: {
-    llm: ids(['gemini-2.5-flash', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.8-flash', 'gemma-4-31b-it'], 'Google Vertex AI'),
+    llm: ids(['gemini-3.5-flash', 'gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-2.5-pro-preview-05-06', 'gemini-2.5-flash-preview-04-17', 'gemini-2.5-flash-preview-05-20', 'gemini-2.0-flash-001', 'gemini-2.0-flash-lite-preview-02-05', 'gemini-2.0-pro-exp-02-05', 'gemini-1.5-pro'], 'Google Vertex AI'),
     stt: ids(['chirp_3', 'latest_long', 'latest_short'], 'Google Cloud Speech'),
-    tts: ids(['gemini-3.1-flash-tts-preview', 'gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'], 'Google Vertex AI'),
+    tts: ids(['gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-tts', 'gemini-2.5-flash-lite-preview-tts', 'gemini-2.5-pro-tts'], 'Google Vertex AI'),
   },
   openai: {
     llm: ids(['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4o-mini', 'gpt-5', 'gpt-5-mini', 'gpt-5.1', 'gpt-5.2', 'gpt-5.5'], 'OpenAI BYOK'),
@@ -106,7 +106,7 @@ export const DIRECT_MODELS: Record<string, Record<VoiceModelKind, VoiceModelOpti
     tts: ids(['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'], 'OpenAI BYOK'),
   },
   deepgram: { llm: [], stt: ids(['nova-3', 'nova-2', 'flux-general-en', 'flux-general-multi'], 'Deepgram BYOK'), tts: ids(['aura-2-thalia-en', 'aura-2-apollo-en', 'aura-2-athena-en'], 'Deepgram BYOK') },
-  cartesia: { llm: [], stt: ids(['ink-2', 'ink-whisper'], 'Cartesia BYOK'), tts: ids(['sonic-3', 'sonic-3.5', 'sonic-3.6'], 'Cartesia BYOK') },
+  cartesia: { llm: [], stt: ids(['ink-whisper', 'ink-2'], 'Cartesia BYOK'), tts: ids(['sonic', 'sonic-2', 'sonic-lite', 'sonic-preview', 'sonic-turbo', 'sonic-3'], 'Cartesia BYOK') },
   assemblyai: { llm: [], stt: ids(['universal-3-6-pro', 'universal-3-5-pro', 'universal-streaming'], 'AssemblyAI BYOK'), tts: [] },
   soniox: { llm: [], stt: ids(['stt-async-v3', 'stt-rt-v3'], 'Soniox BYOK'), tts: [] },
   elevenlabs: { llm: [], stt: ids(['scribe_v2_realtime'], 'ElevenLabs BYOK'), tts: ids(['eleven_turbo_v2_5', 'eleven_multilingual_v2', 'eleven_v3'], 'ElevenLabs BYOK') },

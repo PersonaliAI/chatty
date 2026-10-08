@@ -230,7 +230,7 @@ def build_realtime_model(
         from livekit.plugins import openai  # type: ignore[import-not-found]
 
         return openai.realtime.GPTLiveModel(
-            model=model or "gpt-realtime",
+            model=model or "gpt-live-1",
             voice=voice or "marin",
             api_key=api_key,
         )
@@ -272,7 +272,9 @@ def build_realtime_model(
     if provider == "spacexai":
         from livekit.plugins import xai  # type: ignore[import-not-found]
 
-        return xai.realtime.RealtimeModel(model=model or "grok-voice-1", voice=voice or "Ara", api_key=api_key)
+        return xai.realtime.RealtimeModel(
+            model=model or "grok-voice-latest", voice=voice or "Ara", api_key=api_key
+        )
 
     if provider == "ultravox":
         from livekit.plugins import ultravox  # type: ignore[import-not-found]

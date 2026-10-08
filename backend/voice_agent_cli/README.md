@@ -16,6 +16,12 @@ knowledge search code.
   LiveKit's OpenAI-compatible, Anthropic, and OpenRouter plugins with BYOK
 - Account and bot: Supabase server credentials plus the fixed organization email
 
+When `LIVEKIT_URL` points to the self-hosted Chatty server, choose direct
+provider plugins (Google ADC or a provider with BYOK). LiveKit Inference is a
+LiveKit Cloud gateway and is intentionally rejected by the Chatty API for a
+self-hosted URL; selecting it would otherwise produce a token that can never
+start a worker session. The dashboard exposes the same capability state.
+
 Set `VOICE_VISITOR_TIMEZONE` for a local console session when the client cannot
 publish the visitor's timezone; it defaults to UTC and is passed to Chatty's
 booking guardrails.
