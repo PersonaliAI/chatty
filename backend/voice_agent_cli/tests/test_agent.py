@@ -103,7 +103,9 @@ def test_business_tool_passes_trusted_tenant_context():
         "session-1",
     ).tools[0]
 
-    result = asyncio.run(tool(None, {"bot_id": "attacker-bot"}))
+    result = asyncio.run(
+        tool(None, {"bot_id": "attacker-bot", "confirmed": True})
+    )
 
     assert result == '{"ok": true}'
     assert captured["arguments"] == {
@@ -113,6 +115,48 @@ def test_business_tool_passes_trusted_tenant_context():
     assert captured["context"]["bot_id"] == "bot-1"
     assert captured["context"]["source"] == "widget"
     assert captured["context"]["channel"] == "voice"
+
+
+def test_voice_lead_tool_requires_explicit_confirmation():
+    modules = SimpleNamespace(
+        agent_tools=SimpleNamespace(
+            DECLARATIONS=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "create_lead",
+                        "description": "Record a lead",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                        },
+                    },
+                }
+            ],
+            execute=lambda *args, **kwargs: {"unexpected": True},
+        ),
+        widget_brain=SimpleNamespace(
+            scheduling_tool_names=lambda _bot, _owner: ["create_lead"]
+        ),
+        supabase="fake-supabase",
+        run_db=None,
+        doc_rag=None,
+    )
+    organization = OrganizationContext(
+        owner_user={"id": "owner-1"},
+        bot={"id": "bot-1", "answer_mode": "strict"},
+        modules=modules,
+    )
+    tool = ChattyVoiceAgent(
+        organization,
+        VoiceSettings.from_env(env_file=""),
+        "session-1",
+    ).tools[0]
+
+    result = asyncio.run(tool(None, {"name": "Visitor", "email": "visitor@example.com"}))
+
+    assert "not confirmed" in result
 
 
 def test_agent_uses_chatty_bot_prompt_and_greeting_fields():
