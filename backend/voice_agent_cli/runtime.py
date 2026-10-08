@@ -51,7 +51,13 @@ def _setup_job_process(proc: JobProcess) -> None:
     )
 
 
-server = AgentServer(setup_fnc=_setup_job_process)
+server = AgentServer(
+    setup_fnc=_setup_job_process,
+    # Chatty's Supabase/plugin warm-up happens before a process accepts a
+    # room. Allow that one-time import cost without reporting a false startup
+    # timeout or registering before the idle pool is ready.
+    initialize_process_timeout=60,
+)
 
 
 @server.rtc_session(agent_name=settings.agent_name)
