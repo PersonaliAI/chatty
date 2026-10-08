@@ -118,6 +118,14 @@ const visualizerInfo: {
     description: "Clean classic bars with clear speech activity.",
   },
 ];
+
+const PREVIEW_STATES: Array<{ value: AgentState; label: string }> = [
+  { value: "connecting", label: "Connecting" },
+  { value: "listening", label: "Listening" },
+  { value: "speaking", label: "Speaking" },
+  { value: "thinking", label: "Thinking" },
+];
+
 const fieldClass =
   "h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-400 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/10 dark:border-neutral-800 dark:bg-neutral-950";
 
@@ -139,9 +147,13 @@ const VOICE_OPTIONS: Record<string, ModernSelectOption[]> = {
     ["Kore", "Kore"], ["Puck", "Puck"], ["Charon", "Charon"], ["Fenrir", "Fenrir"],
     ["Aoede", "Aoede"], ["Leda", "Leda"], ["Orus", "Orus"], ["Zephyr", "Zephyr"],
   ].map(([value, label]) => ({ value, label, hint: "Gemini / Google" })),
-  cartesia: ["sonic-3", "sonic-3.5", "sonic-3.6"].map((value) => ({ value, label: value, hint: "Cartesia voice ID" })),
-  deepgram: ["aura-2-thalia-en", "aura-2-apollo-en", "aura-2-athena-en"].map((value) => ({ value, label: value, hint: "Deepgram" })),
-  elevenlabs: ["eleven_multilingual_v2", "eleven_v3", "eleven_turbo_v2_5"].map((value) => ({ value, label: value, hint: "ElevenLabs voice ID" })),
+  // These providers use account/model-specific voice identifiers. Do not
+  // present TTS model IDs as voice IDs; the current configured value is
+  // injected below and remains editable in the free-form field.
+  cartesia: [],
+  deepgram: [],
+  elevenlabs: [],
+  fishaudio: [],
   openai: ["alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((value) => ({ value, label: value, hint: "OpenAI" })),
 };
 
@@ -225,14 +237,8 @@ function Preview({
   const [previewState, setPreviewState] = useState<AgentState>("listening");
   const current =
     visualizerInfo.find((item) => item.value === selected) ?? visualizerInfo[0];
-  const previewStates: Array<{ value: AgentState; label: string }> = [
-    { value: "connecting", label: "Connecting" },
-    { value: "listening", label: "Listening" },
-    { value: "speaking", label: "Speaking" },
-    { value: "thinking", label: "Thinking" },
-  ];
   const stateLabel =
-    previewStates.find((item) => item.value === previewState)?.label ?? "Listening";
+    PREVIEW_STATES.find((item) => item.value === previewState)?.label ?? "Listening";
 
   useEffect(() => {
     // Keep the preview alive even when a customer is only browsing the tab.
@@ -240,8 +246,8 @@ function Preview({
     // tick resumes from the selected state.
     const timer = window.setInterval(() => {
       setPreviewState((currentState) => {
-        const index = previewStates.findIndex((item) => item.value === currentState);
-        return previewStates[(index + 1) % previewStates.length].value;
+        const index = PREVIEW_STATES.findIndex((item) => item.value === currentState);
+        return PREVIEW_STATES[(index + 1) % PREVIEW_STATES.length].value;
       });
     }, 2600);
     return () => window.clearInterval(timer);
@@ -283,7 +289,7 @@ function Preview({
             <Radio className="size-3.5 text-cyan-300" /> Preview states
           </div>
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 p-1 text-[10px] text-neutral-400" role="group" aria-label="Preview agent state">
-            {previewStates.map((item) => {
+            {PREVIEW_STATES.map((item) => {
               const active = previewState === item.value;
               return (
                 <button
@@ -348,9 +354,10 @@ function ProviderCard({
   const providerOptions = PROVIDER_OPTIONS[kind].map((item) => ({
     value: item.value,
     label: item.label,
+    disabled: item.value === "livekit-inference" && !livekitInferenceAvailable,
     hint:
       item.value === "livekit-inference" && !livekitInferenceAvailable
-        ? "LiveKit Cloud only"
+        ? "Unavailable on self-hosted LiveKit"
         : item.hint,
   }));
   const models = modelOptionsWithCurrentValue(modelOptions(kind, provider).map((item) => ({
@@ -924,13 +931,24 @@ export function VoiceAgentTab({
                 />
               </label>
               <label className="grid gap-2 text-sm">
-                <span className="font-medium">TTS voice</span>
+                <span className="font-medium">TTS voice / voice ID</span>
                 <Select
                   value={config.tts_voice}
                   onChange={(value) => update("tts_voice", value)}
                   options={voiceOptions}
                   label="TTS voice"
                 />
+                <input
+                  type="text"
+                  value={config.tts_voice}
+                  onChange={(event) => update("tts_voice", event.target.value)}
+                  className={fieldClass}
+                  placeholder="Enter the provider voice ID"
+                  aria-label="TTS voice ID"
+                />
+                <span className="text-[10px] leading-4 text-neutral-500">
+                  Voice IDs are provider-specific; model names are not voice IDs.
+                </span>
               </label>
             </div>
           </Card>
