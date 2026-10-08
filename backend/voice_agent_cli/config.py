@@ -61,11 +61,18 @@ class VoiceSettings:
     @classmethod
     def from_env(cls, env_file: str | None = None) -> "VoiceSettings":
         """Load local dotenv settings, then return a typed immutable config."""
-        dotenv_path = env_file or _env("VOICE_AGENT_ENV_FILE")
-        if dotenv_path:
-            load_dotenv(dotenv_path, override=False)
+        # ``None`` means use the normal local dotenv discovery. An explicit
+        # empty string is a deliberate hermetic mode used by diagnostics and
+        # tests; it must not silently discover a parent .env file.
+        if env_file is not None:
+            if env_file:
+                load_dotenv(env_file, override=False)
         else:
-            load_dotenv(override=False)
+            dotenv_path = _env("VOICE_AGENT_ENV_FILE")
+            if dotenv_path:
+                load_dotenv(dotenv_path, override=False)
+            else:
+                load_dotenv(override=False)
 
         return cls(
             # Deliberately fixed: this local CLI has no universal-account or

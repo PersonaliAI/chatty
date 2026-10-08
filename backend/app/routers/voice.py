@@ -29,6 +29,73 @@ _CONFIG_FIELDS = (
     "voice_tts_model, voice_tts_voice, voice_tts_byok_key_encrypted, voice_max_duration_minutes"
 )
 
+# Providers that receive a tenant-scoped API key in ``build_components`` or
+# ``build_realtime_model``. Google uses the worker's Vertex ADC, while
+# LiveKit Inference uses the server's LiveKit credentials. AWS and NVIDIA use
+# the worker's IAM/runtime credentials and therefore are deliberately not
+# treated as single-string BYOK providers here.
+_PIPELINE_KEY_FIELDS = {
+    "llm": {
+        "openai": "voice_llm_byok_key_encrypted",
+        "anthropic": "voice_llm_byok_key_encrypted",
+        "openrouter": "voice_llm_byok_key_encrypted",
+    },
+    "stt": {
+        "openai": "voice_stt_byok_key_encrypted",
+        "deepgram": "voice_stt_byok_key_encrypted",
+        "assemblyai": "voice_stt_byok_key_encrypted",
+        "soniox": "voice_stt_byok_key_encrypted",
+        "cartesia": "voice_stt_byok_key_encrypted",
+    },
+    "tts": {
+        "openai": "voice_tts_byok_key_encrypted",
+        "cartesia": "voice_tts_byok_key_encrypted",
+        "deepgram": "voice_tts_byok_key_encrypted",
+        "elevenlabs": "voice_tts_byok_key_encrypted",
+        "fishaudio": "voice_tts_byok_key_encrypted",
+    },
+}
+
+_REALTIME_KEY_FIELDS = {
+    "openai": "voice_realtime_byok_key_encrypted",
+    "azure": "voice_realtime_byok_key_encrypted",
+    "phonic": "voice_realtime_byok_key_encrypted",
+    "spacexai": "voice_realtime_byok_key_encrypted",
+    "ultravox": "voice_realtime_byok_key_encrypted",
+}
+
+
+def _voice_configuration_error(bot: dict[str, Any]) -> str | None:
+    """Return a safe save-time error for an unusable enabled configuration.
+
+    Provider construction happens in the isolated worker, so the API must not
+    attempt to instantiate SDKs here. This check only verifies the contract
+    that can be established without contacting a provider: the selected mode
+    has the credentials it needs. Secret values are never included in the
+    returned message.
+    """
+    if not bool(bot.get("voice_enabled")):
+        return None
+
+    mode = str(bot.get("voice_mode") or "pipeline").strip().lower()
+    if mode == "realtime":
+        provider = str(bot.get("voice_realtime_provider") or "google").strip().lower()
+        key_field = _REALTIME_KEY_FIELDS.get(provider)
+        if key_field and not str(bot.get(key_field) or "").strip():
+            return f"Voice is enabled, but the {provider} realtime API key is missing."
+        return None
+
+    for kind, provider_field in (
+        ("llm", "voice_llm_provider"),
+        ("stt", "voice_stt_provider"),
+        ("tts", "voice_tts_provider"),
+    ):
+        provider = str(bot.get(provider_field) or "google").strip().lower()
+        key_field = _PIPELINE_KEY_FIELDS[kind].get(provider)
+        if key_field and not str(bot.get(key_field) or "").strip():
+            return f"Voice is enabled, but the {provider} {kind.upper()} API key is missing."
+    return None
+
 
 def _livekit_settings() -> tuple[str, str, str, str]:
     url = os.environ.get("LIVEKIT_URL", "").strip()
@@ -91,6 +158,16 @@ async def update_voice_config(
     user: dict[str, Any] = Depends(require_user),
 ):
     await verify_bot_permission(bot_id, user, "settings")
+    current_result = await run_db(
+        lambda: supabase.table("chatty_bots")
+        .select(_CONFIG_FIELDS)
+        .eq("id", bot_id)
+        .limit(1)
+        .execute()
+    )
+    if not current_result.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    current = dict(current_result.data[0])
     mapping = {
         "enabled": "voice_enabled", "mode": "voice_mode",
         "expression_enabled": "voice_expression_enabled", "visualizer": "voice_visualizer",
@@ -117,6 +194,10 @@ async def update_voice_config(
             updates[target] = encrypt_secret(value.strip()) if value.strip() else None
     if not updates:
         raise HTTPException(status_code=400, detail="No voice settings supplied")
+    effective = current | updates
+    configuration_error = _voice_configuration_error(effective)
+    if configuration_error:
+        raise HTTPException(status_code=422, detail=configuration_error)
     result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", bot_id).execute())
     if not result.data:
         raise HTTPException(status_code=404, detail="Bot not found")

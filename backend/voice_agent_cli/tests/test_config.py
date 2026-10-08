@@ -27,6 +27,7 @@ def test_defaults_to_the_fixed_personaliai_account(monkeypatch):
 
 def test_required_values_are_reported_by_name_only(monkeypatch):
     monkeypatch.setenv("CHATTY_ORGANIZATION_EMAIL", "another-account@example.com")
+    monkeypatch.delenv("SUPABASE_SECRET_KEY", raising=False)
     settings = VoiceSettings.from_env(env_file="")
 
     missing = settings.missing_for_doctor()

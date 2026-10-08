@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from fastapi import HTTPException
 from starlette.requests import Request
 
 # Import the application first; the production router reuses two helpers from
@@ -133,3 +134,87 @@ def test_voice_config_accepts_livekit_inference_for_each_model_role():
 def test_voice_config_accepts_every_direct_tts_provider_exposed_by_dashboard():
     for provider in ("google", "livekit-inference", "cartesia", "deepgram", "elevenlabs", "openai", "fishaudio"):
         assert VoiceConfigUpdate(tts_provider=provider).tts_provider == provider
+
+
+def test_enabled_google_pipeline_has_no_byok_preflight_error():
+    assert voice._voice_configuration_error(
+        {
+            "voice_enabled": True,
+            "voice_mode": "pipeline",
+            "voice_llm_provider": "google",
+            "voice_stt_provider": "google",
+            "voice_tts_provider": "google",
+        }
+    ) is None
+
+
+def test_enabled_pipeline_requires_the_selected_byok_key():
+    error = voice._voice_configuration_error(
+        {
+            "voice_enabled": True,
+            "voice_mode": "pipeline",
+            "voice_llm_provider": "google",
+            "voice_stt_provider": "deepgram",
+            "voice_tts_provider": "google",
+        }
+    )
+
+    assert error == "Voice is enabled, but the deepgram STT API key is missing."
+
+
+def test_enabled_realtime_requires_key_for_byok_provider_but_not_google():
+    assert voice._voice_configuration_error(
+        {
+            "voice_enabled": True,
+            "voice_mode": "realtime",
+            "voice_realtime_provider": "google",
+        }
+    ) is None
+    assert voice._voice_configuration_error(
+        {
+            "voice_enabled": True,
+            "voice_mode": "realtime",
+            "voice_realtime_provider": "openai",
+        }
+    ) == "Voice is enabled, but the openai realtime API key is missing."
+
+
+@pytest.mark.anyio
+async def test_update_voice_config_rejects_missing_key_before_writing(monkeypatch):
+    calls = 0
+
+    async def allow_settings(*_args, **_kwargs):
+        return None
+
+    async def fake_db(_fn):
+        nonlocal calls
+        calls += 1
+        return type(
+            "Result",
+            (),
+            {
+                "data": [
+                    {
+                        "voice_enabled": False,
+                        "voice_mode": "pipeline",
+                        "voice_llm_provider": "google",
+                        "voice_stt_provider": "google",
+                        "voice_tts_provider": "google",
+                    }
+                ]
+            },
+        )()
+
+    monkeypatch.setattr(voice, "verify_bot_permission", allow_settings)
+    monkeypatch.setattr(voice, "run_db", fake_db)
+
+    with pytest.raises(HTTPException) as raised:
+        await voice.update_voice_config(
+            "bot-1",
+            VoiceConfigUpdate(enabled=True, stt_provider="deepgram"),
+            {},
+        )
+
+    assert raised.value.status_code == 422
+    assert "deepgram STT API key is missing" in str(raised.value.detail)
+    assert calls == 1

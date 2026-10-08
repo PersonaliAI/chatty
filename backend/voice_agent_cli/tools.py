@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from importlib import import_module
 from typing import Any
 
 from livekit.agents import RunContext
@@ -156,7 +157,10 @@ class ChattyToolRegistry:
             query = str(raw_arguments.get("query") or "").strip()
             limit = int(raw_arguments.get("limit", 3))
             try:
-                from app.services import multimodal_service
+                # Import by fully-qualified name so an injected adapter/test
+                # double in ``sys.modules`` is honored even when the parent
+                # package has already cached a different attribute.
+                multimodal_service = import_module("app.services.multimodal_service")
 
                 image = self.media_buffer.take_image() if self.media_buffer else None
                 (
