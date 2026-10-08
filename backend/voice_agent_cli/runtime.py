@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import logging
+import asyncio
 import json
+import logging
+from typing import Any
 
 from livekit.agents import (
     AgentServer,
@@ -58,6 +60,25 @@ server = AgentServer(
 )
 
 
+async def _build_pipeline_components(
+    organization: Any, settings: VoiceSettings
+) -> tuple[Any, Any, Any]:
+    """Construct provider clients away from the LiveKit audio event loop."""
+    return await asyncio.to_thread(build_components, organization, settings)
+
+
+async def _build_realtime_component(
+    organization: Any, settings: VoiceSettings, *, expression_enabled: bool
+) -> Any:
+    """Construct a realtime provider away from the LiveKit audio event loop."""
+    return await asyncio.to_thread(
+        build_realtime_model,
+        organization,
+        settings,
+        expression_enabled=expression_enabled,
+    )
+
+
 @server.rtc_session(agent_name=settings.agent_name)
 async def entrypoint(ctx: JobContext) -> None:
     """Start one tenant-scoped LiveKit voice session."""
@@ -90,11 +111,15 @@ async def entrypoint(ctx: JobContext) -> None:
     expression_enabled = bool(bot_config.get("voice_expression_enabled", True))
     if mode == "realtime":
         session = AgentSession(
-            llm=build_realtime_model(organization, settings, expression_enabled=expression_enabled),
+            llm=await _build_realtime_component(
+                organization,
+                settings,
+                expression_enabled=expression_enabled,
+            ),
             preemptive_generation=True,
         )
     else:
-        stt, llm, tts = build_components(organization, settings)
+        stt, llm, tts = await _build_pipeline_components(organization, settings)
         session = AgentSession(
             stt=stt,
             llm=llm,
