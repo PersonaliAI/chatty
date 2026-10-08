@@ -78,6 +78,8 @@ function VoiceOrb({ state, audioTrack, visualizer }: { state: ReturnType<typeof 
 
 function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, onFullscreen }: { compact?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
   const session = useSessionContext();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
   const { state } = useAgent();
   const { audioTrack } = useVoiceAssistant();
   const [started, setStarted] = useState(false);
@@ -89,8 +91,9 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
   useEffect(() => {
     if (!started) return;
     let active = true;
+    const activeSession = sessionRef.current;
     setStarting(true);
-    void session.start().catch((cause) => {
+    void activeSession.start().catch((cause) => {
       console.error('LiveKit voice session failed to start', cause);
       if (active) {
         setError(cause instanceof Error ? cause.message : 'Unable to connect to the voice agent.');
@@ -101,9 +104,9 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
     });
     return () => {
       active = false;
-      void session.end();
+      void activeSession.end();
     };
-  }, [session, started]);
+  }, [started]);
 
   useEffect(() => {
     if (session.connectionState === 'disconnected' && started) setStarted(false);
