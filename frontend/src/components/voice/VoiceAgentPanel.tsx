@@ -38,6 +38,10 @@ type VoiceTokenResponse = {
 
 const defaultBackendUrl = 'https://api.chatty.personaliai.com';
 
+function createVoiceRoomNonce() {
+  return globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function LiveKitTranscript() {
   const session = useSessionContext();
   const { messages } = useSessionMessages(session);
@@ -97,9 +101,17 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
     startingRef.current = true;
     connectedRef.current = false;
     setStarting(true);
-    void activeSession.start()
+    // Keep the signaling/agent handshake independent from microphone
+    // publication.  Some browsers publish a pre-connect track while the
+    // signal socket is still settling; if that socket closes, LiveKit rejects
+    // the whole session with "Got disconnected without signal connected".
+    // Connecting first also gives the official LiveKit control bar a stable
+    // room before it owns microphone state.
+    void activeSession.start({ tracks: { microphone: { enabled: false } } })
       .then(() => {
-        if (active) connectedRef.current = true;
+        if (!active) return;
+        connectedRef.current = true;
+        return activeSession.room.localParticipant.setMicrophoneEnabled(true);
       })
       .catch((cause) => {
         console.error('LiveKit voice session failed to start', cause);
@@ -197,13 +209,18 @@ export function VoiceAgentPanel({
   const tokenSource = useMemo(
     () =>
       TokenSource.custom(async (): Promise<TokenSourceResponseObject> => {
+        // TokenSource caches the first response for useSession.prepareConnection
+        // and refreshes it after an unexpected disconnect.  Generate a new
+        // room nonce for each actual token request, while keeping sessionId as
+        // the stable Chatty conversation key for history, tools, and usage.
+        const roomNonce = createVoiceRoomNonce();
         const response = await fetch(`${backendUrl}/api/widget/voice/token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(widgetToken ? { 'x-widget-token': widgetToken } : {}),
           },
-          body: JSON.stringify({ bot_id: botId, session_id: sessionId }),
+          body: JSON.stringify({ bot_id: botId, session_id: sessionId, room_nonce: roomNonce }),
           cache: 'no-store',
         });
         if (!response.ok) throw new Error((await response.text()) || `Voice token failed (${response.status})`);

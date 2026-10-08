@@ -40,9 +40,11 @@ def _livekit_settings() -> tuple[str, str, str, str]:
     return url, key, secret, agent_name
 
 
-def _safe_room_name(bot_id: str, session_id: str) -> str:
+def _safe_room_name(bot_id: str, session_id: str, room_nonce: str | None = None) -> str:
     clean_session = re.sub(r"[^a-zA-Z0-9_-]", "-", session_id).strip("-")[:80]
-    return f"chatty-{bot_id}-{clean_session or uuid.uuid4().hex[:12]}"
+    clean_nonce = re.sub(r"[^a-zA-Z0-9_-]", "-", room_nonce or "").strip("-")[:80]
+    suffix = f"{clean_session}-{clean_nonce}" if clean_nonce else clean_session
+    return f"chatty-{bot_id}-{suffix or uuid.uuid4().hex[:12]}"
 
 
 def _public_voice_config(bot: dict[str, Any]) -> dict[str, Any]:
@@ -147,7 +149,7 @@ async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
     if not bot.get("voice_enabled"):
         raise HTTPException(status_code=409, detail="Voice agent is disabled for this bot")
     server_url, api_key, api_secret, default_agent_name = _livekit_settings()
-    room_name = _safe_room_name(body.bot_id, body.session_id)
+    room_name = _safe_room_name(body.bot_id, body.session_id, body.room_nonce)
     identity = f"chatty-visitor-{uuid.uuid4().hex}"
     participant_name = (body.participant_name or "Visitor").strip()[:120]
     from livekit import api

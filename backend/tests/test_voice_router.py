@@ -60,6 +60,30 @@ async def test_widget_voice_token_uses_public_livekit_agent_dispatch(monkeypatch
     assert claims["roomConfig"]["agents"][0]["agentName"] == "chatty-voice-agent"
 
 
+@pytest.mark.anyio
+async def test_widget_voice_token_separates_room_nonce_from_chat_session(monkeypatch):
+    async def fake_db(_fn):
+        return type("Result", (), {"data": [{"id": "bot-1", "voice_enabled": True}]})()
+
+    async def no_rate_limit(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(voice, "run_db", fake_db)
+    monkeypatch.setattr(voice, "_widget_rate_limit_or_429", no_rate_limit)
+    monkeypatch.setattr(
+        voice,
+        "_livekit_settings",
+        lambda: ("wss://livekit.example", "APIkey", "secret", "chatty-voice-agent"),
+    )
+
+    response = await voice.create_widget_voice_token(
+        VoiceTokenRequest(bot_id="bot-1", session_id="session-1", room_nonce="attempt-123456"),
+        _request(),
+    )
+
+    assert response["roomName"].startswith("chatty-bot-1-session-1-attempt-123456")
+
+
 def test_voice_config_accepts_livekit_inference_for_each_model_role():
     config = VoiceConfigUpdate(
         llm_provider="livekit-inference",

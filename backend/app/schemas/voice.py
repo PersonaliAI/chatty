@@ -10,6 +10,11 @@ from pydantic import BaseModel, Field
 class VoiceTokenRequest(BaseModel):
     bot_id: str = Field(min_length=1, max_length=80)
     session_id: str = Field(min_length=1, max_length=160)
+    # The Chatty conversation ID is stable across text and voice.  LiveKit
+    # rooms, however, must be fresh for every voice connection attempt.
+    # Keeping this nonce separate preserves conversation history while making
+    # reconnects safe when the browser refreshes a cached TokenSource.
+    room_nonce: Optional[str] = Field(default=None, min_length=8, max_length=80)
     participant_name: Optional[str] = Field(default=None, max_length=120)
 
 
