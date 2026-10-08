@@ -69,6 +69,14 @@ def warm_voice_dependencies() -> None:
     except Exception:
         pass
 
+    try:
+        from google.cloud.speech_v2 import SpeechClient  # noqa: PLC0415
+
+        client = SpeechClient()
+        client.close()
+    except Exception:
+        pass
+
 
 def load_chatty_modules(settings: VoiceSettings) -> ChattyModules:
     """Import Chatty modules after environment setup has completed."""
