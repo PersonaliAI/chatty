@@ -24,6 +24,8 @@ type VoiceAgentPanelProps = {
   backendUrl?: string;
   widgetToken?: string;
   compact?: boolean;
+  /** Render as a native Chatty widget mode without a nested voice-card shell. */
+  widgetMode?: boolean;
   visualizer?: 'wave' | 'bar' | 'grid' | 'radial' | 'aura';
   onClose?: () => void;
   className?: string;
@@ -80,7 +82,7 @@ function VoiceOrb({ state, audioTrack, visualizer }: { state: ReturnType<typeof 
   );
 }
 
-function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, onFullscreen }: { compact?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
+function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
   const session = useSessionContext();
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -156,8 +158,8 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
   };
 
   return (
-    <div className={`chatty-voice-panel relative flex min-h-0 flex-col overflow-visible bg-white text-neutral-950 dark:bg-neutral-950 dark:text-white ${compact ? 'gap-1' : 'gap-3'}`} data-visualizer={visualizer}>
-      <header className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-4 sm:px-6 sm:pt-5">
+    <div className={`chatty-voice-panel relative flex h-full min-h-0 flex-col overflow-visible bg-white text-neutral-950 dark:bg-neutral-950 dark:text-white ${compact ? 'gap-1' : 'gap-3'}`} data-visualizer={visualizer}>
+      {!widgetMode && <header className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-4 sm:px-6 sm:pt-5">
         <div className="flex min-w-0 items-center gap-2">
           {started && <div className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"><MessageCircle className="size-4" aria-hidden="true" /></div>}
           <button type="button" className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-600 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-300" aria-label="Voice language: English">
@@ -169,7 +171,7 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
           <button type="button" onClick={onFullscreen} className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800" aria-label="Expand voice agent"><Maximize2 className="size-4" /></button>
           {onClose && <button type="button" onClick={onClose} className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white" aria-label="Close voice agent"><X className="size-4" /></button>}
         </div>
-      </header>
+      </header>}
 
       <div className="chatty-voice-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
         {error && (
@@ -204,6 +206,7 @@ export function VoiceAgentPanel({
   backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? defaultBackendUrl,
   widgetToken,
   compact = false,
+  widgetMode = false,
   visualizer = 'wave',
   onClose,
   className = '',
@@ -244,9 +247,9 @@ export function VoiceAgentPanel({
   };
 
   return (
-    <section ref={panelRef} className={`flex min-h-0 flex-col overflow-visible rounded-[28px] border border-neutral-200 bg-white shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800 dark:bg-neutral-950 ${className}`}>
+    <section ref={panelRef} className={`flex min-h-0 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent compact={compact} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>
