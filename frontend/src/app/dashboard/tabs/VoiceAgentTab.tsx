@@ -27,6 +27,7 @@ import {
 import { ModernSwitch } from "@/components/ui/modern-switch";
 import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 import { LiveKitAgentVisualizer } from "@/components/agents-ui/livekit-agent-visualizer";
+import type { AgentState } from "@livekit/components-react";
 import {
   PROVIDER_OPTIONS,
   REALTIME_MODELS,
@@ -178,8 +179,17 @@ function Preview({
   selected: Visualizer;
   onSelect: (value: Visualizer) => void;
 }) {
+  const [previewState, setPreviewState] = useState<AgentState>("listening");
   const current =
     visualizerInfo.find((item) => item.value === selected) ?? visualizerInfo[0];
+  const previewStates: Array<{ value: AgentState; label: string }> = [
+    { value: "connecting", label: "Connecting" },
+    { value: "listening", label: "Listening" },
+    { value: "speaking", label: "Speaking" },
+    { value: "thinking", label: "Thinking" },
+  ];
+  const stateLabel =
+    previewStates.find((item) => item.value === previewState)?.label ?? "Listening";
   return (
     <section className="overflow-hidden rounded-[26px] border border-neutral-800 bg-[#090b0f] text-white shadow-2xl shadow-cyan-950/10">
       <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row">
@@ -201,12 +211,13 @@ function Preview({
             <div className="absolute inset-0 opacity-25 [background-image:radial-gradient(#6c8190_1px,transparent_1px)] [background-size:8px_8px]" />
             <LiveKitAgentVisualizer
               visualizer={selected}
-              state="speaking"
+              state={previewState}
               color={current.color}
               className="h-[240px] w-[240px]"
+              demo
             />
             <span className="absolute bottom-4 text-xs text-neutral-400">
-              Agent is listening, ask a question
+              Agent is {stateLabel.toLowerCase()}
             </span>
           </div>
         </div>
@@ -215,12 +226,20 @@ function Preview({
             <Radio className="size-3.5 text-cyan-300" /> Preview states
           </div>
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 p-1 text-[10px] text-neutral-400">
-            <span className="rounded-lg px-2 py-2 text-center">Connecting</span>
-            <span className="rounded-lg bg-cyan-400/15 px-2 py-2 text-center text-cyan-200">
-              Listening
-            </span>
-            <span className="rounded-lg px-2 py-2 text-center">Speaking</span>
-            <span className="rounded-lg px-2 py-2 text-center">Thinking</span>
+            {previewStates.map((item) => {
+              const active = previewState === item.value;
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setPreviewState(item.value)}
+                  aria-pressed={active}
+                  className={`rounded-lg px-2 py-2 text-center transition ${active ? "bg-cyan-400/15 text-cyan-200 shadow-[inset_0_0_0_1px_rgba(34,211,238,.18)]" : "hover:bg-white/[0.06] hover:text-white"}`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
           <p className="mt-6 text-sm font-medium">{current.label} visualizer</p>
           <p className="mt-1 text-xs leading-5 text-neutral-400">
