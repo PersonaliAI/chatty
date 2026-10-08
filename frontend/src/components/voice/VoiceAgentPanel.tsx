@@ -113,7 +113,15 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
       // response. Chromium can reject replacing the ICE configuration after
       // the initial offer has been created, so provide a stable configuration
       // up front and let the server's public host candidates be used.
-      roomConnectOptions: { rtcConfig: { iceServers: [] } },
+      roomConnectOptions: {
+        rtcConfig: {
+          iceServers: [],
+          iceTransportPolicy: 'all',
+          bundlePolicy: 'balanced',
+          rtcpMuxPolicy: 'require',
+          iceCandidatePoolSize: 0,
+        },
+      },
     })
       .then(() => {
         if (!active) return;
