@@ -1,8 +1,8 @@
 diff --git a/node_modules/livekit-client/dist/livekit-client.esm.mjs b/node_modules/livekit-client/dist/livekit-client.esm.mjs
-index 6cae7d0..1807f48 100644
+index 6cae7d0..94a11d0 100644
 --- a/node_modules/livekit-client/dist/livekit-client.esm.mjs
 +++ b/node_modules/livekit-client/dist/livekit-client.esm.mjs
-@@ -20752,11 +20752,16 @@ class PCTransport extends eventsExports.EventEmitter {
+@@ -20752,11 +20752,15 @@ class PCTransport extends eventsExports.EventEmitter {
      this.trackBitrates.push(info);
    }
    setConfiguration(rtcConfig) {
@@ -14,18 +14,17 @@ index 6cae7d0..1807f48 100644
 +    const current = this._pc.getConfiguration();
 +    const next = {
 +      ...current,
-+      iceServers: rtcConfig.iceServers ?? current.iceServers,
-+      ...rtcConfig.iceTransportPolicy ? { iceTransportPolicy: rtcConfig.iceTransportPolicy } : {}
++      iceServers: rtcConfig.iceServers ?? current.iceServers
 +    };
 +    return this._pc.setConfiguration(next);
    }
    canRemoveTrack() {
      var _a;
 diff --git a/node_modules/livekit-client/src/room/PCTransport.ts b/node_modules/livekit-client/src/room/PCTransport.ts
-index 6983a35..0baf030 100644
+index 6983a35..2c4f590 100644
 --- a/node_modules/livekit-client/src/room/PCTransport.ts
 +++ b/node_modules/livekit-client/src/room/PCTransport.ts
-@@ -558,7 +558,21 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
+@@ -558,7 +558,18 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
      if (!this._pc) {
        throw new UnexpectedConnectionState('PC closed, cannot configure');
      }
@@ -34,15 +33,12 @@ index 6983a35..0baf030 100644
 +    // Chromium treats the transport-policy fields as immutable once the
 +    // peer connection has created its initial offer. LiveKit adds these
 +    // fields while applying the server's join response, so pass through only
-+    // the ICE fields that are safe to update after the offer-with-join path.
++    // the ICE server list that is safe to update after the offer-with-join path.
 +    // Preserve the browser's existing immutable configuration fields.
 +    const current = this._pc.getConfiguration();
 +    const next: RTCConfiguration = {
 +      ...current,
 +      iceServers: rtcConfig.iceServers ?? current.iceServers,
-+      ...(rtcConfig.iceTransportPolicy
-+        ? { iceTransportPolicy: rtcConfig.iceTransportPolicy }
-+        : {}),
 +    };
 +    return this._pc.setConfiguration(next);
    }
