@@ -173,19 +173,29 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
         </div>
       </header>}
 
-      <div className="chatty-voice-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 sm:px-6 sm:pb-5">
+      <div className={`chatty-voice-scrollbar flex min-h-0 flex-1 flex-col px-4 pb-4 sm:px-6 sm:pb-5 ${showTranscript ? 'overflow-hidden' : 'overflow-y-auto'}`}>
         {error && (
           <div role="alert" className="mt-3 flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-200">
             <AlertCircle className="mt-0.5 size-4 shrink-0" /><div className="min-w-0 flex-1"><p className="font-semibold">Voice connection failed</p><p className="mt-0.5 break-words opacity-85">{error}</p></div><button type="button" onClick={() => setError(null)} className="rounded p-1 opacity-70 hover:opacity-100" aria-label="Dismiss voice error"><X className="size-3.5" /></button>
           </div>
         )}
 
-        <div className="flex shrink-0 flex-col items-center justify-center py-5 sm:py-7">
-          <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} />
-          {!started && <p className="mt-4 max-w-[260px] text-center text-sm leading-5 text-neutral-500 dark:text-neutral-400">Discover answers, book meetings, and get help from your Chatty assistant.</p>}
-        </div>
-
-        {showTranscript && <div className="mb-3 flex min-h-[112px] shrink-0 flex-col gap-2"><div className="flex shrink-0 items-center justify-between px-1 text-[11px] font-semibold text-neutral-700 dark:text-neutral-200"><span>Live transcript</span><span className="text-[10px] font-normal text-neutral-400">LiveKit Agents UI</span></div><div className="chatty-transcript-scrollbar min-h-0 max-h-44 flex-1 overflow-y-auto"><LiveKitTranscript /></div></div>}
+        {showTranscript ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
+            <div className="flex shrink-0 items-center justify-between px-1 text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
+              <span>Live transcript</span>
+              <span className="text-[10px] font-normal text-neutral-400">LiveKit Agents UI</span>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <LiveKitTranscript />
+            </div>
+          </div>
+        ) : (
+          <div className="flex shrink-0 flex-col items-center justify-center py-5 sm:py-7">
+            <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} />
+            {!started && <p className="mt-4 max-w-[260px] text-center text-sm leading-5 text-neutral-500 dark:text-neutral-400">Discover answers, book meetings, and get help from your Chatty assistant.</p>}
+          </div>
+        )}
 
         <div className="mx-auto flex w-full shrink-0 max-w-[360px] flex-col gap-2.5">
           {started ? <div className="chatty-livekit-controls flex items-center justify-center gap-2"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="flex size-10 items-center justify-center rounded-full bg-neutral-950 text-white shadow-lg transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950" aria-label="End voice session"><PhoneOff className="size-4" /></button></div> : <button type="button" className="mx-auto flex size-14 items-center justify-center rounded-full bg-neutral-950 text-white shadow-xl shadow-neutral-950/20 transition hover:scale-105 hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-4 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200" onClick={requestStart} disabled={starting} aria-label="Start voice conversation">{starting ? <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-neutral-950/30 dark:border-t-neutral-950" /> : <Phone className="size-5" />}</button>}

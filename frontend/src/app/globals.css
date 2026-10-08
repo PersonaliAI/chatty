@@ -669,6 +669,38 @@ body {
   background: rgba(140, 73, 26, 0.7);
 }
 
+/* Keep LiveKit's official device menu readable inside narrow widget panels. */
+.chatty-voice-panel .lk-device-menu {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+  width: min(21rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  max-height: min(20rem, calc(100dvh - 7rem)) !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  white-space: normal;
+}
+
+.chatty-voice-panel .lk-device-menu .lk-media-device-select {
+  min-width: 0;
+  width: 100%;
+}
+
+.chatty-voice-panel .lk-device-menu .lk-button {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 2.5rem;
+  height: auto;
+  justify-content: flex-start;
+  overflow: visible !important;
+  overflow-wrap: anywhere;
+  text-overflow: clip !important;
+  padding-block: 0.625rem;
+  text-align: start;
+  line-height: 1.25;
+  white-space: normal !important;
+}
+
 /* KaTeX is rendered inside the live transcript. Display equations get their
  * own horizontal scroller so a long formula never widens or clips the mobile
  * call surface, while inline math follows the surrounding text size. */

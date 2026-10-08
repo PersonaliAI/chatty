@@ -2768,11 +2768,10 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
 
       {/* Body */}
       <div ref={chatBodyRef} className={`relative flex-1 scrollbar-thin widget-panel flex flex-col ${voiceAgentOpen ? "overflow-hidden" : "overflow-y-auto"}`}>
-        {voiceAgentOpen && voiceAgentEnabled && (
-          <div className="absolute inset-0 z-30 bg-white/95 p-3 dark:bg-neutral-950/95">
-            <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact widgetMode onClose={() => setVoiceAgentOpen(false)} className="h-full" />
-          </div>
-        )}
+        {voiceAgentOpen && voiceAgentEnabled ? (
+          <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact widgetMode onClose={() => setVoiceAgentOpen(false)} className="h-full w-full" />
+        ) : (
+          <>
         {showCsat ? (
           /* CSAT Feedback Modal */
           <div className="relative flex h-full flex-col justify-center overflow-hidden bg-linear-to-b from-white to-neutral-50/80 p-5 dark:from-neutral-950 dark:to-neutral-900">
@@ -3691,6 +3690,8 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               </motion.div>
             )}
           </AnimatePresence>
+        )}
+          </>
         )}
       </div>
 
