@@ -63,3 +63,39 @@ def test_realtime_provider_construction_runs_off_event_loop(monkeypatch):
 
     assert result == "realtime"
     assert calls == [("organization", "settings", False)]
+
+
+def test_runtime_normalizes_max_duration_minutes():
+    assert runtime._resolve_max_duration_minutes(None) == 15
+    assert runtime._resolve_max_duration_minutes("30") == 30
+    assert runtime._resolve_max_duration_minutes(0) == 1
+    assert runtime._resolve_max_duration_minutes(120) == 60
+    assert runtime._resolve_max_duration_minutes("invalid") == 15
+
+
+def test_runtime_closes_session_when_max_duration_is_reached(monkeypatch):
+    class FakeSession:
+        def __init__(self):
+            self.closed = False
+
+        async def aclose(self):
+            self.closed = True
+
+    class FakeRoom:
+        def __init__(self):
+            self.disconnected = False
+
+        async def disconnect(self):
+            self.disconnected = True
+
+    async def instant_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", instant_sleep)
+    session = FakeSession()
+    room = FakeRoom()
+
+    asyncio.run(runtime._close_session_after_timeout(session, room, 1))
+
+    assert session.closed is True
+    assert room.disconnected is True

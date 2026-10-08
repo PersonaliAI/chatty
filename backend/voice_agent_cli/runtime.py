@@ -79,6 +79,34 @@ async def _build_realtime_component(
     )
 
 
+def _resolve_max_duration_minutes(value: object) -> int:
+    """Return the persisted voice-session limit with a safe runtime fallback."""
+    try:
+        duration = int(value) if value is not None else 15
+    except (TypeError, ValueError):
+        duration = 15
+    return max(1, min(duration, 60))
+
+
+async def _close_session_after_timeout(
+    session: Any, room: Any, max_duration_minutes: int
+) -> None:
+    """Close the LiveKit session and room when the tenant limit is reached."""
+    try:
+        await asyncio.sleep(max_duration_minutes * 60)
+    except asyncio.CancelledError:
+        raise
+
+    logger.info(
+        "Voice session reached configured maximum duration; closing room",
+        extra={"max_duration_minutes": max_duration_minutes},
+    )
+    try:
+        await session.aclose()
+    finally:
+        await room.disconnect()
+
+
 @server.rtc_session(agent_name=settings.agent_name)
 async def entrypoint(ctx: JobContext) -> None:
     """Start one tenant-scoped LiveKit voice session."""
@@ -91,9 +119,15 @@ async def entrypoint(ctx: JobContext) -> None:
     except (TypeError, ValueError, json.JSONDecodeError):
         logger.warning("Ignoring malformed LiveKit dispatch metadata")
     organization = await OrganizationRepository(settings).resolve(
-        str(dispatch_metadata.get("bot_id")) if dispatch_metadata.get("bot_id") else None
+        str(dispatch_metadata.get("bot_id"))
+        if dispatch_metadata.get("bot_id")
+        else None
     )
-    session_id = str(dispatch_metadata.get("session_id") or settings.session_id or f"voice-{ctx.room.name}")
+    session_id = str(
+        dispatch_metadata.get("session_id")
+        or settings.session_id
+        or f"voice-{ctx.room.name}"
+    )
     visitor_timezone = resolve_visitor_timezone(
         dispatch_metadata.get("visitor_timezone"), settings.visitor_timezone
     )
@@ -125,7 +159,9 @@ async def entrypoint(ctx: JobContext) -> None:
             llm=llm,
             tts=tts,
             conn_options=SessionConnectOptions(
-                llm_conn_options=APIConnectOptions(timeout=settings.llm_timeout_seconds),
+                llm_conn_options=APIConnectOptions(
+                    timeout=settings.llm_timeout_seconds
+                ),
             ),
             expressive=expression_enabled,
             turn_handling=TurnHandlingOptions(
@@ -140,6 +176,27 @@ async def entrypoint(ctx: JobContext) -> None:
         )
     recorder = ConversationRecorder(organization, session_id)
     media_buffer = VoiceMediaBuffer()
+    max_duration_minutes = _resolve_max_duration_minutes(
+        bot_config.get("voice_max_duration_minutes")
+    )
+    timeout_task: asyncio.Task[None] | None = None
+
+    async def _cancel_session_timeout(_reason: str) -> None:
+        nonlocal timeout_task
+        if (
+            timeout_task is None
+            or timeout_task.done()
+            or timeout_task is asyncio.current_task()
+        ):
+            return
+        timeout_task.cancel()
+        await asyncio.gather(timeout_task, return_exceptions=True)
+
+    ctx.add_shutdown_callback(_cancel_session_timeout)
+    timeout_task = asyncio.create_task(
+        _close_session_after_timeout(session, ctx.room, max_duration_minutes),
+        name="chatty_voice_session_timeout",
+    )
 
     @ctx.room.on("data_received")
     def _on_data_received(packet) -> None:
