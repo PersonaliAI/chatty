@@ -222,7 +222,12 @@ export function VoiceAgentPanel({
             'Content-Type': 'application/json',
             ...(widgetToken ? { 'x-widget-token': widgetToken } : {}),
           },
-          body: JSON.stringify({ bot_id: botId, session_id: sessionId, room_nonce: roomNonce }),
+          body: JSON.stringify({
+            bot_id: botId,
+            session_id: sessionId,
+            room_nonce: roomNonce,
+            visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          }),
           cache: 'no-store',
         });
         if (!response.ok) throw new Error((await response.text()) || `Voice token failed (${response.status})`);

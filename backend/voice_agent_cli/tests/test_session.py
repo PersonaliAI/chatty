@@ -28,5 +28,5 @@ def test_voice_session_reuses_chatty_upsert(monkeypatch):
         "bot_id": "bot-1",
         "session_id": "voice-room-1",
         "last_message": "(voice session started)",
-        "channel": "web",
+        "channel": "voice",
     }

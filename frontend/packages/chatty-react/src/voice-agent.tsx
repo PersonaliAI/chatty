@@ -147,7 +147,11 @@ export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function
     const response = await fetch(`${backendUrl}/api/widget/voice/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(props.widgetToken ? { "x-widget-token": props.widgetToken } : {}) },
-      body: JSON.stringify({ bot_id: props.botId, session_id: sessionId }),
+      body: JSON.stringify({
+        bot_id: props.botId,
+        session_id: sessionId,
+        visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }),
       cache: "no-store",
     });
     if (!response.ok) throw new Error((await response.text()) || `Voice token failed (${response.status})`);

@@ -25,6 +25,7 @@ from .conversation import ConversationRecorder, load_chat_context
 from .media import MEDIA_TOPIC, VoiceMediaBuffer
 from .organization import OrganizationRepository
 from .session import open_voice_session
+from .timezone import resolve_visitor_timezone
 
 logger = logging.getLogger("chatty.voice.runtime")
 settings = VoiceSettings.from_env()
@@ -47,6 +48,9 @@ async def entrypoint(ctx: JobContext) -> None:
         str(dispatch_metadata.get("bot_id")) if dispatch_metadata.get("bot_id") else None
     )
     session_id = str(dispatch_metadata.get("session_id") or settings.session_id or f"voice-{ctx.room.name}")
+    visitor_timezone = resolve_visitor_timezone(
+        dispatch_metadata.get("visitor_timezone"), settings.visitor_timezone
+    )
     await open_voice_session(organization, session_id)
     chat_ctx = await load_chat_context(organization, session_id)
     ctx.log_context_fields = {
@@ -111,6 +115,7 @@ async def entrypoint(ctx: JobContext) -> None:
             session_id,
             chat_ctx,
             media_buffer=media_buffer,
+            visitor_timezone=visitor_timezone,
         ),
         room=ctx.room,
         room_options=room_io.RoomOptions(video_input=settings.enable_video_input),

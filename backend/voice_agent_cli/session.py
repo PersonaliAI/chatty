@@ -21,7 +21,7 @@ async def open_voice_session(
             bot_id=organization.bot["id"],
             session_id=session_id,
             last_message="(voice session started)",
-            channel="web",
+            channel="voice",
         )
         return row
     except Exception:

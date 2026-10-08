@@ -16,6 +16,9 @@ class VoiceTokenRequest(BaseModel):
     # reconnects safe when the browser refreshes a cached TokenSource.
     room_nonce: Optional[str] = Field(default=None, min_length=8, max_length=80)
     participant_name: Optional[str] = Field(default=None, max_length=120)
+    # Used only for calendar/booking presentation; it is not an auth or tenant
+    # selector and is carried inside the signed LiveKit dispatch metadata.
+    visitor_timezone: Optional[str] = Field(default=None, min_length=1, max_length=80)
 
 
 class VoiceConfigUpdate(BaseModel):

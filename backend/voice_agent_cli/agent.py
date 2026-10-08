@@ -91,10 +91,12 @@ class ChattyVoiceAgent(Agent):
         session_id: str,
         chat_ctx: llm.ChatContext | None = None,
         media_buffer: VoiceMediaBuffer | None = None,
+        visitor_timezone: str | None = None,
     ) -> None:
         self.organization = organization
         self.settings = settings
         self.session_id = session_id
+        self.visitor_timezone = visitor_timezone or settings.visitor_timezone
         self.knowledge = KnowledgeService(organization)
         self.flows = PublishedFlowService(organization, session_id)
         self.media_buffer = media_buffer
@@ -112,7 +114,7 @@ class ChattyVoiceAgent(Agent):
             tools=ChattyToolRegistry(
                 organization,
                 session_id,
-                settings.visitor_timezone,
+                self.visitor_timezone,
                 media_buffer=media_buffer,
             ).build(),
         )

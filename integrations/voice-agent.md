@@ -24,9 +24,15 @@ Content-Type: application/json
 {
   "bot_id": "YOUR_BOT_ID",
   "session_id": "chatty-session-id",
-  "participant_name": "Visitor"
+  "participant_name": "Visitor",
+  "visitor_timezone": "Asia/Colombo"
 }
 ```
+
+`visitor_timezone` is an optional IANA timezone identifier. The browser and
+SDKs should send the visitor's actual timezone so Chatty's existing booking
+guardrails can present and validate slots in the visitor's local time. It is
+not used for authentication or tenant selection.
 
 Response:
 

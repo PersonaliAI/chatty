@@ -159,7 +159,13 @@ async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
     # unregistered name saved on a bot.
     dispatch = api.RoomAgentDispatch(
         agent_name=default_agent_name,
-        metadata=json.dumps({"bot_id": body.bot_id, "session_id": body.session_id}),
+        metadata=json.dumps(
+            {
+                "bot_id": body.bot_id,
+                "session_id": body.session_id,
+                "visitor_timezone": (body.visitor_timezone or "").strip(),
+            }
+        ),
     )
     token = (
         api.AccessToken(api_key, api_secret)
