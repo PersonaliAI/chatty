@@ -60,9 +60,20 @@ class ChattyToolRegistry:
     def _business_tool(self, name: str, schema: dict[str, Any]) -> Any:
         async def run(_context: RunContext, arguments: dict[str, Any]) -> str:
             try:
+                safe_arguments = dict(arguments or {})
+                if name == "create_lead":
+                    # These values belong to the signed voice session, not to
+                    # model output. Injecting them here preserves tenant
+                    # isolation and makes voice leads deduplicate correctly.
+                    safe_arguments.update(
+                        {
+                            "bot_id": self.organization.bot["id"],
+                            "session_id": self.session_id,
+                        }
+                    )
                 result = await self.organization.modules.agent_tools.execute(
                     name,
-                    arguments or {},
+                    safe_arguments,
                     user=self.organization.owner_user,
                     supabase=self.organization.supabase,
                     context={
@@ -82,14 +93,28 @@ class ChattyToolRegistry:
                     {"error": "The requested Chatty action could not be completed."}
                 )
 
+        parameters = dict(
+            schema.get("parameters", {"type": "object", "properties": {}})
+        )
+        if name == "create_lead":
+            properties = dict(parameters.get("properties") or {})
+            properties.pop("bot_id", None)
+            parameters = {
+                **parameters,
+                "properties": properties,
+                "required": [
+                    field
+                    for field in parameters.get("required", [])
+                    if field not in {"bot_id", "session_id"}
+                ],
+            }
+
         return function_tool(
             run,
             raw_schema={
                 "name": schema["name"],
                 "description": schema.get("description", ""),
-                "parameters": schema.get(
-                    "parameters", {"type": "object", "properties": {}}
-                ),
+                "parameters": parameters,
             },
         )
 

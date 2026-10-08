@@ -106,6 +106,10 @@ def test_business_tool_passes_trusted_tenant_context():
     result = asyncio.run(tool(None, {"bot_id": "attacker-bot"}))
 
     assert result == '{"ok": true}'
+    assert captured["arguments"] == {
+        "bot_id": "bot-1",
+        "session_id": "session-1",
+    }
     assert captured["context"]["bot_id"] == "bot-1"
     assert captured["context"]["source"] == "widget"
     assert captured["context"]["channel"] == "voice"
