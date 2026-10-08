@@ -59,7 +59,7 @@ function LiveKitTranscript() {
       agentState={state}
       aria-live="polite"
       aria-label="Live voice transcript"
-      className="chatty-livekit-transcript h-full min-h-0 flex-1 rounded-2xl border border-neutral-200 bg-white/80 p-4 dark:border-neutral-800 dark:bg-neutral-950/60"
+      className="chatty-livekit-transcript h-full min-h-0 flex-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white/80 p-3 text-xs dark:border-neutral-800 dark:bg-neutral-950/60 sm:p-4"
     />
   );
 }

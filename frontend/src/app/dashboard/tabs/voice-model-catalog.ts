@@ -40,31 +40,40 @@ const ids = (values: string[], hint?: string): VoiceModelOption[] => values.map(
  */
 export const LIVEKIT_INFERENCE_MODELS: Record<VoiceModelKind, VoiceModelOption[]> = {
   llm: ids([
-    'deepseek-ai/deepseek-v4.1-flash', 'deepseek-ai/deepseek-v4-pro', 'deepseek-ai/deepseek-v3', 'deepseek-ai/deepseek-v3.1', 'deepseek-ai/deepseek-v3.2',
-    'google/gemma-4-31b-it', 'google/gemini-3-flash-preview', 'google/gemini-3.1-flash-lite', 'google/gemini-3.1-pro-preview', 'google/gemini-3.5-flash', 'google/gemini-3.5-flash-lite', 'google/gemini-3.6-flash', 'google/gemini-3.7-flash', 'google/gemini-3.8-flash',
-    'google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite', 'google/gemini-2.5-pro', 'google/gemini-2.0-flash', 'google/gemini-2.0-flash-lite',
-    'moonshotai/kimi-k2-instruct', 'moonshotai/kimi-k2.5', 'moonshotai/kimi-k2.6',
-    'openai/chat-latest', 'openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-4.1-nano', 'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-5', 'openai/gpt-5-mini', 'openai/gpt-5-nano', 'openai/gpt-5.1', 'openai/gpt-5.1-chat-latest', 'openai/gpt-5.2', 'openai/gpt-5.2-chat-latest', 'openai/gpt-5.3-chat-latest', 'openai/gpt-5.4', 'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano', 'openai/gpt-5.5', 'openai/gpt-5.6-luna', 'openai/gpt-5.6-sol', 'openai/gpt-5.6-terra', 'openai/gpt-oss-120b',
-    'xai/grok-4-1-fast-non-reasoning', 'xai/grok-4-1-fast-reasoning', 'xai/grok-4.20-0309-non-reasoning', 'xai/grok-4.20-0309-reasoning', 'xai/grok-4.20-multi-agent-0309', 'xai/grok-4.3', 'xai/grok-4.5', 'xai/grok-4.6', 'xai/grok-4.7',
+    'openai/gpt-4o', 'openai/gpt-4o-mini', 'openai/gpt-4.1', 'openai/gpt-4.1-mini', 'openai/gpt-4.1-nano',
+    'openai/gpt-5', 'openai/gpt-5-mini', 'openai/gpt-5-nano', 'openai/gpt-5.1', 'openai/gpt-5.1-chat-latest',
+    'openai/gpt-5.2', 'openai/gpt-5.2-chat-latest', 'openai/gpt-5.3-chat-latest', 'openai/gpt-5.4',
+    'openai/gpt-5.4-mini', 'openai/gpt-5.4-nano', 'openai/gpt-5.5', 'openai/gpt-5.6-luna',
+    'openai/gpt-5.6-sol', 'openai/gpt-5.6-terra', 'openai/chat-latest', 'openai/gpt-oss-120b',
+    'google/gemini-3.1-pro', 'google/gemini-3-flash', 'google/gemini-3.1-flash-lite', 'google/gemini-3.5-flash',
+    'google/gemini-2.5-pro', 'google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite',
+    'google/gemma-4-31b-it', 'moonshotai/kimi-k2.5', 'moonshotai/kimi-k2.6',
+    'deepseek-ai/deepseek-v3', 'deepseek-ai/deepseek-v3.2', 'zai/glm-5.1',
+    'xai/grok-4-1-fast-non-reasoning', 'xai/grok-4-1-fast-reasoning', 'xai/grok-4.20-0309-non-reasoning',
+    'xai/grok-4.20-0309-reasoning', 'xai/grok-4.20-multi-agent-0309', 'xai/grok-4.3', 'xai/grok-4.5',
   ], 'LiveKit Inference'),
   stt: ids([
-    'assemblyai/universal-3-5-pro', 'assemblyai/universal-3-6-pro', 'assemblyai/universal-streaming', 'assemblyai/universal-streaming-multilingual',
-    'cartesia/ink-2', 'cartesia/ink-whisper',
-    'deepgram/flux-general-en', 'deepgram/flux-general-multi', 'deepgram/nova-2', 'deepgram/nova-2-conversationalai', 'deepgram/nova-2-medical', 'deepgram/nova-2-phonecall', 'deepgram/nova-3', 'deepgram/nova-3-medical', 'deepgram/nova-3-pharma',
-    'google/gemini-3.5-transcribe-live', 'speechmatics/linden-1', 'speechmatics/enhanced', 'speechmatics/standard', 'xai/stt-1', 'xai/stt-2',
+    'deepgram/nova-3', 'deepgram/nova-3-medical', 'deepgram/nova-2', 'deepgram/nova-2-medical',
+    'deepgram/nova-2-conversationalai', 'deepgram/nova-2-phonecall', 'deepgram/flux-general',
+    'deepgram/flux-general-en', 'deepgram/flux-general-multi', 'cartesia/ink-whisper', 'cartesia/ink-2',
+    'assemblyai/universal-streaming', 'assemblyai/universal-streaming-multilingual', 'assemblyai/u3-rt-pro',
+    'assemblyai/universal-3-5-pro', 'assemblyai/universal-3-6-pro', 'xai/stt-1', 'speechmatics/enhanced',
+    'speechmatics/standard', 'speechmatics/linden-1', 'inworld/inworld-stt-1', 'google/gemini-3.5-transcribe-live',
   ], 'LiveKit Inference'),
   tts: ids([
-    'cartesia/sonic', 'cartesia/sonic-2', 'cartesia/sonic-3', 'cartesia/sonic-3-2025-10-27', 'cartesia/sonic-3-2026-01-12', 'cartesia/sonic-3-latest', 'cartesia/sonic-3.5', 'cartesia/sonic-3.5-2026-05-04', 'cartesia/sonic-3.6', 'cartesia/sonic-3.6-2026-08-27', 'cartesia/sonic-latest', 'cartesia/sonic-turbo', 'cartesia/sonic-preview',
-    'deepgram/aura-2', 'deepgram/flux-tts', 'deepgram/aura',
-    'fishaudio/s2-pro', 'fishaudio/s2.1-pro', 'fishaudio/s2.1-pro-free',
-    'gradium/default', 'inworld/inworld-tts-1', 'inworld/inworld-tts-1-max', 'inworld/inworld-tts-1.5-max', 'inworld/inworld-tts-1.5-mini', 'inworld/inworld-tts-2', 'inworld/inworld-tts-2-flash', 'rime/coda', 'rime/mistv3', 'rime/mistv2', 'rime/mist', 'rime/arcana', 'xai/tts-1',
+    'cartesia', 'cartesia/sonic-3.5', 'cartesia/sonic-3', 'cartesia/sonic-2', 'cartesia/sonic-turbo',
+    'cartesia/sonic', 'cartesia/sonic-3-latest', 'cartesia/sonic-latest', 'deepgram', 'deepgram/aura',
+    'deepgram/aura-2', 'rime', 'rime/coda', 'rime/mistv2', 'rime/mistv3', 'rime/mist', 'inworld',
+    'inworld/inworld-tts-2', 'inworld/inworld-tts-1.5-max', 'inworld/inworld-tts-1.5-mini',
+    'inworld/inworld-tts-1.5', 'inworld/inworld-tts-1-max', 'inworld/inworld-tts-1', 'xai/tts-1',
+    'fishaudio', 'fishaudio/s2.1-pro', 'fishaudio/s2.1-pro-free', 'fishaudio/s2-pro',
   ], 'LiveKit Inference'),
 };
 
 /** Realtime model plugins documented by LiveKit Agents. These are separate
  * from the STT → LLM → TTS pipeline and require the corresponding BYOK key. */
 export const REALTIME_MODELS: Record<string, VoiceModelOption[]> = {
-  google: ids(['gemini-live-2.5-flash-native-audio', 'gemini-2.5-flash-native-audio-dialog'], 'Google Gemini Live'),
+  google: ids(['gemini-3.8-live', 'gemini-3.8-live-extended-thinking', 'gemini-3.1-flash-live-preview', 'gemini-live-2.5-flash-native-audio', 'gemini-2.5-flash-native-audio-preview-12-2025'], 'Google Gemini Live'),
   openai: ids(['gpt-realtime', 'gpt-4o-realtime-preview', 'gpt-live'], 'OpenAI Realtime'),
   azure: ids(['gpt-realtime', 'gpt-4o-realtime-preview'], 'Azure OpenAI Realtime'),
   aws: ids(['amazon.nova-2.5-sonic-v1:0', 'amazon.nova-2-sonic-v1:0', 'amazon.nova-sonic-v1:0'], 'Amazon Nova Sonic'),

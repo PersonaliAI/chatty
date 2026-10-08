@@ -701,6 +701,8 @@ body {
   text-align: start;
   line-height: 1.25;
   white-space: normal !important;
+  font-size: 0.75rem !important;
+  font-weight: 500;
 }
 
 .chatty-voice-panel .chatty-livekit-controls .lk-device-menu .lk-media-device-select li > .lk-button {
@@ -741,6 +743,25 @@ body {
 .chatty-transcript-frame > .chatty-livekit-transcript {
   height: 100%;
   min-height: 0;
+}
+
+/* Keep the official Agents UI transcript compact and width-safe in the
+ * narrow widget. Long device names and streamed messages must wrap instead
+ * of covering adjacent controls or widening the panel. */
+.chatty-livekit-transcript [data-slot="message-scroller-viewport"],
+.chatty-livekit-transcript [data-slot="message-scroller-content"],
+.chatty-livekit-transcript [data-slot="message-scroller-item"],
+.chatty-livekit-transcript [data-slot="message"],
+.chatty-livekit-transcript [data-slot="message-content"],
+.chatty-livekit-transcript [data-slot="bubble"],
+.chatty-livekit-transcript [data-slot="bubble-content"] {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.chatty-livekit-transcript [data-slot="bubble-content"] {
+  font-size: 0.8125rem;
+  line-height: 1.45;
 }
 
 /* KaTeX is rendered inside the live transcript. Display equations get their

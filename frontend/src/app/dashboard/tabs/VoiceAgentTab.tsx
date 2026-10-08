@@ -478,19 +478,23 @@ export function VoiceAgentTab({
   const pendingSaveRef = useRef(false);
   const latestConfigRef = useRef(config);
   const latestDraftKeyRef = useRef(draftKey);
+  // The dashboard parent recreates fetchBackend during renders. Keep the
+  // latest implementation without making Voice Studio rehydrate repeatedly.
+  const fetchBackendRef = useRef(fetchBackend);
+  fetchBackendRef.current = fetchBackend;
   latestConfigRef.current = config;
   latestDraftKeyRef.current = draftKey;
   const load = useCallback(async () => {
     setLoading(true);
     skipAutosaveRef.current = true;
     try {
-      const response = await fetchBackend(`/api/bots/${botId}/voice`);
+      const response = await fetchBackendRef.current(`/api/bots/${botId}/voice`);
       if (response.ok) setConfig({ ...defaults, ...(await response.json()) });
     } finally {
       setLoading(false);
       hydratedRef.current = true;
     }
-  }, [botId, fetchBackend]);
+  }, [botId]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -535,7 +539,7 @@ export function VoiceAgentTab({
     setSaved(false);
     setError(null);
     try {
-      const response = await fetchBackend(`/api/bots/${botId}/voice`, {
+      const response = await fetchBackendRef.current(`/api/bots/${botId}/voice`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -573,7 +577,7 @@ export function VoiceAgentTab({
         window.setTimeout(() => void save(), 0);
       }
     }
-  }, [botId, fetchBackend]);
+  }, [botId]);
   useEffect(() => {
     if (!hydratedRef.current) return;
     if (skipAutosaveRef.current) {
