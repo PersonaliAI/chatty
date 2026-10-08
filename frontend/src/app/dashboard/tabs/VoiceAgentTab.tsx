@@ -1,21 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AudioWaveform,
   CheckCircle2,
   ExternalLink,
   Info,
   KeyRound,
+  Languages,
+  Loader2,
   Mic2,
   Radio,
-  Save,
   Settings2,
   Sparkles,
   Volume2,
-  Waves,
   Zap,
 } from "lucide-react";
 
@@ -120,6 +119,30 @@ const visualizerInfo: {
 const fieldClass =
   "h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-400 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/10 dark:border-neutral-800 dark:bg-neutral-950";
 
+const VOICE_LANGUAGE_OPTIONS: ModernSelectOption[] = [
+  ["en-US", "English (US)"], ["en-GB", "English (UK)"], ["en-AU", "English (Australia)"],
+  ["en-IN", "English (India)"], ["es-ES", "Spanish (Spain)"], ["es-US", "Spanish (US)"],
+  ["fr-FR", "French"], ["de-DE", "German"], ["it-IT", "Italian"], ["pt-BR", "Portuguese (Brazil)"],
+  ["pt-PT", "Portuguese (Portugal)"], ["nl-NL", "Dutch"], ["pl-PL", "Polish"], ["tr-TR", "Turkish"],
+  ["ru-RU", "Russian"], ["uk-UA", "Ukrainian"], ["cs-CZ", "Czech"], ["ro-RO", "Romanian"],
+  ["el-GR", "Greek"], ["hu-HU", "Hungarian"], ["sv-SE", "Swedish"], ["da-DK", "Danish"],
+  ["no-NO", "Norwegian"], ["fi-FI", "Finnish"], ["he-IL", "Hebrew"], ["ar-SA", "Arabic"],
+  ["hi-IN", "Hindi"], ["bn-IN", "Bengali"], ["id-ID", "Indonesian"], ["ms-MY", "Malay"],
+  ["vi-VN", "Vietnamese"], ["th-TH", "Thai"], ["ja-JP", "Japanese"], ["ko-KR", "Korean"],
+  ["zh-CN", "Chinese (Mandarin)"], ["zh-TW", "Chinese (Traditional)"], ["yue-HK", "Chinese (Cantonese)"],
+].map(([value, label]) => ({ value, label, hint: value }));
+
+const VOICE_OPTIONS: Record<string, ModernSelectOption[]> = {
+  google: [
+    ["Kore", "Kore"], ["Puck", "Puck"], ["Charon", "Charon"], ["Fenrir", "Fenrir"],
+    ["Aoede", "Aoede"], ["Leda", "Leda"], ["Orus", "Orus"], ["Zephyr", "Zephyr"],
+  ].map(([value, label]) => ({ value, label, hint: "Gemini / Google" })),
+  cartesia: ["sonic-3", "sonic-3.5", "sonic-3.6"].map((value) => ({ value, label: value, hint: "Cartesia voice ID" })),
+  deepgram: ["aura-2-thalia-en", "aura-2-apollo-en", "aura-2-athena-en"].map((value) => ({ value, label: value, hint: "Deepgram" })),
+  elevenlabs: ["eleven_multilingual_v2", "eleven_v3", "eleven_turbo_v2_5"].map((value) => ({ value, label: value, hint: "ElevenLabs voice ID" })),
+  openai: ["alloy", "ash", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"].map((value) => ({ value, label: value, hint: "OpenAI" })),
+};
+
 function Select({
   value,
   options,
@@ -205,15 +228,15 @@ function Preview({
   }, []);
 
   return (
-    <section className="overflow-hidden rounded-[26px] border border-neutral-800 bg-[#090b0f] text-white shadow-2xl shadow-cyan-950/10">
-      <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row">
+    <section className="overflow-hidden rounded-[22px] border border-neutral-800 bg-[#090b0f] text-white shadow-2xl shadow-cyan-950/10">
+      <div className="flex flex-col gap-4 p-4 sm:p-5 lg:h-[min(490px,calc(100dvh-190px))] lg:min-h-[430px] lg:flex-row">
         <div className="min-w-0 flex-1">
-          <div className="mb-5 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
                 Agents UI visualizer
               </p>
-              <h2 className="mt-1 text-lg font-semibold">
+              <h2 className="mt-1 text-base font-semibold sm:text-lg">
                 Give your agent a visual personality
               </h2>
             </div>
@@ -221,22 +244,22 @@ function Preview({
               LiveKit
             </span>
           </div>
-          <div className="relative flex min-h-[250px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_center,rgba(22,74,99,.3),transparent_56%)] sm:min-h-[280px]">
+          <div className="relative flex h-[220px] min-h-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_center,rgba(22,74,99,.3),transparent_56%)] sm:h-[250px] lg:h-[calc(100%-55px)]">
             <div className="absolute inset-0 opacity-25 [background-image:radial-gradient(#6c8190_1px,transparent_1px)] [background-size:8px_8px]" />
             <LiveKitAgentVisualizer
               visualizer={selected}
               state={previewState}
               color={current.color}
-              className="h-[min(30vw,240px)] w-[min(30vw,240px)] max-h-[240px] max-w-[240px]"
+              className="size-[min(42vw,220px)] max-h-[220px] max-w-[220px]"
               demo
             />
           </div>
-          <p className="mt-3 text-center text-xs text-neutral-400" aria-live="polite">
+          <p className="mt-2 text-center text-[11px] text-neutral-400" aria-live="polite">
             Agent is {stateLabel.toLowerCase()}
           </p>
         </div>
-        <div className="lg:w-[280px] lg:border-l lg:border-white/10 lg:pl-6">
-          <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-neutral-300">
+        <div className="lg:w-[250px] lg:border-l lg:border-white/10 lg:pl-5">
+          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold text-neutral-300">
             <Radio className="size-3.5 text-cyan-300" /> Preview states
           </div>
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 p-1 text-[10px] text-neutral-400" role="group" aria-label="Preview agent state">
@@ -255,11 +278,11 @@ function Preview({
               );
             })}
           </div>
-          <p className="mt-6 text-sm font-medium">{current.label} visualizer</p>
+          <p className="mt-4 text-sm font-medium">{current.label} visualizer</p>
           <p className="mt-1 text-xs leading-5 text-neutral-400">
             {current.description}
           </p>
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-1.5">
             {visualizerInfo.map((item) => (
               <button
                 key={item.value}
@@ -448,24 +471,48 @@ export function VoiceAgentTab({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hydratedRef = useRef(false);
+  const skipAutosaveRef = useRef(false);
+  const saveTimerRef = useRef<number | null>(null);
+  const saveInFlightRef = useRef(false);
+  const pendingSaveRef = useRef(false);
+  const latestConfigRef = useRef(config);
+  const latestDraftKeyRef = useRef(draftKey);
+  latestConfigRef.current = config;
+  latestDraftKeyRef.current = draftKey;
   const load = useCallback(async () => {
     setLoading(true);
+    skipAutosaveRef.current = true;
     try {
       const response = await fetchBackend(`/api/bots/${botId}/voice`);
       if (response.ok) setConfig({ ...defaults, ...(await response.json()) });
     } finally {
       setLoading(false);
+      hydratedRef.current = true;
     }
   }, [botId, fetchBackend]);
   useEffect(() => {
     void load();
   }, [load]);
   const sessionId = useMemo(() => `dashboard-voice-${botId}`, [botId]);
+  const voiceOptions = useMemo(() => {
+    const options = VOICE_OPTIONS[config.tts_provider] ?? [];
+    if (options.some((option) => option.value === config.tts_voice)) return options;
+    return [
+      {
+        value: config.tts_voice,
+        label: config.tts_voice || "Choose a voice",
+        hint: "Current provider voice ID",
+      },
+      ...options,
+    ];
+  }, [config.tts_provider, config.tts_voice]);
   const update = <K extends keyof VoiceConfig>(
     key: K,
     value: VoiceConfig[K],
   ) => {
     setSaved(false);
+    setError(null);
     setConfig((current) => ({ ...current, [key]: value }));
   };
   const changeProvider = (kind: VoiceModelKind, provider: string) => {
@@ -476,7 +523,14 @@ export function VoiceAgentTab({
       ...(first ? { [`${kind}_model`]: first } : {}),
     }));
   };
-  const save = async () => {
+  const save = useCallback(async () => {
+    if (saveInFlightRef.current) {
+      pendingSaveRef.current = true;
+      return;
+    }
+    const configSnapshot = latestConfigRef.current;
+    const draftKeySnapshot = latestDraftKeyRef.current;
+    saveInFlightRef.current = true;
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -485,17 +539,25 @@ export function VoiceAgentTab({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...config,
-          realtime_api_key: draftKey.realtime || undefined,
-          llm_api_key: draftKey.llm || undefined,
-          stt_api_key: draftKey.stt || undefined,
-          tts_api_key: draftKey.tts || undefined,
+          ...configSnapshot,
+          realtime_api_key: draftKeySnapshot.realtime || undefined,
+          llm_api_key: draftKeySnapshot.llm || undefined,
+          stt_api_key: draftKeySnapshot.stt || undefined,
+          tts_api_key: draftKeySnapshot.tts || undefined,
         }),
       });
       if (!response.ok) throw new Error(await response.text());
-      const savedConfig = (await response.json()) as Partial<VoiceConfig>;
-      setConfig((current) => ({ ...current, ...savedConfig }));
-      setDraftKey({ realtime: "", llm: "", stt: "", tts: "" });
+      await response.json();
+      const currentKeys = latestDraftKeyRef.current;
+      if (
+        currentKeys.realtime === draftKeySnapshot.realtime &&
+        currentKeys.llm === draftKeySnapshot.llm &&
+        currentKeys.stt === draftKeySnapshot.stt &&
+        currentKeys.tts === draftKeySnapshot.tts
+      ) {
+        skipAutosaveRef.current = true;
+        setDraftKey({ realtime: "", llm: "", stt: "", tts: "" });
+      }
       setSaved(true);
     } catch (cause) {
       setError(
@@ -505,8 +567,28 @@ export function VoiceAgentTab({
       );
     } finally {
       setSaving(false);
+      saveInFlightRef.current = false;
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false;
+        window.setTimeout(() => void save(), 0);
+      }
     }
-  };
+  }, [botId, fetchBackend]);
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => void save(), 700);
+    return () => {
+      if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+    };
+  }, [config, draftKey, save]);
+  useEffect(() => () => {
+    if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+  }, []);
   if (loading)
     return (
       <div className="flex min-h-[400px] items-center justify-center text-sm text-neutral-500">
@@ -515,41 +597,50 @@ export function VoiceAgentTab({
       </div>
     );
   return (
-    <div className="min-h-full bg-gradient-to-b from-cyan-50/50 via-white to-white p-4 pb-28 dark:from-cyan-950/10 dark:via-neutral-950 dark:to-neutral-950 sm:p-6 lg:p-8">
-      <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <main className="grid min-w-0 gap-6">
-          <section className="relative overflow-hidden rounded-[30px] border border-neutral-200/80 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-7">
+    <div className="min-h-full bg-gradient-to-b from-cyan-50/50 via-white to-white p-3 dark:from-cyan-950/10 dark:via-neutral-950 dark:to-neutral-950 sm:p-4 lg:p-5">
+      <div className="mx-auto grid max-w-[1440px] gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <main className="grid min-w-0 gap-5">
+          <section className="relative overflow-hidden rounded-[22px] border border-neutral-200/80 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-5">
             <div className="pointer-events-none absolute -right-20 -top-24 size-80 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
-            <div className="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-300">
-                  <AudioWaveform className="size-4" /> Voice agent studio
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-600 dark:text-cyan-300">
+                  <AudioWaveform className="size-3.5" /> Voice agent studio
                 </div>
-                <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
-                  A voice experience people want to use.
+                <h1 className="max-w-2xl text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
+                  Build a voice experience people want to use.
                 </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-500">
+                <p className="mt-2 max-w-2xl text-[13px] leading-5 text-neutral-500">
                   Design a real-time agent with the same Chatty knowledge,
                   tools, booking, lead capture, and guardrails your text agent
                   already uses.
                 </p>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 dark:border-cyan-950/60 dark:bg-cyan-950/20">
-                <div>
-                  <p className="text-xs font-semibold">Voice access</p>
-                  <p className="mt-0.5 text-[11px] text-neutral-500">
-                    {config.enabled
-                      ? "Live in widget and embeds"
-                      : "Hidden from visitors"}
-                  </p>
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <div className="text-right text-[11px] text-neutral-500" role="status" aria-live="polite">
+                  <div className="flex items-center justify-end gap-1.5">
+                    {saving ? <Loader2 className="size-3 animate-spin text-cyan-500" /> : saved ? <CheckCircle2 className="size-3 text-emerald-500" /> : null}
+                    <span>{saving ? "Saving changes…" : saved ? "All changes saved" : "Changes will autosave"}</span>
+                  </div>
+                  <div className="mt-1 h-1 w-28 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
+                    <div className={`h-full rounded-full transition-all duration-500 ${error ? "bg-red-500" : saved ? "w-full bg-emerald-500" : saving ? "w-2/3 animate-pulse bg-cyan-500" : "w-1/4 bg-cyan-400"}`} />
+                  </div>
                 </div>
-                <ModernSwitch
-                  checked={config.enabled}
-                  onChange={(value) => update("enabled", value)}
-                  aria-label="Enable voice agent"
-                  activeLabel=""
-                  inactiveLabel=""
-                />
+                <div className="flex items-center gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5 dark:border-cyan-950/60 dark:bg-cyan-950/20">
+                  <div>
+                    <p className="text-xs font-semibold">Voice access</p>
+                    <p className="mt-0.5 text-[10px] text-neutral-500">
+                      {config.enabled ? "Live in widget and embeds" : "Hidden from visitors"}
+                    </p>
+                  </div>
+                  <ModernSwitch
+                    checked={config.enabled}
+                    onChange={(value) => update("enabled", value)}
+                    aria-label="Enable voice agent"
+                    activeLabel=""
+                    inactiveLabel=""
+                  />
+                </div>
               </div>
             </div>
             {error && (
@@ -561,8 +652,8 @@ export function VoiceAgentTab({
                 {error}
               </ModernAlert>
             )}
-            <div className="relative mt-7 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+            <div className="relative mt-5 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-neutral-400">
                   Session mode
                 </p>
@@ -570,7 +661,7 @@ export function VoiceAgentTab({
                   {config.mode}
                 </p>
               </div>
-              <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+              <div className="rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-neutral-400">
                   Interruption
                 </p>
@@ -578,7 +669,7 @@ export function VoiceAgentTab({
                   Instant barge-in
                 </p>
               </div>
-              <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+              <div className="rounded-xl bg-neutral-50 p-3 dark:bg-neutral-900">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-neutral-400">
                   Transcription
                 </p>
@@ -733,29 +824,27 @@ export function VoiceAgentTab({
             </div>
           </Card>
           <Card
-            icon={<Waves className="size-5" />}
+            icon={<Languages className="size-5" />}
             title="Language and voice"
-            description="Passed to the selected official LiveKit provider at session creation."
+            description="Search the supported provider locales and voice IDs used for new sessions."
           >
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <label className="grid gap-2 text-sm">
                 <span className="font-medium">STT language</span>
-                <input
+                <Select
                   value={config.stt_language}
-                  onChange={(event) =>
-                    update("stt_language", event.target.value)
-                  }
-                  className={fieldClass}
-                  placeholder="en-US"
+                  onChange={(value) => update("stt_language", value)}
+                  options={VOICE_LANGUAGE_OPTIONS}
+                  label="STT language"
                 />
               </label>
               <label className="grid gap-2 text-sm">
                 <span className="font-medium">TTS voice</span>
-                <input
+                <Select
                   value={config.tts_voice}
-                  onChange={(event) => update("tts_voice", event.target.value)}
-                  className={fieldClass}
-                  placeholder="Kore or provider voice ID"
+                  onChange={(value) => update("tts_voice", value)}
+                  options={voiceOptions}
+                  label="TTS voice"
                 />
               </label>
             </div>
@@ -793,44 +882,14 @@ export function VoiceAgentTab({
             </div>
           </section>
         </main>
-        <aside className="min-h-[560px] xl:sticky xl:top-4 xl:self-start">
+        <aside className="min-h-[520px] xl:sticky xl:top-4 xl:self-start">
           <VoiceAgentPanel
             botId={botId}
             sessionId={sessionId}
             visualizer={config.visualizer}
-            className="h-[min(720px,calc(100dvh-8rem))] min-h-[560px]"
+            className="h-[min(680px,calc(100dvh-7rem))] min-h-[520px]"
           />
         </aside>
-      </div>
-      <div className="sticky bottom-0 z-30 mt-6 border-t border-neutral-200/80 bg-white/95 px-4 py-3 backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-950/95 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3">
-          <p className="hidden text-xs text-neutral-500 sm:block">
-            Changes apply to new voice sessions.
-          </p>
-          <div className="flex items-center gap-3">
-            <AnimatePresence>
-              {saved && (
-                <motion.span
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="inline-flex items-center gap-1 text-sm text-emerald-600"
-                >
-                  <CheckCircle2 className="size-4" /> Saved
-                </motion.span>
-              )}
-            </AnimatePresence>
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={saving}
-              className="inline-flex items-center gap-2 rounded-full bg-[#0b1117] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-900/10 transition hover:bg-[#14212b] disabled:opacity-50 dark:bg-white dark:text-neutral-950"
-            >
-              <Save className="size-4" />
-              {saving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
