@@ -56,6 +56,10 @@ type VoiceTokenResponse = {
 
 const DEFAULT_BACKEND_URL = "https://api.chatty.personaliai.com";
 
+function createVoiceRoomNonce() {
+  return globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function Transcript({ messages }: { messages: ReceivedMessage[] }) {
   if (!messages.length) {
     return <p className="chatty-sdk-voice-empty">Start speaking to see the live transcript.</p>;
@@ -150,6 +154,10 @@ export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function
       body: JSON.stringify({
         bot_id: props.botId,
         session_id: sessionId,
+        // Keep the Chatty conversation stable while forcing every LiveKit
+        // connection attempt into a fresh room. This prevents reconnects
+        // from inheriting stale participant/thread state.
+        room_nonce: createVoiceRoomNonce(),
         visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
       cache: "no-store",
