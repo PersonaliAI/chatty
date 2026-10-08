@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, type CSSProperties, type ForwardedRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type ForwardedRef } from "react";
 import {
   RoomAudioRenderer,
   SessionProvider,
@@ -87,6 +87,15 @@ function Transcript({ messages }: { messages: ReceivedMessage[] }) {
 function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; apiRef: ForwardedRef<VoiceAgentHandle>; sessionId: string }) {
   const bookingBackendUrl = props.backendUrl ?? DEFAULT_BACKEND_URL;
   const session = useSessionContext();
+  // The LiveKit session object changes identity as its connection state
+  // changes. Keep the lifecycle effect tied to the explicit user intent
+  // (`started`) instead of reconnecting on every reactive session update.
+  const sessionRef = useRef(session);
+  const onErrorRef = useRef(props.onError);
+  useEffect(() => {
+    sessionRef.current = session;
+    onErrorRef.current = props.onError;
+  }, [session, props.onError]);
   const { state: agentState } = useAgent();
   const { localParticipant } = useLocalParticipant();
   const { messages } = useSessionMessages(session);
@@ -128,11 +137,11 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     if (!started) return;
     let active = true;
     setStarting(true);
-    void session.start().catch((cause) => {
+    void sessionRef.current.start().catch((cause) => {
       const nextError = cause instanceof Error ? cause : new Error("Unable to connect to the voice agent.");
       if (active) {
         setError(nextError.message);
-        props.onError?.(nextError);
+        onErrorRef.current?.(nextError);
         setStarted(false);
       }
     }).finally(() => {
@@ -140,9 +149,9 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     });
     return () => {
       active = false;
-      void session.end();
+      void sessionRef.current.end();
     };
-  }, [props.onError, session, started]);
+  }, [started]);
 
   const start = () => {
     setError(null);
