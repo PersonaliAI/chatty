@@ -2723,8 +2723,8 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               />
             )}
             {voiceAgentEnabled && (
-              <button type="button" onClick={() => setVoiceAgentOpen((open) => !open)} className="group relative flex size-7 shrink-0 items-center justify-center rounded-full p-0 text-white/90 transition-colors hover:bg-white/15 hover:text-white" aria-label="Open voice agent" title="Live voice agent">
-                <AudioWaveform className="size-3.5 stroke-[1.8] transition-transform duration-200 group-hover:scale-110" />
+              <button type="button" onClick={() => setVoiceAgentOpen((open) => !open)} className="group relative flex size-7 shrink-0 items-center justify-center rounded-full p-0 text-current transition-colors hover:bg-white/15" aria-label="Open voice agent" aria-pressed={voiceModeActive} title="Live voice agent">
+                <AudioWaveform className="size-4 stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
                 <span className="sr-only">Voice</span>
               </button>
             )}
@@ -3852,7 +3852,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
-                {voiceAgentEnabled && <button type="button" onClick={() => setVoiceAgentOpen(true)} className="chat-input-bar-icon rounded-full p-1 text-neutral-500 transition hover:text-neutral-800 dark:hover:text-neutral-200" aria-label="Start live voice agent" title="Live voice agent"><AudioWaveform className="size-4 stroke-[1.8]" /></button>}
+                {voiceAgentEnabled && <button type="button" onClick={() => setVoiceAgentOpen(true)} className="chat-input-bar-icon rounded-full p-1 text-neutral-500 transition hover:text-neutral-800 dark:hover:text-neutral-200" aria-label="Start live voice agent" title="Live voice agent"><AudioWaveform className="size-4 stroke-[2.1]" aria-hidden="true" /></button>}
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
