@@ -1,8 +1,8 @@
 diff --git a/node_modules/livekit-client/dist/livekit-client.esm.mjs b/node_modules/livekit-client/dist/livekit-client.esm.mjs
-index 6cae7d0..94a11d0 100644
+index 6cae7d0..47950a5 100644
 --- a/node_modules/livekit-client/dist/livekit-client.esm.mjs
 +++ b/node_modules/livekit-client/dist/livekit-client.esm.mjs
-@@ -20752,11 +20752,15 @@ class PCTransport extends eventsExports.EventEmitter {
+@@ -20752,11 +20752,20 @@ class PCTransport extends eventsExports.EventEmitter {
      this.trackBitrates.push(info);
    }
    setConfiguration(rtcConfig) {
@@ -16,15 +16,20 @@ index 6cae7d0..94a11d0 100644
 +      ...current,
 +      iceServers: rtcConfig.iceServers ?? current.iceServers
 +    };
-+    return this._pc.setConfiguration(next);
++    try {
++      return this._pc.setConfiguration(next);
++    } catch (error) {
++      this.log.warn('browser rejected LiveKit ICE configuration update', { error });
++      return;
++    }
    }
    canRemoveTrack() {
      var _a;
 diff --git a/node_modules/livekit-client/src/room/PCTransport.ts b/node_modules/livekit-client/src/room/PCTransport.ts
-index 6983a35..2c4f590 100644
+index 6983a35..b5fe9c2 100644
 --- a/node_modules/livekit-client/src/room/PCTransport.ts
 +++ b/node_modules/livekit-client/src/room/PCTransport.ts
-@@ -558,7 +558,18 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
+@@ -558,7 +558,27 @@ export default class PCTransport extends (EventEmitter as new () => TypedEmitter
      if (!this._pc) {
        throw new UnexpectedConnectionState('PC closed, cannot configure');
      }
@@ -40,7 +45,16 @@ index 6983a35..2c4f590 100644
 +      ...current,
 +      iceServers: rtcConfig.iceServers ?? current.iceServers,
 +    };
-+    return this._pc.setConfiguration(next);
++    try {
++      return this._pc.setConfiguration(next);
++    } catch (error) {
++      // Some Chromium builds reject a post-offer ICE-server update even when
++      // the immutable fields are preserved. The initial offer can still use
++      // the server's public ICE candidates, so keep the join alive and allow
++      // the normal ICE state machine to determine connectivity.
++      this.log.warn('browser rejected LiveKit ICE configuration update', { error });
++      return;
++    }
    }
  
    canRemoveTrack(): boolean {
