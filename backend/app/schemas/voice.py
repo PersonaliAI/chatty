@@ -19,6 +19,9 @@ class VoiceConfigUpdate(BaseModel):
     expression_enabled: Optional[bool] = None
     visualizer: Optional[Literal["wave", "bar", "grid", "radial", "aura"]] = None
     agent_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    realtime_provider: Optional[Literal["google", "openai", "azure", "aws", "nvidia", "phonic", "spacexai", "ultravox"]] = None
+    realtime_model: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    realtime_api_key: Optional[str] = Field(default=None, max_length=500)
     llm_provider: Optional[Literal["google", "livekit-inference", "openai", "anthropic", "openrouter"]] = None
     llm_model: Optional[str] = Field(default=None, min_length=1, max_length=120)
     llm_api_key: Optional[str] = Field(default=None, max_length=500)

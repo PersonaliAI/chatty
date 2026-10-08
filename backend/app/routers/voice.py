@@ -23,6 +23,7 @@ router = APIRouter()
 
 _CONFIG_FIELDS = (
     "voice_enabled, voice_mode, voice_expression_enabled, voice_visualizer, voice_agent_name, "
+    "voice_realtime_provider, voice_realtime_model, voice_realtime_byok_key_encrypted, "
     "voice_llm_provider, voice_llm_model, voice_llm_byok_key_encrypted, voice_stt_provider, "
     "voice_stt_model, voice_stt_language, voice_stt_byok_key_encrypted, voice_tts_provider, "
     "voice_tts_model, voice_tts_voice, voice_tts_byok_key_encrypted, voice_max_duration_minutes"
@@ -51,6 +52,8 @@ def _public_voice_config(bot: dict[str, Any]) -> dict[str, Any]:
         "expression_enabled": bool(bot.get("voice_expression_enabled", True)),
         "visualizer": bot.get("voice_visualizer") or "wave",
         "agent_name": bot.get("voice_agent_name") or "chatty-voice-agent",
+        "realtime_provider": bot.get("voice_realtime_provider") or "google",
+        "realtime_model": bot.get("voice_realtime_model") or "gemini-live-2.5-flash-native-audio",
         "llm_provider": bot.get("voice_llm_provider") or "google",
         "llm_model": bot.get("voice_llm_model") or "gemini-2.5-flash",
         "stt_provider": bot.get("voice_stt_provider") or "google",
@@ -71,6 +74,7 @@ async def get_voice_config(bot_id: str, user: dict[str, Any] = Depends(require_u
         raise HTTPException(status_code=404, detail="Bot not found")
     row = result.data[0]
     return _public_voice_config(row) | {
+        "realtime_key_configured": bool(row.get("voice_realtime_byok_key_encrypted")),
         "llm_key_configured": bool(row.get("voice_llm_byok_key_encrypted")),
         "stt_key_configured": bool(row.get("voice_stt_byok_key_encrypted")),
         "tts_key_configured": bool(row.get("voice_tts_byok_key_encrypted")),
@@ -89,6 +93,7 @@ async def update_voice_config(
         "enabled": "voice_enabled", "mode": "voice_mode",
         "expression_enabled": "voice_expression_enabled", "visualizer": "voice_visualizer",
         "agent_name": "voice_agent_name", "llm_provider": "voice_llm_provider",
+        "realtime_provider": "voice_realtime_provider", "realtime_model": "voice_realtime_model",
         "llm_model": "voice_llm_model", "stt_provider": "voice_stt_provider",
         "stt_model": "voice_stt_model", "stt_language": "voice_stt_language",
         "tts_provider": "voice_tts_provider", "tts_model": "voice_tts_model",
@@ -100,6 +105,7 @@ async def update_voice_config(
         if value is not None:
             updates[target] = value.strip() if isinstance(value, str) else value
     for source, target in {
+        "realtime_api_key": "voice_realtime_byok_key_encrypted",
         "llm_api_key": "voice_llm_byok_key_encrypted",
         "stt_api_key": "voice_stt_byok_key_encrypted",
         "tts_api_key": "voice_tts_byok_key_encrypted",
@@ -114,6 +120,7 @@ async def update_voice_config(
         raise HTTPException(status_code=404, detail="Bot not found")
     row = result.data[0]
     return _public_voice_config(row) | {
+        "realtime_key_configured": bool(row.get("voice_realtime_byok_key_encrypted")),
         "llm_key_configured": bool(row.get("voice_llm_byok_key_encrypted")),
         "stt_key_configured": bool(row.get("voice_stt_byok_key_encrypted")),
         "tts_key_configured": bool(row.get("voice_tts_byok_key_encrypted")),

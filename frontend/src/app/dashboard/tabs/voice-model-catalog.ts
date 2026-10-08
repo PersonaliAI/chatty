@@ -7,10 +7,28 @@ export type VoiceModelOption = {
   status?: 'current' | 'deprecated' | 'retired';
 };
 
+const retired = new Set([
+  'deepseek-ai/deepseek-v3', 'deepseek-ai/deepseek-v3.1', 'deepseek-ai/deepseek-v3.2',
+  'google/gemini-2.0-flash', 'google/gemini-2.0-flash-lite', 'google/gemini-3-pro-preview',
+  'openai/gpt-5.1-chat-latest', 'openai/gpt-5.2-chat-latest', 'openai/gpt-5.3-chat-latest',
+  'xai/grok-4-1-fast-non-reasoning', 'xai/grok-4-1-fast-reasoning',
+  'moonshotai/kimi-k2-instruct', 'moonshotai/kimi-k2.5',
+  'cartesia/sonic', 'deepgram/aura', 'inworld/inworld-tts-1', 'inworld/inworld-tts-1-max',
+  'rime/arcana',
+]);
+
+const deprecated = new Set([
+  'deepseek-ai/deepseek-v4-pro', 'google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite',
+  'google/gemini-2.5-pro', 'moonshotai/kimi-k2.6',
+  'cartesia/sonic-2', 'cartesia/sonic-3-2025-10-27', 'cartesia/sonic-turbo',
+  'fishaudio/s2.1-pro-free', 'rime/mist', 'rime/mistv2',
+]);
+
 const ids = (values: string[], hint?: string): VoiceModelOption[] => values.map((value) => ({
   value,
   label: value.split('/').pop()?.replace(/-/g, ' ') ?? value,
-  hint,
+  hint: retired.has(value) ? 'Retired' : deprecated.has(value) ? 'Deprecated' : hint,
+  status: retired.has(value) ? 'retired' : deprecated.has(value) ? 'deprecated' : 'current',
 }));
 
 /**
@@ -35,12 +53,36 @@ export const LIVEKIT_INFERENCE_MODELS: Record<VoiceModelKind, VoiceModelOption[]
     'google/gemini-3.5-transcribe-live', 'speechmatics/linden-1', 'speechmatics/enhanced', 'speechmatics/standard', 'xai/stt-1', 'xai/stt-2',
   ], 'LiveKit Inference'),
   tts: ids([
-    'cartesia/sonic-3', 'cartesia/sonic-3-2026-01-12', 'cartesia/sonic-3-latest', 'cartesia/sonic-3.5', 'cartesia/sonic-3.6', 'cartesia/sonic-latest', 'cartesia/sonic-turbo', 'cartesia/sonic-preview',
+    'cartesia/sonic', 'cartesia/sonic-2', 'cartesia/sonic-3', 'cartesia/sonic-3-2025-10-27', 'cartesia/sonic-3-2026-01-12', 'cartesia/sonic-3-latest', 'cartesia/sonic-3.5', 'cartesia/sonic-3.5-2026-05-04', 'cartesia/sonic-3.6', 'cartesia/sonic-3.6-2026-08-27', 'cartesia/sonic-latest', 'cartesia/sonic-turbo', 'cartesia/sonic-preview',
     'deepgram/aura-2', 'deepgram/flux-tts', 'deepgram/aura',
     'fishaudio/s2-pro', 'fishaudio/s2.1-pro', 'fishaudio/s2.1-pro-free',
-    'gradium/default', 'inworld/inworld-tts-1.5-max', 'inworld/inworld-tts-1.5-mini', 'inworld/inworld-tts-2', 'rime/coda', 'rime/mistv3', 'rime/mist', 'xai/tts-1',
+    'gradium/default', 'inworld/inworld-tts-1', 'inworld/inworld-tts-1-max', 'inworld/inworld-tts-1.5-max', 'inworld/inworld-tts-1.5-mini', 'inworld/inworld-tts-2', 'inworld/inworld-tts-2-flash', 'rime/coda', 'rime/mistv3', 'rime/mistv2', 'rime/mist', 'rime/arcana', 'xai/tts-1',
   ], 'LiveKit Inference'),
 };
+
+/** Realtime model plugins documented by LiveKit Agents. These are separate
+ * from the STT → LLM → TTS pipeline and require the corresponding BYOK key. */
+export const REALTIME_MODELS: Record<string, VoiceModelOption[]> = {
+  google: ids(['gemini-live-2.5-flash-native-audio', 'gemini-2.5-flash-native-audio-dialog'], 'Google Gemini Live'),
+  openai: ids(['gpt-realtime', 'gpt-4o-realtime-preview', 'gpt-live'], 'OpenAI Realtime'),
+  azure: ids(['gpt-realtime', 'gpt-4o-realtime-preview'], 'Azure OpenAI Realtime'),
+  aws: ids(['amazon.nova-2.5-sonic-v1:0', 'amazon.nova-2-sonic-v1:0', 'amazon.nova-sonic-v1:0'], 'Amazon Nova Sonic'),
+  nvidia: ids(['nvidia/personaplex-7b-v1'], 'NVIDIA PersonaPlex'),
+  phonic: ids(['phonic_v1_1', 'phonic_v1', 'phonic_v0_5'], 'Phonic'),
+  spacexai: ids(['grok-voice-1', 'grok-voice-1.1'], 'xAI Grok Voice'),
+  ultravox: ids(['fixie-ai/ultravox'], 'Ultravox'),
+};
+
+export const REALTIME_PROVIDER_OPTIONS = [
+  { value: 'google', label: 'Gemini Live', hint: 'ADC / built-in' },
+  { value: 'openai', label: 'OpenAI GPT Realtime', hint: 'BYOK' },
+  { value: 'azure', label: 'Azure OpenAI Realtime', hint: 'BYOK' },
+  { value: 'aws', label: 'Amazon Nova Sonic', hint: 'BYOK' },
+  { value: 'nvidia', label: 'NVIDIA PersonaPlex', hint: 'BYOK' },
+  { value: 'phonic', label: 'Phonic', hint: 'BYOK' },
+  { value: 'spacexai', label: 'xAI Grok Voice', hint: 'BYOK' },
+  { value: 'ultravox', label: 'Ultravox', hint: 'BYOK' },
+];
 
 export const DIRECT_MODELS: Record<string, Record<VoiceModelKind, VoiceModelOption[]>> = {
   google: {

@@ -17,8 +17,7 @@ from livekit.agents import (
 )
 from livekit.agents.types import APIConnectOptions
 from livekit.agents.voice.agent_session import SessionConnectOptions
-from livekit.plugins import google
-from .providers import build_components
+from .providers import build_components, build_realtime_model
 
 from .agent import ChattyVoiceAgent
 from .config import VoiceSettings
@@ -61,22 +60,8 @@ async def entrypoint(ctx: JobContext) -> None:
     mode = str(bot_config.get("voice_mode") or "pipeline").lower()
     expression_enabled = bool(bot_config.get("voice_expression_enabled", True))
     if mode == "realtime":
-        if str(bot_config.get("voice_llm_provider") or "google").lower() != "google":
-            raise RuntimeError("LiveKit realtime mode currently requires the Google provider")
-        realtime_model = str(bot_config.get("voice_llm_model") or "").strip()
-        if "live" not in realtime_model.lower() and "native-audio" not in realtime_model.lower():
-            realtime_model = "gemini-live-2.5-flash-native-audio"
-        realtime_kwargs: dict[str, object] = {
-            "model": realtime_model,
-            "voice": str(bot_config.get("voice_tts_voice") or "Puck"),
-            "vertexai": True,
-            "location": settings.google_cloud_location,
-            "enable_affective_dialog": expression_enabled,
-        }
-        if settings.google_cloud_project:
-            realtime_kwargs["project"] = settings.google_cloud_project
         session = AgentSession(
-            llm=google.realtime.RealtimeModel(**realtime_kwargs),
+            llm=build_realtime_model(organization, settings, expression_enabled=expression_enabled),
             preemptive_generation=True,
         )
     else:

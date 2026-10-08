@@ -192,3 +192,96 @@ def build_components(
         raise RuntimeError(f"Unsupported voice TTS provider: {tts_provider}")
 
     return stt, llm, tts
+
+
+def build_realtime_model(
+    organization: OrganizationContext,
+    settings: VoiceSettings,
+    *,
+    expression_enabled: bool,
+) -> Any:
+    """Build a tenant-scoped LiveKit realtime model from the selected plugin.
+
+    Realtime providers are intentionally lazy-imported: a deployment that uses
+    Google ADC or LiveKit Inference must not import optional provider SDKs at
+    process startup. Provider credentials are read only in this worker.
+    """
+    bot = organization.bot
+    provider = _value(bot, "voice_realtime_provider", "google").lower()
+    model = _value(bot, "voice_realtime_model", "")
+    voice = _value(bot, "voice_tts_voice", "Puck")
+    api_key = _secret(bot, "voice_realtime_byok_key_encrypted")
+    language = _value(bot, "voice_stt_language", settings.stt_language)
+
+    if provider == "google":
+        realtime_model = model or "gemini-live-2.5-flash-native-audio"
+        kwargs: dict[str, Any] = {
+            "model": realtime_model,
+            "voice": voice,
+            "vertexai": True,
+            "location": settings.google_cloud_location,
+            "enable_affective_dialog": expression_enabled,
+        }
+        if settings.google_cloud_project:
+            kwargs["project"] = settings.google_cloud_project
+        return google.realtime.RealtimeModel(**kwargs)
+
+    if provider == "openai":
+        from livekit.plugins import openai  # type: ignore[import-not-found]
+
+        return openai.realtime.GPTLiveModel(
+            model=model or "gpt-realtime",
+            voice=voice or "marin",
+            api_key=api_key,
+        )
+
+    if provider == "azure":
+        from livekit.plugins import azure  # type: ignore[import-not-found]
+
+        return azure.realtime.RealtimeModel(
+            model=model or "gpt-realtime",
+            voice=voice or "en-US-AvaNeural",
+            api_key=api_key,
+            input_audio_transcription={"model": "whisper-1", "language": language},
+        )
+
+    if provider == "aws":
+        from livekit.plugins import aws  # type: ignore[import-not-found]
+
+        # Nova Sonic authenticates through the standard boto credential chain.
+        # The dashboard key is retained for the common single-secret contract,
+        # while production AWS deployments should use an IAM role or secret
+        # manager-backed AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair.
+        return aws.realtime.RealtimeModel(model=model or "amazon.nova-2-sonic-v1:0", voice=voice or "tiffany")
+
+    if provider == "nvidia":
+        from livekit.plugins import nvidia  # type: ignore[import-not-found]
+
+        return nvidia.realtime.RealtimeModel(voice=voice or "NATF2")
+
+    if provider == "phonic":
+        from livekit.plugins import phonic  # type: ignore[import-not-found]
+
+        return phonic.realtime.RealtimeModel(
+            phonic_model=model or "phonic_v1_1",
+            voice=voice or None,
+            api_key=api_key,
+            default_language=language,
+        )
+
+    if provider == "spacexai":
+        from livekit.plugins import xai  # type: ignore[import-not-found]
+
+        return xai.realtime.RealtimeModel(model=model or "grok-voice-1", voice=voice or "Ara", api_key=api_key)
+
+    if provider == "ultravox":
+        from livekit.plugins import ultravox  # type: ignore[import-not-found]
+
+        return ultravox.RealtimeModel(
+            model_id=model or "fixie-ai/ultravox",
+            voice=voice or "Mark",
+            api_key=api_key,
+            language_hint=language,
+        )
+
+    raise RuntimeError(f"Unsupported voice realtime provider: {provider}")

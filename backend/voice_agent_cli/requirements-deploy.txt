@@ -2,3 +2,11 @@
 # Chatty voice runtime. Optional providers are installed so dashboard BYOK
 # selections fail only on credentials, not missing runtime packages.
 livekit-agents[google,openai,deepgram,cartesia,elevenlabs,anthropic,assemblyai,fishaudio,soniox,turn-detector,mcp]==1.8.5
+# Realtime model plugins documented by LiveKit Agents. These remain optional at
+# runtime and are lazy-imported by providers.py.
+livekit-plugins-aws[realtime]==1.8.5
+livekit-plugins-azure[realtime]==1.8.5
+livekit-plugins-nvidia[personaplex]==1.8.5
+livekit-plugins-phonic==1.8.5
+livekit-plugins-ultravox==1.8.5
+livekit-plugins-xai==1.8.5
