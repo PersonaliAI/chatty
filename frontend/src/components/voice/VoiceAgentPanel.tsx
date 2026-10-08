@@ -115,8 +115,10 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
       // up front and let the server's public host candidates be used.
       roomConnectOptions: {
         rtcConfig: {
-          iceServers: [],
-          iceTransportPolicy: 'all',
+          // The self-hosted LiveKit node can require relay after the join
+          // response. Match that policy before the initial offer so Chromium
+          // does not reject LiveKit's post-join ICE update.
+          iceTransportPolicy: 'relay',
           bundlePolicy: 'balanced',
           rtcpMuxPolicy: 'require',
           iceCandidatePoolSize: 0,
