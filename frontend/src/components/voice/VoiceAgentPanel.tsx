@@ -109,21 +109,6 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
     // room before it owns microphone state.
     void activeSession.start({
       tracks: { microphone: { enabled: false } },
-      // The self-hosted LiveKit server advertises ICE servers in its join
-      // response. Chromium can reject replacing the ICE configuration after
-      // the initial offer has been created, so provide a stable configuration
-      // up front and let the server's public host candidates be used.
-      roomConnectOptions: {
-        rtcConfig: {
-          // The self-hosted LiveKit node can require relay after the join
-          // response. Match that policy before the initial offer so Chromium
-          // does not reject LiveKit's post-join ICE update.
-          iceTransportPolicy: 'relay',
-          bundlePolicy: 'balanced',
-          rtcpMuxPolicy: 'require',
-          iceCandidatePoolSize: 0,
-        },
-      },
     })
       .then(() => {
         if (!active) return;
