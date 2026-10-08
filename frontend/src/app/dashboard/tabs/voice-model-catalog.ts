@@ -22,6 +22,7 @@ const deprecated = new Set([
   'google/gemini-2.5-pro', 'moonshotai/kimi-k2.6',
   'cartesia/sonic-2', 'cartesia/sonic-3-2025-10-27', 'cartesia/sonic-turbo',
   'fishaudio/s2.1-pro-free', 'rime/mist', 'rime/mistv2',
+  'speechmatics/enhanced', 'speechmatics/standard',
 ]);
 
 const ids = (values: string[], hint?: string): VoiceModelOption[] => values.map((value) => ({
