@@ -483,6 +483,7 @@ export function VoiceAgentTab({
   const saveTimerRef = useRef<number | null>(null);
   const saveInFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
+  const loadGenerationRef = useRef(0);
   const latestConfigRef = useRef(config);
   const latestDraftKeyRef = useRef(draftKey);
   // The dashboard parent recreates fetchBackend during renders. Keep the
@@ -492,14 +493,30 @@ export function VoiceAgentTab({
   latestConfigRef.current = config;
   latestDraftKeyRef.current = draftKey;
   const load = useCallback(async () => {
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
+    hydratedRef.current = false;
     skipAutosaveRef.current = true;
     try {
       const response = await fetchBackendRef.current(`/api/bots/${botId}/voice`);
-      if (response.ok) setConfig({ ...defaults, ...(await response.json()) });
+      const nextConfig = response.ok ? { ...defaults, ...(await response.json()) } : null;
+      // React can invoke effects more than once during development and the
+      // dashboard can also switch bots while a request is in flight. A stale
+      // response must never replace the active draft or re-arm autosave.
+      if (generation !== loadGenerationRef.current) return;
+      if (nextConfig) setConfig(nextConfig);
+    } catch (cause) {
+      if (generation === loadGenerationRef.current) {
+        setError(cause instanceof Error ? cause.message : "Could not load voice settings.");
+      }
     } finally {
-      setLoading(false);
-      hydratedRef.current = true;
+      if (generation === loadGenerationRef.current) {
+        setLoading(false);
+        // Keep autosave suppressed for the first render after hydration. The
+        // config update above is initial data, not a user edit.
+        skipAutosaveRef.current = true;
+        hydratedRef.current = true;
+      }
     }
   }, [botId]);
   useEffect(() => {

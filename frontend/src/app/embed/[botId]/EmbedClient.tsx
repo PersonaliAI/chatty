@@ -536,16 +536,17 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   const [voiceAgentEnabled, setVoiceAgentEnabled] = useState(false);
   const [voiceVisualizer, setVoiceVisualizer] = useState<'wave' | 'bar' | 'grid' | 'radial' | 'aura'>('wave');
   const [voiceAgentOpen, setVoiceAgentOpen] = useState(voiceOnly);
+  const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   useEffect(() => {
-    if (voiceAgentOpen && chatBodyRef.current) {
+    if (voiceModeActive && chatBodyRef.current) {
       // The widget body is normally a scroll container. Reset its previous
       // home/articles scroll position before mounting the full voice mode so
       // the native voice surface starts at the top and fully covers the body.
       chatBodyRef.current.scrollTop = 0;
     }
-  }, [voiceAgentOpen]);
+  }, [voiceModeActive]);
 
   const [tab, setTab] = useState<Tab>(paramTab === "messages" || paramTab === "articles" ? paramTab : "home");
 
@@ -2643,7 +2644,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         } : undefined}
       >
       {/* Header */}
-      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
+      {!voiceModeActive && <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
         <div className="flex items-center gap-2.5">
           {tab !== "home" && (
             <motion.button
@@ -2764,11 +2765,11 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           </button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin widget-panel flex flex-col ${voiceAgentOpen ? "overflow-hidden" : "overflow-y-auto"}`}>
-        {voiceAgentOpen && voiceAgentEnabled ? (
+      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin widget-panel flex flex-col ${voiceModeActive ? "overflow-hidden" : "overflow-y-auto"}`}>
+        {voiceModeActive ? (
           <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact widgetMode onClose={() => setVoiceAgentOpen(false)} className="h-full w-full" />
         ) : (
           <>
@@ -3696,7 +3697,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       </div>
 
       {/* Composer (Messages tab active chat only) */}
-      {tab === "messages" && chatView === "chat" && (
+      {!voiceModeActive && tab === "messages" && chatView === "chat" && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
@@ -3873,7 +3874,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       )}
 
       {/* ── Persistent Bottom Navigation Bar ── */}
-      {!showCsat && !showOfflineForm && (
+      {!voiceModeActive && !showCsat && !showOfflineForm && (
         <>
           {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
             (() => {
@@ -4013,7 +4014,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         </>
       )}
 
-      {!hideBranding && (
+      {!voiceModeActive && !hideBranding && (
         <div className="text-center pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
           Powered by{" "}
           <a

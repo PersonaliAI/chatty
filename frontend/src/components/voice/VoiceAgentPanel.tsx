@@ -226,6 +226,20 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
 
   return (
     <div className={`chatty-voice-panel relative flex h-full min-h-0 flex-col overflow-visible bg-white text-neutral-950 dark:bg-neutral-950 dark:text-white ${compact ? 'gap-1' : 'gap-3'}`} data-visualizer={visualizer}>
+      {widgetMode && <header className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-100 px-4 py-3 dark:border-neutral-800">
+        <div className="flex min-w-0 items-center gap-2">
+          <button type="button" onClick={onClose} className="flex size-8 shrink-0 items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-900 dark:hover:text-white" aria-label="Back to chat">
+            <X className="size-4" />
+          </button>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold">Voice agent</p>
+            <p className="text-[10px] text-neutral-400">{connectionLabel}</p>
+          </div>
+        </div>
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+          <ShieldCheck className="size-3" /> Secure
+        </span>
+      </header>}
       {!widgetMode && <header className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-4 sm:px-6 sm:pt-5">
         <div className="flex min-w-0 items-center gap-2">
           {started && <div className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200"><MessageCircle className="size-4" aria-hidden="true" /></div>}
