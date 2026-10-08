@@ -62,7 +62,28 @@ class ChattyToolRegistry:
         async def run(_context: RunContext, arguments: dict[str, Any]) -> str:
             try:
                 safe_arguments = dict(arguments or {})
+                if name in {"create_calendar_event", "create_outlook_event"}:
+                    if safe_arguments.pop("confirmed", False) is not True:
+                        return json.dumps(
+                            {
+                                "error": (
+                                    "Booking is not confirmed. Read the exact date, time, timezone, "
+                                    "visitor name, and email back to the visitor, ask for an explicit "
+                                    "yes, then call this tool again with confirmed=true."
+                                )
+                            }
+                        )
                 if name == "create_lead":
+                    if safe_arguments.pop("confirmed", False) is not True:
+                        return json.dumps(
+                            {
+                                "error": (
+                                    "Lead details are not confirmed. Read the required details back "
+                                    "to the visitor, ask whether they are correct, and call this tool "
+                                    "again with confirmed=true only after an explicit yes."
+                                )
+                            }
+                        )
                     # These values belong to the signed voice session, not to
                     # model output. Injecting them here preserves tenant
                     # isolation and makes voice leads deduplicate correctly.
@@ -100,6 +121,10 @@ class ChattyToolRegistry:
         if name == "create_lead":
             properties = dict(parameters.get("properties") or {})
             properties.pop("bot_id", None)
+            properties["confirmed"] = {
+                "type": "boolean",
+                "description": "Set true only after the visitor explicitly confirms all collected lead details.",
+            }
             parameters = {
                 **parameters,
                 "properties": properties,
@@ -107,7 +132,18 @@ class ChattyToolRegistry:
                     field
                     for field in parameters.get("required", [])
                     if field not in {"bot_id", "session_id"}
-                ],
+                ] + ["confirmed"],
+            }
+        elif name in {"create_calendar_event", "create_outlook_event"}:
+            properties = dict(parameters.get("properties") or {})
+            properties["confirmed"] = {
+                "type": "boolean",
+                "description": "Set true only after the visitor explicitly confirms the exact booking details.",
+            }
+            parameters = {
+                **parameters,
+                "properties": properties,
+                "required": list(parameters.get("required", [])) + ["confirmed"],
             }
 
         return function_tool(

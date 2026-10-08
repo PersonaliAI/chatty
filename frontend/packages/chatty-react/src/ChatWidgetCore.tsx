@@ -14,6 +14,7 @@ import { AttachMenu } from "./attach-menu";
 import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
+import { VoiceAgent } from "./voice-agent";
 import { parseRichContent } from "./rich-content";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
@@ -25,7 +26,7 @@ import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
 // package's README for the two imports a consumer needs to add once.
 import {
   Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
-  Paperclip, Smile, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
+  Paperclip, Smile, Mic, AudioWaveform, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Play, Pause, Trash2,
   BookOpen, Home, HelpCircle, Megaphone, Compass, Clock, Calendar,
@@ -702,6 +703,9 @@ function IdentifiedChatWidget({
   // What a finished in-chat voice recording turns into - set on
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
+  const [voiceAgentEnabled, setVoiceAgentEnabled] = useState(false);
+  const [voiceAgentOpen, setVoiceAgentOpen] = useState(false);
+  const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>("home");
@@ -1743,6 +1747,7 @@ function IdentifiedChatWidget({
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
+          setVoiceAgentEnabled(Boolean(bot.voice_enabled));
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
@@ -1896,6 +1901,7 @@ function IdentifiedChatWidget({
             if (prev !== newJs) return newJs;
             return prev;
           });
+          setVoiceAgentEnabled(Boolean(bot.voice_enabled));
         }
       } catch {}
     }, 30000);
@@ -2558,7 +2564,7 @@ function IdentifiedChatWidget({
         } : undefined}
       >
       {/* Header */}
-      <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
+      {!voiceModeActive && <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
         <div className="flex items-center gap-2.5">
           {tab !== "home" && (
             <motion.button
@@ -2628,6 +2634,18 @@ function IdentifiedChatWidget({
                 size="size-7"
               />
             )}
+            {voiceAgentEnabled && (
+              <button
+                type="button"
+                onClick={() => setVoiceAgentOpen((open) => !open)}
+                className="group flex size-7 shrink-0 items-center justify-center rounded-full p-0 transition-colors hover:bg-white/15"
+                aria-label="Open voice agent"
+                aria-pressed={voiceModeActive}
+                title="Live voice agent"
+              >
+                <AudioWaveform className="size-4 stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
+              </button>
+            )}
             <button
               onClick={pushGranted ? toggleMute : requestPushPermission}
               className={`${tab === "home" && teamProfiles.length > 0 ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
@@ -2665,11 +2683,23 @@ function IdentifiedChatWidget({
           </button>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Body */}
-      <div ref={chatBodyRef} className="flex-1 widget-panel flex flex-col relative overflow-y-auto scrollbar-thin">
-        {showCsat ? (
+      <div ref={chatBodyRef} className={`flex-1 widget-panel flex flex-col relative scrollbar-thin ${voiceModeActive ? "overflow-hidden" : "overflow-y-auto"}`}>
+        {voiceModeActive ? (
+          <VoiceAgent
+            botId={botId}
+            backendUrl={BACKEND_URL}
+            sessionId={sessionId}
+            widgetToken={originToken || undefined}
+            title="Talk with Chatty"
+            className="chatty-sdk-voice-widget"
+            primaryColor={primaryColor}
+            onError={(error) => showToast(error.message, "error")}
+            onClose={() => setVoiceAgentOpen(false)}
+          />
+        ) : showCsat ? (
           /* CSAT Feedback Modal */
           // Colors here are deliberately currentColor-relative (style props,
           // not text-neutral-* / dark:* classes) rather than the pattern
@@ -3708,6 +3738,11 @@ function IdentifiedChatWidget({
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
+                {voiceAgentEnabled && (
+                  <button type="button" onClick={() => setVoiceAgentOpen(true)} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" aria-label="Start live voice agent" title="Live voice agent">
+                    <AudioWaveform className="size-4 stroke-[2.1]" aria-hidden="true" />
+                  </button>
+                )}
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;

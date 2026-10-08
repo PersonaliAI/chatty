@@ -117,8 +117,14 @@ uv run --package livekit-example-voice-agents `
 Voice automatically grounds turns with the selected bot's Chatty knowledge
 sources and exposes `search_knowledge` to the model. Booking and lead capture
 are delegated to the same backend dispatcher used by the text widget, including
-its ownership checks and booking guardrails. Human-handoff and sentiment
-escalation reuse Chatty's existing session and Slack escalation services.
+its ownership checks and booking guardrails. For voice, calendar event tools
+are confirmation-gated: the agent must read the exact date, time, timezone,
+visitor name, and email back and call the tool with `confirmed=true` only after
+an explicit yes. Lead capture follows the same pattern for the configured
+required fields. Existing booking email OTP verification remains enforced by
+the shared dispatcher and cannot be bypassed by the voice agent. Human-handoff
+and sentiment escalation reuse Chatty's existing session and Slack escalation
+services.
 Published Chatty flows receive the same `message.user` event and can return an
 inline voice reply; Gemini handles the turn when no flow returns a reply.
 Text catalog search is available through `search_catalog`. The current Google

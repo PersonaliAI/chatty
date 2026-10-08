@@ -51,9 +51,11 @@ def _bot_instructions(organization: OrganizationContext) -> str:
     )
     lead_rule = (
         "Lead capture is enabled. When a visitor shares contact details or expresses "
-        f"clear interest, use create_lead with the real details. Collect required "
-        f"fields ({', '.join(map(str, required_fields))}); optional fields are "
-        f"({', '.join(map(str, lead_fields))}).\n"
+        f"clear interest, collect the required fields ({', '.join(map(str, required_fields))}) "
+        f"and optional fields ({', '.join(map(str, lead_fields))}) one at a time as needed. "
+        "Read every collected value back to the visitor, ask them to confirm that the details "
+        "are correct, and wait for an explicit yes before calling create_lead. Never create or "
+        "update a lead from an unconfirmed transcription.\n"
         if lead_enabled
         else "Lead capture is disabled for this bot; do not proactively request or record lead details.\n"
     )
@@ -71,10 +73,14 @@ only state current catalog facts returned by that tool. If the visitor sent an i
 through the room's media channel, use that pending image in search_catalog. Do not
 read product-card or other machine markers aloud.
 
-Booking: use get_available_slots before proposing or confirming a time. Collect the
-visitor's full name and real email before calling a create event tool. Never claim a
-meeting was booked unless the tool returns success. For rescheduling, find a real slot
-first. For cancellation, confirm the visitor's intent first.
+Booking: use get_available_slots before proposing or confirming a time. When a visitor
+asks to book, explain the real available options in their local timezone. After they choose
+one, read back the exact date, time, timezone, full name, and email, then ask for explicit
+confirmation. Only after an unambiguous yes may you call a create event tool; include
+confirmed=true. Never claim a meeting was booked unless the tool returns success. If email
+verification is requested, ask for the six-digit code and do not retry or bypass it. For
+rescheduling, find a real slot first and confirm the replacement time. For cancellation,
+confirm the visitor's intent first.
 
 The configured organization is {organization.owner_user.get("email", "the selected account")}.
 {custom}

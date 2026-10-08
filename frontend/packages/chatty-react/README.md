@@ -100,11 +100,19 @@ export function SupportVoice() {
 ```
 
 `VoiceAgent` includes official LiveKit session controls, realtime transcript
-updates, audio visualization, consent, interruption, and connection errors.
+updates, audio visualization, consent, interruption, connection errors, and a
+verified booking panel. The booking panel reuses Chatty's calendar slot API,
+supports manual slot selection, collects the configured lead fields, and uses
+email OTP verification when enabled. A spoken booking request automatically
+opens the same panel so visitors can continue by voice or by selecting a slot.
 Use `backendUrl` for a self-hosted API and `widgetToken` for signed embedded
 deployments. For host-controlled sessions, attach a React ref and call
 `start()`, `stop()`, or `toggleMicrophone()`; `onStateChange` and
 `onTranscript` expose realtime session events without exposing provider keys.
+
+Set `showBooking={false}` only when an integration intentionally provides its
+own booking surface. Voice lead capture is confirmation-gated: the agent reads
+the required details back and asks for an explicit confirmation before saving.
 
 ---
 

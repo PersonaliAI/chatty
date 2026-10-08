@@ -81,6 +81,16 @@
   white-space: nowrap;
 }
 
+.chatty-sdk-voice-header-actions {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.chatty-sdk-voice-header-actions .chatty-sdk-voice-close {
+  float: none;
+}
+
 .chatty-sdk-voice-error {
   display: flex;
   align-items: center;
@@ -293,3 +303,65 @@
   .chatty-sdk-voice-orb, .chatty-sdk-voice-spinner { animation: none; }
   .chatty-sdk-voice-start, .chatty-sdk-voice-end { transition: none; }
 }
+
+.chatty-sdk-voice-widget {
+  width: 100%;
+  min-height: 100%;
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 1rem;
+}
+
+.chatty-sdk-voice-booking {
+  position: relative;
+  z-index: 1;
+}
+
+.chatty-sdk-voice-booking-trigger {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: .55rem;
+  width: 100%;
+  border: 1px solid rgba(31, 213, 249, .2);
+  border-radius: .9rem;
+  padding: .7rem .8rem;
+  color: #dffaff;
+  background: rgba(31, 213, 249, .07);
+  text-align: left;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.chatty-sdk-voice-booking-trigger:hover {
+  border-color: rgba(31, 213, 249, .45);
+  background: rgba(31, 213, 249, .13);
+}
+
+.chatty-sdk-voice-booking-trigger span { font-size: .8rem; font-weight: 650; }
+.chatty-sdk-voice-booking-trigger small { grid-column: 2; color: var(--chatty-voice-muted); font-size: .7rem; }
+
+.chatty-sdk-voice-booking-card {
+  display: grid;
+  gap: .6rem;
+  max-height: 24rem;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: .95rem;
+  padding: .7rem;
+  background: rgba(255, 255, 255, .045);
+  scrollbar-width: thin;
+}
+
+.chatty-sdk-voice-booking-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .65rem;
+}
+
+.chatty-sdk-voice-booking-heading > div { display: grid; gap: .15rem; }
+.chatty-sdk-voice-booking-heading strong { font-size: .82rem; }
+.chatty-sdk-voice-booking-heading span { color: var(--chatty-voice-muted); font-size: .7rem; line-height: 1.35; }
+.chatty-sdk-voice-booking-close { display: grid; place-items: center; flex: none; width: 1.8rem; height: 1.8rem; border-radius: 999px; color: #dce8f4; background: rgba(255, 255, 255, .08); }

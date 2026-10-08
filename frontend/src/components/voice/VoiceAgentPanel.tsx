@@ -14,9 +14,10 @@ import {
   VoiceAssistantControlBar,
 } from '@livekit/components-react';
 import { TokenSource, type TokenSourceResponseObject } from 'livekit-client';
-import { AlertCircle, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, ShieldCheck, X } from 'lucide-react';
+import { AlertCircle, CalendarPlus, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
 import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
+import { InlineBookingCard, type ConfirmedMeeting } from '@/components/inline-booking-card';
 
 type VoiceAgentPanelProps = {
   botId: string;
@@ -82,7 +83,7 @@ function VoiceOrb({ state, audioTrack, visualizer }: { state: ReturnType<typeof 
   );
 }
 
-function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
+function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
   const session = useSessionContext();
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -93,6 +94,7 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
   const reconnectTimerRef = useRef<number | null>(null);
   const { state } = useAgent();
   const { audioTrack } = useVoiceAssistant();
+  const { messages } = useSessionMessages(session);
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +102,15 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
   const [showTranscript, setShowTranscript] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
+
+  useEffect(() => {
+    const latest = messages[messages.length - 1]?.message ?? '';
+    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(latest)) {
+      setBookingOpen(true);
+    }
+  }, [messages]);
 
   const clearReconnectTimer = () => {
     if (reconnectTimerRef.current !== null) {
@@ -278,9 +289,25 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
           </div>
         )}
 
+        {bookingOpen && <div className="mx-auto mb-3 w-full max-w-[420px] rounded-2xl border border-neutral-200 bg-white p-2 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+          <div className="flex items-start justify-between gap-2 px-2 pb-1">
+            <div><p className="text-xs font-semibold">Book a meeting</p><p className="text-[10px] text-neutral-500">Choose a slot or tell the agent what works.</p></div>
+            <button type="button" onClick={() => setBookingOpen(false)} className="rounded-full p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900" aria-label="Close booking"><X className="size-3.5" /></button>
+          </div>
+          <div className="max-h-[300px] overflow-y-auto">
+            <InlineBookingCard
+              botId={botId}
+              sessionId={sessionId}
+              backendUrl={backendUrl}
+              initialMeeting={confirmedMeeting ?? undefined}
+              onBookingSuccess={setConfirmedMeeting}
+            />
+          </div>
+        </div>}
+
         <div className="mx-auto flex w-full shrink-0 max-w-[360px] flex-col gap-2.5">
           {started ? <div className="chatty-livekit-controls flex items-center justify-center gap-2"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="flex size-10 items-center justify-center rounded-full bg-neutral-950 text-white shadow-lg transition hover:bg-neutral-800 dark:bg-white dark:text-neutral-950" aria-label="End voice session"><PhoneOff className="size-4" /></button></div> : <button type="button" className="mx-auto flex size-14 items-center justify-center rounded-full bg-neutral-950 text-white shadow-xl shadow-neutral-950/20 transition hover:scale-105 hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-4 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-neutral-950 dark:hover:bg-neutral-200" onClick={requestStart} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white dark:border-neutral-950/30 dark:border-t-neutral-950" /> : <Phone className="size-5" />}</button>}
-          <div className="flex items-center justify-center gap-2 text-[11px] text-neutral-400"><button type="button" onClick={() => setShowTranscript((value) => !value)} className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"><MessageCircle className="size-3.5" />{showTranscript ? 'Hide transcript' : 'Show transcript'}</button><span aria-hidden="true">·</span><span className="inline-flex items-center gap-1.5"><Mic className="size-3.5" />{connectionLabel}</span></div>
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-neutral-400"><button type="button" onClick={() => setShowTranscript((value) => !value)} className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"><MessageCircle className="size-3.5" />{showTranscript ? 'Hide transcript' : 'Show transcript'}</button><span aria-hidden="true">·</span><button type="button" onClick={() => setBookingOpen((value) => !value)} className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 transition hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-900 dark:hover:text-neutral-200"><CalendarPlus className="size-3.5" />{bookingOpen ? 'Hide booking' : 'Book a meeting'}</button><span aria-hidden="true">·</span><span className="inline-flex items-center gap-1.5"><Mic className="size-3.5" />{connectionLabel}</span></div>
           {!started && !retrying && <p className="flex items-center justify-center gap-1 text-[10px] text-neutral-400"><Check className="size-3 text-emerald-500" />Interrupt anytime — the agent will stop speaking</p>}
         </div>
       </div>
@@ -340,7 +367,7 @@ export function VoiceAgentPanel({
   return (
     <section ref={panelRef} className={`flex min-h-0 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>
