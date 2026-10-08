@@ -328,9 +328,14 @@ function detectPreferredSlot(
 
     for (const slot of availableSlots) {
       try {
-        const slotDate = new Date(slot.start);
-        const slotHours = slotDate.getHours();
-        const slotMinutes = slotDate.getMinutes();
+        const slotParts = new Intl.DateTimeFormat('en-GB', {
+          timeZone,
+          hour: '2-digit',
+          minute: '2-digit',
+          hourCycle: 'h23',
+        }).formatToParts(new Date(slot.start));
+        const slotHours = Number(slotParts.find((part) => part.type === 'hour')?.value ?? 0);
+        const slotMinutes = Number(slotParts.find((part) => part.type === 'minute')?.value ?? 0);
         const diff = Math.abs(slotHours * 60 + slotMinutes - (targetHour * 60 + targetMinute));
         if (diff < minDiff && diff <= 120) {
           minDiff = diff;

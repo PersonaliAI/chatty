@@ -95,6 +95,9 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   const { state } = useAgent();
   const { audioTrack } = useVoiceAssistant();
   const { messages } = useSessionMessages(session);
+  const latestVisitorUtterance = [...messages]
+    .reverse()
+    .find((message) => message.type === 'userTranscript')?.message;
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -299,6 +302,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
               botId={botId}
               sessionId={sessionId}
               backendUrl={backendUrl}
+              preferredText={latestVisitorUtterance}
               initialMeeting={confirmedMeeting ?? undefined}
               onBookingSuccess={setConfirmedMeeting}
             />
