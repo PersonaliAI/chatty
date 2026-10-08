@@ -673,7 +673,8 @@ body {
 .chatty-voice-panel .lk-device-menu {
   inset-inline-start: auto;
   inset-inline-end: 0;
-  width: min(21rem, calc(100vw - 2rem));
+  width: min(21rem, calc(100vw - 2rem)) !important;
+  min-width: 0 !important;
   max-width: calc(100vw - 2rem);
   max-height: min(20rem, calc(100dvh - 7rem)) !important;
   overflow-x: hidden;
@@ -686,9 +687,10 @@ body {
   width: 100%;
 }
 
-.chatty-voice-panel .lk-device-menu .lk-button {
+.chatty-voice-panel .chatty-livekit-controls .lk-device-menu .lk-button {
   width: 100% !important;
   max-width: 100% !important;
+  min-width: 0;
   min-height: 2.5rem;
   height: auto;
   justify-content: flex-start;
@@ -699,6 +701,29 @@ body {
   text-align: start;
   line-height: 1.25;
   white-space: normal !important;
+}
+
+.chatty-voice-panel .chatty-livekit-controls .lk-device-menu .lk-media-device-select li > .lk-button {
+  align-items: flex-start;
+}
+
+.chatty-voice-panel .chatty-livekit-controls .lk-device-menu-heading {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* The transcript is a real full-height LiveKit surface. These explicit flex
+ * constraints keep the message viewport from collapsing when the widget is
+ * inside an iframe or a nested flex layout. */
+.chatty-livekit-transcript,
+.chatty-transcript-frame,
+.chatty-transcript-layout {
+  min-height: 0;
+}
+
+.chatty-transcript-frame > .chatty-livekit-transcript {
+  height: 100%;
+  min-height: 0;
 }
 
 /* KaTeX is rendered inside the live transcript. Display equations get their

@@ -50,7 +50,7 @@ function LiveKitTranscript() {
   const { state } = useAgent();
 
   return messages.length === 0 ? (
-    <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-neutral-200 bg-white/80 p-4 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950/60" aria-live="polite">
+    <div className="chatty-livekit-transcript flex h-full min-h-0 flex-1 items-center justify-center overflow-auto rounded-2xl border border-neutral-200 bg-white/80 p-4 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950/60" aria-live="polite">
       Start the voice agent to see real-time transcription here.
     </div>
   ) : (
@@ -59,7 +59,7 @@ function LiveKitTranscript() {
       agentState={state}
       aria-live="polite"
       aria-label="Live voice transcript"
-      className="min-h-0 flex-1 rounded-2xl border border-neutral-200 bg-white/80 p-4 dark:border-neutral-800 dark:bg-neutral-950/60"
+      className="chatty-livekit-transcript h-full min-h-0 flex-1 rounded-2xl border border-neutral-200 bg-white/80 p-4 dark:border-neutral-800 dark:bg-neutral-950/60"
     />
   );
 }
@@ -248,12 +248,12 @@ function ConnectedVoiceAgent({ compact = false, widgetMode = false, visualizer =
         )}
 
         {showTranscript ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
+          <div className="chatty-transcript-layout flex min-h-0 flex-1 flex-col gap-3 py-3">
             <div className="flex shrink-0 items-center justify-between px-1 text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
               <span>Live transcript</span>
               <span className="text-[10px] font-normal text-neutral-400">LiveKit Agents UI</span>
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="chatty-transcript-frame min-h-0 flex-1 overflow-hidden">
               <LiveKitTranscript />
             </div>
           </div>

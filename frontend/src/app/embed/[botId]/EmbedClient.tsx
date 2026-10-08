@@ -2767,7 +2767,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       </div>
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`relative flex-1 scrollbar-thin widget-panel flex flex-col ${voiceAgentOpen ? "overflow-hidden" : "overflow-y-auto"}`}>
+      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin widget-panel flex flex-col ${voiceAgentOpen ? "overflow-hidden" : "overflow-y-auto"}`}>
         {voiceAgentOpen && voiceAgentEnabled ? (
           <VoiceAgentPanel botId={botId} sessionId={sessionId} widgetToken={originToken || undefined} visualizer={voiceVisualizer} compact widgetMode onClose={() => setVoiceAgentOpen(false)} className="h-full w-full" />
         ) : (
