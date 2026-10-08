@@ -8,6 +8,7 @@ import re
 import uuid
 from datetime import timedelta
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -65,6 +66,20 @@ _REALTIME_KEY_FIELDS = {
 }
 
 
+def _livekit_inference_available() -> bool:
+    """Return whether this worker is connected to LiveKit Cloud.
+
+    LiveKit Inference is a hosted gateway capability. A self-hosted LiveKit
+    deployment can still use every direct provider plugin, but it must not
+    persist a LiveKit Inference selection that the worker cannot execute.
+    """
+    raw_url = os.environ.get("LIVEKIT_URL", "").strip()
+    if not raw_url:
+        return False
+    hostname = (urlparse(raw_url).hostname or "").lower().rstrip(".")
+    return hostname == "livekit.cloud" or hostname.endswith(".livekit.cloud")
+
+
 def _voice_configuration_error(bot: dict[str, Any]) -> str | None:
     """Return a safe save-time error for an unusable enabled configuration.
 
@@ -91,6 +106,11 @@ def _voice_configuration_error(bot: dict[str, Any]) -> str | None:
         ("tts", "voice_tts_provider"),
     ):
         provider = str(bot.get(provider_field) or "google").strip().lower()
+        if provider == "livekit-inference" and not _livekit_inference_available():
+            return (
+                "LiveKit Inference is available only with LiveKit Cloud. "
+                "Select a direct provider for this self-hosted LiveKit deployment."
+            )
         key_field = _PIPELINE_KEY_FIELDS[kind].get(provider)
         if key_field and not str(bot.get(key_field) or "").strip():
             return f"Voice is enabled, but the {provider} {kind.upper()} API key is missing."
@@ -148,6 +168,7 @@ async def get_voice_config(bot_id: str, user: dict[str, Any] = Depends(require_u
         "stt_key_configured": bool(row.get("voice_stt_byok_key_encrypted")),
         "tts_key_configured": bool(row.get("voice_tts_byok_key_encrypted")),
         "livekit_url": os.environ.get("LIVEKIT_URL", "").strip(),
+        "livekit_inference_available": _livekit_inference_available(),
     }
 
 
@@ -207,6 +228,8 @@ async def update_voice_config(
         "llm_key_configured": bool(row.get("voice_llm_byok_key_encrypted")),
         "stt_key_configured": bool(row.get("voice_stt_byok_key_encrypted")),
         "tts_key_configured": bool(row.get("voice_tts_byok_key_encrypted")),
+        "livekit_url": os.environ.get("LIVEKIT_URL", "").strip(),
+        "livekit_inference_available": _livekit_inference_available(),
     }
 
 

@@ -54,6 +54,7 @@ type VoiceConfig = {
   tts_model: string;
   tts_voice: string;
   max_duration_minutes: number;
+  livekit_inference_available?: boolean;
   realtime_key_configured?: boolean;
   llm_key_configured?: boolean;
   stt_key_configured?: boolean;
@@ -77,6 +78,7 @@ const defaults: VoiceConfig = {
   tts_model: "gemini-3.8-flash-tts",
   tts_voice: "Kore",
   max_duration_minutes: 15,
+  livekit_inference_available: false,
 };
 
 const visualizerInfo: {
@@ -311,6 +313,7 @@ function ProviderCard({
   onProvider,
   onModel,
   onKey,
+  livekitInferenceAvailable = false,
 }: {
   kind: VoiceModelKind;
   title: string;
@@ -322,11 +325,15 @@ function ProviderCard({
   onProvider: (value: string) => void;
   onModel: (value: string) => void;
   onKey: (value: string) => void;
+  livekitInferenceAvailable?: boolean;
 }) {
   const providerOptions = PROVIDER_OPTIONS[kind].map((item) => ({
     value: item.value,
     label: item.label,
-    hint: item.hint,
+    hint:
+      item.value === "livekit-inference" && !livekitInferenceAvailable
+        ? "LiveKit Cloud only"
+        : item.hint,
   }));
   const models = modelOptions(kind, provider).map((item) => ({
     value: item.value,
@@ -790,6 +797,7 @@ export function VoiceAgentTab({
                 onKey={(value) =>
                   setDraftKey((current) => ({ ...current, llm: value }))
                 }
+                livekitInferenceAvailable={config.livekit_inference_available}
               />
               <ProviderCard
                 kind="stt"
@@ -804,6 +812,7 @@ export function VoiceAgentTab({
                 onKey={(value) =>
                   setDraftKey((current) => ({ ...current, stt: value }))
                 }
+                livekitInferenceAvailable={config.livekit_inference_available}
               />
               <ProviderCard
                 kind="tts"
@@ -818,13 +827,15 @@ export function VoiceAgentTab({
                 onKey={(value) =>
                   setDraftKey((current) => ({ ...current, tts: value }))
                 }
+                livekitInferenceAvailable={config.livekit_inference_available}
               />
             </div>
             <div className="mt-5 flex items-start gap-2 rounded-2xl bg-neutral-50 p-4 text-xs leading-5 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400">
               <KeyRound className="mt-0.5 size-4 shrink-0 text-cyan-600" />
               BYOK values are encrypted server-side, organization scoped, and
-              never returned to the browser. LiveKit Inference requires the
-              corresponding hosted gateway entitlement.
+              never returned to the browser. LiveKit Inference is available
+              only when Chatty is connected to LiveKit Cloud; self-hosted
+              deployments use direct provider plugins.
             </div>
           </Card>
           <Card

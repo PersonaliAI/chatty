@@ -179,6 +179,39 @@ def test_enabled_realtime_requires_key_for_byok_provider_but_not_google():
     ) == "Voice is enabled, but the openai realtime API key is missing."
 
 
+def test_self_hosted_livekit_rejects_livekit_inference(monkeypatch):
+    monkeypatch.setenv("LIVEKIT_URL", "wss://livekit.personaliai.com")
+
+    error = voice._voice_configuration_error(
+        {
+            "voice_enabled": True,
+            "voice_mode": "pipeline",
+            "voice_llm_provider": "livekit-inference",
+            "voice_stt_provider": "google",
+            "voice_tts_provider": "google",
+        }
+    )
+
+    assert error == (
+        "LiveKit Inference is available only with LiveKit Cloud. "
+        "Select a direct provider for this self-hosted LiveKit deployment."
+    )
+
+
+def test_livekit_cloud_allows_livekit_inference(monkeypatch):
+    monkeypatch.setenv("LIVEKIT_URL", "wss://example.livekit.cloud")
+
+    assert voice._voice_configuration_error(
+        {
+            "voice_enabled": True,
+            "voice_mode": "pipeline",
+            "voice_llm_provider": "livekit-inference",
+            "voice_stt_provider": "livekit-inference",
+            "voice_tts_provider": "livekit-inference",
+        }
+    ) is None
+
+
 @pytest.mark.anyio
 async def test_update_voice_config_rejects_missing_key_before_writing(monkeypatch):
     calls = 0
