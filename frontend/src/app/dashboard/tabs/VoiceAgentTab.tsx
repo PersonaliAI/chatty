@@ -207,7 +207,7 @@ function Preview({
               LiveKit
             </span>
           </div>
-          <div className="relative flex min-h-[260px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_center,rgba(22,74,99,.3),transparent_56%)]">
+          <div className="relative flex min-h-[280px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_center,rgba(22,74,99,.3),transparent_56%)] sm:min-h-[300px]">
             <div className="absolute inset-0 opacity-25 [background-image:radial-gradient(#6c8190_1px,transparent_1px)] [background-size:8px_8px]" />
             <LiveKitAgentVisualizer
               visualizer={selected}
@@ -216,10 +216,10 @@ function Preview({
               className="h-[240px] w-[240px]"
               demo
             />
-            <span className="absolute bottom-4 text-xs text-neutral-400">
-              Agent is {stateLabel.toLowerCase()}
-            </span>
           </div>
+          <p className="mt-3 text-center text-xs text-neutral-400" aria-live="polite">
+            Agent is {stateLabel.toLowerCase()}
+          </p>
         </div>
         <div className="lg:w-[280px] lg:border-l lg:border-white/10 lg:pl-6">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-neutral-300">
