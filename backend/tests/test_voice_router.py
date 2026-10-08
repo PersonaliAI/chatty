@@ -128,3 +128,8 @@ def test_voice_config_accepts_livekit_inference_for_each_model_role():
     assert config.llm_provider == "livekit-inference"
     assert config.stt_provider == "livekit-inference"
     assert config.tts_provider == "livekit-inference"
+
+
+def test_voice_config_accepts_every_direct_tts_provider_exposed_by_dashboard():
+    for provider in ("google", "livekit-inference", "cartesia", "deepgram", "elevenlabs", "openai", "fishaudio"):
+        assert VoiceConfigUpdate(tts_provider=provider).tts_provider == provider

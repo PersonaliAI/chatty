@@ -37,7 +37,7 @@ class VoiceConfigUpdate(BaseModel):
     stt_model: Optional[str] = Field(default=None, min_length=1, max_length=120)
     stt_language: Optional[str] = Field(default=None, min_length=2, max_length=20)
     stt_api_key: Optional[str] = Field(default=None, max_length=500)
-    tts_provider: Optional[Literal["google", "livekit-inference", "cartesia", "elevenlabs", "openai", "fishaudio"]] = None
+    tts_provider: Optional[Literal["google", "livekit-inference", "cartesia", "deepgram", "elevenlabs", "openai", "fishaudio"]] = None
     tts_model: Optional[str] = Field(default=None, min_length=1, max_length=120)
     tts_voice: Optional[str] = Field(default=None, min_length=1, max_length=120)
     tts_api_key: Optional[str] = Field(default=None, max_length=500)

@@ -24,10 +24,16 @@ Content-Type: application/json
 {
   "bot_id": "YOUR_BOT_ID",
   "session_id": "chatty-session-id",
+  "room_nonce": "fresh-connection-attempt-id",
   "participant_name": "Visitor",
   "visitor_timezone": "Asia/Colombo"
 }
 ```
+
+`room_nonce` is optional for backwards compatibility, but clients should send
+a fresh opaque value for every connection or reconnect attempt. Chatty keeps
+the same `session_id` for conversation history while using the nonce to avoid
+rejoining a stale LiveKit room or participant thread.
 
 `visitor_timezone` is an optional IANA timezone identifier. The browser and
 SDKs should send the visitor's actual timezone so Chatty's existing booking
@@ -53,10 +59,11 @@ or service-account JSON in an SDK or browser bundle.
 
 The dashboard stores provider keys encrypted at rest. The worker decrypts a
 key only for the active session and passes it to the matching official LiveKit
-plugin. Supported pipeline choices include Google Vertex/ADC, OpenAI,
-Anthropic, OpenRouter, Deepgram, Cartesia, and ElevenLabs. Google uses the
-supplied Vertex ADC service account; other providers require a bot-scoped BYOK
-key.
+plugin. Supported pipeline choices include Google Vertex/ADC, LiveKit
+Inference, OpenAI, Anthropic, OpenRouter, Deepgram, Cartesia, AssemblyAI,
+Soniox, ElevenLabs, and Fish Audio where the selected LiveKit plugin supports
+the requested modality. Google uses the supplied Vertex ADC service account;
+other providers require a bot-scoped BYOK key.
 
 ## Native SDKs
 
