@@ -10,10 +10,8 @@ from livekit.agents import (
     AgentSession,
     JobContext,
     JobProcess,
-    MetricsCollectedEvent,
     TurnHandlingOptions,
     cli,
-    metrics,
     room_io,
 )
 from livekit.agents.types import APIConnectOptions
@@ -125,11 +123,6 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session.on("conversation_item_added", recorder.handle)
     ctx.add_shutdown_callback(recorder.flush)
-
-    @session.on("metrics_collected")
-    def _on_metrics_collected(event: MetricsCollectedEvent) -> None:
-        if event.metrics.type != "stt_metrics":
-            metrics.log_metrics(event.metrics)
 
     async def _log_usage() -> None:
         logger.info("Voice session usage: %s", session.usage)
