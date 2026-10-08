@@ -712,6 +712,23 @@ body {
   white-space: normal;
 }
 
+/* The official LiveKit stylesheet scopes its palette to [data-lk-theme].
+ * Chatty intentionally keeps the widget's own theme, so provide the menu
+ * surface explicitly instead of allowing an unset --lk-bg2 to make the
+ * device list transparent over the transcript. */
+.chatty-voice-panel .chatty-livekit-controls .lk-device-menu {
+  background: rgb(255 255 255 / 0.98) !important;
+  border-color: rgb(229 229 229) !important;
+  color: rgb(38 38 38) !important;
+  box-shadow: 0 16px 36px -18px rgb(0 0 0 / 0.45) !important;
+}
+
+.dark .chatty-voice-panel .chatty-livekit-controls .lk-device-menu {
+  background: rgb(23 23 23 / 0.98) !important;
+  border-color: rgb(64 64 64) !important;
+  color: rgb(245 245 245) !important;
+}
+
 /* The transcript is a real full-height LiveKit surface. These explicit flex
  * constraints keep the message viewport from collapsing when the widget is
  * inside an iframe or a nested flex layout. */
