@@ -107,7 +107,14 @@ function ConnectedVoiceAgent({ compact = false, visualizer = 'wave', onClose, on
     // the whole session with "Got disconnected without signal connected".
     // Connecting first also gives the official LiveKit control bar a stable
     // room before it owns microphone state.
-    void activeSession.start({ tracks: { microphone: { enabled: false } } })
+    void activeSession.start({
+      tracks: { microphone: { enabled: false } },
+      // The self-hosted LiveKit server advertises ICE servers in its join
+      // response. Chromium can reject replacing the ICE configuration after
+      // the initial offer has been created, so provide a stable configuration
+      // up front and let the server's public host candidates be used.
+      roomConnectOptions: { rtcConfig: { iceServers: [] } },
+    })
       .then(() => {
         if (!active) return;
         connectedRef.current = true;
