@@ -168,6 +168,24 @@ function Select({
   );
 }
 
+function modelOptionsWithCurrentValue(
+  options: ModernSelectOption[],
+  model: string,
+): ModernSelectOption[] {
+  const normalized = model.trim();
+  if (!normalized || options.some((option) => option.value === normalized)) {
+    return options;
+  }
+  return [
+    {
+      value: normalized,
+      label: normalized,
+      hint: "Current provider model ID",
+    },
+    ...options,
+  ];
+}
+
 function Card({
   icon,
   title,
@@ -335,11 +353,11 @@ function ProviderCard({
         ? "LiveKit Cloud only"
         : item.hint,
   }));
-  const models = modelOptions(kind, provider).map((item) => ({
+  const models = modelOptionsWithCurrentValue(modelOptions(kind, provider).map((item) => ({
     value: item.value,
     label: item.label,
     hint: item.hint,
-  }));
+  })), model);
   const modelOptionsForField = models.length
     ? models
     : [
@@ -373,8 +391,24 @@ function ProviderCard({
           value={model}
           options={modelOptionsForField}
           onChange={onModel}
-          label={`${title} model`}
+          label={`${title} model preset`}
         />
+        <div className="grid gap-1.5">
+          <label className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+            Model ID
+          </label>
+          <input
+            type="text"
+            value={model}
+            onChange={(event) => onModel(event.target.value)}
+            className={fieldClass}
+            placeholder="Enter a provider-supported model ID"
+            aria-label={`${title} model ID`}
+          />
+          <p className="text-[10px] leading-4 text-neutral-500">
+            Search a preset above or enter any model ID currently supported by the selected provider.
+          </p>
+        </div>
         <input
           type="password"
           value={apiKey}
@@ -406,7 +440,14 @@ function RealtimeCard({
   onModel: (value: string) => void;
   onKey: (value: string) => void;
 }) {
-  const models = REALTIME_MODELS[provider] ?? [];
+  const models = modelOptionsWithCurrentValue(
+    (REALTIME_MODELS[provider] ?? []).map((item) => ({
+      value: item.value,
+      label: item.label,
+      hint: item.hint,
+    })),
+    model,
+  );
   return (
     <div className="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-4 dark:border-cyan-900/60 dark:bg-cyan-950/20">
       <div className="flex items-center gap-2">
@@ -429,14 +470,26 @@ function RealtimeCard({
         />
         <Select
           value={model}
-          options={models.map((item) => ({
-            value: item.value,
-            label: item.label,
-            hint: item.hint,
-          }))}
+          options={models}
           onChange={onModel}
-          label="Realtime model"
+          label="Realtime model preset"
         />
+        <div className="grid gap-1.5">
+          <label className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+            Model ID
+          </label>
+          <input
+            type="text"
+            value={model}
+            onChange={(event) => onModel(event.target.value)}
+            className={fieldClass}
+            placeholder="Enter a provider-supported model ID"
+            aria-label="Realtime model ID"
+          />
+          <p className="text-[10px] leading-4 text-neutral-500">
+            LiveKit provider model catalogs can change independently of Chatty. Presets are shortcuts; this field is authoritative.
+          </p>
+        </div>
         <input
           type="password"
           value={apiKey}
