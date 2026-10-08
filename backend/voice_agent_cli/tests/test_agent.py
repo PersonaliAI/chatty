@@ -104,13 +104,23 @@ def test_business_tool_passes_trusted_tenant_context():
     ).tools[0]
 
     result = asyncio.run(
-        tool(None, {"bot_id": "attacker-bot", "confirmed": True})
+        tool(
+            None,
+            {
+                "bot_id": "attacker-bot",
+                "name": "Visitor",
+                "email": "visitor@example.com",
+                "confirmed": True,
+            },
+        )
     )
 
     assert result == '{"ok": true}'
     assert captured["arguments"] == {
         "bot_id": "bot-1",
         "session_id": "session-1",
+        "name": "Visitor",
+        "email": "visitor@example.com",
     }
     assert captured["context"]["bot_id"] == "bot-1"
     assert captured["context"]["source"] == "widget"
@@ -157,6 +167,87 @@ def test_voice_lead_tool_requires_explicit_confirmation():
     result = asyncio.run(tool(None, {"name": "Visitor", "email": "visitor@example.com"}))
 
     assert "not confirmed" in result
+
+
+def test_voice_lead_tool_rejects_missing_required_details_after_confirmation():
+    modules = SimpleNamespace(
+        agent_tools=SimpleNamespace(
+            DECLARATIONS=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "create_lead",
+                        "description": "Record a lead",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    },
+                }
+            ],
+            execute=lambda *args, **kwargs: {"unexpected": True},
+        ),
+        widget_brain=SimpleNamespace(
+            scheduling_tool_names=lambda _bot, _owner: ["create_lead"]
+        ),
+        supabase="fake-supabase",
+        run_db=None,
+        doc_rag=None,
+    )
+    organization = OrganizationContext(
+        owner_user={"id": "owner-1"},
+        bot={"id": "bot-1", "answer_mode": "strict"},
+        modules=modules,
+    )
+    tool = ChattyVoiceAgent(
+        organization,
+        VoiceSettings.from_env(env_file=""),
+        "session-1",
+    ).tools[0]
+
+    result = asyncio.run(tool(None, {"name": "Visitor", "confirmed": True}))
+
+    assert "email is required" in result
+
+
+def test_voice_lead_tool_rejects_malformed_email_after_confirmation():
+    modules = SimpleNamespace(
+        agent_tools=SimpleNamespace(
+            DECLARATIONS=[
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "create_lead",
+                        "description": "Record a lead",
+                        "parameters": {"type": "object", "properties": {}, "required": []},
+                    },
+                }
+            ],
+            execute=lambda *args, **kwargs: {"unexpected": True},
+        ),
+        widget_brain=SimpleNamespace(
+            scheduling_tool_names=lambda _bot, _owner: ["create_lead"]
+        ),
+        supabase="fake-supabase",
+        run_db=None,
+        doc_rag=None,
+    )
+    organization = OrganizationContext(
+        owner_user={"id": "owner-1"},
+        bot={"id": "bot-1", "answer_mode": "strict"},
+        modules=modules,
+    )
+    tool = ChattyVoiceAgent(
+        organization,
+        VoiceSettings.from_env(env_file=""),
+        "session-1",
+    ).tools[0]
+
+    result = asyncio.run(
+        tool(
+            None,
+            {"name": "Visitor", "email": "not-an-email", "confirmed": True},
+        )
+    )
+
+    assert "email address is invalid" in result
 
 
 def test_agent_uses_chatty_bot_prompt_and_greeting_fields():

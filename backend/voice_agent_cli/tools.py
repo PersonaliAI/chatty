@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from importlib import import_module
 from typing import Any
 
@@ -15,6 +16,16 @@ from .organization import OrganizationContext
 from .rag import KnowledgeService
 
 logger = logging.getLogger("chatty.voice.tools")
+
+_VOICE_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalize_spoken_email(value: Any) -> str:
+    """Normalize common voice dictation forms before lead validation."""
+    email = str(value or "").strip().lower()
+    email = re.sub(r"\s+at\s+", "@", email)
+    email = re.sub(r"\s+dot\s+", ".", email)
+    return re.sub(r"\s+", "", email)
 
 
 class ChattyToolRegistry:
@@ -84,6 +95,39 @@ class ChattyToolRegistry:
                                 )
                             }
                         )
+                    required_fields = self.organization.bot.get("lead_required_fields") or [
+                        "name",
+                        "email",
+                    ]
+                    if isinstance(required_fields, str):
+                        required_fields = [
+                            field.strip()
+                            for field in required_fields.split(",")
+                            if field.strip()
+                        ]
+                    for field in required_fields:
+                        if not str(safe_arguments.get(field) or "").strip():
+                            label = str(field).replace("_", " ")
+                            return json.dumps(
+                                {
+                                    "error": (
+                                        f"The visitor's {label} is required before the lead can be saved. "
+                                        f"Ask for the {label}, read it back, and ask for confirmation."
+                                    )
+                                }
+                            )
+                    if safe_arguments.get("email") is not None:
+                        normalized_email = _normalize_spoken_email(safe_arguments["email"])
+                        if not _VOICE_EMAIL_RE.fullmatch(normalized_email):
+                            return json.dumps(
+                                {
+                                    "error": (
+                                        "The visitor's email address is invalid. Ask them to repeat a "
+                                        "complete email address, read it back, and ask for confirmation."
+                                    )
+                                }
+                            )
+                        safe_arguments["email"] = normalized_email
                     # These values belong to the signed voice session, not to
                     # model output. Injecting them here preserves tenant
                     # isolation and makes voice leads deduplicate correctly.
