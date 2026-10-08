@@ -9,6 +9,7 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     JobContext,
+    JobProcess,
     MetricsCollectedEvent,
     TurnHandlingOptions,
     cli,
@@ -30,7 +31,27 @@ from .timezone import resolve_visitor_timezone
 logger = logging.getLogger("chatty.voice.runtime")
 settings = VoiceSettings.from_env()
 settings.apply_provider_environment()
-server = AgentServer()
+
+
+def _setup_job_process(proc: JobProcess) -> None:
+    """Warm Chatty's synchronous imports before the process accepts a job.
+
+    The LiveKit Agents server invokes ``setup_fnc`` during worker-process
+    initialization.  Chatty's Supabase clients and plugin modules are
+    synchronous imports, so loading them here keeps the first assigned room
+    from blocking the audio/event loop for several seconds.
+    """
+    from .bootstrap import load_chatty_modules
+
+    load_chatty_modules(settings)
+    proc.userdata["chatty_modules_warmed"] = True
+    logger.debug(
+        "Chatty voice modules warmed in LiveKit job process",
+        extra={"pid": proc.pid},
+    )
+
+
+server = AgentServer(setup_fnc=_setup_job_process)
 
 
 @server.rtc_session(agent_name=settings.agent_name)
