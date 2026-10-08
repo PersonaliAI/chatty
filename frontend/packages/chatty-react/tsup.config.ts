@@ -1,6 +1,10 @@
 import { defineConfig } from "tsup";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const packageDir = path.dirname(fileURLToPath(import.meta.url));
+const frontendNodeModules = path.resolve(packageDir, "../../node_modules");
 
 export default defineConfig([
   // 1. Standalone bundle for widget.js Shadow DOM
@@ -14,6 +18,19 @@ export default defineConfig([
     platform: "browser",
     define: {
       "process.env.NODE_ENV": '"production"',
+    },
+    // The package is built from its own workspace directory, while the
+    // LiveKit component package is resolved from the frontend workspace.
+    // Without a single canonical React path, esbuild can embed two copies of
+    // React in the IIFE. LiveKit hooks then run against a different React
+    // dispatcher than the renderer and fail with `useContext` reading null
+    // as soon as the voice surface mounts.
+    esbuildOptions: (options) => {
+      options.alias = {
+        ...(options.alias ?? {}),
+        react: path.join(frontendNodeModules, "react"),
+        "react-dom": path.join(frontendNodeModules, "react-dom"),
+      };
     },
     noExternal: [/.*/],
     onSuccess: async () => {
