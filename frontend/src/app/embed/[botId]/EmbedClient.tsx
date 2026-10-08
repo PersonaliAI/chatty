@@ -1967,6 +1967,13 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             if (prev !== newJs) return newJs;
             return prev;
           });
+          // Keep the currently open widget in sync with dashboard settings.
+          // This is especially important for the voice entry points: a saved
+          // toggle should not require a visitor to close and reopen the page.
+          setVoiceAgentEnabled(Boolean(bot.voice_enabled));
+          if (['wave', 'bar', 'grid', 'radial', 'aura'].includes(bot.voice_visualizer)) {
+            setVoiceVisualizer(bot.voice_visualizer);
+          }
         }
       } catch {}
     }, 30000);

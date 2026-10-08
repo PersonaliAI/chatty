@@ -190,6 +190,20 @@ function Preview({
   ];
   const stateLabel =
     previewStates.find((item) => item.value === previewState)?.label ?? "Listening";
+
+  useEffect(() => {
+    // Keep the preview alive even when a customer is only browsing the tab.
+    // The state buttons still override this cycle immediately and the next
+    // tick resumes from the selected state.
+    const timer = window.setInterval(() => {
+      setPreviewState((currentState) => {
+        const index = previewStates.findIndex((item) => item.value === currentState);
+        return previewStates[(index + 1) % previewStates.length].value;
+      });
+    }, 2600);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <section className="overflow-hidden rounded-[26px] border border-neutral-800 bg-[#090b0f] text-white shadow-2xl shadow-cyan-950/10">
       <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row">
@@ -207,13 +221,13 @@ function Preview({
               LiveKit
             </span>
           </div>
-          <div className="relative flex min-h-[280px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_center,rgba(22,74,99,.3),transparent_56%)] sm:min-h-[300px]">
+          <div className="relative flex min-h-[250px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_center,rgba(22,74,99,.3),transparent_56%)] sm:min-h-[280px]">
             <div className="absolute inset-0 opacity-25 [background-image:radial-gradient(#6c8190_1px,transparent_1px)] [background-size:8px_8px]" />
             <LiveKitAgentVisualizer
               visualizer={selected}
               state={previewState}
               color={current.color}
-              className="h-[240px] w-[240px]"
+              className="h-[min(30vw,240px)] w-[min(30vw,240px)] max-h-[240px] max-w-[240px]"
               demo
             />
           </div>
@@ -225,7 +239,7 @@ function Preview({
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-neutral-300">
             <Radio className="size-3.5 text-cyan-300" /> Preview states
           </div>
-          <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 p-1 text-[10px] text-neutral-400">
+          <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 p-1 text-[10px] text-neutral-400" role="group" aria-label="Preview agent state">
             {previewStates.map((item) => {
               const active = previewState === item.value;
               return (
@@ -779,16 +793,16 @@ export function VoiceAgentTab({
             </div>
           </section>
         </main>
-        <aside className="min-h-[590px] xl:sticky xl:top-4 xl:h-[calc(100vh-140px)]">
+        <aside className="min-h-[560px] xl:sticky xl:top-4 xl:self-start">
           <VoiceAgentPanel
             botId={botId}
             sessionId={sessionId}
             visualizer={config.visualizer}
-            className="h-full"
+            className="h-[min(720px,calc(100dvh-8rem))] min-h-[560px]"
           />
         </aside>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200/80 bg-white/90 px-4 py-3 backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-950/90">
+      <div className="sticky bottom-0 z-30 mt-6 border-t border-neutral-200/80 bg-white/95 px-4 py-3 backdrop-blur-xl dark:border-neutral-800 dark:bg-neutral-950/95 sm:px-6 lg:px-8">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3">
           <p className="hidden text-xs text-neutral-500 sm:block">
             Changes apply to new voice sessions.

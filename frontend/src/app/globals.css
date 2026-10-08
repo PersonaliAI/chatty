@@ -650,6 +650,25 @@ body {
   background: linear-gradient(180deg, rgba(198, 113, 57, 0.72), rgba(140, 73, 26, 0.86)) padding-box;
 }
 
+.chatty-transcript-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(198, 113, 57, 0.42) transparent;
+  scrollbar-gutter: stable;
+}
+.chatty-transcript-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.chatty-transcript-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chatty-transcript-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(198, 113, 57, 0.42);
+}
+.chatty-transcript-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 73, 26, 0.7);
+}
+
 /* KaTeX is rendered inside the live transcript. Display equations get their
  * own horizontal scroller so a long formula never widens or clips the mobile
  * call surface, while inline math follows the surrounding text size. */

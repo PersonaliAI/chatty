@@ -75,12 +75,9 @@ export function ModernSwitch({
         style={checked ? { backgroundColor: activeColor } : undefined}
       >
         <motion.span
-          layout
+          animate={{ x: checked ? dimensions.translate : 0 }}
           transition={{ type: "spring", stiffness: 500, damping: 30 }}
           className={`pointer-events-none inline-block rounded-full bg-white shadow-md ring-0 ${dimensions.thumb}`}
-          style={{
-            transform: checked ? `translateX(${dimensions.translate}px)` : "translateX(0px)",
-          }}
         />
       </button>
 
