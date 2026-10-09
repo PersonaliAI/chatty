@@ -48,7 +48,9 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
-          upload: false
+          # Publish SARIF so resolved findings are closed and new findings are
+          # visible in the repository Security tab.
+          upload: always
 
       - name: Upload SARIF report artifact
         uses: actions/upload-artifact@v6
