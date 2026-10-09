@@ -1,0 +1,116 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const BOT_ID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
+
+async function mockVoiceBackend(page: Page) {
+  await page.route("**/api/widget/**", async (route) => {
+    const url = new URL(route.request().url());
+
+    if (url.pathname.endsWith("/theme")) {
+      await route.fulfill({
+        json: {
+          id: BOT_ID,
+          name: "Voice test assistant",
+          welcome_message: "Hello from the voice test assistant.",
+          primary_color: "#f97316",
+          widget_style: "minimal",
+          csat_enabled: false,
+          voice_enabled: true,
+          voice_visualizer: "wave",
+          calendar_scheduling_enabled: true,
+          team_profiles: [],
+        },
+      });
+      return;
+    }
+
+    if (url.pathname.endsWith("/identity")) {
+      await route.fulfill({
+        json: {
+          visitor_token: "v".repeat(43),
+          session_id: "ci-aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa",
+          expires_at: "2099-01-01T00:00:00.000Z",
+        },
+      });
+      return;
+    }
+
+    if (url.pathname.endsWith("/booking/slots")) {
+      await route.fulfill({
+        json: {
+          enabled: true,
+          provider: "google_meet",
+          duration_minutes: 30,
+          available_dates: ["2030-01-02"],
+          slots_by_date: {
+            "2030-01-02": [
+              {
+                start: "2030-01-02T09:00:00.000Z",
+                end: "2030-01-02T09:30:00.000Z",
+                time_label: "9:00 AM",
+                visitor_local_label: "9:00 AM",
+              },
+            ],
+          },
+          lead_fields: ["name", "email"],
+          lead_required_fields: ["name", "email"],
+          booking_email_verification: true,
+        },
+      });
+      return;
+    }
+
+    if (url.pathname.endsWith("/voice/token")) {
+      await route.fulfill({
+        json: {
+          serverUrl: "wss://voice-test.invalid",
+          participantToken: "test-token",
+          roomName: "chatty-test-room",
+          participantName: "Visitor",
+        },
+      });
+      return;
+    }
+
+    if (url.pathname.endsWith("/live")) {
+      await route.fulfill({ contentType: "text/event-stream", body: ": connected\n\n" });
+      return;
+    }
+
+    await route.fulfill({
+      json: { messages: [], conversations: [], campaigns: [], categories: [], ai_paused: false },
+    });
+  });
+}
+
+test("voice entry points, transcript layout, and booking surface stay mounted", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => window.localStorage.clear());
+  await mockVoiceBackend(page);
+
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto(`/embed/${BOT_ID}?test=voice-ui`, { waitUntil: "domcontentloaded" });
+  const waveHeader = page.getByRole("button", { name: "Open voice agent" });
+  await expect(waveHeader).toBeVisible({ timeout: 15_000 });
+
+  await waveHeader.click();
+  await expect(page.getByRole("button", { name: "Back to chat" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start voice conversation" })).toBeVisible();
+  await expect(page.getByText("Ready when you are")).toBeVisible();
+
+  await page.getByRole("button", { name: "Show transcript" }).click();
+  await expect(page.getByText("Live transcript", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start the voice agent to see real-time transcription here.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Book a meeting" }).click();
+  await expect(page.getByText("Choose a slot or tell the agent what works.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /(?:9:00 AM|2:30 PM)/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Back to chat" }).click();
+  await page.getByRole("button", { name: "Chat", exact: true }).last().click();
+  await expect(page.getByPlaceholder("Compose your message…")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start live voice agent" })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
