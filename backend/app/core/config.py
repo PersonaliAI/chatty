@@ -78,6 +78,15 @@ CHATTY_FRONTEND_URL = os.environ.get("CHATTY_FRONTEND_URL", "https://chatty.pers
 # This service's own public URL - the OAuth issuer/resource identifiers the
 # MCP server advertises must match the domain clients actually reach.
 CHATTY_BACKEND_URL = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com")
+# OAuth Dynamic Client Registration is disabled unless an operator explicitly
+# provisions an initial-access token.  This prevents arbitrary third parties
+# from creating clients with attacker-controlled redirect URIs.
+OAUTH_DCR_INITIAL_ACCESS_TOKEN = os.environ.get("OAUTH_DCR_INITIAL_ACCESS_TOKEN", "").strip()
+OAUTH_DCR_ALLOWED_REDIRECT_HOSTS = {
+    host.strip().lower().rstrip(".")
+    for host in os.environ.get("OAUTH_DCR_ALLOWED_REDIRECT_HOSTS", "").split(",")
+    if host.strip()
+}
 FLOW_BUILDER_URL = os.environ.get("FLOW_BUILDER_URL", "https://flow.personaliai.com")
 FLOW_BUILDER_HOSTED_URL = "https://chatty-flow-builder--personaliai.us-central1.hosted.app"
 

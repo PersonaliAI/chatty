@@ -23,11 +23,16 @@ import logging
 from typing import Any, Optional
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, Form, Header, HTTPException
 from fastapi.responses import RedirectResponse
 from app.core import oauth as _oauth
 from app.core.clients import supabase
-from app.core.config import CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL
+from app.core.config import (
+    CHATTY_BACKEND_URL,
+    CHATTY_FRONTEND_URL,
+    OAUTH_DCR_ALLOWED_REDIRECT_HOSTS,
+    OAUTH_DCR_INITIAL_ACCESS_TOKEN,
+)
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.schemas.oauth import (
@@ -62,11 +67,10 @@ _SCOPE_DESCRIPTIONS = {
 
 @router.get("/.well-known/oauth-authorization-server", tags=["OAuth2"])
 async def oauth_authorization_server_metadata():
-    return {
+    metadata = {
         "issuer": _BACKEND_BASE_URL,
         "authorization_endpoint": f"{_BACKEND_BASE_URL}/oauth/authorize",
         "token_endpoint": f"{_BACKEND_BASE_URL}/oauth/token",
-        "registration_endpoint": f"{_BACKEND_BASE_URL}/oauth/register",
         "revocation_endpoint": f"{_BACKEND_BASE_URL}/oauth/revoke",
         "scopes_supported": list(_SCOPE_DESCRIPTIONS.keys()),
         "response_types_supported": ["code"],
@@ -74,6 +78,9 @@ async def oauth_authorization_server_metadata():
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
         "code_challenge_methods_supported": ["S256"],
     }
+    if OAUTH_DCR_INITIAL_ACCESS_TOKEN:
+        metadata["registration_endpoint"] = f"{_BACKEND_BASE_URL}/oauth/register"
+    return metadata
 
 
 _MCP_RESOURCE_URL = f"{_BACKEND_BASE_URL}/mcp"
@@ -113,17 +120,46 @@ async def oauth_protected_resource_metadata_mcp():
 # ---------------------------------------------------------------------------
 
 
+def _is_loopback_redirect(uri: str) -> bool:
+    from urllib.parse import urlsplit
+    parsed = urlsplit(uri)
+    return parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+
+
+def _validate_redirect_uri(uri: str) -> None:
+    from urllib.parse import urlsplit
+    parsed = urlsplit(uri)
+    if parsed.fragment or parsed.username or parsed.password or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="redirect_uri must not contain a fragment or credentials")
+    host = parsed.hostname.lower().rstrip(".")
+    if _is_loopback_redirect(uri):
+        return
+    if parsed.scheme != "https":
+        raise HTTPException(status_code=400, detail="redirect_uri must be https (or a loopback URL)")
+    if OAUTH_DCR_ALLOWED_REDIRECT_HOSTS and host not in OAUTH_DCR_ALLOWED_REDIRECT_HOSTS:
+        raise HTTPException(status_code=400, detail="redirect_uri host is not allowlisted")
+
+
 @router.post("/oauth/register", tags=["OAuth2"], response_model=ClientRegistrationResponse)
-async def register_client(body: ClientRegistrationRequest):
+async def register_client(
+    body: ClientRegistrationRequest,
+    authorization: Optional[str] = Header(None),
+    x_initial_access_token: Optional[str] = Header(None),
+):
+    if not OAUTH_DCR_INITIAL_ACCESS_TOKEN:
+        raise HTTPException(status_code=503, detail="Dynamic client registration is not enabled")
+    presented = x_initial_access_token
+    if authorization and authorization.lower().startswith("bearer "):
+        presented = authorization[7:].strip()
+    import secrets
+    if not presented or not secrets.compare_digest(presented, OAUTH_DCR_INITIAL_ACCESS_TOKEN):
+        raise HTTPException(status_code=401, detail="A valid initial access token is required")
     if not body.redirect_uris:
         raise HTTPException(status_code=400, detail="redirect_uris is required")
+    if len(body.redirect_uris) > 10:
+        raise HTTPException(status_code=400, detail="At most 10 redirect_uris are allowed")
     for uri in body.redirect_uris:
-        # Loopback redirects (http://127.0.0.1:<port>/...) are the standard
-        # pattern for native/CLI MCP clients per RFC 8252 and are exempt from
-        # the https requirement; everything else must be https.
-        is_loopback = uri.startswith("http://127.0.0.1") or uri.startswith("http://localhost")
-        if not (uri.startswith("https://") or is_loopback):
-            raise HTTPException(status_code=400, detail=f"redirect_uri must be https (or a loopback URL): {uri}")
+        _validate_redirect_uri(uri)
 
     is_confidential = body.token_endpoint_auth_method == "client_secret_post"
     client_id = _oauth.new_client_id()
@@ -166,6 +202,11 @@ async def authorize_redirect(
 ):
     if response_type != "code":
         raise HTTPException(status_code=400, detail="Only response_type=code is supported")
+    if not code_challenge or code_challenge_method != "S256":
+        raise HTTPException(status_code=400, detail="PKCE with S256 is required")
+    client = await _get_client_or_404(client_id)
+    if redirect_uri not in client["redirect_uris"]:
+        raise HTTPException(status_code=400, detail="redirect_uri does not match a registered URI for this client")
     params = {
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -215,6 +256,8 @@ async def authorize_decision(
     client = await _get_client_or_404(body.client_id)
     if body.redirect_uri not in client["redirect_uris"]:
         raise HTTPException(status_code=400, detail="redirect_uri does not match a registered URI for this client")
+    if not body.code_challenge or body.code_challenge_method != "S256":
+        raise HTTPException(status_code=400, detail="PKCE with S256 is required")
 
     if not body.approve:
         params = {"error": "access_denied"}

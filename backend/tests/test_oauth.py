@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 
 import main
 from app.core import oauth
+from app.routers import oauth as oauth_router
 
 
 # ---------------------------------------------------------------------------
@@ -259,26 +260,48 @@ def test_well_known_protected_resource_metadata_is_served_at_both_paths():
 
 def test_register_client_rejects_non_https_redirect_uri():
     client = TestClient(main.app)
-    r = client.post("/oauth/register", json={
-        "client_name": "Evil App",
-        "redirect_uris": ["http://evil.example.com/callback"],
-    })
+    with patch.object(oauth_router, "OAUTH_DCR_INITIAL_ACCESS_TOKEN", "test-token"):
+        r = client.post("/oauth/register", headers={"Authorization": "Bearer test-token"}, json={
+            "client_name": "Evil App",
+            "redirect_uris": ["http://evil.example.com/callback"],
+        })
     assert r.status_code == 400
 
 
 def test_register_client_accepts_loopback_redirect_uri_for_native_clients():
     client = TestClient(main.app)
     query = _mock_insert_result({"id": "row-1"})
-    with patch.object(oauth.supabase, "table", return_value=query):
-        r = client.post("/oauth/register", json={
-            "client_name": "My CLI Tool",
-            "redirect_uris": ["http://127.0.0.1:54321/callback"],
-        })
+    with patch.object(oauth_router, "OAUTH_DCR_INITIAL_ACCESS_TOKEN", "test-token"):
+        with patch.object(oauth.supabase, "table", return_value=query):
+            r = client.post("/oauth/register", headers={"X-Initial-Access-Token": "test-token"}, json={
+                "client_name": "My CLI Tool",
+                "redirect_uris": ["http://127.0.0.1:54321/callback"],
+            })
     assert r.status_code == 200
     body = r.json()
     assert body["client_id"].startswith(oauth._CLIENT_ID_PREFIX)
     assert body["token_endpoint_auth_method"] == "none"
     assert body["client_secret"] is None  # public/PKCE client - no secret issued
+
+
+def test_register_client_requires_initial_access_token():
+    client = TestClient(main.app)
+    with patch.object(oauth_router, "OAUTH_DCR_INITIAL_ACCESS_TOKEN", "test-token"):
+        r = client.post("/oauth/register", json={
+            "client_name": "Untrusted App",
+            "redirect_uris": ["https://example.com/callback"],
+        })
+    assert r.status_code == 401
+
+
+def test_register_client_rejects_lookalike_loopback_host():
+    client = TestClient(main.app)
+    with patch.object(oauth_router, "OAUTH_DCR_INITIAL_ACCESS_TOKEN", "test-token"):
+        r = client.post("/oauth/register", headers={"Authorization": "Bearer test-token"}, json={
+            "client_name": "Evil App",
+            "redirect_uris": ["http://127.0.0.1.evil.example/callback"],
+        })
+    assert r.status_code == 400
 
 
 def test_token_endpoint_rejects_unsupported_grant_type():
