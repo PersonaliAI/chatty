@@ -1572,7 +1572,8 @@ function IdentifiedChatWidget({
   // Persist messages (cap to last 100)
   useEffect(() => {
     if (typeof window === "undefined" || !botId || messages.length === 0) return;
-    try { localStorage.setItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`, JSON.stringify(messages.slice(-100))); } catch {}
+    // Conversation content can contain PII and must not be persisted in
+    // browser storage. The server is the durable transcript source.
   }, [messages, botId, hostKey, sessionId]);
 
   // Live human-agent replies via SSE (one persistent connection). Falls back

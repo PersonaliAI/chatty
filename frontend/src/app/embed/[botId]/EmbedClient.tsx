@@ -1669,8 +1669,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   useEffect(() => {
     if (typeof window === "undefined" || !botId || messages.length === 0) return;
     try {
-      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`, JSON.stringify(messages.slice(-100)));
-      localStorage.setItem(`chatty_msgs_${botId}_${hostKey}`, JSON.stringify(messages.slice(-100)));
+      // Do not persist message bodies (they may contain PII) in localStorage.
 
       const lastM = messages[messages.length - 1];
       if (lastM) {
@@ -1699,9 +1698,6 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           } else {
             nextList = [updated, ...prev];
           }
-          try {
-            localStorage.setItem(`chatty_convs_${botId}_${hostKey}`, JSON.stringify(nextList));
-          } catch {}
           return nextList;
         });
       }
