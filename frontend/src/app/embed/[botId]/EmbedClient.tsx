@@ -1451,18 +1451,10 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     let cleanups: Array<() => void> = [];
     const device = window.matchMedia?.("(max-width: 640px)").matches ? "mobile" : "desktop";
     const path = `${window.location.pathname}${window.location.search}`.slice(0, 512);
-    const priorConversation = Boolean(
-      localStorage.getItem(`chatty_convs_${botId}_${hostKey}`)
-      || localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`),
-    );
-    let intentScore = 0;
-    try {
-      const history = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`);
-      const parsedHistory: unknown = history ? JSON.parse(history) : null;
-      intentScore = Math.min(100, Array.isArray(parsedHistory) ? parsedHistory.length * 20 : 0);
-    } catch {
-      intentScore = priorConversation ? 20 : 0;
-    }
+    // Returning status and intent are determined server-side; transcript
+    // content is never read from browser storage.
+    const priorConversation = false;
+    const intentScore = 0;
     let cancelled = false;
     const trigger = (campaign: WidgetCampaign) => {
       if (cancelled || campaignShownRef.current.has(campaign.id)) return;
@@ -1533,46 +1525,8 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     };
   }, [botId, isPreview, originToken, sessionId]);
 
-  // Restore prior messages from localStorage
-  useEffect(() => {
-    if (typeof window === "undefined" || !botId) return;
-    try {
-      // 1. Load multi-conversation registry
-      const rawConvs = localStorage.getItem(`chatty_convs_${botId}_${hostKey}`);
-      if (rawConvs) {
-        const parsed: VisitorConversationItem[] = JSON.parse(rawConvs);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setConversationsList(parsed);
-        }
-      }
-
-      // 2. Load active messages
-      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`);
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (Array.isArray(saved) && saved.length) {
-          setMessages(dedupeAdjacentWelcomeMessages(saved, welcomeMsg));
-          // If no registry yet, bootstrap with this conversation
-          if (!rawConvs) {
-            const lastM = saved[saved.length - 1];
-            const snippet = (lastM?.content || "").replace(/\[BOOKING_WIDGET\]/g, "").slice(0, 100);
-            const initialItem: VisitorConversationItem = {
-              sessionId,
-              lastSnippet: snippet || "Welcome conversation",
-              lastSender: lastM?.role || "assistant",
-              lastChannel: lastM?.channel === "voice" ? "voice" : "text",
-              updatedAt: new Date().toISOString(),
-              messageCount: saved.length,
-            };
-            setConversationsList([initialItem]);
-            localStorage.setItem(`chatty_convs_${botId}_${hostKey}`, JSON.stringify([initialItem]));
-          }
-        }
-      }
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botId, sessionId]);
-
+  // Conversation history and transcripts are restored from the authenticated
+  // server endpoints below; no message bodies are read from localStorage.
   // Conversation switcher
   useEffect(() => {
     let alive = true;
@@ -1597,16 +1551,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     try {
       localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, targetSessionId);
     } catch {}
-    let targetMsgs: Message[] = [];
-    try {
-      const raw =
-        localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${targetSessionId}`) ||
-        (targetSessionId === sessionId ? localStorage.getItem(`chatty_msgs_${botId}_${hostKey}`) : null);
-      if (raw) {
-        targetMsgs = JSON.parse(raw);
-      }
-    } catch {}
-    setMessages(targetMsgs.length > 0 ? dedupeAdjacentWelcomeMessages(targetMsgs, welcomeMsg) : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
     setChatView("chat");
     setTab("messages");
   };

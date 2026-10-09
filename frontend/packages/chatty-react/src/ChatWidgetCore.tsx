@@ -1496,19 +1496,8 @@ function IdentifiedChatWidget({
     }
   }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader]);
 
-  // Restore prior messages from localStorage
-  useEffect(() => {
-    if (typeof window === "undefined" || !botId) return;
-    try {
-      const raw = localStorage.getItem(`chatty_msgs_${botId}_${hostKey}_${sessionId}`);
-      if (raw) {
-        const saved = JSON.parse(raw);
-        if (Array.isArray(saved) && saved.length) setMessages(saved);
-      }
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botId]);
-
+  // Transcript restoration is server-backed below; never hydrate message
+  // content from browser storage because it may contain visitor PII.
   useEffect(() => {
     let alive = true;
     void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
