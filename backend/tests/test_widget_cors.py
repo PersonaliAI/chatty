@@ -22,10 +22,25 @@ def test_widget_preflight_allows_signed_visitor_header(origin, path, method):
         })
     assert response.status_code == 204
     assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["access-control-allow-credentials"] == "true"
     allowed = {header.strip().lower() for header in response.headers["access-control-allow-headers"].split(",")}
     assert {"content-type", "x-chatty-visitor", "x-widget-token"} <= allowed
     assert "*" not in allowed
     assert "x-untrusted-header" not in allowed
+
+
+def test_widget_response_allows_credentialed_identity_requests():
+    with TestClient(create_app()) as client:
+        response = client.post(
+            "/api/widget/identity",
+            headers={
+                "Origin": "https://customer.example",
+                "Content-Type": "application/json",
+            },
+            json={"bot_id": "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa"},
+        )
+    assert response.headers["access-control-allow-origin"] == "https://customer.example"
+    assert response.headers["access-control-allow-credentials"] == "true"
 
 
 def test_widget_cors_does_not_open_dashboard_endpoints():

@@ -178,13 +178,15 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def _widget_open_cors(request: _StarletteRequest, call_next):
         """Public widget endpoints are embedded on ANY customer domain, so they
-        can't use the fixed origin allowlist. Reflect the request Origin (no
-        credentials) for /api/widget/* - widget.js fetches these from the host page."""
+        can't use the fixed origin allowlist. Reflect the request Origin and
+        explicitly allow credentials for /api/widget/* because the visitor
+        identity exchange uses fetch credentials from the host page."""
         if request.url.path.startswith("/api/widget/"):
             origin = request.headers.get("origin", "*")
             if request.method == "OPTIONS":
                 return _StarletteResponse(status_code=204, headers={
                     "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
                     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
                     # The signed visitor capability is required by the shared
                     # widget transport, including public theme reads. Keep an
@@ -195,6 +197,7 @@ def create_app() -> FastAPI:
                 })
             resp = await call_next(request)
             resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Access-Control-Allow-Credentials"] = "true"
             resp.headers["Vary"] = "Origin"
             return resp
         return await call_next(request)
