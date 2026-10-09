@@ -109,10 +109,8 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   // The embedded widget opens directly into the compact LiveKit session view:
   // transcript and booking are first-class surfaces, while the standalone
   // experience keeps its visualizer-first landing state.
-  // Keep the voice surface focused on the call controls until the visitor
-  // explicitly opens transcript or booking. Both are progressive-disclosure
-  // surfaces in the widget and must not compete with the call visualizer on
-  // first open.
+  // Match the standalone LiveKit surface: visualizer first, with transcript
+  // and booking available from the compact footer controls.
   const [showTranscript, setShowTranscript] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [canRetry, setCanRetry] = useState(false);

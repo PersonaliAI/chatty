@@ -119,9 +119,6 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
-  // Transcript and booking are intentional secondary surfaces. Keep both
-  // closed initially so the call control/visualizer is the first thing users
-  // see, matching the embedded Chatty widget behavior.
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);

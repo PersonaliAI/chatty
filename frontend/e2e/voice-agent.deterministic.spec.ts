@@ -107,9 +107,11 @@ test("voice entry points, transcript layout, and booking surface stay mounted", 
   await expect(page.getByText("Start the voice agent to see real-time transcription here.")).toBeVisible();
 
   await expect(page.getByRole("button", { name: "Book a meeting" })).toBeVisible();
+  const slotsResponse = page.waitForResponse((response) => response.url().includes("/api/widget/booking/slots") && response.ok());
   await page.getByRole("button", { name: "Book a meeting" }).click();
   await expect(page.getByRole("button", { name: "Hide booking" })).toBeVisible();
   await expect(page.getByText("Choose a slot or tell the agent what works.")).toBeVisible();
+  await slotsResponse;
   await expect(page.getByRole("button", { name: /(?:9:00 AM|2:30 PM)/ })).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "Back to chat" }).click();
