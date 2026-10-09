@@ -250,3 +250,48 @@
 .chatty-sdk-voice-booking-heading strong { font-size: .82rem; }
 .chatty-sdk-voice-booking-heading span { color: var(--chatty-voice-muted); font-size: .7rem; line-height: 1.35; }
 .chatty-sdk-voice-booking-close { display: grid; place-items: center; flex: none; width: 1.8rem; height: 1.8rem; border-radius: 999px; color: #64717c; background: #f0f3f4; }
+
+/* Embedded voice-session surface: match the compact reference layout. */
+.chatty-sdk-voice { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; width: 100%; gap: 0; overflow: hidden; border: 0; border-radius: 0; padding: 0; color: #17222b; background: #fff; box-shadow: none; }
+.chatty-sdk-voice::before { display: none; }
+.chatty-sdk-voice-header { display: flex; align-items: center; justify-content: space-between; flex: none; min-height: 4.55rem; padding: .85rem 1rem; border-bottom: 1px solid #edf0f2; background: #fff; }
+.chatty-sdk-voice-header-main { display: flex; align-items: center; gap: .7rem; min-width: 0; }
+.chatty-sdk-voice-header-main > div { display: grid; gap: .12rem; min-width: 0; }
+.chatty-sdk-voice-header h2 { margin: 0; color: #17222b; font-size: .95rem; font-weight: 700; }
+.chatty-sdk-voice-header-main span { color: #7a8792; font-size: .7rem; }
+.chatty-sdk-voice-header-close { display: grid; place-items: center; flex: none; width: 1.9rem; height: 1.9rem; border-radius: 50%; color: #7a858c; background: #f6f7f8; }
+.chatty-sdk-voice-secure { display: inline-flex; align-items: center; gap: .28rem; flex: none; color: #0a9a65; font-size: .68rem; font-weight: 600; }
+.chatty-sdk-voice-content { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: .72rem; overflow-y: auto; padding: .95rem 1rem 1rem; scrollbar-width: thin; scrollbar-color: #c6d1d6 transparent; }
+.chatty-sdk-voice-content::-webkit-scrollbar { width: 5px; }
+.chatty-sdk-voice-content::-webkit-scrollbar-thumb { border-radius: 999px; background: #c6d1d6; }
+.chatty-sdk-voice-section-heading { display: flex; align-items: center; justify-content: space-between; flex: none; padding: 0 .15rem; }
+.chatty-sdk-voice-section-heading strong { font-size: .74rem; }
+.chatty-sdk-voice-section-heading span { color: #9ca7ae; font-size: .64rem; }
+.chatty-sdk-voice-transcript-panel { display: flex; flex: 1 1 auto; min-height: 10.7rem; max-height: 24rem; overflow: hidden; border: 1px solid #e5e9ed; border-radius: 1rem; background: #fff; }
+.chatty-sdk-voice-transcript { display: grid; align-content: start; gap: .55rem; width: 100%; overflow-y: auto; padding: .8rem; scrollbar-width: thin; scrollbar-color: #c6d1d6 transparent; }
+.chatty-sdk-voice-transcript:has(.chatty-sdk-voice-empty) { place-items: center; }
+.chatty-sdk-voice-empty { max-width: 16rem; margin: auto; color: #7c8992; font-size: .76rem; line-height: 1.5; text-align: center; }
+.chatty-sdk-voice-transcript p { width: fit-content; max-width: 88%; margin: 0; border-radius: .75rem; padding: .55rem .7rem; color: #43525c; background: #f4f5f6; font-size: .76rem; line-height: 1.4; }
+.chatty-sdk-voice-transcript p.is-user { justify-self: end; color: #075f70; background: #e5f8fa; }
+.chatty-sdk-voice-booking { flex: none; }
+.chatty-sdk-voice-booking-trigger { display: flex; align-items: center; width: 100%; gap: .55rem; border: 1px solid #e5e9ed; border-radius: 1rem; padding: .72rem .78rem; background: #fff; text-align: left; }
+.chatty-sdk-voice-booking-trigger > svg:first-child { flex: none; color: #10a7c4; }
+.chatty-sdk-voice-booking-trigger > svg:last-child { flex: none; margin-left: auto; color: #9ca7ae; }
+.chatty-sdk-voice-booking-trigger > span { display: grid; min-width: 0; gap: .12rem; }
+.chatty-sdk-voice-booking-trigger strong { font-size: .78rem; }
+.chatty-sdk-voice-booking-trigger small { grid-column: auto; color: #7a8792; font-size: .67rem; }
+.chatty-sdk-voice-booking-card { max-height: 20rem; overflow-y: auto; border: 1px solid #e5e9ed; border-radius: 1rem; padding: .72rem; background: #fff; }
+.chatty-sdk-voice-booking-heading > div { min-width: 0; }
+.chatty-sdk-voice-booking-heading strong { font-size: .79rem; }
+.chatty-sdk-voice-booking-heading span { font-size: .67rem; }
+.chatty-sdk-voice-call-control { display: flex; flex-direction: column; align-items: center; flex: none; gap: .52rem; padding: .15rem 0 .05rem; }
+.chatty-sdk-voice-start, .chatty-sdk-voice-end { display: grid; place-items: center; width: 3.8rem; height: 3.8rem; border-radius: 50%; color: #fff; background: #0d1012; box-shadow: 0 .55rem 1rem rgba(16, 20, 24, .16); }
+.chatty-sdk-voice-live-controls { display: flex; align-items: center; gap: .5rem; }
+.chatty-sdk-voice-live-controls [data-lk-theme="default"] { display: flex; align-items: center; min-height: 2.8rem; border: 1px solid #e5e9ed; border-radius: 999px; padding: .2rem .3rem; background: #fff; --lk-fg: #26343b; --lk-bg: #fff; }
+.chatty-sdk-voice-level { display: inline-flex; align-items: center; justify-content: center; gap: .14rem; min-height: 1rem; color: #91a0a8; }
+.chatty-sdk-voice-level i { display: block; width: .15rem; border-radius: 999px; background: #10a7c4; animation: chatty-sdk-voice-level 850ms ease-in-out infinite alternate; }
+.chatty-sdk-voice-footer-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .48rem; flex: none; color: #8d989f; font-size: .68rem; }
+.chatty-sdk-voice-footer-actions button, .chatty-sdk-voice-mic-status { display: inline-flex; align-items: center; gap: .25rem; color: #87939a; background: transparent; white-space: nowrap; }
+.chatty-sdk-voice-interrupt { flex: none; margin: 0; color: #6e7d85; font-size: .65rem; text-align: center; }
+@keyframes chatty-sdk-voice-level { from { transform: scaleY(.45); opacity: .55; } to { transform: scaleY(1.1); opacity: 1; } }
+@media (max-width: 420px) { .chatty-sdk-voice-header { min-height: 4.2rem; padding-inline: .8rem; } .chatty-sdk-voice-content { padding-inline: .8rem; } .chatty-sdk-voice-transcript-panel { min-height: 9.5rem; } }

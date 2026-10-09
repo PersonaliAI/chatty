@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties, type ForwardedRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type ForwardedRef } from "react";
 import {
   RoomAudioRenderer,
   SessionProvider,
@@ -15,7 +15,7 @@ import {
   type ReceivedMessage,
 } from "@livekit/components-react";
 import { TokenSource, type TokenSourceResponseObject } from "livekit-client";
-import { CalendarPlus, Phone, PhoneOff, ShieldCheck, X } from "lucide-react";
+import { CalendarPlus, ChevronDown, MessageCircle, Mic, Phone, PhoneOff, ShieldCheck, X } from "lucide-react";
 
 import "@livekit/components-styles";
 import { InlineBookingCard, type ConfirmedMeeting } from "./inline-booking-card";
@@ -117,7 +117,8 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
-  const [bookingOpen, setBookingOpen] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(true);
+  const [bookingOpen, setBookingOpen] = useState(showBooking !== false);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
 
   const state = starting ? "connecting" : started ? agentState : "idle";
@@ -269,37 +270,40 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     setStarted(false);
     void session.end();
   };
-  const level = Math.max(0.12, Math.min(1, bars.length ? Math.max(...bars) : 0));
   const label = retrying ? "Reconnecting…" : starting ? "Connecting…" : agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : started ? "Ready when you are" : "Talk to Chatty";
 
   return (
     <section className={`chatty-sdk-voice ${props.className ?? ""}`}>
-      <header className="chatty-sdk-voice-header"><div><p className="chatty-sdk-voice-eyebrow"><ShieldCheck size={14} /> Secure voice session</p><h2>{props.title ?? "Talk with Chatty"}</h2></div><div className="chatty-sdk-voice-header-actions"><span className="chatty-sdk-voice-status">{label}</span>{props.onClose && <button type="button" className="chatty-sdk-voice-close" onClick={props.onClose} aria-label="Back to chat"><X size={17} /></button>}</div></header>
+      <header className="chatty-sdk-voice-header">
+        <div className="chatty-sdk-voice-header-main">
+          {props.onClose && <button type="button" className="chatty-sdk-voice-header-close" onClick={props.onClose} aria-label="Back to chat"><X size={17} /></button>}
+          <div><h2>{props.title ?? "Voice agent"}</h2><span>{label}</span></div>
+        </div>
+        <div className="chatty-sdk-voice-secure"><ShieldCheck size={14} /><span>Secure</span></div>
+      </header>
       {error && <div className="chatty-sdk-voice-error" role="alert"><span>{error}</span>{canRetry && <button type="button" className="chatty-sdk-voice-retry" onClick={retry}>Reconnect</button>}<button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div>}
-      <div className="chatty-sdk-voice-stage"><div className={`chatty-sdk-voice-orb ${started ? "is-active" : ""}`} style={{ "--voice-level": level } as CSSProperties}><div className="chatty-sdk-voice-orb-core"><div className="chatty-sdk-voice-bars" aria-hidden="true">{bars.map((bar, index) => <i key={index} style={{ height: `${Math.max(10, bar * 70)}%` }} />)}</div>{!started && <Phone size={28} />}</div></div><p>{label}</p><small>{started ? "You can interrupt the agent at any time." : "Ask questions, find answers, book meetings, or capture a lead."}</small></div>
-      <Transcript messages={messages} />
-      {props.showBooking !== false && <div className="chatty-sdk-voice-booking">
-        {!bookingOpen && <button type="button" className="chatty-sdk-voice-booking-trigger" onClick={() => setBookingOpen(true)}>
-          <CalendarPlus size={16} />
-          <span>Book a meeting</span>
-          <small>Choose a verified time slot</small>
-        </button>}
-        {bookingOpen && <div className="chatty-sdk-voice-booking-card">
-          <div className="chatty-sdk-voice-booking-heading">
-            <div><strong>Book a meeting</strong><span>Pick a time or tell the agent what works for you.</span></div>
-            <button type="button" className="chatty-sdk-voice-booking-close" onClick={() => setBookingOpen(false)} aria-label="Close booking"><X size={15} /></button>
-          </div>
-          <InlineBookingCard
-            botId={props.botId}
-            sessionId={sessionId}
-            primaryColor={props.primaryColor}
-            backendUrl={bookingBackendUrl}
-            initialMeeting={confirmedMeeting ?? undefined}
-            onBookingSuccess={(meeting) => { setConfirmedMeeting(meeting); props.onBookingSuccess?.(meeting); }}
-          />
+      <div className="chatty-sdk-voice-content">
+        <div className="chatty-sdk-voice-section-heading"><strong>Live transcript</strong><span>LiveKit Agents UI</span></div>
+        {transcriptOpen && <div className="chatty-sdk-voice-transcript-panel"><Transcript messages={messages} /></div>}
+        {props.showBooking !== false && <div className="chatty-sdk-voice-booking">
+          {!bookingOpen && <button type="button" className="chatty-sdk-voice-booking-trigger" onClick={() => setBookingOpen(true)}>
+            <CalendarPlus size={16} /><span><strong>Book a meeting</strong><small>Choose a slot or tell the agent what works.</small></span><ChevronDown size={15} />
+          </button>}
+          {bookingOpen && <div className="chatty-sdk-voice-booking-card">
+            <div className="chatty-sdk-voice-booking-heading">
+              <div><strong>Book a meeting</strong><span>Choose a slot or tell the agent what works.</span></div>
+              <button type="button" className="chatty-sdk-voice-booking-close" onClick={() => setBookingOpen(false)} aria-label="Close booking"><X size={15} /></button>
+            </div>
+            <InlineBookingCard botId={props.botId} sessionId={sessionId} primaryColor={props.primaryColor} backendUrl={bookingBackendUrl} initialMeeting={confirmedMeeting ?? undefined} onBookingSuccess={(meeting) => { setConfirmedMeeting(meeting); props.onBookingSuccess?.(meeting); }} />
+          </div>}
         </div>}
-      </div>}
-      <div className="chatty-sdk-voice-actions">{started ? <><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" className="chatty-sdk-voice-end" onClick={end} aria-label="End voice session"><PhoneOff size={19} /></button></> : <button type="button" className="chatty-sdk-voice-start" onClick={start} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-sdk-voice-spinner" /> : <Phone size={22} />}</button>}</div>
+        <div className="chatty-sdk-voice-call-control">
+          {started ? <div className="chatty-sdk-voice-live-controls"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" className="chatty-sdk-voice-end" onClick={end} aria-label="End voice session"><PhoneOff size={19} /></button></div> : <button type="button" className="chatty-sdk-voice-start" onClick={start} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-sdk-voice-spinner" /> : <Phone size={22} />}</button>}
+          <span className={`chatty-sdk-voice-level ${started ? "is-active" : ""}`} aria-hidden="true">{started ? bars.slice(0, 8).map((bar, index) => <i key={index} style={{ height: `${Math.max(3, bar * 16)}px` }} />) : <Mic size={14} />}</span>
+        </div>
+        <div className="chatty-sdk-voice-footer-actions"><button type="button" onClick={() => setTranscriptOpen((open) => !open)} aria-pressed={transcriptOpen}><MessageCircle size={15} />{transcriptOpen ? "Hide transcript" : "Show transcript"}</button><span>·</span>{props.showBooking !== false && <><button type="button" onClick={() => setBookingOpen((open) => !open)} aria-pressed={bookingOpen}><CalendarPlus size={15} />{bookingOpen ? "Hide booking" : "Book a meeting"}</button><span>·</span></>}<span className="chatty-sdk-voice-mic-status"><Mic size={14} />{started ? "Listening" : "Ready to talk"}</span></div>
+        <p className="chatty-sdk-voice-interrupt">✓ Interrupt anytime — the agent will stop speaking</p>
+      </div>
       <RoomAudioRenderer />
       {consentOpen && <div className="chatty-sdk-voice-consent" role="dialog" aria-modal="true" aria-labelledby="chatty-sdk-voice-consent-title"><div><button type="button" className="chatty-sdk-voice-close" onClick={() => setConsentOpen(false)} aria-label="Cancel"><X size={17} /></button><ShieldCheck size={25} /><h3 id="chatty-sdk-voice-consent-title">Before we start</h3><p>Chatty needs microphone access for a real-time voice conversation. You can mute or end the session at any time.</p><div><button type="button" onClick={() => setConsentOpen(false)}>Cancel</button><button type="button" onClick={accept}>I agree</button></div></div></div>}
     </section>

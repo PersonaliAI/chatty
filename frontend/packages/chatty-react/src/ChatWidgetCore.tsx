@@ -2699,7 +2699,7 @@ function IdentifiedChatWidget({
             sessionId={sessionId}
             widgetToken={originToken || undefined}
             visitorToken={identity.value?.visitor_token}
-            title="Talk with Chatty"
+            title="Voice agent"
             className="chatty-sdk-voice-widget"
             primaryColor={primaryColor}
             onError={(error) => showToast(error.message, "error")}
