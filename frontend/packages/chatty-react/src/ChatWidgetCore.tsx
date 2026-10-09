@@ -525,6 +525,7 @@ export interface ChatWidgetCoreProps {
   // them for the iframe path exactly as before.
   forceFullscreen?: boolean;
   notificationGranted?: boolean;
+  voiceOpenRequest?: number;
   // Fires once the bot's theme/customization has loaded (both the initial
   // load and the periodic refresh). Lets a host app that renders its own
   // chrome around this widget (e.g. a custom floating launcher button)
@@ -603,6 +604,7 @@ function IdentifiedChatWidget({
   forceFullscreen,
   notificationGranted,
   onThemeLoaded,
+  voiceOpenRequest,
   identity,
 }: ChatWidgetCoreProps & { identity: VisitorIdentityClient }) {
   const fetch = identity.fetch;
@@ -735,6 +737,11 @@ function IdentifiedChatWidget({
   // enters the actual composer. This keeps history out of the Home tab and
   // makes the header back button return to the Chat history first.
   const [chatView, setChatView] = useState<"history" | "conversation">("history");
+  useEffect(() => {
+    if (voiceOpenRequest === undefined || voiceOpenRequest === 0) return;
+    setTab("home");
+    setVoiceAgentOpen(true);
+  }, [voiceOpenRequest]);
   const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [chatNavExpanded, setChatNavExpanded] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);

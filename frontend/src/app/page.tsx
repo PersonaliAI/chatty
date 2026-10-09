@@ -9,6 +9,7 @@ import {
   Zap,
   UserCheck,
   CalendarCheck,
+  AudioWaveform,
   Menu,
   X,
   BookOpen,
@@ -303,6 +304,27 @@ export default function Home() {
   }, []);
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
+  const openHeroVoiceAgent = () => {
+    const tryOpen = () => {
+      const chatty = (window as unknown as { Chatty?: { openVoice?: () => void; open?: () => void } }).Chatty;
+      if (chatty?.openVoice) {
+        chatty.openVoice();
+        return true;
+      }
+      if (chatty?.open) {
+        chatty.open();
+        return true;
+      }
+      return false;
+    };
+
+    if (tryOpen()) return;
+    const onReady = () => {
+      tryOpen();
+    };
+    window.addEventListener("chatty:ready", onReady, { once: true });
+  };
+
   // widget.js cleanup on unmount
   useEffect(() => {
     return () => {
@@ -467,6 +489,10 @@ export default function Home() {
               Start free 14-day trial
               <ArrowRight className="size-[15px]" />
             </Link>
+            <button type="button" onClick={openHeroVoiceAgent} className="inline-flex items-center gap-2 rounded-full border px-6 py-3.5 text-[15px] font-medium transition-colors hover:bg-black/5" style={{ fontFamily: "var(--font-heading)", borderColor: "var(--color-divider)" }}>
+              <AudioWaveform className="size-[17px]" />
+              Talk to Chatty
+            </button>
           </div>
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
         </section>
@@ -886,7 +912,7 @@ export default function Home() {
 
       {/* Chatty on Chatty support widget */}
       <Script
-        src="https://chatty.personaliai.com/widget.js"
+        src="/widget.js"
         data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
         strategy="afterInteractive"
       />

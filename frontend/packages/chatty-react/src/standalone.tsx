@@ -83,6 +83,7 @@ export interface ChattyWidgetApi {
   identify: (token: string) => Promise<void>;
   logout: () => Promise<void>;
   open: () => void;
+  openVoice: () => void;
   close: () => void;
   toggle: () => void;
 }
@@ -117,6 +118,7 @@ export function ChattyStandaloneApp({
 }: StandaloneMountOptions) {
   const side = position === "left" ? "left" : "right";
   const [open, setOpen] = useState(false);
+  const [voiceOpenRequest, setVoiceOpenRequest] = useState(0);
   const [unread, setUnread] = useState(0);
   const [coreReady, setCoreReady] = useState(false);
   const [themeLoaded, setThemeLoaded] = useState(false);
@@ -355,6 +357,10 @@ export function ChattyStandaloneApp({
       identify: (token) => visitorIdentityClient(botId, BACKEND_URL).identify(token),
       logout: () => visitorIdentityClient(botId, BACKEND_URL).logout(),
       open: () => handleOpen(true),
+      openVoice: () => {
+        handleOpen(true);
+        setVoiceOpenRequest((value) => value + 1);
+      },
       close: () => handleOpen(false),
       toggle: () => handleOpen(!openRef.current),
     });
@@ -571,6 +577,7 @@ export function ChattyStandaloneApp({
           onThemeLoaded={(themeData) => applyThemeData(themeData)}
           onWidgetReady={() => setCoreReady(true)}
           onWidgetClose={() => handleOpen(false)}
+          voiceOpenRequest={voiceOpenRequest}
           onAssistantMessage={() => {
             if (!open) {
               setUnread((u) => u + 1);

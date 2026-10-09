@@ -6,7 +6,7 @@
  * Injects a native vector DOM chat assistant directly into an isolated Shadow DOM container.
  * 100% Crisp-level vector font sharpness at all zoom levels, zero iframe bitmap scaling.
  *
- * JS API: window.Chatty.open() / .close() / .toggle()
+ * JS API: window.Chatty.open() / .openVoice() / .close() / .toggle()
  */
 (function () {
   "use strict";
@@ -71,6 +71,7 @@
       return chattyApi.logout();
     },
     open: queueOrCall("open"),
+    openVoice: queueOrCall("openVoice"),
     close: queueOrCall("close"),
     toggle: queueOrCall("toggle"),
   };
@@ -97,7 +98,7 @@
   // cached copy silently gets an app that doesn't match what this file
   // expects - doMount()'s `window.ChattyDOM.mount` check just no-ops with
   // no error, so the widget never appears. Bump this on every release that
-  var ASSET_VERSION = "2026-10-09.voice-react-singleton-2";
+  var ASSET_VERSION = "2026-10-10.voice-surface-1";
 
   // Preconnect to origin for fast asset loading
   try {

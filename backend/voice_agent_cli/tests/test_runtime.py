@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
+from voice_agent_cli import providers
 from voice_agent_cli import runtime
 from voice_agent_cli.timezone import resolve_visitor_timezone
 
@@ -81,6 +82,33 @@ def test_realtime_provider_construction_runs_off_event_loop(monkeypatch):
 
     assert result == "realtime"
     assert calls == [("organization", "settings", False)]
+
+
+def test_google_realtime_disables_vertex_affective_dialog(monkeypatch):
+    captured = {}
+
+    class FakeRealtimeModel:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(providers.google.realtime, "RealtimeModel", FakeRealtimeModel)
+    organization = SimpleNamespace(
+        bot={
+            "voice_realtime_provider": "google",
+            "voice_realtime_model": "gemini-live-2.5-flash-native-audio",
+            "voice_tts_voice": "Kore",
+            "voice_stt_language": "en-US",
+        }
+    )
+    settings = SimpleNamespace(
+        google_cloud_location="global",
+        google_cloud_project="project",
+        stt_language="en-US",
+    )
+
+    providers.build_realtime_model(organization, settings, expression_enabled=True)
+
+    assert captured["enable_affective_dialog"] is False
 
 
 def test_runtime_normalizes_max_duration_minutes():

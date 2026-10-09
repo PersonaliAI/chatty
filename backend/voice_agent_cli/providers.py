@@ -220,7 +220,11 @@ def build_realtime_model(
             "voice": voice,
             "vertexai": True,
             "location": settings.google_cloud_location,
-            "enable_affective_dialog": expression_enabled,
+            # Vertex's Beyond backend currently rejects affective dialog with
+            # a 1007 websocket error. Keep the Chatty expression setting for
+            # the visualizer, but never send this unsupported session option
+            # to Google Realtime or the room is disconnected before audio.
+            "enable_affective_dialog": False,
         }
         if settings.google_cloud_project:
             kwargs["project"] = settings.google_cloud_project

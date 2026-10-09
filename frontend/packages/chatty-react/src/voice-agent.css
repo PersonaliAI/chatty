@@ -302,3 +302,23 @@
 .chatty-sdk-voice-interrupt { flex: none; margin: 0; color: #6e7d85; font-size: .65rem; text-align: center; }
 @keyframes chatty-sdk-voice-level { from { transform: scaleY(.45); opacity: .55; } to { transform: scaleY(1.1); opacity: 1; } }
 @media (max-width: 420px) { .chatty-sdk-voice-header { min-height: 4.2rem; padding-inline: .8rem; } .chatty-sdk-voice-content { padding-inline: .8rem; } .chatty-sdk-voice-transcript-panel { min-height: 9.5rem; } }
+
+/* Keep the floating widget on the same visualizer-first surface as /embed. */
+.chatty-sdk-voice-content { justify-content: space-between; gap: 0; padding: 1rem; overflow: hidden; }
+.chatty-sdk-voice-stage { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; text-align: center; }
+.chatty-sdk-voice-stage strong { margin-top: .8rem; color: #6f777d; font-size: .9rem; font-weight: 600; }
+.chatty-sdk-voice-stage > span { color: #a0a6aa; font-size: .75rem; }
+.chatty-sdk-voice-stage p { max-width: 18rem; margin: .85rem 0 0; color: #7f878c; font-size: .82rem; line-height: 1.5; }
+.chatty-sdk-voice-visualizer { position: relative; display: grid; place-items: center; width: min(58vw, 13rem); height: min(43vw, 10rem); }
+.chatty-sdk-voice-aura { position: absolute; display: block; width: 8rem; height: 7rem; border-radius: 48% 52% 46% 54%; background: linear-gradient(135deg, rgba(89, 232, 237, .85), rgba(71, 195, 232, .56) 56%, rgba(33, 190, 238, .72)); filter: blur(.75rem); opacity: .74; transform: rotate(14deg) skewX(-7deg); animation: chatty-sdk-aura-float 4.2s ease-in-out infinite; }
+.chatty-sdk-voice-aura-one { margin-left: -1.5rem; margin-top: -.35rem; }
+.chatty-sdk-voice-aura-two { width: 6.4rem; height: 7.8rem; margin-left: 2.3rem; margin-top: .25rem; opacity: .57; transform: rotate(-13deg) skewX(9deg); animation-delay: -.9s; }
+.chatty-sdk-voice-aura-three { width: 7.7rem; height: 5.5rem; margin-top: 1.5rem; opacity: .42; transform: rotate(4deg); animation-delay: -1.7s; }
+.chatty-sdk-voice-aura-core { position: relative; z-index: 1; display: grid; place-items: center; width: 4.45rem; height: 4.45rem; border-radius: 50%; color: #15191b; background: rgba(255, 255, 255, .92); box-shadow: 0 .55rem 1.1rem rgba(41, 100, 125, .16); }
+.chatty-sdk-voice-aura-bars { display: flex; align-items: center; justify-content: center; gap: .12rem; height: 2.6rem; }
+.chatty-sdk-voice-aura-bars i { display: block; width: .16rem; border-radius: 999px; background: #20b9cf; animation: chatty-sdk-voice-level .72s ease-in-out infinite alternate; }
+.chatty-sdk-voice-visualizer.is-speaking .chatty-sdk-voice-aura { animation-duration: 1.25s; opacity: .95; }
+.chatty-sdk-voice-visualizer.is-listening .chatty-sdk-voice-aura-core { box-shadow: 0 0 0 .3rem rgba(34, 190, 219, .1), 0 .55rem 1.1rem rgba(41, 100, 125, .16); }
+.chatty-sdk-voice-transcript-view { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: .65rem; }
+.chatty-sdk-voice-transcript-view .chatty-sdk-voice-transcript-panel { flex: 1 1 auto; max-height: none; min-height: 0; }
+@keyframes chatty-sdk-aura-float { 0%, 100% { transform: translate3d(-2px, 1px, 0) rotate(14deg) skewX(-7deg) scale(.96); } 50% { transform: translate3d(4px, -5px, 0) rotate(21deg) skewX(-7deg) scale(1.06); } }

@@ -120,3 +120,20 @@ test("voice entry points, transcript layout, and booking surface stay mounted", 
   await expect(page.getByRole("button", { name: "Start live voice agent" })).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
+
+test("landing hero voice CTA opens the same visualizer-first widget surface", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => window.localStorage.clear());
+  await mockVoiceBackend(page);
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  const talkButton = page.getByRole("button", { name: "Talk to Chatty" });
+  await expect(talkButton).toBeVisible({ timeout: 30_000 });
+  await talkButton.click();
+
+  await expect(page.getByRole("button", { name: "Back to chat" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Your microphone is off")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show transcript" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Book a meeting" })).toBeVisible();
+});
