@@ -122,6 +122,16 @@
   background: rgba(255, 255, 255, .08);
 }
 
+.chatty-sdk-voice-error .chatty-sdk-voice-retry {
+  width: auto;
+  height: auto;
+  padding: .45rem .7rem;
+  border: 1px solid rgba(255, 255, 255, .18);
+  font-size: .75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .chatty-sdk-voice-stage {
   display: grid;
   place-items: center;
