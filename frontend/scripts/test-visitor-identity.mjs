@@ -36,6 +36,8 @@ test("signed token not persisted; switching clears cached profiles and aborts re
   assert.equal(pendingSignal.aborted, true);
   assert.equal(data[`chatty_msgs_${bot}_host`], undefined);
   assert.equal(JSON.stringify(data).includes("server-signed-token"), false);
+  assert.equal(JSON.stringify(data).includes(anon.visitor_token), false);
+  assert.equal(JSON.stringify(data).includes(verified.visitor_token), false);
   assert.equal(client.value.session_id, verified.session_id);
 });
 test("logout clears locally before network and rotates anonymous identity", async () => {

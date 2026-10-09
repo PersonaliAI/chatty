@@ -16,6 +16,16 @@ from app.services.contact_identity import create_visitor, credential, hash_token
 
 router = APIRouter()
 
+def _visitor_cookie(bot_id: str) -> str:
+    return f"chatty_visitor_{bot_id}"
+
+def _set_visitor_cookie(response: Response, bot_id: str, token: str, expires_at: str, request: Request) -> None:
+    expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    max_age = max(0, int((expiry - datetime.now(timezone.utc)).total_seconds()))
+    response.set_cookie(_visitor_cookie(bot_id), token, max_age=max_age, expires=max_age,
+        httponly=True, secure=request.url.scheme == "https",
+        samesite="none" if request.url.scheme == "https" else "lax", path="/api/widget")
+
 
 class VisitorRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -58,7 +68,7 @@ async def visitor_identity(body: VisitorRequest, request: Request, response: Res
     bots = (await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", body.bot_id).limit(1).execute())).data
     if not bots:
         raise HTTPException(404, "Bot not found")
-    old_token = request.headers.get("x-chatty-visitor", "")
+    old_token = request.headers.get("x-chatty-visitor", "") or request.cookies.get(_visitor_cookie(body.bot_id), "")
     old_row = await credential(body.bot_id, old_token) if old_token else None
     if body.new_conversation:
         if not old_row or body.identity_token:
@@ -69,34 +79,38 @@ async def visitor_identity(body: VisitorRequest, request: Request, response: Res
             "session_id": session, "expires_at": old_row["expires_at"],
             "family_id": old_row["family_id"],
         }).execute())
+        _set_visitor_cookie(response, body.bot_id, token, old_row["expires_at"], request)
         response.headers["Cache-Control"] = "no-store"
         return {"visitor_token": token, "session_id": session, "expires_at": old_row["expires_at"]}
     # Returning visitors retain the same credential; identify always creates a
     # fresh session, leaving the anonymous transcript unmerged.
     if old_row and not body.identity_token:
         row = old_row
+        _set_visitor_cookie(response, body.bot_id, old_token, row["expires_at"], request)
         response.headers["Cache-Control"] = "no-store"
         return {"visitor_token": old_token, "session_id": row["session_id"], "expires_at": row["expires_at"]}
     result = await create_visitor(body.bot_id, body.identity_token)
     if old_token:
         await run_db(lambda: supabase.table("chatty_visitor_credentials").update({"revoked_at": datetime.now(timezone.utc).isoformat()})
             .eq("bot_id", body.bot_id).eq("family_id", old_row["family_id"]).execute())
+    _set_visitor_cookie(response, body.bot_id, result["visitor_token"], result["expires_at"], request)
     response.headers["Cache-Control"] = "no-store"
     return result
 
 
 @router.post("/api/widget/identity/logout")
 async def visitor_logout(body: VisitorRequest, request: Request, response: Response):
-    row = await credential(body.bot_id, request.headers.get("x-chatty-visitor", ""))
+    row = await credential(body.bot_id, request.headers.get("x-chatty-visitor", "") or request.cookies.get(_visitor_cookie(body.bot_id), ""))
     await run_db(lambda: supabase.table("chatty_visitor_credentials").update({"revoked_at": datetime.now(timezone.utc).isoformat()})
         .eq("bot_id", body.bot_id).eq("family_id", row["family_id"]).execute())
     response.headers["Cache-Control"] = "no-store"
+    response.delete_cookie(_visitor_cookie(body.bot_id), path="/api/widget")
     return {"ok": True}
 
 
 @router.get("/api/widget/identity/history")
 async def visitor_history(bot_id: str, request: Request, response: Response):
-    row = await credential(bot_id, request.headers.get("x-chatty-visitor", ""))
+    row = await credential(bot_id, request.headers.get("x-chatty-visitor", "") or request.cookies.get(_visitor_cookie(bot_id), ""))
     bindings = (await run_db(lambda: supabase.table("chatty_visitor_credentials").select("session_id")
         .eq("bot_id", bot_id).eq("contact_id", row["contact_id"]).limit(100).execute())).data or []
     ids = [binding["session_id"] for binding in bindings]

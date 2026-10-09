@@ -19,7 +19,7 @@ export class VisitorIdentityClient {
     this.value = null;
     try {
       if (!purge) { this.listeners.forEach(listener => listener()); return; }
-      const prefixes = [`chatty_sid_${this.botId}`, `chatty_msgs_${this.botId}`, `chatty_convs_${this.botId}`, `chatty_voice_sid_${this.botId}`];
+      const prefixes = [`chatty_sid_${this.botId}`, `chatty_session_${this.botId}`, `chatty_msgs_${this.botId}`, `chatty_convs_${this.botId}`, `chatty_voice_sid_${this.botId}`];
       for (const key of Object.keys(localStorage)) if (key === this.key() || prefixes.some(prefix => key.startsWith(prefix))) localStorage.removeItem(key);
     } catch { /* storage can be disabled */ }
     this.listeners.forEach(listener => listener());
@@ -31,9 +31,9 @@ export class VisitorIdentityClient {
       this.clear(Boolean(identityToken) || !old); // Unmount before changing identities.
     }
     const response = await globalThis.fetch(`${this.backend}/api/widget/identity`, {
-      method: "POST", headers: { "Content-Type": "application/json", ...(old ? { "X-Chatty-Visitor": old.visitor_token } : {}) },
+      method: "POST", headers: { "Content-Type": "application/json", ...(old?.visitor_token ? { "X-Chatty-Visitor": old.visitor_token } : {}) },
       body: JSON.stringify({ bot_id: this.botId, ...(identityToken ? { identity_token: identityToken } : {}), ...(newConversation ? { new_conversation: true } : {}) }),
-      cache: "no-store", signal: this.controller.signal,
+      cache: "no-store", credentials: "include", signal: this.controller.signal,
     });
     if (!response.ok) throw new Error("Could not establish visitor identity");
     const value: VisitorIdentity = await response.json();
@@ -41,16 +41,17 @@ export class VisitorIdentityClient {
     if (!/^ci-[a-f0-9-]{36}$/.test(value.session_id) || !/^[A-Za-z0-9_-]{43}$/.test(value.visitor_token)) throw new Error("Invalid visitor identity response");
     this.value = value;
     if (old && identityToken) this.retirement.delete(old.visitor_token);
-    // Capability only. Signed customer tokens and profile data are never persisted.
-    try { localStorage.setItem(this.key(), JSON.stringify(value)); } catch {}
+    // Keep the bearer capability in memory only. The server also sets an
+    // HttpOnly cookie so a reload can re-establish the same visitor session.
+    try { localStorage.setItem(`chatty_session_${this.botId}`, JSON.stringify({ session_id: value.session_id, expires_at: value.expires_at })); } catch {}
     this.listeners.forEach(listener => listener());
   }
   initialize() {
     return this.serialize(async () => {
       if (this.value) return;
       try {
-        const stored = JSON.parse(localStorage.getItem(this.key()) || "null");
-        if (stored && new Date(stored.expires_at).getTime() > Date.now()) this.value = stored;
+        const stored = JSON.parse(localStorage.getItem(`chatty_session_${this.botId}`) || "null");
+        if (!stored || new Date(stored.expires_at).getTime() <= Date.now()) localStorage.removeItem(`chatty_session_${this.botId}`);
       } catch {}
       try { await this.exchange(); } catch { this.value = null; await this.exchange(); }
     });
@@ -86,7 +87,7 @@ export class VisitorIdentityClient {
       for (const token of this.retirement) {
         const response = await globalThis.fetch(`${this.backend}/api/widget/identity/logout`, {
           method: "POST", headers: { "Content-Type": "application/json", "X-Chatty-Visitor": token },
-          body: JSON.stringify({ bot_id: this.botId }), cache: "no-store",
+          body: JSON.stringify({ bot_id: this.botId }), cache: "no-store", credentials: "include",
         });
         if (!response.ok && response.status !== 401) throw new Error("Logout revocation failed; retry before sharing this device");
         this.retirement.delete(token);
@@ -104,7 +105,7 @@ export class VisitorIdentityClient {
     if (isBackend) headers.set("X-Chatty-Visitor", this.value.visitor_token);
     else headers.delete("X-Chatty-Visitor");
     const signal = init?.signal ? AbortSignal.any([init.signal, this.controller.signal]) : this.controller.signal;
-    const response = await globalThis.fetch(input, { ...init, headers, signal, ...(isBackend ? { redirect: "error" as const, cache: "no-store" as const } : {}) });
+    const response = await globalThis.fetch(input, { ...init, headers, credentials: isBackend ? "include" : init?.credentials, signal, ...(isBackend ? { redirect: "error" as const, cache: "no-store" as const } : {}) });
     signal.throwIfAborted();
     return response;
   };
