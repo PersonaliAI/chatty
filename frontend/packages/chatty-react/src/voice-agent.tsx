@@ -73,7 +73,7 @@ function createVoiceRoomNonce() {
 
 function Transcript({ messages }: { messages: ReceivedMessage[] }) {
   if (!messages.length) {
-    return <p className="chatty-sdk-voice-empty">Start speaking to see the live transcript.</p>;
+    return <p className="chatty-sdk-voice-empty">Start the voice agent to see real-time transcription here.</p>;
   }
   return (
     <div className="chatty-sdk-voice-transcript" aria-live="polite" aria-label="Live voice transcript">
@@ -270,7 +270,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     setStarted(false);
     void session.end();
   };
-  const label = retrying ? "Reconnecting…" : starting ? "Connecting…" : agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : started ? "Ready when you are" : "Talk to Chatty";
+  const label = retrying ? "Reconnecting…" : starting ? "Connecting…" : agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : started ? "Ready when you are" : "Ready to talk";
 
   return (
     <section className={`chatty-sdk-voice ${props.className ?? ""}`}>
@@ -299,7 +299,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
         </div>}
         <div className="chatty-sdk-voice-call-control">
           {started ? <div className="chatty-sdk-voice-live-controls"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" className="chatty-sdk-voice-end" onClick={end} aria-label="End voice session"><PhoneOff size={19} /></button></div> : <button type="button" className="chatty-sdk-voice-start" onClick={start} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-sdk-voice-spinner" /> : <Phone size={22} />}</button>}
-          <span className={`chatty-sdk-voice-level ${started ? "is-active" : ""}`} aria-hidden="true">{started ? bars.slice(0, 8).map((bar, index) => <i key={index} style={{ height: `${Math.max(3, bar * 16)}px` }} />) : <Mic size={14} />}</span>
+          {started && <span className="chatty-sdk-voice-level is-active" aria-hidden="true">{bars.slice(0, 8).map((bar, index) => <i key={index} style={{ height: `${Math.max(3, bar * 16)}px` }} />)}</span>}
         </div>
         <div className="chatty-sdk-voice-footer-actions"><button type="button" onClick={() => setTranscriptOpen((open) => !open)} aria-pressed={transcriptOpen}><MessageCircle size={15} />{transcriptOpen ? "Hide transcript" : "Show transcript"}</button><span>·</span>{props.showBooking !== false && <><button type="button" onClick={() => setBookingOpen((open) => !open)} aria-pressed={bookingOpen}><CalendarPlus size={15} />{bookingOpen ? "Hide booking" : "Book a meeting"}</button><span>·</span></>}<span className="chatty-sdk-voice-mic-status"><Mic size={14} />{started ? "Listening" : "Ready to talk"}</span></div>
         <p className="chatty-sdk-voice-interrupt">✓ Interrupt anytime — the agent will stop speaking</p>
