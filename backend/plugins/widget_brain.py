@@ -1049,10 +1049,18 @@ async def run_widget_assistant(
     # calling the booking tool when a user simply picks a time (e.g. "yes 9.30 am ok")
     # before contact details have been collected.
     has_visitor_email = False
-    email_regex = re.compile(r"[a-zA-Z0-9_.+-]+(?:\s*@\s*|\s+at\s+)[a-zA-Z0-9-]+\s*(?:\.|\s+dot\s+)[a-zA-Z0-9-.]+", re.IGNORECASE)
-    if text and email_regex.search(text):
+    def _contains_email_like(value: Any) -> bool:
+        # Avoid a backtracking expression over arbitrary conversation text.
+        normalized = " ".join(str(value or "")[:2000].lower().split())
+        for token in normalized.replace(" at ", "@").replace(" dot ", ".").split():
+            local, sep, domain = token.partition("@")
+            if sep and local and "." in domain and all(part for part in domain.split(".")):
+                return True
+        return False
+
+    if text and _contains_email_like(text):
         has_visitor_email = True
-    elif any(isinstance(h.get("content"), str) and email_regex.search(h["content"]) for h in history):
+    elif any(isinstance(h.get("content"), str) and _contains_email_like(h["content"]) for h in history):
         has_visitor_email = True
     elif session_id and bot_id:
         try:

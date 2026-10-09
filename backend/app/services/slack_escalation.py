@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -17,6 +18,23 @@ from app.core.db import run_db
 logger = logging.getLogger("chatty.slack_escalation")
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://app.chatty.com").rstrip("/")
+
+
+def _is_slack_webhook_url(value: Any) -> bool:
+    """Accept only canonical HTTPS Slack incoming-webhook URLs."""
+    if not isinstance(value, str) or len(value) > 2048:
+        return False
+    try:
+        parsed = urlsplit(value.strip())
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and parsed.hostname == "hooks.slack.com"
+        and not parsed.username
+        and not parsed.password
+        and not parsed.fragment
+    )
 
 
 async def send_slack_escalation_alert(
@@ -49,11 +67,11 @@ async def send_slack_escalation_alert(
                 .execute())
             for wh in (wh_res.data or []):
                 u = wh.get("url", "")
-                if "hooks.slack.com" in u:
+                if _is_slack_webhook_url(u):
                     webhook_url = u
                     break
 
-        if not webhook_url or "hooks.slack.com" not in webhook_url:
+        if not _is_slack_webhook_url(webhook_url):
             logger.info("Slack escalation: no slack webhook configured for bot %s", bot_id)
             return {"sent": False, "reason": "no_slack_webhook"}
 

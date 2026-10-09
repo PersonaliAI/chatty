@@ -1418,11 +1418,14 @@ async def execute(
                     if isinstance(att, str):
                         cand = _dedupe_doubled(att.strip()).lower()
                         # Normalize spoken email dictations (e.g. "alex at domain dot com" -> "alex@domain.com")
-                        cand = re.sub(r"\s+at\s+", "@", cand)
-                        cand = re.sub(r"\s+dot\s+", ".", cand)
-                        cand = re.sub(r"\s+", "", cand)
+                        cand = " ".join(cand.split())
+                        cand = cand.replace(" at ", "@").replace(" dot ", ".").replace(" ", "")
+                        local, sep, domain = cand.partition("@")
+                        domain_parts = domain.split(".") if sep else []
                         if (
-                            re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", cand)
+                            bool(local) and bool(domain_parts) and all(domain_parts)
+                            and all(ch.isalnum() or ch in "._%+-" for ch in local)
+                            and all(ch.isalnum() or ch in "-._" for ch in domain)
                             and not any(dummy in cand for dummy in ("guest@example.com", "@example.com", "test@test.com", "user@example.com", "none@", "null@"))
                         ):
                             visitor_email = cand

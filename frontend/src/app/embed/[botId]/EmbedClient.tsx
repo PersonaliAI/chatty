@@ -267,12 +267,14 @@ function AgentAvatar({
     if (!src || typeof src !== "string") return false;
     const trimmed = src.trim();
     if (!trimmed) return false;
-    return (
-      trimmed.startsWith("http://") ||
-      trimmed.startsWith("https://") ||
-      trimmed.startsWith("data:image/") ||
-      trimmed.startsWith("/")
-    );
+    if (trimmed.startsWith("/")) return true;
+    if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(trimmed)) return true;
+    try {
+      const parsed = new URL(trimmed);
+      return (parsed.protocol === "https:" || parsed.protocol === "http:") && !parsed.username && !parsed.password;
+    } catch {
+      return false;
+    }
   }, [src]);
 
   const initial = useMemo(() => {

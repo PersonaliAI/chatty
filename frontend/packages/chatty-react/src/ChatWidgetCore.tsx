@@ -329,12 +329,14 @@ function AgentAvatar({
     if (!src || typeof src !== "string") return false;
     const trimmed = src.trim();
     if (!trimmed) return false;
-    return (
-      trimmed.startsWith("http://") ||
-      trimmed.startsWith("https://") ||
-      trimmed.startsWith("data:image/") ||
-      trimmed.startsWith("/")
-    );
+    if (trimmed.startsWith("/")) return true;
+    if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(trimmed)) return true;
+    try {
+      const parsed = new URL(trimmed);
+      return (parsed.protocol === "https:" || parsed.protocol === "http:") && !parsed.username && !parsed.password;
+    } catch {
+      return false;
+    }
   }, [src]);
 
   const initial = useMemo(() => {
@@ -1455,13 +1457,10 @@ function IdentifiedChatWidget({
   // sent anywhere until the visitor presses Save or sends a message.
   useEffect(() => {
     if (typeof window === "undefined" || !botId || !sessionId) return;
-    const key = `chatty_support_email_${botId}_${hostKey}_${sessionId}`;
     try {
-      const stored = localStorage.getItem(key) || capturedLeadData.email || "";
-      if (stored) {
-        setSupportEmail(stored);
-        setSupportEmailSaved(true);
-      }
+      // Contact PII is submitted to the API, not retained in localStorage.
+      const stored = capturedLeadData.email || "";
+      if (stored) { setSupportEmail(stored); setSupportEmailSaved(true); }
       setMarketingConsent(localStorage.getItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`) === "1");
       setEmailCaptureDismissed(localStorage.getItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`) === "1");
     } catch {}
@@ -1478,7 +1477,6 @@ function IdentifiedChatWidget({
     setSupportEmailError("");
     setCapturedLeadData((prev) => ({ ...prev, email }));
     try {
-      localStorage.setItem(`chatty_support_email_${botId}_${hostKey}_${sessionId}`, email);
       localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, marketingConsent ? "1" : "0");
     } catch {}
     try {

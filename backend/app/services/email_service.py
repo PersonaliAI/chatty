@@ -31,9 +31,12 @@ def extract_email(addr: Any) -> str:
         addr = addr.get("email") or ""
     if not isinstance(addr, str):
         return ""
-    m = re.search(r"<([^>]+)>", addr)
-    if m:
-        return m.group(1).strip().lower()
+    # Parse the display-name form without a backtracking regex.  Addresses are
+    # user-controlled and this helper runs on campaign/import paths.
+    start = addr.find("<")
+    end = addr.find(">", start + 1) if start >= 0 else -1
+    if start >= 0 and end > start + 1:
+        return addr[start + 1:end].strip().lower()
     return addr.strip().lower()
 
 
@@ -43,9 +46,9 @@ def extract_name(addr: Any) -> str:
         return (addr.get("name") or addr.get("email") or "").strip()
     if not isinstance(addr, str):
         return ""
-    m = re.match(r"^([^<]+)<", addr)
-    if m:
-        return m.group(1).strip().strip('"\'')
+    start = addr.find("<")
+    if start > 0:
+        return addr[:start].strip().strip('"\'')
     return addr.split("@")[0].strip()
 
 
