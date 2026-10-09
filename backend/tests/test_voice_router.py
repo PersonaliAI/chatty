@@ -119,6 +119,26 @@ async def test_widget_voice_token_carries_browser_timezone_in_signed_dispatch_me
     assert metadata["visitor_timezone"] == "Asia/Colombo"
 
 
+@pytest.mark.anyio
+async def test_widget_voice_token_enforces_widget_session_guard(monkeypatch):
+    async def reject(_request):
+        raise HTTPException(status_code=403, detail="Conversation credential mismatch")
+
+    async def fail_if_database_is_reached(_fn):
+        raise AssertionError("voice token minting must stop before the bot lookup")
+
+    monkeypatch.setattr(voice, "guard_widget_session", reject)
+    monkeypatch.setattr(voice, "run_db", fail_if_database_is_reached)
+
+    with pytest.raises(HTTPException) as raised:
+        await voice.create_widget_voice_token(
+            VoiceTokenRequest(bot_id="bot-1", session_id="ci-victim"),
+            _request(),
+        )
+
+    assert raised.value.status_code == 403
+
+
 def test_voice_config_accepts_livekit_inference_for_each_model_role():
     config = VoiceConfigUpdate(
         llm_provider="livekit-inference",

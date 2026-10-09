@@ -24,6 +24,8 @@ type VoiceAgentPanelProps = {
   sessionId: string;
   backendUrl?: string;
   widgetToken?: string;
+  /** Visitor credential for a credential-backed embedded widget session. */
+  visitorToken?: string;
   compact?: boolean;
   /** Render as a native Chatty widget mode without a nested voice-card shell. */
   widgetMode?: boolean;
@@ -83,7 +85,7 @@ function VoiceOrb({ state, audioTrack, visualizer }: { state: ReturnType<typeof 
   );
 }
 
-function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
+function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, widgetMode = false, visualizer = 'wave', visitorToken, onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; visitorToken?: string; onClose?: () => void; onFullscreen?: () => void }) {
   const session = useSessionContext();
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -327,6 +329,7 @@ export function VoiceAgentPanel({
   sessionId,
   backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? defaultBackendUrl,
   widgetToken,
+  visitorToken,
   compact = false,
   widgetMode = false,
   visualizer = 'wave',
@@ -346,6 +349,7 @@ export function VoiceAgentPanel({
           headers: {
             'Content-Type': 'application/json',
             ...(widgetToken ? { 'x-widget-token': widgetToken } : {}),
+            ...(visitorToken ? { 'x-chatty-visitor': visitorToken } : {}),
           },
           body: JSON.stringify({
             bot_id: botId,
@@ -359,7 +363,7 @@ export function VoiceAgentPanel({
         const data = (await response.json()) as VoiceTokenResponse;
         return { serverUrl: data.serverUrl, participantToken: data.participantToken };
       }),
-    [backendUrl, botId, sessionId, widgetToken],
+    [backendUrl, botId, sessionId, visitorToken, widgetToken],
   );
   const session = useSession(tokenSource);
   const panelRef = useRef<HTMLElement>(null);
@@ -371,7 +375,7 @@ export function VoiceAgentPanel({
   return (
     <section ref={panelRef} className={`flex min-h-0 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} compact={compact} widgetMode={widgetMode} visualizer={visualizer} visitorToken={visitorToken} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>

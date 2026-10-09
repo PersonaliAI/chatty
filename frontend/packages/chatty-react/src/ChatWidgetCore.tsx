@@ -2693,6 +2693,7 @@ function IdentifiedChatWidget({
             backendUrl={BACKEND_URL}
             sessionId={sessionId}
             widgetToken={originToken || undefined}
+            visitorToken={identity.value?.visitor_token}
             title="Talk with Chatty"
             className="chatty-sdk-voice-widget"
             primaryColor={primaryColor}

@@ -30,6 +30,8 @@ export interface VoiceAgentProps {
   sessionId?: string;
   /** Optional signed widget token for embedded deployments. */
   widgetToken?: string;
+  /** Visitor credential returned by Chatty's identity endpoint for ci- sessions. */
+  visitorToken?: string;
   /** Optional class name for the outer voice surface. */
   className?: string;
   /** Optional label shown above the voice controls. */
@@ -311,7 +313,11 @@ export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function
   const tokenSource = useMemo(() => TokenSource.custom(async (): Promise<TokenSourceResponseObject> => {
     const response = await fetch(`${backendUrl}/api/widget/voice/token`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(props.widgetToken ? { "x-widget-token": props.widgetToken } : {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(props.widgetToken ? { "x-widget-token": props.widgetToken } : {}),
+        ...(props.visitorToken ? { "x-chatty-visitor": props.visitorToken } : {}),
+      },
       body: JSON.stringify({
         bot_id: props.botId,
         session_id: sessionId,

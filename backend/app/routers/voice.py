@@ -18,6 +18,7 @@ from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
 from app.schemas.voice import VoiceConfigUpdate, VoiceTokenRequest
+from app.services.contact_identity import guard_widget_session
 from main import _client_ip, _widget_rate_limit_or_429
 
 router = APIRouter()
@@ -245,6 +246,10 @@ async def get_widget_voice_config(bot_id: str, request: Request):
 
 @router.post("/api/widget/voice/token")
 async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
+    # Credential-backed widget sessions must prove ownership before a
+    # short-lived LiveKit room token is minted. Dashboard/standalone sessions
+    # use non-ci IDs and remain compatible with the public SDK.
+    await guard_widget_session(request)
     result = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).limit(1).execute())
     if not result.data:
         raise HTTPException(status_code=404, detail="Bot not found")
