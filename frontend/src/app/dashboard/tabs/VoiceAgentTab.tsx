@@ -129,18 +129,39 @@ const PREVIEW_STATES: Array<{ value: AgentState; label: string }> = [
 const fieldClass =
   "h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none transition placeholder:text-neutral-400 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/10 dark:border-neutral-800 dark:bg-neutral-950";
 
+// This is the union of the canonical language codes exposed by the current
+// LiveKit Inference STT/TTS catalog. A provider may support only a subset; the
+// selected model remains the source of truth at session creation. Keeping the
+// union here prevents the dashboard from hiding a language supported by one
+// of the selected models while still allowing the searchable custom value.
 const VOICE_LANGUAGE_OPTIONS: ModernSelectOption[] = [
   ["en-US", "English (US)"], ["en-GB", "English (UK)"], ["en-AU", "English (Australia)"],
-  ["en-IN", "English (India)"], ["es-ES", "Spanish (Spain)"], ["es-US", "Spanish (US)"],
-  ["fr-FR", "French"], ["de-DE", "German"], ["it-IT", "Italian"], ["pt-BR", "Portuguese (Brazil)"],
-  ["pt-PT", "Portuguese (Portugal)"], ["nl-NL", "Dutch"], ["pl-PL", "Polish"], ["tr-TR", "Turkish"],
-  ["ru-RU", "Russian"], ["uk-UA", "Ukrainian"], ["cs-CZ", "Czech"], ["ro-RO", "Romanian"],
-  ["el-GR", "Greek"], ["hu-HU", "Hungarian"], ["sv-SE", "Swedish"], ["da-DK", "Danish"],
-  ["no-NO", "Norwegian"], ["fi-FI", "Finnish"], ["he-IL", "Hebrew"], ["ar-SA", "Arabic"],
-  ["hi-IN", "Hindi"], ["bn-IN", "Bengali"], ["id-ID", "Indonesian"], ["ms-MY", "Malay"],
-  ["vi-VN", "Vietnamese"], ["th-TH", "Thai"], ["ja-JP", "Japanese"], ["ko-KR", "Korean"],
-  ["zh-CN", "Chinese (Mandarin)"], ["zh-TW", "Chinese (Traditional)"], ["yue-HK", "Chinese (Cantonese)"],
-].map(([value, label]) => ({ value, label, hint: value }));
+  ["en-CA", "English (Canada)"], ["en-IN", "English (India)"], ["en-IE", "English (Ireland)"],
+  ["en-NZ", "English (New Zealand)"], ["af", "Afrikaans"], ["am", "Amharic"],
+  ["ar", "Arabic"], ["ar-SA", "Arabic (Saudi Arabia)"], ["as", "Assamese"],
+  ["az", "Azerbaijani"], ["ba", "Bashkir"], ["be", "Belarusian"], ["bg", "Bulgarian"],
+  ["bn", "Bengali"], ["bo", "Tibetan"], ["bs", "Bosnian"], ["ca", "Catalan"],
+  ["ceb", "Cebuano"], ["cs-CZ", "Czech"], ["cy", "Welsh"], ["da-DK", "Danish"],
+  ["de-DE", "German"], ["el-GR", "Greek"], ["es-ES", "Spanish (Spain)"],
+  ["es-MX", "Spanish (Mexico)"], ["es-US", "Spanish (US)"], ["et", "Estonian"],
+  ["eu", "Basque"], ["fa", "Persian"], ["fi-FI", "Finnish"], ["fil", "Filipino"],
+  ["fr-FR", "French"], ["fr-CA", "French (Canada)"], ["ga", "Irish"], ["gl", "Galician"],
+  ["gu", "Gujarati"], ["he-IL", "Hebrew"], ["hi-IN", "Hindi"], ["hr", "Croatian"],
+  ["hu-HU", "Hungarian"], ["hy", "Armenian"], ["id-ID", "Indonesian"], ["is", "Icelandic"],
+  ["it-IT", "Italian"], ["ja-JP", "Japanese"], ["ka", "Georgian"], ["kk", "Kazakh"],
+  ["km", "Khmer"], ["kn", "Kannada"], ["ko-KR", "Korean"], ["la", "Latin"],
+  ["lo", "Lao"], ["lt", "Lithuanian"], ["lv", "Latvian"], ["mk", "Macedonian"],
+  ["ml", "Malayalam"], ["mn", "Mongolian"], ["mr", "Marathi"], ["ms-MY", "Malay"],
+  ["mt", "Maltese"], ["my", "Burmese"], ["ne", "Nepali"], ["nl-NL", "Dutch"],
+  ["no-NO", "Norwegian"], ["or", "Odia"], ["pa", "Punjabi"], ["pl-PL", "Polish"],
+  ["pt-BR", "Portuguese (Brazil)"], ["pt-PT", "Portuguese (Portugal)"], ["ro-RO", "Romanian"],
+  ["ru-RU", "Russian"], ["si", "Sinhala"], ["sk", "Slovak"], ["sl", "Slovenian"],
+  ["sq", "Albanian"], ["sr", "Serbian"], ["sv-SE", "Swedish"], ["sw", "Swahili"],
+  ["ta", "Tamil"], ["te", "Telugu"], ["th-TH", "Thai"], ["tl", "Tagalog"],
+  ["tr-TR", "Turkish"], ["uk-UA", "Ukrainian"], ["ur", "Urdu"], ["uz", "Uzbek"],
+  ["vi-VN", "Vietnamese"], ["yi", "Yiddish"], ["yue-HK", "Chinese (Cantonese)"],
+  ["zh-CN", "Chinese (Mandarin)"], ["zh-TW", "Chinese (Traditional)"], ["zu", "Zulu"],
+].map(([value, label]) => ({ value, label, hint: "LiveKit / provider support varies" }));
 
 const VOICE_OPTIONS: Record<string, ModernSelectOption[]> = {
   google: [
