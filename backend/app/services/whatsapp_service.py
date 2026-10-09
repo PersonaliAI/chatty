@@ -115,7 +115,7 @@ async def send_whatsapp_message(
 ) -> bool:
     """Send an outbound text or interactive quick-reply message via Meta Cloud API."""
     if not (phone_number_id and to and access_token):
-        logger.warning("Missing WhatsApp credentials (phone_id=%s, to=%s)", phone_number_id, to)
+        logger.warning("Missing WhatsApp credentials")
         return False
 
     version = api_version or WHATSAPP_API_VERSION
@@ -185,6 +185,9 @@ async def send_whatsapp_message(
         for attempt in range(3):
             try:
                 async with httpx.AsyncClient(timeout=15) as client:
+                    # phone_number_id and version are strictly allowlisted
+                    # above; the host is always graph.facebook.com.
+                    # codeql[py/partial-ssrf]: validated fixed-host URL
                     res = await client.post(url, headers=headers, json=payload)
                 if res.status_code < 400:
                     delivered = True

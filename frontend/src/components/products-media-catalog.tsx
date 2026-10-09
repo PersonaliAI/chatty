@@ -32,6 +32,19 @@ import {
   Key,
 } from "lucide-react";
 
+function isSafePreviewUrl(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith("blob:")) return true;
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(trimmed)) return true;
+  try {
+    const parsed = new URL(trimmed);
+    return (parsed.protocol === "https:" || parsed.protocol === "http:") && !parsed.username && !parsed.password;
+  } catch {
+    return false;
+  }
+}
+
 export interface MediaItem {
   id: string;
   bot_id: string;
@@ -1153,7 +1166,7 @@ export function ProductsMediaCatalog({
               />
 
               {imageInputMode === "file" ? (
-                prodImageUrl ? (
+                prodImageUrl && isSafePreviewUrl(prodImageUrl) ? (
                   /* Image Preview Card */
                   <div className="p-3 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3 min-w-0">

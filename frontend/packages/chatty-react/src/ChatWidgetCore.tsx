@@ -782,9 +782,7 @@ function IdentifiedChatWidget({
     const lower = content.toLowerCase();
     if (
       lower.includes("your demo is scheduled") ||
-      lower.includes("your meeting is scheduled") ||
-      lower.includes("meet.google.com") ||
-      lower.includes("teams.microsoft.com")
+      lower.includes("your meeting is scheduled")
     ) {
       return false;
     }

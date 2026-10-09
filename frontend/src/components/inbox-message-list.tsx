@@ -217,6 +217,7 @@ function MessageListInner({
           attachmentName.toLowerCase().endsWith(".ogg") ||
           attachmentUrl.includes("audio/")
         );
+        const safeAttachmentUrl = attachmentUrl && isTrustedAttachmentUrl(attachmentUrl) ? attachmentUrl : null;
 
         const senderName = isVisitor
           ? visitorName
@@ -230,15 +231,15 @@ function MessageListInner({
             <div className={`flex flex-col min-w-0 ${isVisitor ? "items-start" : "items-end"}`}>
             <span className={`text-[9px] font-semibold text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5 ${isVisitor ? "text-left" : "text-right"}`}>{senderName}</span>
             <div className={`inbox-message-bubble p-2.5 rounded-2xl ${isVisitor ? "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none" : isHuman ? "bg-purple-500 text-white rounded-tr-none" : "text-white rounded-tr-none"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
-              {attachmentUrl && isImage && (
+              {safeAttachmentUrl && isImage && (
                 // eslint-disable-next-line @next/next/no-img-element -- uploaded-file/blob URL, not in next/image's domain allowlist
-                <img src={attachmentUrl} alt="attachment" className="rounded-lg mb-1.5 max-h-40 object-cover" />
+                <img src={safeAttachmentUrl} alt="attachment" className="rounded-lg mb-1.5 max-h-40 object-cover" />
               )}
-              {attachmentUrl && isAudio && (
-                <audio controls src={attachmentUrl} className="mb-1.5 max-w-[180px]" />
+              {safeAttachmentUrl && isAudio && (
+                <audio controls src={safeAttachmentUrl} className="mb-1.5 max-w-[180px]" />
               )}
-              {attachmentUrl && !isImage && !isAudio && (
-                <a href={attachmentUrl} target="_blank" rel="noreferrer" className={`flex items-center gap-1 text-[10px] underline mb-1.5 ${isVisitor ? "text-neutral-600 dark:text-neutral-300" : "text-white"}`}>
+              {safeAttachmentUrl && !isImage && !isAudio && (
+                <a href={safeAttachmentUrl} target="_blank" rel="noreferrer" className={`flex items-center gap-1 text-[10px] underline mb-1.5 ${isVisitor ? "text-neutral-600 dark:text-neutral-300" : "text-white"}`}>
                   <Paperclip className="size-3 animate-[pulse_2s_infinite]" />
                   {attachmentName}
                 </a>
