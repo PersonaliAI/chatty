@@ -305,6 +305,9 @@ export default function Home() {
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   const openHeroVoiceAgent = () => {
+    let attempts = 0;
+    let retryTimer: number | undefined;
+
     const tryOpen = () => {
       const chatty = (window as unknown as { Chatty?: { openVoice?: () => void; open?: () => void } }).Chatty;
       if (chatty?.openVoice) {
@@ -318,11 +321,21 @@ export default function Home() {
       return false;
     };
 
-    if (tryOpen()) return;
     const onReady = () => {
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
       tryOpen();
     };
+    // widget.js exposes a queue immediately, but its React API becomes
+    // authoritative only after the widget has revealed its mounted surface.
+    // Retry briefly so a fast hero click cannot be consumed during that gap.
     window.addEventListener("chatty:ready", onReady, { once: true });
+    const retry = () => {
+      tryOpen();
+      if (attempts >= 8) return;
+      attempts += 1;
+      retryTimer = window.setTimeout(retry, 250);
+    };
+    retry();
   };
 
   // widget.js cleanup on unmount
