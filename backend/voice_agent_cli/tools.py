@@ -20,6 +20,15 @@ logger = logging.getLogger("chatty.voice.tools")
 _VOICE_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+def _bounded_limit(value: Any, *, default: int, maximum: int) -> int:
+    """Convert model-supplied limits without letting malformed args escape."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(1, min(parsed, maximum))
+
+
 def _normalize_spoken_email(value: Any) -> str:
     """Normalize common voice dictation forms before lead validation."""
     email = str(value or "").strip().lower()
@@ -201,9 +210,19 @@ class ChattyToolRegistry:
 
     def _knowledge_tool(self) -> Any:
         async def run(_context: RunContext, raw_arguments: dict[str, Any]) -> str:
-            query = str(raw_arguments.get("query") or "").strip()
-            limit = int(raw_arguments.get("limit", 5))
-            return await self.knowledge.search_for_tool(query, limit)
+            try:
+                query = str(raw_arguments.get("query") or "").strip()
+                if not query:
+                    return json.dumps(
+                        {"error": "A knowledge-search question is required."}
+                    )
+                limit = _bounded_limit(
+                    raw_arguments.get("limit", 5), default=5, maximum=10
+                )
+                return await self.knowledge.search_for_tool(query, limit)
+            except Exception:
+                logger.exception("Knowledge search failed")
+                return json.dumps({"error": "Knowledge search is unavailable right now."})
 
         return function_tool(
             run,
@@ -234,9 +253,13 @@ class ChattyToolRegistry:
     def _catalog_tool(self) -> Any:
         async def run(_context: RunContext, raw_arguments: dict[str, Any]) -> str:
             """Search multimodal catalog/index data for spoken product questions."""
-            query = str(raw_arguments.get("query") or "").strip()
-            limit = int(raw_arguments.get("limit", 3))
             try:
+                query = str(raw_arguments.get("query") or "").strip()
+                if not query:
+                    return json.dumps({"error": "A catalog-search question is required."})
+                limit = _bounded_limit(
+                    raw_arguments.get("limit", 3), default=3, maximum=3
+                )
                 # Import by fully-qualified name so an injected adapter/test
                 # double in ``sys.modules`` is honored even when the parent
                 # package has already cached a different attribute.
@@ -252,7 +275,7 @@ class ChattyToolRegistry:
                     image_bytes=image.data if image else None,
                     mime_type=image.mime_type if image else None,
                     query_text=query,
-                    top_k=max(1, min(int(limit), 3)),
+                    top_k=limit,
                 )
                 return json.dumps(
                     {
