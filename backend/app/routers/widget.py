@@ -6,6 +6,7 @@ import asyncio
 import base64
 import fnmatch
 import hashlib
+from html.parser import HTMLParser
 import json
 import logging
 import os
@@ -14,6 +15,36 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+
+
+def _is_valid_email(value: str) -> bool:
+    email = (value or "").strip()
+    if len(email) < 5 or len(email) > 254:
+        return False
+    at = email.find("@")
+    if at <= 0 or at != email.rfind("@") or at >= len(email) - 1:
+        return False
+    domain = email[at + 1:]
+    return "." in domain and not domain.startswith(".") and not domain.endswith(".") and not any(ch.isspace() or ch in "<>()[\\],;:" for ch in email)
+
+
+class _BookingTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._hidden = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"script", "style"}:
+            self._hidden += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {"script", "style"} and self._hidden:
+            self._hidden -= 1
+
+    def handle_data(self, data: str) -> None:
+        if not self._hidden:
+            self.parts.append(data)
 
 import pytz
 import httpx
@@ -389,7 +420,7 @@ async def widget_contact(body: WidgetContactRequest, request: Request):
     campaigns can only target rows with explicit marketing consent.
     """
     email = body.email.strip().lower()[:160]
-    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+    if not _is_valid_email(email):
         raise HTTPException(status_code=400, detail="email must be a valid email address")
     if len(body.bot_id) > 80 or len(body.session_id) > 160:
         raise HTTPException(status_code=422, detail="invalid identifiers")
@@ -495,7 +526,7 @@ async def widget_chat(
     visitor_timezone = body.visitor_timezone
     visitor_name = (body.visitor_name or "").strip()[:120] or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
-    if visitor_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
+    if visitor_email and not _is_valid_email(visitor_email):
         raise HTTPException(status_code=400, detail="visitor_email must be a valid email address")
 
     # --- Input validation / abuse caps ---
@@ -717,7 +748,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     visitor_timezone = body.visitor_timezone
     visitor_name = (body.visitor_name or "").strip()[:120] or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
-    if visitor_email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
+    if visitor_email and not _is_valid_email(visitor_email):
         raise HTTPException(status_code=400, detail="visitor_email must be a valid email address")
 
     if not text or not text.strip():
@@ -1849,13 +1880,10 @@ async def widget_kb_search(bot_id: str, q: str = ""):
 def _sanitize_booking_field(text: Optional[str], max_len: int = 100) -> str:
     if not text:
         return ""
-    # Strip script and style blocks completely including inner text
-    clean = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", str(text), flags=re.IGNORECASE | re.DOTALL)
-    # Strip any remaining HTML tags
-    clean = re.sub(r"<[^>]*>", "", clean).strip()
-    # Strip control characters
-    clean = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", clean)
-    return clean[:max_len].strip()
+    parser = _BookingTextParser()
+    parser.feed(str(text)[: max_len * 8])
+    clean = " ".join("".join(parser.parts).split())
+    return "".join(ch for ch in clean[:max_len] if ch >= " " or ch in "\t\n\r").strip()
 
 
 @router.get("/api/widget/booking/slots")
@@ -2089,7 +2117,7 @@ async def widget_booking_confirm(
         raise HTTPException(status_code=400, detail="Please enter your full name.")
 
     visitor_email = (body.email or "").strip().lower()
-    if len(visitor_email) > 100 or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", visitor_email):
+    if len(visitor_email) > 100 or not _is_valid_email(visitor_email):
         raise HTTPException(status_code=400, detail="Please enter a valid email address.")
 
     # Dedicated booking attempts rate limit per email: max 3 bookings per 10 minutes

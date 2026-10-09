@@ -39,6 +39,25 @@ import {
 // player itself.
 const VOICE_MESSAGE_PLACEHOLDER = "🎤 Voice message";
 
+function isPlausibleEmail(value: string): boolean {
+  const email = value.trim();
+  if (email.length < 5 || email.length > 254) return false;
+  const at = email.indexOf("@");
+  if (at <= 0 || at !== email.lastIndexOf("@") || at === email.length - 1) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (!local || !domain || domain.indexOf(".") <= 0 || domain.endsWith(".")) return false;
+  return !/[\s<>()[\]\\,;:]/.test(email);
+}
+
+function extractEmail(value: string): string | null {
+  for (const token of value.slice(0, 4000).split(/\s+/)) {
+    const candidate = token.replace(/^[([{<]+|[)\]}>.,!?]+$/g, "");
+    if (isPlausibleEmail(candidate)) return candidate.toLowerCase();
+  }
+  return null;
+}
+
 // A WhatsApp/Telegram-style voice-message player: play/pause + a seekable
 // waveform + elapsed/duration, themed entirely through `currentColor` and
 // `color-mix()` (see .audio-bubble-* rules in widget-presets.css) so it
@@ -745,8 +764,8 @@ function IdentifiedChatWidget({
       if (m.role === "user" && typeof m.content === "string") {
         const text = m.content;
         if (!email) {
-          const em = text.match(/\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b/);
-          if (em) email = em[1].toLowerCase();
+          const em = extractEmail(text);
+          if (em) email = em;
         }
         if (!phone) {
           const pm = text.match(/(?:\+?\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/);
@@ -1466,7 +1485,7 @@ function IdentifiedChatWidget({
 
   const saveSupportEmail = useCallback(async () => {
     const email = supportEmail.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    if (!isPlausibleEmail(email)) {
       setSupportEmailError("Enter a valid email address.");
       setSupportEmailSaved(false);
       return;
@@ -1985,7 +2004,7 @@ function IdentifiedChatWidget({
       const userLower = userText.toLowerCase();
 
       // 1. Auto-extract contact info from user input
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userText);
+      const isEmail = isPlausibleEmail(userText);
       if (isEmail) {
         setCapturedLeadData((prev) => ({ ...prev, email: userText }));
       }

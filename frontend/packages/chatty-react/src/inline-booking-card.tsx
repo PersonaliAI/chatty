@@ -31,6 +31,15 @@ import {
 
 const DEFAULT_BACKEND_URL = "https://api.chatty.personaliai.com";
 
+function isPlausibleEmail(value: string): boolean {
+  const email = value.trim();
+  if (email.length < 5 || email.length > 254) return false;
+  const at = email.indexOf("@");
+  if (at <= 0 || at !== email.lastIndexOf("@") || at === email.length - 1) return false;
+  const domain = email.slice(at + 1);
+  return domain.indexOf(".") > 0 && !domain.endsWith(".") && !/[\s<>()[\]\\,;:]/.test(email);
+}
+
 interface TimeSlot {
   start: string;
   end: string;
@@ -470,7 +479,7 @@ export function InlineBookingCard({
     }
 
     const trimmedEmail = email.trim().toLowerCase();
-    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    if (!isPlausibleEmail(trimmedEmail)) {
       setSubmitError("Please enter a valid email address.");
       return;
     }

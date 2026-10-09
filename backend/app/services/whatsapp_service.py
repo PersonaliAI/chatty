@@ -127,7 +127,7 @@ async def send_whatsapp_message(
     if not re.fullmatch(r"v\d+(?:\.\d+)?", str(version)):
         logger.warning("Invalid WhatsApp API version supplied")
         return False
-    url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
+    path = f"/{version}/{phone_number_id}/messages"
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -184,11 +184,10 @@ async def send_whatsapp_message(
         delivered = False
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=15) as client:
+                async with httpx.AsyncClient(base_url="https://graph.facebook.com", timeout=15) as client:
                     # phone_number_id and version are strictly allowlisted
                     # above; the host is always graph.facebook.com.
-                    # codeql[py/partial-ssrf]: validated fixed-host URL
-                    res = await client.post(url, headers=headers, json=payload)
+                    res = await client.post(path, headers=headers, json=payload)
                 if res.status_code < 400:
                     delivered = True
                     break
