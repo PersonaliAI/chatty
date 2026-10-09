@@ -119,6 +119,14 @@ async def send_whatsapp_message(
         return False
 
     version = api_version or WHATSAPP_API_VERSION
+    # Keep the request host fixed and allow only Meta's numeric phone-id path
+    # component; never interpolate an arbitrary URL supplied by a bot owner.
+    if not re.fullmatch(r"\d{5,32}", str(phone_number_id)):
+        logger.warning("Invalid WhatsApp phone number id supplied")
+        return False
+    if not re.fullmatch(r"v\d+(?:\.\d+)?", str(version)):
+        logger.warning("Invalid WhatsApp API version supplied")
+        return False
     url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
     headers = {
         "Authorization": f"Bearer {access_token}",

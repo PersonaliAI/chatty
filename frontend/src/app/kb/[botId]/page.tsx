@@ -226,6 +226,7 @@ export default function KnowledgeBasePortal() {
       if (e.key === "Escape") setIsAssistantDrawerOpen(false);
     };
     const handleWindowMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
       if (e.data?.type === "chatty:close") {
         setIsAssistantDrawerOpen(false);
       }
