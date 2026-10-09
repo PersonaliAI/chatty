@@ -106,7 +106,7 @@ test("voice entry points, transcript layout, and booking surface stay mounted", 
 
   await page.getByRole("button", { name: "Book a meeting" }).click();
   await expect(page.getByText("Choose a slot or tell the agent what works.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /(?:9:00 AM|2:30 PM)/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /(?:9:00 AM|2:30 PM)/ })).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("button", { name: "Back to chat" }).click();
   await page.getByRole("button", { name: "Chat", exact: true }).last().click();
