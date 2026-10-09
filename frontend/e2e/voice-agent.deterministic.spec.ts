@@ -35,7 +35,7 @@ async function mockVoiceBackend(page: Page) {
       return;
     }
 
-    if (url.pathname.endsWith("/booking/slots")) {
+    if (url.pathname.includes("/booking/slots")) {
       await route.fulfill({
         json: {
           enabled: true,
