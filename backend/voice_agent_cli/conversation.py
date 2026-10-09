@@ -27,6 +27,12 @@ class ConversationRecorder:
         self._session_id = session_id
         self._tasks: set[asyncio.Task[None]] = set()
         self._last_user_text = ""
+        self._user_turn_count = 0
+
+    @property
+    def user_turn_count(self) -> int:
+        """Number of finalized visitor turns observed by the recorder."""
+        return self._user_turn_count
 
     def handle(self, event: Any) -> None:
         """Schedule persistence without blocking LiveKit's event emitter."""
@@ -37,6 +43,7 @@ class ConversationRecorder:
             return
         if role == "user":
             self._last_user_text = content
+            self._user_turn_count += 1
         question = self._last_user_text if role == "assistant" else ""
         task = asyncio.create_task(self._append(role, content, question))
         self._tasks.add(task)

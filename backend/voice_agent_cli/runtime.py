@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 from livekit.agents import (
@@ -25,7 +26,7 @@ from .config import VoiceSettings
 from .conversation import ConversationRecorder, load_chat_context
 from .media import MEDIA_TOPIC, VoiceMediaBuffer
 from .organization import OrganizationRepository
-from .session import open_voice_session
+from .session import open_voice_session, record_voice_call
 from .timezone import resolve_visitor_timezone
 
 logger = logging.getLogger("chatty.voice.runtime")
@@ -180,7 +181,9 @@ async def entrypoint(ctx: JobContext) -> None:
     max_duration_minutes = _resolve_max_duration_minutes(
         bot_config.get("voice_max_duration_minutes")
     )
+    call_started_at = time.monotonic()
     timeout_task: asyncio.Task[None] | None = None
+    telemetry_recorded = False
 
     async def _cancel_session_timeout(_reason: str) -> None:
         nonlocal timeout_task
@@ -192,6 +195,26 @@ async def entrypoint(ctx: JobContext) -> None:
             return
         timeout_task.cancel()
         await asyncio.gather(timeout_task, return_exceptions=True)
+
+    async def _record_voice_call() -> None:
+        nonlocal telemetry_recorded
+        if telemetry_recorded:
+            return
+        telemetry_recorded = True
+        usage = None
+        try:
+            usage = session.usage
+        except Exception:
+            logger.exception("Could not read LiveKit session usage")
+        await record_voice_call(
+            organization,
+            session_id,
+            mode=mode,
+            duration_seconds=time.monotonic() - call_started_at,
+            usage=usage,
+            turn_count=getattr(recorder, "user_turn_count", 0),
+        )
+        logger.info("Voice session usage: %s", usage)
 
     ctx.add_shutdown_callback(_cancel_session_timeout)
     timeout_task = asyncio.create_task(
@@ -206,11 +229,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session.on("conversation_item_added", recorder.handle)
     ctx.add_shutdown_callback(recorder.flush)
-
-    async def _log_usage() -> None:
-        logger.info("Voice session usage: %s", session.usage)
-
-    ctx.add_shutdown_callback(_log_usage)
+    ctx.add_shutdown_callback(_record_voice_call)
     await session.start(
         agent=ChattyVoiceAgent(
             organization,
