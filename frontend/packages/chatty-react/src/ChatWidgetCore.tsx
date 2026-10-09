@@ -3763,7 +3763,7 @@ function IdentifiedChatWidget({
       )}
 
       {/* ── Persistent Bottom Navigation Bar ── */}
-      {!showCsat && !showOfflineForm && (
+      {!voiceModeActive && !showCsat && !showOfflineForm && (
         <>
           {((tab === "messages" && chatNavExpanded) || (tab !== "messages" && bottomNavVisible)) && (
             (() => {
