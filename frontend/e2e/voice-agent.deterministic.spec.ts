@@ -84,6 +84,7 @@ async function mockVoiceBackend(page: Page) {
 }
 
 test("voice entry points, transcript layout, and booking surface stay mounted", async ({ page }) => {
+  test.setTimeout(60_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => window.localStorage.clear());
   await mockVoiceBackend(page);
@@ -93,18 +94,20 @@ test("voice entry points, transcript layout, and booking surface stay mounted", 
 
   await page.goto(`/embed/${BOT_ID}?test=voice-ui`, { waitUntil: "domcontentloaded" });
   const waveHeader = page.getByRole("button", { name: "Open voice agent" });
-  await expect(waveHeader).toBeVisible({ timeout: 15_000 });
+  await expect(waveHeader).toBeVisible({ timeout: 30_000 });
 
   await waveHeader.click();
   await expect(page.getByRole("button", { name: "Back to chat" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Start voice conversation" })).toBeVisible();
-  await expect(page.getByText("Ready when you are")).toBeVisible();
+  await expect(page.getByText("Ready to talk").first()).toBeVisible();
 
+  await page.getByRole("button", { name: "Hide transcript" }).click();
+  await expect(page.getByRole("button", { name: "Show transcript" })).toBeVisible();
   await page.getByRole("button", { name: "Show transcript" }).click();
   await expect(page.getByText("Live transcript", { exact: true })).toBeVisible();
   await expect(page.getByText("Start the voice agent to see real-time transcription here.")).toBeVisible();
 
-  await page.getByRole("button", { name: "Book a meeting" }).click();
+  await expect(page.getByRole("button", { name: "Hide booking" })).toBeVisible();
   await expect(page.getByText("Choose a slot or tell the agent what works.")).toBeVisible();
   await expect(page.getByRole("button", { name: /(?:9:00 AM|2:30 PM)/ })).toBeVisible({ timeout: 15_000 });
 

@@ -104,10 +104,13 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [consentOpen, setConsentOpen] = useState(false);
-  const [showTranscript, setShowTranscript] = useState(false);
+  // The embedded widget opens directly into the compact LiveKit session view:
+  // transcript and booking are first-class surfaces, while the standalone
+  // experience keeps its visualizer-first landing state.
+  const [showTranscript, setShowTranscript] = useState(widgetMode);
   const [retrying, setRetrying] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
-  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(widgetMode);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
 
   useEffect(() => {
