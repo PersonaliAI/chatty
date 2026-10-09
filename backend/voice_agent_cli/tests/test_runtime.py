@@ -111,6 +111,35 @@ def test_google_realtime_disables_vertex_affective_dialog(monkeypatch):
     assert captured["enable_affective_dialog"] is False
 
 
+def test_google_realtime_receives_warmed_adc_credentials(monkeypatch):
+    captured = {}
+    credentials = object()
+
+    class FakeRealtimeModel:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(providers.google.realtime, "RealtimeModel", FakeRealtimeModel)
+    monkeypatch.setattr(providers, "_load_google_credentials", lambda _settings: credentials)
+    organization = SimpleNamespace(
+        bot={
+            "voice_realtime_provider": "google",
+            "voice_realtime_model": "gemini-live-2.5-flash-native-audio",
+            "voice_tts_voice": "Kore",
+            "voice_stt_language": "en-US",
+        }
+    )
+    settings = SimpleNamespace(
+        google_cloud_location="global",
+        google_cloud_project="project",
+        stt_language="en-US",
+    )
+
+    providers.build_realtime_model(organization, settings, expression_enabled=True)
+
+    assert captured["credentials"] is credentials
+
+
 def test_runtime_normalizes_max_duration_minutes():
     assert runtime._resolve_max_duration_minutes(None) == 15
     assert runtime._resolve_max_duration_minutes("30") == 30

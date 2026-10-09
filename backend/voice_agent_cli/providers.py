@@ -7,6 +7,7 @@ environment variables or returned to a client.
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from app.core.crypto import decrypt_secret
@@ -24,6 +25,35 @@ def _value(bot: dict[str, Any], key: str, default: str) -> str:
 def _secret(bot: dict[str, Any], key: str) -> str | None:
     raw = str(bot.get(key) or "").strip()
     return decrypt_secret(raw) if raw else None
+
+
+def _load_google_credentials(settings: VoiceSettings) -> Any | None:
+    """Load and refresh Google ADC off the LiveKit event loop.
+
+    The Google Live API client refreshes ADC lazily when its realtime task is
+    created. On a cold worker that synchronous refresh can pause the audio
+    loop for several seconds. Provider construction already runs in a worker
+    thread, so doing the refresh here keeps the first room responsive while
+    preserving the official plugin's credential handling.
+
+    Workload-identity deployments may not expose a credential file. In that
+    case the plugin keeps its normal ADC fallback behavior.
+    """
+    credential_file = str(
+        getattr(settings, "google_application_credentials", "") or ""
+    ).strip()
+    if not credential_file and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        return None
+
+    import google.auth  # noqa: PLC0415
+    from google.auth.transport.requests import Request  # noqa: PLC0415
+
+    credentials, _ = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    if not credentials.valid:
+        credentials.refresh(Request())
+    return credentials
 
 
 def build_components(
@@ -226,6 +256,9 @@ def build_realtime_model(
             # to Google Realtime or the room is disconnected before audio.
             "enable_affective_dialog": False,
         }
+        credentials = _load_google_credentials(settings)
+        if credentials is not None:
+            kwargs["credentials"] = credentials
         if settings.google_cloud_project:
             kwargs["project"] = settings.google_cloud_project
         return google.realtime.RealtimeModel(**kwargs)
