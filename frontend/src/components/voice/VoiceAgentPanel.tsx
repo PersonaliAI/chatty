@@ -14,7 +14,7 @@ import {
   VoiceAssistantControlBar,
 } from '@livekit/components-react';
 import { TokenSource, type TokenSourceResponseObject } from 'livekit-client';
-import { AlertCircle, CalendarPlus, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, ShieldCheck, X } from 'lucide-react';
+import { AlertCircle, CalendarPlus, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
 import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
 import { InlineBookingCard, type ConfirmedMeeting } from '@/components/inline-booking-card';
@@ -85,7 +85,7 @@ function VoiceOrb({ state, audioTrack, visualizer }: { state: ReturnType<typeof 
   );
 }
 
-function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, widgetMode = false, visualizer = 'wave', visitorToken, onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; visitorToken?: string; onClose?: () => void; onFullscreen?: () => void }) {
+function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
   const session = useSessionContext();
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -94,7 +94,9 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   const intentionalEndRef = useRef(false);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<number | null>(null);
+  const agentJoinTimerRef = useRef<number | null>(null);
   const { state } = useAgent();
+  const agentStateRef = useRef(state);
   const { audioTrack } = useVoiceAssistant();
   const { messages } = useSessionMessages(session);
   const latestVisitorUtterance = [...messages]
@@ -107,18 +109,21 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   // The embedded widget opens directly into the compact LiveKit session view:
   // transcript and booking are first-class surfaces, while the standalone
   // experience keeps its visualizer-first landing state.
-  const [showTranscript, setShowTranscript] = useState(widgetMode);
+  // Keep the voice surface focused on the call controls until the visitor
+  // explicitly opens transcript or booking. Both are progressive-disclosure
+  // surfaces in the widget and must not compete with the call visualizer on
+  // first open.
+  const [showTranscript, setShowTranscript] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
-  const [bookingOpen, setBookingOpen] = useState(widgetMode);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
 
   useEffect(() => {
-    const latest = messages[messages.length - 1]?.message ?? '';
-    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(latest)) {
+    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(latestVisitorUtterance ?? '')) {
       setBookingOpen(true);
     }
-  }, [messages]);
+  }, [latestVisitorUtterance]);
 
   const clearReconnectTimer = () => {
     if (reconnectTimerRef.current !== null) {
@@ -127,7 +132,21 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
     }
   };
 
-  useEffect(() => clearReconnectTimer, []);
+  const clearAgentJoinTimer = () => {
+    if (agentJoinTimerRef.current !== null) {
+      window.clearTimeout(agentJoinTimerRef.current);
+      agentJoinTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    agentStateRef.current = state;
+  }, [state]);
+
+  useEffect(() => () => {
+    clearReconnectTimer();
+    clearAgentJoinTimer();
+  }, []);
 
   useEffect(() => {
     if (!started) return;
@@ -136,14 +155,14 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
     startingRef.current = true;
     connectedRef.current = false;
     setStarting(true);
-    // Keep the signaling/agent handshake independent from microphone
-    // publication.  Some browsers publish a pre-connect track while the
-    // signal socket is still settling; if that socket closes, LiveKit rejects
-    // the whole session with "Got disconnected without signal connected".
-    // Connecting first also gives the official LiveKit control bar a stable
-    // room before it owns microphone state.
+    // Let LiveKit own the microphone publication as part of the same start
+    // transaction. Starting the room first and then calling
+    // setMicrophoneEnabled() created a race with the official control bar:
+    // the publication could be cancelled while the session was settling,
+    // producing "Cancelled publication by calling unpublish" and leaving the
+    // UI in an endless connecting state.
     void activeSession.start({
-      tracks: { microphone: { enabled: false } },
+      tracks: { microphone: { enabled: true, publishOptions: { preConnectBuffer: true } } },
     })
       .then(() => {
         if (!active) return;
@@ -152,7 +171,16 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
         setError(null);
         setRetrying(false);
         setCanRetry(false);
-        return activeSession.room.localParticipant.setMicrophoneEnabled(true);
+        clearAgentJoinTimer();
+        agentJoinTimerRef.current = window.setTimeout(() => {
+          agentJoinTimerRef.current = null;
+          if (!active || intentionalEndRef.current || !connectedRef.current) return;
+          const agentJoined = activeSession.room.remoteParticipants.size > 0;
+          if (!agentJoined && agentStateRef.current === 'disconnected') {
+            setError('Connected to LiveKit, but the voice agent did not join. Check the voice worker and try reconnecting.');
+            setCanRetry(true);
+          }
+        }, 15000);
       })
       .catch((cause) => {
         console.error('LiveKit voice session failed to start', cause);
@@ -171,6 +199,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
       active = false;
       startingRef.current = false;
       connectedRef.current = false;
+      clearAgentJoinTimer();
       void activeSession.end();
     };
   }, [started]);
@@ -214,9 +243,25 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   const endSession = async () => {
     intentionalEndRef.current = true;
     clearReconnectTimer();
+    clearAgentJoinTimer();
     setRetrying(false);
     setCanRetry(false);
     setStarted(false);
+    await session.end();
+  };
+  const resetSession = async () => {
+    intentionalEndRef.current = true;
+    clearReconnectTimer();
+    clearAgentJoinTimer();
+    setConsentOpen(false);
+    setRetrying(false);
+    setCanRetry(false);
+    setStarting(false);
+    setStarted(false);
+    setError(null);
+    setBookingOpen(false);
+    setShowTranscript(false);
+    reconnectAttemptRef.current = 0;
     await session.end();
   };
   const retrySession = () => {
@@ -255,9 +300,14 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
             <p className="text-[10px] text-neutral-400">{connectionLabel}</p>
           </div>
         </div>
-        <span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-          <ShieldCheck className="size-3" /> Secure
-        </span>
+        <div className="flex items-center gap-1.5">
+          <button type="button" onClick={() => void resetSession()} className="flex size-8 items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-900 dark:hover:text-white" aria-label="Reset voice session" title="Reset voice session">
+            <RotateCcw className="size-3.5" />
+          </button>
+          <span className="flex items-center gap-1.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck className="size-3" /> Secure
+          </span>
+        </div>
       </header>}
       {!widgetMode && <header className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-4 sm:px-6 sm:pt-5">
         <div className="flex min-w-0 items-center gap-2">
@@ -268,6 +318,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
         </div>
         <div className="flex items-center gap-1.5">
           <span className="hidden items-center gap-1 rounded-full px-2 text-[10px] font-medium text-emerald-600 sm:inline-flex dark:text-emerald-400"><ShieldCheck className="size-3" /> Secure</span>
+          <button type="button" onClick={() => void resetSession()} className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white" aria-label="Reset voice session" title="Reset voice session"><RotateCcw className="size-4" /></button>
           <button type="button" onClick={onFullscreen} className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800" aria-label="Expand voice agent"><Maximize2 className="size-4" /></button>
           {onClose && <button type="button" onClick={onClose} className="flex size-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white" aria-label="Close voice agent"><X className="size-4" /></button>}
         </div>
@@ -281,12 +332,12 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
         )}
 
         {showTranscript ? (
-          <div className="chatty-transcript-layout flex min-h-0 flex-1 flex-col gap-3 py-3">
+          <div className={`chatty-transcript-layout flex min-h-0 flex-col gap-3 py-3 ${widgetMode ? 'shrink-0' : 'flex-1'}`}>
             <div className="flex shrink-0 items-center justify-between px-1 text-[11px] font-semibold text-neutral-700 dark:text-neutral-200">
               <span>Live transcript</span>
               <span className="text-[10px] font-normal text-neutral-400">LiveKit Agents UI</span>
             </div>
-            <div className="chatty-transcript-frame min-h-0 flex-1 overflow-hidden">
+            <div className={`chatty-transcript-frame min-h-0 overflow-hidden ${widgetMode ? 'h-[190px] shrink-0 sm:h-[205px]' : 'flex-1'}`}>
               <LiveKitTranscript />
             </div>
           </div>
@@ -378,7 +429,7 @@ export function VoiceAgentPanel({
   return (
     <section ref={panelRef} className={`flex min-h-0 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} compact={compact} widgetMode={widgetMode} visualizer={visualizer} visitorToken={visitorToken} onClose={onClose} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>

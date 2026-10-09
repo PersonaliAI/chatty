@@ -107,6 +107,8 @@
 }
 
 .chatty-sdk-voice-close:hover { color: var(--chatty-voice-ink); background: #e9edef; }
+.chatty-sdk-voice-reset { display: grid; place-items: center; flex: none; width: 2rem; height: 2rem; border-radius: 999px; color: #64717c; background: #f4f6f7; }
+.chatty-sdk-voice-reset:hover { color: var(--chatty-voice-ink); background: #e9edef; }
 
 .chatty-sdk-voice-error .chatty-sdk-voice-retry {
   width: auto;
@@ -250,6 +252,11 @@
 .chatty-sdk-voice-booking-heading strong { font-size: .82rem; }
 .chatty-sdk-voice-booking-heading span { color: var(--chatty-voice-muted); font-size: .7rem; line-height: 1.35; }
 .chatty-sdk-voice-booking-close { display: grid; place-items: center; flex: none; width: 1.8rem; height: 1.8rem; border-radius: 999px; color: #64717c; background: #f0f3f4; }
+
+.chatty-sdk-voice .lk-device-menu { z-index: 20; max-width: min(21rem, calc(100vw - 1.5rem)); max-height: min(18rem, calc(100dvh - 7rem)); overflow: auto; white-space: normal; }
+.chatty-sdk-voice .lk-device-menu .lk-media-device-select li > .lk-button { position: relative; min-width: 0; padding-right: 2rem; overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; transition: background-color .16s ease, color .16s ease; }
+.chatty-sdk-voice .lk-device-menu .lk-media-device-select li[data-lk-active="true"] > .lk-button::after { position: absolute; right: .65rem; content: "✓"; color: currentColor; font-weight: 800; }
+.chatty-sdk-voice .lk-device-menu .lk-media-device-select li[data-lk-active="true"] > .lk-button { color: #075f70; background: #e3f8f8; }
 
 /* Embedded voice-session surface: match the compact reference layout. */
 .chatty-sdk-voice { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; width: 100%; gap: 0; overflow: hidden; border: 0; border-radius: 0; padding: 0; color: #17222b; background: #fff; box-shadow: none; }

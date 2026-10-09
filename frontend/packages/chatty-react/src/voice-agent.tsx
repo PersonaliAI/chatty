@@ -15,7 +15,7 @@ import {
   type ReceivedMessage,
 } from "@livekit/components-react";
 import { TokenSource, type TokenSourceResponseObject } from "livekit-client";
-import { CalendarPlus, ChevronDown, MessageCircle, Mic, Phone, PhoneOff, ShieldCheck, X } from "lucide-react";
+import { CalendarPlus, ChevronDown, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, ShieldCheck, X } from "lucide-react";
 
 import "@livekit/components-styles";
 import { InlineBookingCard, type ConfirmedMeeting } from "./inline-booking-card";
@@ -108,6 +108,8 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   const { messages } = useSessionMessages(session);
   const { audioTrack } = useVoiceAssistant();
   const { bars } = useAudioWaveform(audioTrack, { barCount: 20, updateInterval: 90, volMultiplier: 1.35 });
+  const agentStateRef = useRef(agentState);
+  const agentJoinTimerRef = useRef<number | null>(null);
   const onStateChange = props.onStateChange;
   const onTranscript = props.onTranscript;
   const showBooking = props.showBooking;
@@ -117,8 +119,11 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [canRetry, setCanRetry] = useState(false);
-  const [transcriptOpen, setTranscriptOpen] = useState(true);
-  const [bookingOpen, setBookingOpen] = useState(showBooking !== false);
+  // Transcript and booking are intentional secondary surfaces. Keep both
+  // closed initially so the call control/visualizer is the first thing users
+  // see, matching the embedded Chatty widget behavior.
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
 
   const state = starting ? "connecting" : started ? agentState : "idle";
@@ -132,7 +137,21 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     }
   };
 
-  useEffect(() => clearReconnectTimer, []);
+  const clearAgentJoinTimer = () => {
+    if (agentJoinTimerRef.current !== null) {
+      window.clearTimeout(agentJoinTimerRef.current);
+      agentJoinTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    agentStateRef.current = agentState;
+  }, [agentState]);
+
+  useEffect(() => () => {
+    clearReconnectTimer();
+    clearAgentJoinTimer();
+  }, []);
 
   // A spoken request such as “book a demo tomorrow” should expose the same
   // verified booking UI as the text widget. The agent still owns the spoken
@@ -140,8 +159,8 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   // fallback for manually selecting a slot or completing email verification.
   useEffect(() => {
     if (showBooking === false || !messages.length) return;
-    const latest = messages[messages.length - 1]?.message ?? "";
-    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(latest)) {
+    const latestVisitorUtterance = [...messages].reverse().find((message) => message.type === "userTranscript")?.message ?? "";
+    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(latestVisitorUtterance)) {
       setBookingOpen(true);
     }
   }, [messages, showBooking]);
@@ -156,6 +175,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     stop: async () => {
       intentionalEndRef.current = true;
       clearReconnectTimer();
+      clearAgentJoinTimer();
       setRetrying(false);
       setCanRetry(false);
       setStarted(false);
@@ -173,18 +193,30 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     startingRef.current = true;
     connectedRef.current = false;
     setStarting(true);
-    // Let LiveKit establish signaling before publishing the microphone. This
-    // avoids browsers failing the entire handshake when the pre-connect audio
-    // track is still settling, and keeps consent/permission errors explicit.
-    void sessionRef.current.start({ tracks: { microphone: { enabled: false } } })
-      .then(async () => {
+    // Publish the microphone through the same LiveKit start transaction as
+    // signaling. A second setMicrophoneEnabled() call after start can race
+    // the official control bar and cancel publication with
+    // "Cancelled publication by calling unpublish".
+    void sessionRef.current.start({ tracks: { microphone: { enabled: true, publishOptions: { preConnectBuffer: true } } } })
+      .then(() => {
         if (!active) return;
         connectedRef.current = true;
         reconnectAttemptRef.current = 0;
         setError(null);
         setRetrying(false);
         setCanRetry(false);
-        await sessionRef.current.room.localParticipant.setMicrophoneEnabled(true);
+        clearAgentJoinTimer();
+        agentJoinTimerRef.current = window.setTimeout(() => {
+          agentJoinTimerRef.current = null;
+          if (!active || intentionalEndRef.current || !connectedRef.current) return;
+          const agentJoined = sessionRef.current.room.remoteParticipants.size > 0;
+          if (!agentJoined && agentStateRef.current === "disconnected") {
+            const nextError = new Error("Connected to LiveKit, but the voice agent did not join. Check the voice worker and try reconnecting.");
+            setError(nextError.message);
+            setCanRetry(true);
+            onErrorRef.current?.(nextError);
+          }
+        }, 15000);
       })
       .catch((cause) => {
         const nextError = cause instanceof Error ? cause : new Error("Unable to connect to the voice agent.");
@@ -204,6 +236,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
       active = false;
       startingRef.current = false;
       connectedRef.current = false;
+      clearAgentJoinTimer();
       void sessionRef.current.end();
     };
   }, [started]);
@@ -263,12 +296,28 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     setStarted(true);
   };
   const end = () => {
-    intentionalEndRef.current = true;
-    clearReconnectTimer();
-    setRetrying(false);
+      intentionalEndRef.current = true;
+      clearReconnectTimer();
+      clearAgentJoinTimer();
+      setRetrying(false);
     setCanRetry(false);
     setStarted(false);
     void session.end();
+  };
+  const reset = async () => {
+    intentionalEndRef.current = true;
+    clearReconnectTimer();
+    clearAgentJoinTimer();
+    setConsentOpen(false);
+    setRetrying(false);
+    setCanRetry(false);
+    setStarting(false);
+    setStarted(false);
+    setError(null);
+    setTranscriptOpen(false);
+    setBookingOpen(false);
+    reconnectAttemptRef.current = 0;
+    await session.end();
   };
   const label = retrying ? "Reconnecting…" : starting ? "Connecting…" : agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : started ? "Ready when you are" : "Ready to talk";
 
@@ -279,7 +328,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
           {props.onClose && <button type="button" className="chatty-sdk-voice-header-close" onClick={props.onClose} aria-label="Back to chat"><X size={17} /></button>}
           <div><h2>{props.title ?? "Voice agent"}</h2><span>{label}</span></div>
         </div>
-        <div className="chatty-sdk-voice-secure"><ShieldCheck size={14} /><span>Secure</span></div>
+        <div className="chatty-sdk-voice-header-actions"><button type="button" className="chatty-sdk-voice-reset" onClick={() => void reset()} aria-label="Reset voice session" title="Reset voice session"><RotateCcw size={15} /></button><div className="chatty-sdk-voice-secure"><ShieldCheck size={14} /><span>Secure</span></div></div>
       </header>
       {error && <div className="chatty-sdk-voice-error" role="alert"><span>{error}</span>{canRetry && <button type="button" className="chatty-sdk-voice-retry" onClick={retry}>Reconnect</button>}<button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div>}
       <div className="chatty-sdk-voice-content">
@@ -336,7 +385,7 @@ export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function
     if (!response.ok) throw new Error((await response.text()) || `Voice token failed (${response.status})`);
     const data = (await response.json()) as VoiceTokenResponse;
     return { serverUrl: data.serverUrl, participantToken: data.participantToken };
-  }), [backendUrl, props.botId, props.widgetToken, sessionId]);
+  }), [backendUrl, props.botId, props.visitorToken, props.widgetToken, sessionId]);
   const session = useSession(tokenSource);
   return <SessionProvider session={session}><VoiceSurface props={props} apiRef={ref} sessionId={sessionId} /></SessionProvider>;
 });
