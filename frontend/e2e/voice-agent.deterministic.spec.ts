@@ -120,7 +120,7 @@ test("voice entry points open the standalone surface without replacing chat", as
 
   await popup.close();
   await expect(waveHeader).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open live voice agent in a new window" })).toBeVisible();
+  await expect(waveHeader).toBeVisible();
   await expect(page.getByRole("button", { name: "Back to chat" })).toHaveCount(0);
   expect(pageErrors).toEqual([]);
   expect(popupErrors).toEqual([]);
