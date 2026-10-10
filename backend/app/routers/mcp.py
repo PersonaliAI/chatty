@@ -39,6 +39,7 @@ from app.services import (
     mcp_campaign_service,
     mcp_inbox_service,
     mcp_kb_service,
+    mcp_voice_service,
 )
 
 logger = logging.getLogger("chatty")
@@ -896,7 +897,109 @@ async def get_bot_performance_scorecard(bot_id: str, days: int = 30) -> dict:
 
 
 # ===========================================================================
-# 11. MCP RESOURCES (Live Context Providers)
+# 11. VOICE AGENT STUDIO (LiveKit Voice AI, Audio Visualizers, Models, Embeds)
+# ===========================================================================
+
+
+@mcp.tool()
+async def get_voice_agent_config(bot_id: str) -> dict:
+    """Get the current LiveKit voice agent configuration for a chatbot (models, visualizer, enabled status, provider keys status)."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_voice_service.get_voice_agent_config(principal, bot_id)
+
+
+@mcp.tool()
+async def configure_voice_agent(
+    bot_id: str,
+    enabled: Optional[bool] = None,
+    mode: Optional[str] = None,
+    welcome_message: Optional[str] = None,
+    visualizer: Optional[str] = None,
+    expression_enabled: Optional[bool] = None,
+    agent_name: Optional[str] = None,
+    realtime_provider: Optional[str] = None,
+    realtime_model: Optional[str] = None,
+    realtime_api_key: Optional[str] = None,
+    llm_provider: Optional[str] = None,
+    llm_model: Optional[str] = None,
+    llm_api_key: Optional[str] = None,
+    stt_provider: Optional[str] = None,
+    stt_model: Optional[str] = None,
+    stt_language: Optional[str] = None,
+    stt_api_key: Optional[str] = None,
+    tts_provider: Optional[str] = None,
+    tts_model: Optional[str] = None,
+    tts_voice: Optional[str] = None,
+    tts_api_key: Optional[str] = None,
+    max_duration_minutes: Optional[int] = None,
+) -> dict:
+    """Configure or toggle the LiveKit voice agent for a chatbot.
+
+    - enabled: enable or disable voice sessions for this bot.
+    - mode: 'pipeline' (modular STT + LLM + TTS) or 'realtime' (end-to-end multimodal audio).
+    - visualizer: visual audio representation ('wave', 'bar', 'grid', 'radial', 'aura').
+    - welcome_message: first message spoken when a visitor starts a voice session.
+    - expression_enabled: enable facial/visual pitch animations.
+    - realtime_provider: 'google', 'openai', 'azure', 'aws', 'nvidia', 'phonic', 'spacexai', 'ultravox'.
+    - llm_provider: 'google', 'livekit-inference', 'openai', 'anthropic', 'openrouter'.
+    - stt_provider: 'google', 'livekit-inference', 'deepgram', 'assemblyai', 'soniox', 'cartesia', 'openai'.
+    - tts_provider: 'google', 'livekit-inference', 'cartesia', 'deepgram', 'elevenlabs', 'openai', 'fishaudio'.
+    - tts_voice: voice name / voice ID (e.g. 'Kore', 'Puck', 'alloy', 'echo', etc.).
+    - max_duration_minutes: maximum voice conversation limit (1-60 mins).
+    """
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    return await mcp_voice_service.configure_voice_agent(
+        principal=principal,
+        bot_id=bot_id,
+        enabled=enabled,
+        mode=mode,
+        welcome_message=welcome_message,
+        visualizer=visualizer,
+        expression_enabled=expression_enabled,
+        agent_name=agent_name,
+        realtime_provider=realtime_provider,
+        realtime_model=realtime_model,
+        realtime_api_key=realtime_api_key,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_api_key=llm_api_key,
+        stt_provider=stt_provider,
+        stt_model=stt_model,
+        stt_language=stt_language,
+        stt_api_key=stt_api_key,
+        tts_provider=tts_provider,
+        tts_model=tts_model,
+        tts_voice=tts_voice,
+        tts_api_key=tts_api_key,
+        max_duration_minutes=max_duration_minutes,
+    )
+
+
+@mcp.tool()
+async def get_voice_agent_embed_code(
+    bot_id: str,
+    framework: str = "html_script",
+    display: str = "modal",
+) -> dict:
+    """Generate embed code and SDK snippets for embedding the LiveKit Voice Agent.
+
+    Frameworks: 'html_script', 'react', 'iframe', 'ios', 'android', 'flutter', 'react_native'.
+    Display modes: 'modal' (voice popup modal), 'drawer' (side slide-over panel).
+    """
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    return await mcp_voice_service.generate_voice_embed_code(
+        principal=principal,
+        bot_id=bot_id,
+        framework=framework,
+        display=display,
+    )
+
+
+# ===========================================================================
+# 12. MCP RESOURCES (Live Context Providers)
 # ===========================================================================
 
 
@@ -952,7 +1055,18 @@ async def resource_bot_scorecard(bot_id: str) -> str:
 
 
 # ===========================================================================
-# 12. MCP PROMPTS (Pre-Configured Autonomous Workflows)
+@mcp.resource("chatty://bots/{bot_id}/voice-config")
+async def resource_bot_voice_config(bot_id: str) -> str:
+    """Live snapshot of the chatbot's voice agent configuration, visualizer, and models."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    config = await mcp_voice_service.get_voice_agent_config(principal, bot_id)
+    return json.dumps(config, indent=2)
+
+
+# ===========================================================================
+# 13. MCP PROMPTS (Pre-Configured Autonomous Workflows)
+# ===========================================================================
 # ===========================================================================
 
 
@@ -977,6 +1091,17 @@ def prompt_build_bot_from_brand(website_url: str, bot_name: str) -> str:
         f"2. Add initial brand knowledge text with `add_chatbot_knowledge`.\n"
         f"4. Verify WCAG contrast with `analyze_widget_design`.\n"
         f"5. Return the ready-to-embed WordPress and React snippets from `generate_embed_code`."
+    )
+
+
+@mcp.prompt("setup-voice-agent")
+def prompt_setup_voice_agent(bot_id: str, voice_name: str = "Kore") -> str:
+    """Autonomous setup workflow for LiveKit voice agent, visualizer, and multi-framework embeds."""
+    return (
+        f"Please configure the LiveKit voice agent for Chatty Bot '{bot_id}':\n"
+        f"1. Inspect current voice settings with `get_voice_agent_config`.\n"
+        f"2. Enable voice, choose visualizer, welcome message, and TTS voice with `configure_voice_agent` (voice='{voice_name}').\n"
+        f"3. Generate embed snippets for Web, React SDK, and Mobile with `get_voice_agent_embed_code`."
     )
 
 

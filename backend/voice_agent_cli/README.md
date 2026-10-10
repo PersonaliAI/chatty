@@ -135,6 +135,23 @@ camera/video-track understanding remains outside this audio pipeline.
 
 No deployment, commit, or credential file is part of this setup.
 
+## Audio Engineering & Echo Prevention
+
+To guarantee crystal-clear, natural conversational speech without robotic comb-filtering, metallic pitch vibrating, or audio echo:
+- **Client-Side AEC**: WebRTC browser and mobile clients negotiate hardware-accelerated Acoustic Echo Cancellation (`echoCancellation: true`, `noiseSuppression: true`, `autoGainControl: true`).
+- **Server-Side Double-AEC Removal**: The LiveKit worker runtime eliminates redundant server-side AEC filters (`aec_warmup_duration`), preventing comb-filtering artifacts caused by dual cascading echo cancelers.
+- **Buffer Optimization**: Avoids preConnectBuffer jitter stalls, ensuring immediate, smooth speech synthesis playback.
+- **Session Memory Isolation**: Visitors can invoke the reset action anytime (`POST /api/widget/voice/reset`), purging historical session turns from the database and rotating room nonces to prevent past context contamination.
+
+## MCP Setup Support
+
+You can inspect, configure, and generate embed codes for this voice agent programmatically using Chatty's MCP Server tools:
+- `get_voice_agent_config`: Query current voice models, visualizers, and provider keys status.
+- `configure_voice_agent`: Update voice mode, welcome message, visualizer (`wave`, `bar`, `grid`, `radial`, `aura`), and BYOK credentials.
+- `get_voice_agent_embed_code`: Output drop-in snippets for HTML, React SDK, iOS, Android, Flutter, and React Native.
+- Resource `chatty://bots/{bot_id}/voice-config`: Real-time configuration snapshot for AI assistants.
+- Prompt `setup-voice-agent`: Autonomous workflow for voice agent deployment.
+
 ## Reference procedures
 
 - LiveKit Agents: https://docs.livekit.io/agents/
