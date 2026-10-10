@@ -593,9 +593,9 @@ export function IntegrationsTab({
 import { VoiceAgent } from "@personaliai/react-widget";
 
 export function SupportVoice() {
-  return <VoiceAgent botId="${botId || "YOUR_BOT_ID"}" title="Talk to support" />;
+  return <VoiceAgent botId="${botId || "YOUR_BOT_ID"}" title="Talk to support" language="en-US" />;
 }`}</code></pre>
-          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">The component calls <code>/api/widget/voice/token</code> through the configured API origin. Never put LiveKit API secrets or provider keys in this component.</p>
+          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">The component calls <code>/api/widget/voice/token</code> through the configured API origin. The optional <code>language</code> prop is checked against the selected Voice Studio STT model for each session; changing it does not overwrite dashboard settings. Never put LiveKit API secrets or provider keys in this component.</p>
         </div>
         <div className="rounded-xl border border-orange-200/80 dark:border-orange-900/70 bg-orange-50/50 dark:bg-orange-950/20 p-3">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -623,7 +623,7 @@ export function StandaloneVoiceAgent() {
     </div>
   );
 }`}</code></pre>
-          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">This is the independent centered-popup style surface. It includes microphone consent, LiveKit controls, transcription, booking, reconnect/reset, and interruption support. Voice Studio settings are loaded by the token service for the selected bot.</p>
+          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">This is the independent centered-popup style surface. It includes the responsive language selector, microphone consent, official LiveKit controls, timestamped transcription with a compact scrollbar, text/image composer, booking, reconnect/reset, and interruption support. Voice Studio STT/TTS model settings are loaded by the token service for the selected bot; the session language follows the selected model’s supported locales.</p>
         </div>
         <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Official LiveKit controls</span>

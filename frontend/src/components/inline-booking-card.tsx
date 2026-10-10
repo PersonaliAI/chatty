@@ -476,6 +476,7 @@ export function InlineBookingCard({
   );
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const autoSelectedTextRef = useRef("");
 
   // Form inputs
   const [name, setName] = useState(initialName || "");
@@ -562,12 +563,13 @@ export function InlineBookingCard({
       }
       if (data.available_dates && data.available_dates.length > 0) {
         const autoMatch = detectPreferredSlot(preferredText, data.available_dates, data.slots_by_date, tz);
-      if (autoMatch) {
-        setSelectedDate(autoMatch.date);
-        setSelectedSlot(autoMatch.slot);
-      } else {
-        setSelectedDate(data.available_dates[0]);
-      }
+        if (autoMatch) {
+          setSelectedDate(autoMatch.date);
+          setSelectedSlot(autoMatch.slot);
+          autoSelectedTextRef.current = preferredText || "";
+        } else {
+          setSelectedDate(data.available_dates[0]);
+        }
       }
     } catch (err: any) {
       setError(err?.message || "Failed to load scheduling calendar");
@@ -582,6 +584,20 @@ export function InlineBookingCard({
       fetchSlots(activeTimezone);
     }
   }, [botId, activeTimezone]);
+
+  // Voice transcripts arrive after the booking card has mounted. Re-run the
+  // same deterministic date/time matcher when the visitor says “tomorrow at
+  // 3pm” later in the call, without refetching slots or overriding a manual
+  // selection.
+  useEffect(() => {
+    if (!slotsData || !preferredText || preferredText === autoSelectedTextRef.current || selectedSlot) return;
+    const autoMatch = detectPreferredSlot(preferredText, slotsData.available_dates, slotsData.slots_by_date, activeTimezone);
+    if (autoMatch) {
+      setSelectedDate(autoMatch.date);
+      setSelectedSlot(autoMatch.slot);
+      autoSelectedTextRef.current = preferredText;
+    }
+  }, [preferredText, slotsData, activeTimezone, selectedSlot]);
 
   const selectTimezone = (tzId: string) => {
     setActiveTimezone(tzId);

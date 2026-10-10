@@ -19,6 +19,9 @@ class VoiceTokenRequest(BaseModel):
     # Used only for calendar/booking presentation; it is not an auth or tenant
     # selector and is carried inside the signed LiveKit dispatch metadata.
     visitor_timezone: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    # Optional per-session locale selected by the embedded voice surface. It
+    # never changes the bot's saved Voice Studio configuration.
+    voice_language: Optional[str] = Field(default=None, min_length=2, max_length=20)
 
 
 class VoiceConfigUpdate(BaseModel):

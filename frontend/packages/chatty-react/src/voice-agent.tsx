@@ -14,8 +14,8 @@ import {
   useVoiceAssistant,
   type ReceivedMessage,
 } from "@livekit/components-react";
-import { TokenSource, type TokenSourceResponseObject } from "livekit-client";
-import { CalendarPlus, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, ShieldCheck, X } from "lucide-react";
+import { TokenSource, type SendTextOptions, type TokenSourceResponseObject } from "livekit-client";
+import { CalendarPlus, ImagePlus, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from "lucide-react";
 
 import "@livekit/components-styles";
 import { InlineBookingCard, type ConfirmedMeeting } from "./inline-booking-card";
@@ -58,6 +58,10 @@ export interface VoiceAgentProps {
   primaryColor?: string;
   /** Called after the embedded booking flow confirms a meeting. */
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
+  /** Session locale used by the configured STT/TTS model. */
+  language?: string;
+  /** Called when the visitor changes the session locale. */
+  onLanguageChange?: (language: string) => void;
 }
 
 export interface VoiceAgentHandle {
@@ -83,7 +87,7 @@ function Transcript({ messages }: { messages: ReceivedMessage[] }) {
   }
   return (
     <div className="chatty-sdk-voice-transcript" aria-live="polite" aria-label="Live voice transcript">
-      {messages.slice(-12).map((message) => (
+      {[...messages].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).slice(-12).map((message) => (
         <p key={message.id} className={message.from?.isLocal ? "is-user" : "is-agent"}>
           {message.message}
         </p>
@@ -124,7 +128,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   }, [session, props.onError]);
   const { state: agentState } = useAgent();
   const { localParticipant } = useLocalParticipant();
-  const { messages } = useSessionMessages(session);
+  const { messages, send: sendMessage, isSending } = useSessionMessages(session);
   const { audioTrack } = useVoiceAssistant();
   const { bars } = useAudioWaveform(audioTrack, { barCount: 20, updateInterval: 90, volMultiplier: 1.35 });
   const agentStateRef = useRef(agentState);
@@ -141,8 +145,22 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
+  const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const state = starting ? "connecting" : started ? agentState : "idle";
+  const visitorTranscript = [...messages].filter((message) => message.type === "userTranscript").map((message) => message.message.trim()).filter(Boolean).join(" ");
+  const visitorEmail = visitorTranscript.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.toLowerCase();
+  const visitorName = visitorTranscript.match(/(?:my\s+name\s+is|name\s+is|i\s+am)\s+([a-z][a-z' -]{1,80}?)(?=[.!?,]|$)/i)?.[1]?.trim();
+  const sendComposerMessage = async () => {
+    const message = draft.trim();
+    if ((!message && attachments.length === 0) || isSending) return;
+    const options: SendTextOptions | undefined = attachments.length ? { attachments } : undefined;
+    await sendMessage(message || "Please review the attached image.", options);
+    setDraft("");
+    setAttachments([]);
+  };
   useEffect(() => onStateChange?.(state), [onStateChange, state]);
   useEffect(() => onTranscript?.(messages), [messages, onTranscript]);
 
@@ -175,11 +193,17 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   // fallback for manually selecting a slot or completing email verification.
   useEffect(() => {
     if (showBooking === false || !messages.length) return;
-    const latestVisitorUtterance = [...messages].reverse().find((message) => message.type === "userTranscript")?.message ?? "";
-    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(latestVisitorUtterance)) {
+    const latest = [...messages].reverse().find((message) => message.type === "userTranscript")?.message?.trim() || "";
+    const declined = /^(?:no|no thanks|nah|not now|skip|cancel|never mind|nevermind)[.!]?$/i.test(latest)
+      || /\b(?:no|don't|do not|not)\b[\s\S]{0,45}\b(?:book|booking|meeting|appointment|schedule|calendar)\b/i.test(latest);
+    if (declined) {
+      setBookingOpen(false);
+      return;
+    }
+    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(visitorTranscript)) {
       setBookingOpen(true);
     }
-  }, [messages, showBooking]);
+  }, [messages, showBooking, visitorTranscript]);
 
   useImperativeHandle(apiRef, () => ({
     start: () => {
@@ -344,12 +368,13 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
           {props.onClose && <button type="button" className="chatty-sdk-voice-header-close" onClick={props.onClose} aria-label="Back to chat"><X size={17} /></button>}
           <div><h2>{props.title ?? "Voice agent"}</h2><span>{label}</span></div>
         </div>
-        <div className="chatty-sdk-voice-header-actions"><button type="button" className="chatty-sdk-voice-reset" onClick={() => void reset()} aria-label="Reset voice session" title="Reset voice session"><RotateCcw size={15} /></button><div className="chatty-sdk-voice-secure"><ShieldCheck size={14} /><span>Secure</span></div></div>
+        <div className="chatty-sdk-voice-header-actions"><label className="chatty-sdk-voice-language"><span className="sr-only">Voice language</span><select value={props.language ?? "en-US"} onChange={(event) => props.onLanguageChange?.(event.target.value)} aria-label="Voice language"><option value="en-US">🇺🇸 English (US)</option><option value="en-GB">🇬🇧 English (UK)</option><option value="es-ES">🇪🇸 Spanish</option><option value="fr-FR">🇫🇷 French</option><option value="de-DE">🇩🇪 German</option><option value="hi-IN">🇮🇳 Hindi</option><option value="ta">🇱🇰 Tamil</option><option value="si">🇱🇰 Sinhala</option><option value="ja-JP">🇯🇵 Japanese</option></select></label><button type="button" className="chatty-sdk-voice-reset" onClick={() => void reset()} aria-label="Reset voice session" title="Reset voice session"><RotateCcw size={15} /></button><div className="chatty-sdk-voice-secure"><ShieldCheck size={14} /><span>Secure</span></div></div>
       </header>
       {error && <div className="chatty-sdk-voice-error" role="alert"><span>{error}</span>{canRetry && <button type="button" className="chatty-sdk-voice-retry" onClick={retry}>Reconnect</button>}<button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div>}
       <div className="chatty-sdk-voice-content">
         {transcriptOpen ? <div className="chatty-sdk-voice-transcript-view"><div className="chatty-sdk-voice-section-heading"><strong>Live transcript</strong><span>Live</span></div><div className="chatty-sdk-voice-transcript-panel"><Transcript messages={messages} /></div></div> : <div className="chatty-sdk-voice-stage"><VoiceVisualizer state={agentState} bars={bars} visualizer={props.visualizer} /><strong>{agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : "Ready to talk"}</strong><span>{agentState === "speaking" ? "You can interrupt at any time" : agentState === "listening" ? "Listening for your question" : "Microphone is off"}</span><p>Say hello to start.</p></div>}
-        {bookingOpen && props.showBooking !== false && <div className="chatty-sdk-voice-booking-card"><div className="chatty-sdk-voice-booking-heading"><div><strong>Book a meeting</strong><span>Choose a slot or tell the agent what works.</span></div><button type="button" className="chatty-sdk-voice-booking-close" onClick={() => setBookingOpen(false)} aria-label="Close booking"><X size={15} /></button></div><InlineBookingCard botId={props.botId} sessionId={sessionId} primaryColor={props.primaryColor} backendUrl={bookingBackendUrl} initialMeeting={confirmedMeeting ?? undefined} onBookingSuccess={(meeting) => { setConfirmedMeeting(meeting); props.onBookingSuccess?.(meeting); }} /></div>}
+        {bookingOpen && props.showBooking !== false && <div className="chatty-sdk-voice-booking-card"><div className="chatty-sdk-voice-booking-heading"><div><strong>Book a meeting</strong><span>Choose a slot or tell the agent what works.</span></div><button type="button" className="chatty-sdk-voice-booking-close" onClick={() => setBookingOpen(false)} aria-label="Close booking"><X size={15} /></button></div><InlineBookingCard botId={props.botId} sessionId={sessionId} primaryColor={props.primaryColor} backendUrl={bookingBackendUrl} preferredText={visitorTranscript} initialName={visitorName} initialEmail={visitorEmail} initialMeeting={confirmedMeeting ?? undefined} onBookingSuccess={(meeting) => { setConfirmedMeeting(meeting); props.onBookingSuccess?.(meeting); }} /></div>}
+        {transcriptOpen && <form className="chatty-sdk-voice-composer" onSubmit={(event) => { event.preventDefault(); void sendComposerMessage(); }}><button type="button" className="chatty-sdk-voice-attach" onClick={() => attachmentInputRef.current?.click()} aria-label="Attach image" title="Attach image"><ImagePlus size={16} /></button><input ref={attachmentInputRef} type="file" accept="image/*" multiple className="chatty-sdk-voice-file-input" onChange={(event) => setAttachments(Array.from(event.target.files ?? []).slice(0, 4))} /><input className="chatty-sdk-voice-composer-input" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Type a correction or message…" aria-label="Type a voice agent message" disabled={isSending} /><button type="submit" className="chatty-sdk-voice-send" disabled={isSending || (!draft.trim() && attachments.length === 0)} aria-label="Send message" title="Send message"><Send size={16} /></button></form>}
         <div className="chatty-sdk-voice-call-control">
           {started ? <div className="chatty-sdk-voice-live-controls"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" className="chatty-sdk-voice-end" onClick={end} aria-label="End voice session"><PhoneOff size={19} /></button></div> : <button type="button" className="chatty-sdk-voice-start" onClick={start} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-sdk-voice-spinner" /> : <Phone size={22} />}</button>}
           {started && <span className="chatty-sdk-voice-level is-active" aria-hidden="true">{bars.slice(0, 8).map((bar, index) => <i key={index} style={{ height: `${Math.max(3, bar * 16)}px` }} />)}</span>}
@@ -367,6 +392,9 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
 export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function VoiceAgent(props, ref) {
   const backendUrl = props.backendUrl ?? DEFAULT_BACKEND_URL;
   const sessionId = props.sessionId ?? `voice-${props.botId}-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now()}`;
+  const [language, setLanguage] = useState(props.language ?? "en-US");
+  useEffect(() => { if (props.language) setLanguage(props.language); }, [props.language]);
+  const surfaceProps = useMemo(() => ({ ...props, language, onLanguageChange: (next: string) => { setLanguage(next); props.onLanguageChange?.(next); } }), [props, language]);
   const tokenSource = useMemo(() => TokenSource.custom(async (): Promise<TokenSourceResponseObject> => {
     const response = await fetch(`${backendUrl}/api/widget/voice/token`, {
       method: "POST",
@@ -383,13 +411,14 @@ export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function
         // from inheriting stale participant/thread state.
         room_nonce: createVoiceRoomNonce(),
         visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        voice_language: language,
       }),
       cache: "no-store",
     });
     if (!response.ok) throw new Error((await response.text()) || `Voice token failed (${response.status})`);
     const data = (await response.json()) as VoiceTokenResponse;
     return { serverUrl: data.serverUrl, participantToken: data.participantToken };
-  }), [backendUrl, props.botId, props.visitorToken, props.widgetToken, sessionId]);
+  }), [backendUrl, language, props.botId, props.visitorToken, props.widgetToken, sessionId]);
   const session = useSession(tokenSource);
-  return <SessionProvider session={session}><VoiceSurface props={props} apiRef={ref} sessionId={sessionId} /></SessionProvider>;
+  return <SessionProvider session={session}><VoiceSurface props={surfaceProps} apiRef={ref} sessionId={sessionId} /></SessionProvider>;
 });

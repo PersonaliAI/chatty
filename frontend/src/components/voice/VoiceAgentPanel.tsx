@@ -12,9 +12,10 @@ import {
   useSessionMessages,
   useVoiceAssistant,
   VoiceAssistantControlBar,
+  type ReceivedMessage,
 } from '@livekit/components-react';
-import { TokenSource, type TokenSourceResponseObject } from 'livekit-client';
-import { AlertCircle, CalendarPlus, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, ShieldCheck, X } from 'lucide-react';
+import { TokenSource, type SendTextOptions, type TokenSourceResponseObject } from 'livekit-client';
+import { AlertCircle, CalendarPlus, Check, ChevronDown, ImagePlus, Maximize2, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
 import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
 import { InlineBookingCard, type ConfirmedMeeting } from '@/components/inline-booking-card';
@@ -53,14 +54,67 @@ const voiceVisualizerColors = {
   bar: '#4CA3FA',
 } as const;
 
+type VoiceLanguageOption = { value: string; label: string; flag: string };
+
+// Keep this list aligned with the Voice Studio locale catalog. The selected
+// STT model narrows it at runtime so the browser cannot advertise a locale
+// the configured provider does not support.
+const VOICE_LANGUAGE_OPTIONS: VoiceLanguageOption[] = ([
+  ['en-US', 'English (US)', '🇺🇸'], ['en-GB', 'English (UK)', '🇬🇧'], ['en-AU', 'English (Australia)', '🇦🇺'],
+  ['en-IN', 'English (India)', '🇮🇳'], ['es-ES', 'Spanish (Spain)', '🇪🇸'], ['es-MX', 'Spanish (Mexico)', '🇲🇽'],
+  ['fr-FR', 'French', '🇫🇷'], ['de-DE', 'German', '🇩🇪'], ['it-IT', 'Italian', '🇮🇹'], ['pt-BR', 'Portuguese (Brazil)', '🇧🇷'],
+  ['nl-NL', 'Dutch', '🇳🇱'], ['pl-PL', 'Polish', '🇵🇱'], ['ru-RU', 'Russian', '🇷🇺'], ['uk-UA', 'Ukrainian', '🇺🇦'],
+  ['ar', 'Arabic', '🇸🇦'], ['hi-IN', 'Hindi', '🇮🇳'], ['bn', 'Bengali', '🇧🇩'], ['ta', 'Tamil', '🇱🇰'], ['si', 'Sinhala', '🇱🇰'],
+  ['te', 'Telugu', '🇮🇳'], ['ml', 'Malayalam', '🇮🇳'], ['ja-JP', 'Japanese', '🇯🇵'], ['ko-KR', 'Korean', '🇰🇷'],
+  ['zh-CN', 'Chinese (Mandarin)', '🇨🇳'], ['th-TH', 'Thai', '🇹🇭'], ['vi-VN', 'Vietnamese', '🇻🇳'], ['tr-TR', 'Turkish', '🇹🇷'],
+] as const).map(([value, label, flag]) => ({ value, label, flag }));
+
+const MODEL_LANGUAGE_LIMITS: Record<string, string[]> = {
+  'cartesia/ink-2': ['en'],
+  'deepgram/aura': ['en'],
+  'deepgram/aura-2': ['en'],
+  'google/gemini-3.5-transcribe-live': 'en es fr de it pt nl pl tr ru ar hi ja ko zh id th vi sv da no fi cs el he uk'.split(' '),
+};
+
+function languageOptionsForModel(model: string, current: string): VoiceLanguageOption[] {
+  const limits = MODEL_LANGUAGE_LIMITS[model];
+  if (!limits) return VOICE_LANGUAGE_OPTIONS;
+  const supported = new Set(limits);
+  const filtered = VOICE_LANGUAGE_OPTIONS.filter((option) => supported.has(option.value) || supported.has(option.value.split('-')[0]));
+  return filtered.some((option) => option.value === current)
+    ? filtered
+    : [{ value: current, label: current, flag: '🌐' }, ...filtered];
+}
+
+function extractVisitorName(text: string): string | undefined {
+  const match = text.match(/(?:my\s+name\s+is|name\s+is|i\s+am)\s+([a-z][a-z' -]{1,80}?)(?=[.!?,]|$)/i);
+  return match?.[1]?.trim().replace(/\s+/g, ' ') || undefined;
+}
+
+function extractVisitorEmail(text: string): string | undefined {
+  return text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]?.trim().toLowerCase();
+}
+
+function VoiceLanguageMenu({ language, options, onChange }: { language: string; options: VoiceLanguageOption[]; onChange: (language: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === language) ?? { value: language, label: language, flag: '🌐' };
+  return (
+    <div className="chatty-voice-language-wrap">
+      <button type="button" className="chatty-voice-language" aria-haspopup="listbox" aria-expanded={open} aria-label={`Voice language: ${selected.label}`} onClick={() => setOpen((value) => !value)}>
+        <span aria-hidden="true">{selected.flag}</span><span>{selected.label}</span><ChevronDown className="size-3.5" />
+      </button>
+      {open && <div className="chatty-voice-language-menu" role="listbox" aria-label="Voice language options">
+        {options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === language} className={option.value === language ? 'is-selected' : ''} onClick={() => { onChange(option.value); setOpen(false); }}><span aria-hidden="true">{option.flag}</span><span>{option.label}</span>{option.value === language && <Check className="size-3.5" />}</button>)}
+      </div>}
+    </div>
+  );
+}
+
 function createVoiceRoomNonce() {
   return globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function LiveKitTranscript() {
-  const session = useSessionContext();
-  const { messages } = useSessionMessages(session);
-  const { state } = useAgent();
+function LiveKitTranscript({ messages, state }: { messages: ReceivedMessage[]; state: ReturnType<typeof useAgent>['state'] }) {
 
   return messages.length === 0 ? (
     <div className="chatty-livekit-transcript flex h-full min-h-0 flex-1 items-center justify-center overflow-auto rounded-2xl border border-neutral-200 bg-white/80 p-4 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950/60" aria-live="polite">
@@ -107,7 +161,7 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
   );
 }
 
-function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
+function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageOptions, onLanguageChange, compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; language: string; languageOptions: VoiceLanguageOption[]; onLanguageChange: (language: string) => void; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
   const session = useSessionContext();
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -121,9 +175,11 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   const agentStateRef = useRef(state);
   const { audioTrack } = useVoiceAssistant();
   const { messages } = useSessionMessages(session);
-  const latestVisitorUtterance = [...messages]
-    .reverse()
-    .find((message) => message.type === 'userTranscript')?.message;
+  const orderedMessages = useMemo(() => [...messages].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)), [messages]);
+  const visitorTranscript = orderedMessages.filter((message) => message.type === 'userTranscript').map((message) => message.message.trim()).filter(Boolean).join(' ');
+  const latestVisitorUtterance = [...orderedMessages].reverse().find((message) => message.type === 'userTranscript')?.message;
+  const visitorName = extractVisitorName(visitorTranscript);
+  const visitorEmail = extractVisitorEmail(visitorTranscript);
   const [started, setStarted] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,12 +194,41 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
   const [canRetry, setCanRetry] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [confirmedMeeting, setConfirmedMeeting] = useState<ConfirmedMeeting | null>(null);
+  const [draft, setDraft] = useState('');
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+
+  const { send: sendMessage } = useSessionMessages(session);
+
+  const sendComposerMessage = async () => {
+    const message = draft.trim();
+    if ((!message && attachments.length === 0) || sending) return;
+    setSending(true);
+    try {
+      const options: SendTextOptions | undefined = attachments.length ? { attachments } : undefined;
+      await sendMessage(message || 'Please review the attached image.', options);
+      setDraft('');
+      setAttachments([]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to send the message.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   useEffect(() => {
-    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(latestVisitorUtterance ?? '')) {
+    const latest = (latestVisitorUtterance ?? '').trim();
+    const declined = /^(?:no|no thanks|nah|not now|skip|cancel|never mind|nevermind)[.!]?$/i.test(latest)
+      || /\b(?:no|don't|do not|not)\b[\s\S]{0,45}\b(?:book|booking|meeting|appointment|schedule|calendar)\b/i.test(latest);
+    if (declined) {
+      setBookingOpen(false);
+      return;
+    }
+    if (/\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|reschedule)\b/i.test(visitorTranscript)) {
       setBookingOpen(true);
     }
-  }, [latestVisitorUtterance]);
+  }, [latestVisitorUtterance, visitorTranscript]);
 
   const clearReconnectTimer = () => {
     if (reconnectTimerRef.current !== null) {
@@ -321,6 +406,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
           </div>
         </div>
         <div className="chatty-voice-header-actions">
+          <VoiceLanguageMenu language={language} options={languageOptions} onChange={onLanguageChange} />
           <button type="button" onClick={() => void resetSession()} className="chatty-voice-header-button" aria-label="Reset voice session" title="Reset voice session">
             <RotateCcw className="size-3.5" />
           </button>
@@ -332,9 +418,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
       {!widgetMode && <header className="chatty-voice-header chatty-voice-header-standalone">
         <div className="chatty-voice-header-main">
           {started && <div className="chatty-voice-state-icon"><MessageCircle className="size-4" aria-hidden="true" /></div>}
-          <button type="button" className="chatty-voice-language" aria-label="Voice language: English">
-            <span className="text-sm" aria-hidden="true">🇺🇸</span><span>English</span><ChevronDown className="size-3.5" />
-          </button>
+          <VoiceLanguageMenu language={language} options={languageOptions} onChange={onLanguageChange} />
         </div>
         <div className="chatty-voice-header-actions">
           <span className="chatty-voice-secure"><ShieldCheck className="size-3" /> Secure</span>
@@ -358,7 +442,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
               <span>Live</span>
             </div>
             <div className="chatty-transcript-frame">
-              <LiveKitTranscript />
+              <LiveKitTranscript messages={orderedMessages} state={state} />
             </div>
           </div>
         ) : (
@@ -378,12 +462,21 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
               botId={botId}
               sessionId={sessionId}
               backendUrl={backendUrl}
-              preferredText={latestVisitorUtterance}
+              preferredText={visitorTranscript}
+              initialName={visitorName}
+              initialEmail={visitorEmail}
               initialMeeting={confirmedMeeting ?? undefined}
               onBookingSuccess={setConfirmedMeeting}
             />
           </div>
         </div>}
+
+        {showTranscript && <form className="chatty-voice-composer lk-chat-form" onSubmit={(event) => { event.preventDefault(); void sendComposerMessage(); }}>
+          <button type="button" className="chatty-voice-attach lk-button" onClick={() => attachmentInputRef.current?.click()} aria-label="Attach image" title="Attach image"><ImagePlus className="size-4" /></button>
+          <input ref={attachmentInputRef} type="file" accept="image/*" multiple className="sr-only" onChange={(event) => setAttachments(Array.from(event.target.files ?? []).slice(0, 4))} />
+          <input className="chatty-voice-composer-input lk-form-control" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Type a correction or message…" aria-label="Type a voice agent message" disabled={sending} />
+          <button type="submit" className="chatty-voice-send lk-button" disabled={sending || (!draft.trim() && attachments.length === 0)} aria-label="Send message" title="Send message"><Send className="size-4" /></button>
+        </form>}
 
         <div className="chatty-voice-controls">
           {started ? <div className="chatty-livekit-controls" aria-label="Voice controls"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="chatty-voice-end" aria-label="End voice session"><PhoneOff className="size-4" /></button></div> : <button type="button" className="chatty-voice-start" onClick={requestStart} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-voice-spinner" /> : widgetMode ? <Mic className="size-5" /> : <Phone className="size-5" />}</button>}
@@ -410,6 +503,29 @@ export function VoiceAgentPanel({
   onClose,
   className = '',
 }: VoiceAgentPanelProps) {
+  const [language, setLanguage] = useState('en-US');
+  const [languageOptions, setLanguageOptions] = useState<VoiceLanguageOption[]>(VOICE_LANGUAGE_OPTIONS);
+
+  useEffect(() => {
+    let active = true;
+    void fetch(`${backendUrl}/api/widget/voice/config?bot_id=${encodeURIComponent(botId)}`, {
+      headers: widgetToken ? { 'x-widget-token': widgetToken } : undefined,
+      cache: 'no-store',
+    }).then(async (response) => {
+      if (!response.ok) return null;
+      return await response.json() as { stt_language?: string; stt_model?: string };
+    }).then((config) => {
+      if (!active || !config) return;
+      const nextLanguage = config.stt_language?.trim() || 'en-US';
+      setLanguage(nextLanguage);
+      setLanguageOptions(languageOptionsForModel(config.stt_model?.trim() || '', nextLanguage));
+    }).catch(() => {
+      // The token endpoint remains the source of truth if public config is
+      // unavailable; the UI keeps the safe English default.
+    });
+    return () => { active = false; };
+  }, [backendUrl, botId, widgetToken]);
+
   const tokenSource = useMemo(
     () =>
       TokenSource.custom(async (): Promise<TokenSourceResponseObject> => {
@@ -430,6 +546,7 @@ export function VoiceAgentPanel({
             session_id: sessionId,
             room_nonce: roomNonce,
             visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            voice_language: language,
           }),
           cache: 'no-store',
         });
@@ -437,7 +554,7 @@ export function VoiceAgentPanel({
         const data = (await response.json()) as VoiceTokenResponse;
         return { serverUrl: data.serverUrl, participantToken: data.participantToken };
       }),
-    [backendUrl, botId, sessionId, visitorToken, widgetToken],
+    [backendUrl, botId, language, sessionId, visitorToken, widgetToken],
   );
   const session = useSession(tokenSource);
   const panelRef = useRef<HTMLElement>(null);
@@ -449,7 +566,7 @@ export function VoiceAgentPanel({
   return (
     <section ref={panelRef} className={`flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} language={language} languageOptions={languageOptions} onLanguageChange={setLanguage} compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>
@@ -494,6 +611,11 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-secure { display: inline-flex; align-items: center; gap: 4px; color: #21845a; font-size: 10px; white-space: nowrap; }
     .chatty-voice-state-icon { display: grid !important; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--voice-accent); background: var(--voice-soft); }
     .chatty-voice-language { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--voice-border); border-radius: 8px; padding: 7px 9px; color: var(--voice-ink); background: #fff; font-size: 12px; cursor: pointer; }
+    .chatty-voice-language-wrap { position: relative; flex: none; }
+    .chatty-voice-language-menu { position: absolute; z-index: 20; top: calc(100% + 7px); left: 0; display: grid; min-width: 190px; max-height: min(280px, 50dvh); overflow-y: auto; gap: 2px; border: 1px solid var(--voice-border); border-radius: 12px; padding: 5px; background: #fff; box-shadow: 0 16px 36px rgba(31,41,51,.16); }
+    .chatty-voice-language-menu button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-radius: 8px; padding: 8px 9px; color: var(--voice-ink); background: transparent; font-size: 11px; text-align: left; cursor: pointer; }
+    .chatty-voice-language-menu button:hover, .chatty-voice-language-menu button.is-selected { background: var(--voice-soft); }
+    .chatty-voice-language-menu button svg { margin-left: auto; color: var(--voice-accent); }
     .chatty-voice-error { display: flex; align-items: center; gap: 8px; flex: none; margin: 10px 12px 0; border: 1px solid #efc7c7; border-radius: 8px; padding: 8px 9px; color: #9d3838; background: #fff8f8; font-size: 11px; line-height: 1.4; }
     .chatty-voice-error > svg { width: 15px; height: 15px; flex: none; }
     .chatty-voice-error > div { display: grid; min-width: 0; flex: 1; gap: 2px; }
@@ -558,6 +680,18 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-footer-actions button, .chatty-voice-mic-status { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 3px; color: inherit; background: transparent; white-space: nowrap; cursor: pointer; }
     .chatty-voice-footer-actions svg, .chatty-voice-interrupt svg { width: 14px; height: 14px; }
     .chatty-voice-footer-actions button:hover { color: var(--voice-ink); }
+    .chatty-voice-composer { display: flex; align-items: center; flex: none; width: 100%; gap: 6px; border: 1px solid var(--voice-border); border-radius: 12px; padding: 5px; background: #fff; }
+    .chatty-voice-composer-input { min-width: 0; flex: 1; border: 0; outline: 0; padding: 7px 6px; color: var(--voice-ink); background: transparent; font-size: 12px; }
+    .chatty-voice-composer-input::placeholder { color: #9aa4ab; }
+    .chatty-voice-attach, .chatty-voice-send { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 0; border-radius: 8px; color: var(--voice-muted); background: transparent; cursor: pointer; }
+    .chatty-voice-attach:hover { color: var(--voice-ink); background: var(--voice-soft); }
+    .chatty-voice-send { color: #fff; background: var(--voice-ink); }
+    .chatty-voice-send:hover { background: #34414b; }
+    .chatty-voice-send:disabled { opacity: .45; cursor: not-allowed; }
+    .chatty-livekit-transcript, .chatty-livekit-transcript * { scrollbar-width: thin; scrollbar-color: #cbd3d7 transparent; }
+    .chatty-livekit-transcript ::-webkit-scrollbar { width: 6px; height: 6px; }
+    .chatty-livekit-transcript ::-webkit-scrollbar-track { background: transparent; }
+    .chatty-livekit-transcript ::-webkit-scrollbar-thumb { border-radius: 999px; background: #cbd3d7; }
     .chatty-voice-interrupt { display: flex; align-items: center; justify-content: center; gap: 4px; flex: none; margin: 0; color: var(--voice-muted); font-size: 10px; text-align: center; }
     .chatty-voice-interrupt svg { color: #21845a; }
     .chatty-voice-consent { position: absolute; z-index: 5; inset: 0; display: grid; place-items: center; padding: 12px; background: rgba(255,255,255,.96); }

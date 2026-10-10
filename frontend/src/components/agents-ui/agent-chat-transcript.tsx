@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/message-scroller';
 import { AgentChatIndicator } from '@/components/agents-ui/agent-chat-indicator';
 
+type MessageWithAttachments = ReceivedMessage & { attachedFiles?: File[] };
+
 export interface AgentChatTranscriptProps
   extends ComponentProps<'div'>,
     ComponentProps<typeof MessageScrollerProvider>,
@@ -53,18 +55,23 @@ export function AgentChatTranscript({
       <MessageScroller className={className} {...props}>
         <MessageScrollerViewport preserveScrollOnPrepend={preserveScrollOnPrepend}>
           <MessageScrollerContent spacerClassName="min-h-2" aria-busy={agentState === 'thinking'}>
-            {messages.map((receivedMessage) => {
+            {[...messages].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).map((receivedMessage) => {
               const isUser = receivedMessage.from?.isLocal;
               const time = new Date(receivedMessage.timestamp);
               const locale = typeof navigator !== 'undefined' ? navigator.language : 'en-US';
               const title = time.toLocaleTimeString(locale, { timeStyle: 'short' });
               const isAnchor = scrollAnchor === 'any' || (scrollAnchor === 'user' && isUser) || (scrollAnchor === 'other' && !isUser);
               return (
-                <MessageScrollerItem key={receivedMessage.id} messageId={receivedMessage.id} scrollAnchor={isAnchor}>
+                <MessageScrollerItem key={`${receivedMessage.type}-${receivedMessage.id}`} messageId={`${receivedMessage.type}-${receivedMessage.id}`} scrollAnchor={isAnchor}>
                   <Message align={isUser ? 'end' : 'start'} title={title}>
                     <MessageContent>
                       <Bubble align={isUser ? 'end' : 'start'} variant={isUser ? 'secondary' : 'ghost'}>
-                        <BubbleContent><Streamdown>{receivedMessage.message}</Streamdown></BubbleContent>
+                        <BubbleContent>
+                          <Streamdown>{receivedMessage.message}</Streamdown>
+                          {(receivedMessage as MessageWithAttachments).attachedFiles?.filter((file) => file.type.startsWith('image/')).map((file) => (
+                            <img key={`${receivedMessage.id}-${file.name}`} src={URL.createObjectURL(file)} alt={file.name || 'Attached image'} className="mt-2 max-h-48 max-w-full rounded-lg object-contain" />
+                          ))}
+                        </BubbleContent>
                       </Bubble>
                     </MessageContent>
                   </Message>

@@ -53,9 +53,11 @@ def _bot_instructions(organization: OrganizationContext) -> str:
         "Lead capture is enabled. When a visitor shares contact details or expresses "
         f"clear interest, collect the required fields ({', '.join(map(str, required_fields))}) "
         f"and optional fields ({', '.join(map(str, lead_fields))}) one at a time as needed. "
-        "Read every collected value back to the visitor, ask them to confirm that the details "
-        "are correct, and wait for an explicit yes before calling create_lead. Never create or "
-        "update a lead from an unconfirmed transcription.\n"
+        "For names and email addresses, ask the visitor to type or spell the value letter by "
+        "letter when the transcription is uncertain. Treat an email as exact characters, not "
+        "a guessed name or domain. Read every collected value back slowly, ask them to confirm "
+        "that the details are correct, and wait for an explicit yes before calling create_lead. "
+        "Never create or update a lead from an unconfirmed transcription.\n"
         if lead_enabled
         else "Lead capture is disabled for this bot; do not proactively request or record lead details.\n"
     )

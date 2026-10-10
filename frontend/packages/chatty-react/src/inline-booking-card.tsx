@@ -95,6 +95,7 @@ export interface InlineBookingCardProps {
   initialEmail?: string;
   initialPhone?: string;
   initialCompany?: string;
+  preferredText?: string;
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   onMeetingRescheduled?: (meeting: ConfirmedMeeting) => void;
   onMeetingCancelled?: () => void;
@@ -220,6 +221,39 @@ function formatSlotTime(slot: TimeSlot, timeZone: string): string {
   }
 }
 
+function detectPreferredSlot(text: string | undefined, dates: string[], slotsByDate: Record<string, TimeSlot[]>, timeZone: string): { date: string; slot: TimeSlot } | null {
+  if (!text || !dates.length) return null;
+  const lower = text.toLowerCase();
+  const today = getDateKeyInTimezone(new Date(), timeZone);
+  const tomorrow = addDaysToDateKey(today, 1);
+  let targetDate = lower.includes("tomorrow") ? tomorrow : lower.includes("today") ? today : "";
+  if (!targetDate) {
+    const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const index = weekdays.findIndex((day) => lower.includes(day));
+    if (index >= 0) targetDate = dates.find((date) => new Date(`${date}T12:00:00Z`).getUTCDay() === index) || "";
+  }
+  targetDate = dates.includes(targetDate) ? targetDate : dates[0];
+  const slots = slotsByDate[targetDate] || [];
+  if (!slots.length) return null;
+  const match = lower.match(/\b([0-1]?[0-9]|2[0-3])(?::([0-5][0-9]))?\s*(am|pm)?\b/i);
+  if (!match) return lower.includes("today") || lower.includes("tomorrow") ? { date: targetDate, slot: slots[0] } : null;
+  let hour = Number(match[1]);
+  const minute = Number(match[2] || 0);
+  const meridian = match[3]?.toLowerCase();
+  if (meridian === "pm" && hour < 12) hour += 12;
+  if (meridian === "am" && hour === 12) hour = 0;
+  if (!meridian && hour >= 1 && hour <= 6) hour += 12;
+  let best: TimeSlot | null = null;
+  let bestDiff = Infinity;
+  for (const slot of slots) {
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(slot.start));
+    const slotMinutes = Number(parts.find((part) => part.type === "hour")?.value || 0) * 60 + Number(parts.find((part) => part.type === "minute")?.value || 0);
+    const diff = Math.abs(slotMinutes - (hour * 60 + minute));
+    if (diff < bestDiff && diff <= 120) { bestDiff = diff; best = slot; }
+  }
+  return best ? { date: targetDate, slot: best } : null;
+}
+
 export function InlineBookingCard({
   botId,
   sessionId,
@@ -232,6 +266,7 @@ export function InlineBookingCard({
   initialEmail,
   initialPhone,
   initialCompany,
+  preferredText,
   onBookingSuccess,
   onMeetingRescheduled,
   onMeetingCancelled,
@@ -344,6 +379,7 @@ export function InlineBookingCard({
   );
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const autoSelectedTextRef = useRef("");
 
   // Form inputs
   const [name, setName] = useState(initialName || "");
@@ -417,7 +453,14 @@ export function InlineBookingCard({
         if (data.prefilled_lead.company) setCompany((prev) => prev || data.prefilled_lead!.company || "");
       }
       if (data.available_dates && data.available_dates.length > 0) {
-        setSelectedDate(data.available_dates[0]);
+        const autoMatch = detectPreferredSlot(preferredText, data.available_dates, data.slots_by_date, tz);
+        if (autoMatch) {
+          setSelectedDate(autoMatch.date);
+          setSelectedSlot(autoMatch.slot);
+          autoSelectedTextRef.current = preferredText || "";
+        } else {
+          setSelectedDate(data.available_dates[0]);
+        }
       }
     } catch (err: any) {
       setError(err?.message || "Failed to load scheduling calendar");
@@ -432,6 +475,16 @@ export function InlineBookingCard({
       fetchSlots(activeTimezone);
     }
   }, [botId, activeTimezone]);
+
+  useEffect(() => {
+    if (!slotsData || !preferredText || preferredText === autoSelectedTextRef.current || selectedSlot) return;
+    const autoMatch = detectPreferredSlot(preferredText, slotsData.available_dates, slotsData.slots_by_date, activeTimezone);
+    if (autoMatch) {
+      setSelectedDate(autoMatch.date);
+      setSelectedSlot(autoMatch.slot);
+      autoSelectedTextRef.current = preferredText;
+    }
+  }, [preferredText, slotsData, activeTimezone, selectedSlot]);
 
   const selectTimezone = (tzId: string) => {
     setActiveTimezone(tzId);
