@@ -2735,7 +2735,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             sessionId={sessionId}
             widgetToken={originToken || undefined}
             visitorToken={identity.value?.visitor_token}
-            widgetMode
+            /* Use the same voice surface as the landing-page CTA. The
+             * embed container still controls the available widget size. */
+            widgetMode={false}
             visualizer={voiceVisualizer}
             className="chatty-sdk-voice-widget"
             onClose={() => setVoiceAgentOpen(false)}

@@ -2713,7 +2713,10 @@ function IdentifiedChatWidget({
             widgetToken={originToken || undefined}
             visitorToken={identity.value?.visitor_token}
             visualizer={voiceVisualizer}
-            widgetMode
+            /* Keep the widget on the same voice surface as the landing CTA.
+             * The surrounding chat shell still supplies the widget's own
+             * width and height; only the voice presentation is shared. */
+            widgetMode={false}
             className="chatty-sdk-voice-widget"
             onClose={() => setVoiceAgentOpen(false)}
           />
