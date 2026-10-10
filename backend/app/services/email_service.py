@@ -259,11 +259,11 @@ async def send_ticket_reply_email(
                 resp = await client.post(_RESEND_URL, json=payload, headers=headers)
                 if resp.status_code < 300:
                     data = resp.json()
-                    logger.info("Outbound ticket reply sent via Resend for session %s, ID: %s", session_id, data.get("id"))
+                    logger.info("Outbound ticket reply sent via Resend")
                     return {"sent": True, "provider": "resend", "id": data.get("id")}
-                logger.warning("Resend reply failed (%d): %s", resp.status_code, resp.text[:300])
-        except Exception as e:
-            logger.exception("Error sending ticket reply via Resend: %s", e)
+                logger.warning("Resend reply failed")
+        except Exception:
+            logger.exception("Error sending ticket reply via Resend")
 
     # 2. Try OneSignal Email Fallback
     if ONESIGNAL_APP_ID and ONESIGNAL_REST_API_KEY:
@@ -286,11 +286,11 @@ async def send_ticket_reply_email(
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(_ONESIGNAL_URL, json=os_payload, headers=os_headers)
                 if resp.status_code < 300:
-                    logger.info("Outbound ticket reply sent via OneSignal for session %s", session_id)
+                    logger.info("Outbound ticket reply sent via OneSignal")
                     return {"sent": True, "provider": "onesignal"}
-                logger.warning("OneSignal email failed (%d): %s", resp.status_code, resp.text[:300])
-        except Exception as e:
-            logger.exception("Error sending ticket reply via OneSignal: %s", e)
+                logger.warning("OneSignal email failed")
+        except Exception:
+            logger.exception("Error sending ticket reply via OneSignal")
 
-    logger.warning("No email provider configured or delivery failed for ticket reply %s", session_id)
+    logger.warning("No email provider configured or delivery failed for ticket reply")
     return {"sent": False, "reason": "no_email_provider_configured"}

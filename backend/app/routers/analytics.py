@@ -100,7 +100,7 @@ async def _ai_usage_rows(bot_id: str, from_iso: str, to_iso: str, columns: str) 
             .execute())
         return res.data or []
     except Exception:  # noqa: BLE001
-        logger.warning("AI provider telemetry is unavailable for bot %s", bot_id, exc_info=True)
+        logger.warning("AI provider telemetry is unavailable", exc_info=True)
         return []
 
 

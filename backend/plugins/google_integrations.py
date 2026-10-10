@@ -1016,7 +1016,7 @@ def _with_explicit_offset(naive_str: str, tz_name: Optional[str]) -> str:
         localized = tz.localize(naive_dt)
         return localized.isoformat()
     except Exception:
-        logger.exception("Failed to localize %r to %r; sending as-is", naive_str, tz_name)
+        logger.exception("Failed to localize calendar time; sending as-is")
         return naive_str
 
 

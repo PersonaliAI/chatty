@@ -141,7 +141,7 @@ async def _write_admin_audit_log(bot_id: str, action: str, details: str, user: d
             "performed_by": _actor_email(user),
         }).execute())
     except Exception:
-        logger.warning("Failed to write admin audit log for %s/%s", bot_id, action, exc_info=True)
+        logger.warning("Failed to write admin audit log", exc_info=True)
 
 
 async def _verify_inbox_access(bot_id: str, user: dict[str, Any]) -> str:
@@ -1771,15 +1771,15 @@ async def admin_dispatch_routing_queue(bot_id: str, user: dict[str, Any] = Depen
             "blocked_reasons": reason_counts,
             "routing_reason": routing_reason,
         }
-    except Exception as e:
-        logger.warning("Failed to dispatch routing queue: %s", e)
+    except Exception:
+        logger.warning("Failed to dispatch routing queue", exc_info=True)
         return {
             "unassigned_found": 0,
             "dispatched_count": 0,
             "results": [],
             "blocked_reasons": {},
             "routing_reason": "error",
-            "error": str(e)
+            "error": "routing dispatch unavailable"
         }
 
 

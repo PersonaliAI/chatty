@@ -93,12 +93,12 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
         "id,user_id,payout_email,commission_rate_bps,payout_hold_days,status"
     ).eq("referral_code", referral_code).limit(1).execute())
     if not affiliate_res.data:
-        logger.info("Affiliate code %s was not found for Lemon event %s", referral_code, event_id)
+        logger.info("Affiliate conversion skipped: referral code was not found")
         return
 
     affiliate = affiliate_res.data[0]
     if affiliate.get("status") != "active":
-        logger.info("Affiliate code %s is not active; skipping commission for %s", referral_code, event_id)
+        logger.info("Affiliate conversion skipped: referral code is inactive")
         return
 
     # 1. Multi-factor Anti-Self-Referral Checks
@@ -120,7 +120,7 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
             pass
 
     if is_self_referral:
-        logger.warning("Blocked self-referral attempt by affiliate %s on user %s", affiliate["id"], user_id)
+        logger.warning("Blocked self-referral attempt")
         await run_db(lambda: supabase.table("affiliate_fraud_flags").insert({
             "affiliate_id": affiliate["id"],
             "referred_user_id": user_id,
@@ -138,7 +138,7 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
             try:
                 conv_dt = datetime.fromisoformat(first_conv.replace("Z", "+00:00"))
                 if (datetime.now(timezone.utc) - conv_dt).days > 365:
-                    logger.info("Affiliate recurring window expired (>365 days) for user %s on event %s", user_id, event_id)
+                    logger.info("Affiliate recurring window expired (>365 days)")
                     return
             except Exception:
                 pass
@@ -217,7 +217,7 @@ async def _handle_affiliate_refund(data: dict, event_id: str) -> None:
                     .eq("id", comm["referral_id"])
                     .execute()
                 )
-            logger.info("Voided commission %s due to order %s refund", comm["id"], order_id)
+        logger.info("Voided commission due to order refund")
 
 
 async def _handle_affiliate_subscription_ended(user_id: str, event_name: str) -> None:
@@ -357,16 +357,16 @@ async def _claim_whatsapp_message(bot_id: str, message_id: str | None) -> bool:
         }).execute())
         if getattr(res, "data", None):
             return True
-        logger.info("Skipping duplicate WhatsApp message %s", message_id)
+        logger.info("Skipping duplicate WhatsApp message")
         return False
     except Exception as exc:
         # PostgREST reports the unique conflict as an error. We distinguish it
         # from a missing table so a bad migration cannot silently drop leads.
         text = str(exc).lower()
         if "duplicate" in text or "unique" in text or "23505" in text:
-            logger.info("Skipping duplicate WhatsApp message %s", message_id)
+            logger.info("Skipping duplicate WhatsApp message")
             return False
-        logger.warning("WhatsApp idempotency store unavailable: %s", exc)
+        logger.warning("WhatsApp idempotency store unavailable", exc_info=True)
         return True
 
 
@@ -431,30 +431,30 @@ async def _download_whatsapp_media(media_id: str, access_token: str, media_kind:
         async with httpx.AsyncClient(timeout=25) as client:
             res = await ssrf.request_async(client, "GET", meta_url, headers=headers)
             if res.status_code != 200:
-                logger.error("Failed to query WhatsApp media %s: %s", media_id, res.text)
+                logger.error("Failed to query WhatsApp media")
                 return None, None
             media_data = res.json()
             download_url = media_data.get("url")
             mime_type = (media_data.get("mime_type") or "").split(";")[0].lower().strip()
             if not download_url or not any(mime_type.startswith(prefix) for prefix in allowed_prefixes):
-                logger.warning("Rejected WhatsApp media %s with unsupported type %s", media_id, mime_type)
+                logger.warning("Rejected WhatsApp media with unsupported type")
                 return None, None
             try:
                 if media_data.get("file_size") is not None and int(media_data["file_size"]) > max_bytes:
-                    logger.warning("Rejected oversized WhatsApp media %s", media_id)
+                    logger.warning("Rejected oversized WhatsApp media")
                     return None, None
             except (TypeError, ValueError):
                 pass
             if not _is_allowed_whatsapp_media_url(download_url):
-                logger.warning("Rejected WhatsApp media %s from untrusted host", media_id)
+                logger.warning("Rejected WhatsApp media from untrusted host")
                 return None, None
             async with ssrf.stream_async(client, "GET", download_url, headers=headers) as dl_res:
                 if dl_res.status_code != 200:
-                    logger.error("Failed to download WhatsApp media binary %s: %s", media_id, dl_res.status_code)
+                    logger.error("Failed to download WhatsApp media binary")
                     return None, None
                 try:
                     if dl_res.headers.get("content-length") is not None and int(dl_res.headers["content-length"]) > max_bytes:
-                        logger.warning("Rejected oversized WhatsApp media response %s", media_id)
+                        logger.warning("Rejected oversized WhatsApp media response")
                         return None, None
                 except (TypeError, ValueError):
                     pass
@@ -463,20 +463,20 @@ async def _download_whatsapp_media(media_id: str, access_token: str, media_kind:
                 async for chunk in dl_res.aiter_bytes():
                     total += len(chunk)
                     if total > max_bytes:
-                        logger.warning("Rejected WhatsApp media exceeding byte cap %s", media_id)
+                        logger.warning("Rejected WhatsApp media exceeding byte cap")
                         return None, None
                     chunks.append(chunk)
                 data = b"".join(chunks)
                 response_mime = (dl_res.headers.get("content-type") or "").split(";")[0].lower().strip()
                 if response_mime and response_mime != "application/octet-stream" and response_mime != mime_type:
-                    logger.warning("Rejected WhatsApp media %s due to MIME mismatch", media_id)
+                    logger.warning("Rejected WhatsApp media due to MIME mismatch")
                     return None, None
                 if not _media_signature_matches(data, mime_type):
-                    logger.warning("Rejected WhatsApp media %s due to content signature mismatch", media_id)
+                    logger.warning("Rejected WhatsApp media due to content signature mismatch")
                     return None, None
                 return data, mime_type
     except Exception:
-        logger.exception("Exception downloading WhatsApp media %s", media_id)
+        logger.exception("Exception downloading WhatsApp media")
         return None, None
 
 
@@ -528,16 +528,12 @@ async def _send_whatsapp(
     )
 
 
-_PRODUCT_CARD_RE = re.compile(r"\[PRODUCT_CARD:(\{.*?\})\]", re.DOTALL)
+_PRODUCT_CARD_MARKER = "[PRODUCT_CARD:"
 
 
 def _render_whatsapp_product_cards(reply: str) -> str:
     """Turn structured product cards into useful WhatsApp text messages."""
-    def replace(match: re.Match[str]) -> str:
-        try:
-            card = json.loads(match.group(1))
-        except (TypeError, json.JSONDecodeError):
-            return ""
+    def render_card(card: object) -> str:
         if not isinstance(card, dict) or not str(card.get("title") or "").strip():
             return ""
 
@@ -562,8 +558,31 @@ def _render_whatsapp_product_cards(reply: str) -> str:
             lines.append(f"🔗 {url}")
         return "\n".join(lines)
 
-    rendered = _PRODUCT_CARD_RE.sub(replace, reply or "")
-    return rendered.strip()
+    source = reply or ""
+    rendered: list[str] = []
+    cursor = 0
+    decoder = json.JSONDecoder()
+    while True:
+        marker_start = source.find(_PRODUCT_CARD_MARKER, cursor)
+        if marker_start < 0:
+            rendered.append(source[cursor:])
+            break
+        rendered.append(source[cursor:marker_start])
+        json_start = marker_start + len(_PRODUCT_CARD_MARKER)
+        try:
+            card, consumed = decoder.raw_decode(source[json_start:])
+        except (TypeError, json.JSONDecodeError):
+            rendered.append(_PRODUCT_CARD_MARKER)
+            cursor = json_start
+            continue
+        closing_index = json_start + consumed
+        if closing_index >= len(source) or source[closing_index] != "]":
+            rendered.append(_PRODUCT_CARD_MARKER)
+            cursor = json_start
+            continue
+        rendered.append(render_card(card))
+        cursor = closing_index + 1
+    return "".join(rendered).strip()
 
 
 async def _handle_whatsapp_message(
@@ -796,7 +815,7 @@ async def whatsapp_receive(request: Request):
                 .limit(1)
                 .execute())
             if not res.data:
-                logger.debug("No bot linked to WhatsApp phone_number_id %s", pnid)
+                logger.debug("No bot linked to WhatsApp phone number")
                 continue
 
             bot = res.data[0]
@@ -885,7 +904,7 @@ async def webhook_lemonsqueezy(request: Request):
     variant_id = str(attributes.get("variant_id", ""))
     plan_name = LEMON_VARIANT_TO_PLAN.get(variant_id, "hobby")
 
-    logger.info("Lemon Squeezy webhook event %s for user %s, variant %s -> plan %s", event_name, user_id, variant_id, plan_name)
+    logger.info("Lemon Squeezy webhook event received")
 
 
     try:
@@ -896,7 +915,7 @@ async def webhook_lemonsqueezy(request: Request):
             "processed_at": datetime.now(timezone.utc).isoformat()
         }, on_conflict="event_id").execute())
     except Exception:
-        logger.exception("Failed to record Lemon Squeezy event %s", event_id)
+        logger.exception("Failed to record Lemon Squeezy event")
 
     if user_id and event_name in ("order_created", "subscription_created", "subscription_updated"):
         try:
@@ -906,26 +925,26 @@ async def webhook_lemonsqueezy(request: Request):
                 "variant_id": variant_id,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }).execute())
-        except Exception as e:
-            logger.exception("Failed to record subscription update: %s", e)
+        except Exception:
+            logger.exception("Failed to record subscription update")
 
     if user_id and event_name in ("order_created", "subscription_created", "subscription_payment_success"):
         try:
             await _record_affiliate_conversion(data, event_name, user_id, event_id)
-        except Exception as e:
-            logger.exception("Failed to record affiliate conversion for event %s: %s", event_id, e)
+        except Exception:
+            logger.exception("Failed to record affiliate conversion")
 
     if event_name == "order_refunded":
         try:
             await _handle_affiliate_refund(data, event_id)
-        except Exception as e:
-            logger.exception("Failed to process affiliate refund for event %s: %s", event_id, e)
+        except Exception:
+            logger.exception("Failed to process affiliate refund")
 
     if user_id and event_name in ("subscription_cancelled", "subscription_expired"):
         try:
             await _handle_affiliate_subscription_ended(user_id, event_name)
-        except Exception as e:
-            logger.exception("Failed to update affiliate subscription state for %s: %s", user_id, e)
+        except Exception:
+            logger.exception("Failed to update affiliate subscription state")
 
     return {"status": "success"}
 
@@ -1010,7 +1029,7 @@ async def resend_inbound(request: Request):
 
     res_meet = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute())
     if not res_meet.data:
-        logger.warning("resend_inbound: no meeting found for id %s", meeting_id)
+        logger.warning("resend_inbound: no meeting found")
         return {"ok": True, "matched": False}
     meeting = res_meet.data[0]
 
@@ -1025,7 +1044,7 @@ async def resend_inbound(request: Request):
             "subject": subject, "body_text": body_text,
         }).execute())
     except Exception:
-        logger.exception("Failed to record inbound meeting reply for meeting %s", meeting_id)
+        logger.exception("Failed to record inbound meeting reply")
         raise HTTPException(status_code=500, detail="Failed to record message")
 
     # Auto-reply using the same scheduling tools the widget uses (real

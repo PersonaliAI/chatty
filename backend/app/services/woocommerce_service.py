@@ -20,6 +20,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from typing import Any, Optional
 
 import httpx
@@ -44,11 +45,31 @@ def _protect(value: str) -> str:
     return encrypt_secret(value) if value else value
 
 
+class _HTMLTextExtractor(HTMLParser):
+    """Extract text without a backtracking regex over untrusted HTML."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+    def handle_entityref(self, name: str) -> None:
+        self.parts.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        self.parts.append(f"&#{name};")
+
+
 def _clean_html(raw_html: Optional[str]) -> str:
     """Strip HTML tags and unescape entities for clean AI text indexing."""
     if not raw_html:
         return ""
-    text = re.sub(r"<[^>]+>", " ", raw_html)
+    parser = _HTMLTextExtractor()
+    parser.feed(raw_html)
+    parser.close()
+    text = " ".join(parser.parts)
     text = html.unescape(text)
     return " ".join(text.split())
 
@@ -213,7 +234,7 @@ async def refresh_live_product_facts(
     consumer_secret = str(integration.get("consumer_secret") or "").strip()
     parsed_store = httpx.URL(store_url)
     if parsed_store.scheme != "https" or not parsed_store.host or not consumer_key or not consumer_secret:
-        logger.warning("Skipping live WooCommerce refresh for bot %s: incomplete secure integration", bot_id)
+        logger.warning("Skipping live WooCommerce refresh: incomplete secure integration")
         for item, _ in woo_items:
             item["metadata"] = {**(item.get("metadata") or {}), "live_check_status": "unavailable"}
         return items
@@ -554,8 +575,8 @@ async def _update_sync_progress(
             .eq("bot_id", bot_id)
             .execute()
         )
-    except Exception as exc:
-        logger.warning("Failed to update sync progress for bot %s: %s", bot_id, exc)
+    except Exception:
+        logger.warning("Failed to update WooCommerce sync progress", exc_info=True)
 
 
 async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
@@ -809,8 +830,8 @@ async def process_webhook_payload(
                 .eq("bot_id", bot_id)
                 .execute()
             )
-        except Exception as exc:
-            logger.warning("Failed to record WooCommerce freshness for bot %s: %s", bot_id, exc)
+        except Exception:
+            logger.warning("Failed to record WooCommerce freshness", exc_info=True)
 
     if "deleted" in topic_lower:
         # Delete from chatty_media_items
@@ -821,7 +842,7 @@ async def process_webhook_payload(
             .contains("metadata", {"woocommerce_id": wc_id})
             .execute()
         )
-        logger.info("WooCommerce webhook deleted product %s (count: %d)", wc_id, len(res.data or []))
+        logger.info("WooCommerce webhook deleted product")
         await record_freshness()
         return {"event": "deleted", "id": wc_id}
 
@@ -883,7 +904,7 @@ async def process_webhook_payload(
                 .eq("id", item_id)
                 .execute()
             )
-            logger.info("WooCommerce webhook updated product %s (%s)", wc_id, mapped["title"])
+            logger.info("WooCommerce webhook updated product")
             await record_freshness()
             return {"event": "updated", "id": wc_id}
         else:
@@ -902,7 +923,7 @@ async def process_webhook_payload(
                 source_updated_at=mapped.get("source_updated_at"),
                 catalog_version=mapped.get("catalog_version"),
             )
-            logger.info("WooCommerce webhook created product %s (%s)", wc_id, mapped["title"])
+            logger.info("WooCommerce webhook created product")
             await record_freshness()
             return {"event": "created", "id": wc_id}
 

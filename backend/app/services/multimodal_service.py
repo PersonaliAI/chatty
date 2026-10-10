@@ -257,8 +257,8 @@ async def embed_catalog_images(
                 )
                 if vector:
                     vectors.append(vector)
-            except Exception as exc:
-                logger.info("Catalog image embedding unavailable for %s: %s", url, exc)
+            except Exception:
+                logger.info("Catalog image embedding unavailable", exc_info=True)
     if not vectors:
         return []
     mean = [sum(vector[index] for vector in vectors) / len(vectors) for index in range(len(vectors[0]))]

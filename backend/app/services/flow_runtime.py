@@ -363,7 +363,7 @@ async def enqueue_flow_event(
             else:
                 await execute_flow_job(supabase, payload)
     except Exception:
-        logger.exception("published flow event handoff failed bot=%s event=%s", bot_id, event)
+        logger.exception("Published flow event handoff failed")
 
 
 async def execute_flow_job(supabase, payload: dict[str, Any]) -> None:

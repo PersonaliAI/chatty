@@ -59,7 +59,7 @@ async def _start_woocommerce_sync(bot_id: str) -> str:
             )
             return "queued"
         except Exception:
-            logger.exception("WooCommerce sync queue publish failed for bot %s", bot_id)
+            logger.exception("WooCommerce sync queue publish failed")
             raise HTTPException(
                 status_code=503,
                 detail="WooCommerce sync queue is temporarily unavailable; please retry",
@@ -137,7 +137,7 @@ def _verify_auth_state(state: str, max_age_seconds: int = 3600) -> tuple[Optiona
         if not bot_id or not store_url:
             return None, None
         if time.time() - ts > max_age_seconds:
-            logger.warning("WooCommerce auth state expired for bot %s", bot_id)
+            logger.warning("WooCommerce auth state expired")
             return None, None
         return str(bot_id), str(store_url)
     except Exception:
@@ -315,14 +315,14 @@ async def receive_woocommerce_webhook(
     integration = await woocommerce_service.get_integration(bot_id)
 
     if not integration:
-        logger.warning("Received webhook for unknown bot %s", bot_id)
+        logger.warning("Received webhook for unknown bot")
         raise HTTPException(status_code=404, detail="Integration not found")
 
     secret = integration.get("webhook_secret") or ""
     # WooCommerce must sign every event. Accepting unsigned requests would let
     # anyone create, mutate, or delete a tenant's catalog records.
     if not x_wc_webhook_signature:
-        logger.warning("Missing WooCommerce webhook signature for bot %s", bot_id)
+        logger.warning("Missing WooCommerce webhook signature")
         raise HTTPException(status_code=401, detail="Missing webhook signature")
     is_valid = woocommerce_service.verify_webhook_signature(
         secret=secret,
@@ -330,7 +330,7 @@ async def receive_woocommerce_webhook(
         header_signature=x_wc_webhook_signature,
     )
     if not is_valid:
-        logger.warning("Invalid webhook signature for bot %s", bot_id)
+        logger.warning("Invalid WooCommerce webhook signature")
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     topic = x_wc_webhook_topic or "product.updated"
@@ -421,7 +421,7 @@ async def receive_woocommerce_auth_callback(
 
     bot_id, store_url = _verify_auth_state(user_id)
     if not bot_id or not store_url:
-        logger.warning("WooCommerce auth callback invalid or expired state token: %s", user_id[:25] if user_id else "")
+        logger.warning("WooCommerce auth callback invalid or expired state token")
         raise HTTPException(status_code=400, detail="Invalid or expired authorization state")
     parsed_store_url = urllib.parse.urlparse(store_url)
     if parsed_store_url.scheme != "https" or not parsed_store_url.netloc:
@@ -438,7 +438,7 @@ async def receive_woocommerce_auth_callback(
         .execute()
     )
     if not bot_res.data:
-        logger.warning("WooCommerce auth callback for non-existent bot %s", bot_id)
+        logger.warning("WooCommerce auth callback for non-existent bot")
         raise HTTPException(status_code=404, detail="Bot not found")
 
     # Save credentials into database
@@ -452,7 +452,7 @@ async def receive_woocommerce_auth_callback(
     # Automatically trigger initial product sync. Production deployments route
     # this through Redis so a Cloud Run restart cannot abandon the import.
     await _start_woocommerce_sync(bot_id)
-    logger.info("WooCommerce 1-click authorization completed successfully for bot %s on store %s", bot_id, store_url)
+    logger.info("WooCommerce 1-click authorization completed successfully")
 
     return {
         "status": "ok",

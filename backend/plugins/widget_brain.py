@@ -351,7 +351,7 @@ async def run_widget_assistant(
                 if stt_resp and stt_resp.choices:
                     transcribed_voice = (stt_resp.choices[0].message.content or "").strip()
             except Exception:
-                logger.warning("Voice auto-transcription failed for bot %s", bot_id, exc_info=True)
+                logger.warning("Voice auto-transcription failed", exc_info=True)
 
             if transcribed_voice:
                 if not text.strip():
@@ -1026,19 +1026,15 @@ async def run_widget_assistant(
                 from app.services import multimodal_service as _multimodal_service
                 clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items, query_text=text)
                 return {"reply": clean_reply, "thinking": "", "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
-            logger.warning("BYOK provider %s returned an empty reply for bot %s - falling back to Gemini", byok_provider, bot_id)
-        except Exception as exc:
+            logger.warning("BYOK provider returned an empty reply; falling back to Gemini")
+        except Exception:
             # api_key is a customer's own third-party LLM credential - some
             # provider SDKs (including litellm, depending on version/error
             # type) echo request details, including auth headers, into their
             # exception message on an auth failure. logger.exception() logs
             # the full exception text, so scrub the key out of it first
             # rather than trusting the SDK never reflects it back.
-            safe_msg = str(exc).replace(api_key, "[REDACTED]") if api_key else str(exc)
-            logger.error(
-                "BYOK generation failed for bot %s - falling back to Gemini: %s",
-                bot_id, safe_msg, exc_info=False,
-            )
+            logger.error("BYOK generation failed; falling back to Gemini", exc_info=True)
 
     # 5. Build Tools list
     allowed_tool_names = scheduling_tool_names(bot, owner_user)

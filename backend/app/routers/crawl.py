@@ -177,7 +177,7 @@ async def crawl_pages(
                     }).execute())
                 return {"url": u, "ok": True, "chars": len(content)}
             except Exception as exc:
-                logger.exception("crawl page failed: %s", u)
+                logger.exception("Crawl page failed")
                 return {"url": u, "ok": False, "error": str(exc)[:120]}
 
     results = await asyncio.gather(*[crawl_one(u) for u in urls])

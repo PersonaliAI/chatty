@@ -249,13 +249,7 @@ async def _schedule_widget_webhook(
         )
         return "queued"
     except Exception:
-        logger.exception(
-            "Widget webhook queue unavailable; using best-effort background delivery "
-            "bot=%s event=%s session=%s",
-            bot_id,
-            event,
-            session_id,
-        )
+        logger.exception("Widget webhook queue unavailable; using best-effort background delivery")
         background_tasks.add_task(
             notify.enqueue_webhook_event, supabase, bot_id=bot_id, event=event,
             session_id=session_id, data=data,
@@ -327,30 +321,18 @@ async def widget_campaigns(
     except Exception as exc:
         if _campaign_projection_is_legacy_error(exc):
             logger.warning(
-                "Widget campaign intelligence columns are unavailable; "
-                "using legacy projection bot=%s code=%s",
-                bot_id,
-                getattr(exc, "code", "unknown"),
+                "Widget campaign intelligence columns are unavailable; using legacy projection",
+                exc_info=True,
             )
             try:
                 result = await run_db(lambda: supabase.table("chatty_campaigns").select(
                     _CAMPAIGN_BASE_COLUMNS
                 ).eq("bot_id", bot_id).eq("is_active", True).limit(100).execute())
-            except Exception as fallback_exc:
-                logger.warning(
-                    "Widget campaign lookup unavailable; returning no campaigns "
-                    "bot=%s error=%s",
-                    bot_id,
-                    type(fallback_exc).__name__,
-                )
+            except Exception:
+                logger.warning("Widget campaign lookup unavailable; returning no campaigns", exc_info=True)
                 return {"campaigns": []}
         else:
-            logger.warning(
-                "Widget campaign lookup unavailable; returning no campaigns "
-                "bot=%s error=%s",
-                bot_id,
-                type(exc).__name__,
-            )
+            logger.warning("Widget campaign lookup unavailable; returning no campaigns", exc_info=True)
             return {"campaigns": []}
     campaigns: list[dict[str, Any]] = []
     for row in result.data or []:
@@ -652,7 +634,7 @@ async def widget_chat(
     if flow_result.get("reply"):
         reply = str(flow_result["reply"])
         if flow_result.get("error"):
-            logger.error("Widget flow completed with an error bot=%s session=%s error=%s", bot_id, session_id, flow_result["error"])
+            logger.error("Widget flow completed with an error")
         try:
             bot_name = bot.get("name") or "Chatty"
             bot_av = bot.get("avatar_url") or bot.get("logo_url")
@@ -870,7 +852,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     if flow_result.get("reply"):
         reply = str(flow_result["reply"])
         if flow_result.get("error"):
-            logger.error("Widget stream flow completed with an error bot=%s session=%s error=%s", bot_id, session_id, flow_result["error"])
+            logger.error("Widget stream flow completed with an error")
         try:
             bot_name = bot.get("name") or "Chatty"
             bot_av = bot.get("avatar_url") or bot.get("logo_url")
@@ -1078,12 +1060,9 @@ async def widget_transcribe(
             # string) without this.
             try:
                 finish_reason = resp.choices[0].finish_reason
-                logger.warning(
-                    "Widget transcription returned empty text (bot=%s, bytes=%d, mime=%s, finish_reason=%s)",
-                    bot_id, len(data), mime, finish_reason,
-                )
+                logger.warning("Widget transcription returned empty text")
             except Exception:  # noqa: BLE001
-                logger.warning("Widget transcription returned empty text (bot=%s, bytes=%d, mime=%s)", bot_id, len(data), mime)
+                logger.warning("Widget transcription returned empty text")
     except Exception:
         logger.exception("Widget transcription failed")
         raise HTTPException(status_code=502, detail="transcription failed")
@@ -2170,7 +2149,7 @@ async def widget_booking_confirm(
         except HTTPException:
             raise
         except Exception:
-            logger.exception("Failed checking active booking limit for %s", visitor_email)
+            logger.exception("Failed checking active booking limit")
 
     # 6. Slot Timing & Integrity Validation
     try:
@@ -2326,15 +2305,11 @@ async def widget_booking_confirm(
                     attendee_name=visitor_name,
                 )
                 if sent:
-                    logger.info("WhatsApp booking confirmation sent to %s for bot %s", wa_phone, body.bot_id)
+                    logger.info("WhatsApp booking confirmation sent")
             except Exception:
-                logger.exception("Failed to dispatch WhatsApp booking confirmation to %s", wa_phone)
+                logger.exception("Failed to dispatch WhatsApp booking confirmation")
         else:
-            logger.warning(
-                "WhatsApp booking confirmation skipped: invalid, missing, or expired HMAC signature (session_id=%s, bot_id=%s)",
-                body.session_id,
-                body.bot_id,
-            )
+            logger.warning("WhatsApp booking confirmation skipped: invalid, missing, or expired HMAC signature")
 
     assigned_email = exec_res.get("assigned_to_email") or (owner_user.get("email") or "").strip().lower()
 

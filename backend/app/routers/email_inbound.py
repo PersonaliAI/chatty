@@ -168,7 +168,7 @@ async def receive_inbound_email(request: Request, background_tasks: BackgroundTa
     references = data.get("references") or headers.get("references") or ""
 
     if not from_email:
-        logger.warning("Inbound email received without valid sender: %s", from_field)
+        logger.warning("Inbound email received without valid sender")
         return {"ok": True, "matched": False, "reason": "no_from_email"}
 
     now_utc = datetime.now(timezone.utc)
@@ -250,7 +250,7 @@ async def receive_inbound_email(request: Request, background_tasks: BackgroundTa
             bot_id = existing_session["bot_id"]
 
     if not bot_id:
-        logger.warning("Could not match inbound email to any bot: from=%s, to=%s", from_email, to_addresses)
+        logger.warning("Could not match inbound email to any bot")
         return {"ok": True, "matched": False, "reason": "no_matching_bot"}
 
     # 4. Handle Existing Ticket vs New Ticket
@@ -268,7 +268,7 @@ async def receive_inbound_email(request: Request, background_tasks: BackgroundTa
                 "sender": "visitor",
             }).execute())
         except Exception as e:
-            logger.exception("Failed to insert email conversation message: %s", e)
+            logger.exception("Failed to insert email conversation message")
 
         # Update session status back to open and stamp last_message
         upd: dict[str, Any] = {
@@ -293,14 +293,14 @@ async def receive_inbound_email(request: Request, background_tasks: BackgroundTa
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("session_id", session_id).eq("bot_id", bot_id).execute())
         except Exception as e:
-            logger.warning("Failed to update session for inbound email: %s", e)
+            logger.warning("Failed to update session for inbound email")
 
         return {"ok": True, "action": "appended_to_ticket", "session_id": session_id}
 
     else:
         # 5. Create Brand New Email Ticket
         session_id = f"email_{uuid.uuid4().hex[:12]}"
-        logger.info("Creating new inbound email ticket: %s for %s", session_id, from_email)
+        logger.info("Creating new inbound email ticket")
 
         # Sentiment check for initial priority
         is_urgent = any(w in (subject + " " + text_body).lower() for w in ["unacceptable", "broken", "angry", "frustrated", "refund", "lawyer", "terrible", "emergency", "urgent", "asap"])

@@ -48,7 +48,7 @@ def add_lead_column(column_name: str):
     dbname = os.environ.get("SUPABASE_DB_NAME", "postgres")
     port = int(os.environ.get("SUPABASE_DB_PORT", "6543"))
     if not password:
-        logger.error("SUPABASE_DB_PASSWORD not set; cannot add lead column %s", clean_name)
+        logger.error("SUPABASE_DB_PASSWORD not set; cannot add lead column")
         return
 
     try:
@@ -65,9 +65,9 @@ def add_lead_column(column_name: str):
         conn.commit()
         cursor.close()
         conn.close()
-        logger.info("Successfully added dynamic column %s to chatty_leads", clean_name)
-    except Exception as e:
-        logger.exception("Failed to add dynamic column %s to chatty_leads: %s", clean_name, e)
+        logger.info("Successfully added dynamic lead column")
+    except Exception:
+        logger.exception("Failed to add dynamic lead column")
 
 
 @router.post("/api/onboarding/update")

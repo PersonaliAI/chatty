@@ -106,7 +106,7 @@ async def provision_catalog_webhook(
     try:
         existing = await run_db(lambda: supabase.table("chatty_catalog_webhooks").select("bot_id").eq("bot_id", bot_id).limit(1).execute())
     except Exception as exc:
-        logger.exception("Catalog webhook table is unavailable for bot %s", bot_id)
+        logger.exception("Catalog webhook table is unavailable")
         raise HTTPException(
             status_code=503,
             detail="Catalog webhook storage is unavailable. Apply the manual catalog webhook migration, then try again.",
@@ -131,7 +131,7 @@ async def provision_catalog_webhook(
             payload["created_at"] = now
             res = await run_db(lambda: supabase.table("chatty_catalog_webhooks").insert(payload).execute())
     except Exception as exc:
-        logger.exception("Failed to persist catalog webhook for bot %s", bot_id)
+        logger.exception("Failed to persist catalog webhook")
         raise HTTPException(status_code=503, detail="Could not save catalog webhook configuration. Try again shortly.") from exc
     if not getattr(res, "data", None):
         raise HTTPException(status_code=500, detail="Could not provision catalog webhook")
@@ -468,7 +468,7 @@ async def receive_catalog_webhook(
         text = str(exc).lower()
         if "duplicate" in text or "unique" in text or "23505" in text:
             return {"status": "duplicate", "event_id": event_id}
-        logger.exception("Catalog webhook idempotency store unavailable for %s", bot_id)
+        logger.exception("Catalog webhook idempotency store unavailable")
         raise HTTPException(status_code=503, detail="Catalog webhook idempotency store unavailable") from exc
     # The webhook key is scoped by bot_id and must identify exactly one item.
     # Fetch at most two rows so duplicate IDs are detected without allowing an

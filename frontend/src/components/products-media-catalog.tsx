@@ -32,17 +32,23 @@ import {
   Key,
 } from "lucide-react";
 
-function isSafePreviewUrl(value: string): boolean {
+function getSafePreviewUrl(value: string): string | null {
   const trimmed = value.trim();
-  if (!trimmed) return false;
-  if (trimmed.startsWith("blob:")) return true;
-  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(trimmed)) return true;
+  if (!trimmed) return null;
+  if (trimmed.startsWith("blob:")) return trimmed;
+  if (/^data:image\/(?:png|jpe?g|gif|webp);base64,/i.test(trimmed)) return trimmed;
   try {
     const parsed = new URL(trimmed);
-    return (parsed.protocol === "https:" || parsed.protocol === "http:") && !parsed.username && !parsed.password;
+    return (parsed.protocol === "https:" || parsed.protocol === "http:") && !parsed.username && !parsed.password
+      ? parsed.href
+      : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function isSafePreviewUrl(value: string): boolean {
+  return getSafePreviewUrl(value) !== null;
 }
 
 export interface MediaItem {
@@ -1172,7 +1178,7 @@ export function ProductsMediaCatalog({
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="size-12 rounded-lg bg-neutral-200 dark:bg-neutral-800 overflow-hidden shrink-0 border border-neutral-300 dark:border-neutral-700">
                         <img
-                          src={prodImageUrl}
+                          src={getSafePreviewUrl(prodImageUrl) ?? ""}
                           alt="Product preview"
                           className="w-full h-full object-cover"
                         />

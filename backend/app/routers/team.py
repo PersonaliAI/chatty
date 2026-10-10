@@ -39,7 +39,7 @@ async def _write_team_audit_log(bot_id: str, action: str, details: str, user: di
             "performed_by": _actor_email(user),
         }).execute())
     except Exception:
-        logger.warning("Failed to write team audit log for %s/%s", bot_id, action, exc_info=True)
+        logger.warning("Failed to write team audit log", exc_info=True)
 
 
 def _sanitize_permissions(requested: list[str] | None, role: str, caller_role: str) -> list[str]:
@@ -111,7 +111,7 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
             subject=f"You've been added to {bot_name}", html=html,
         )
     except Exception:
-        logger.exception("team invite email failed for %s", email)
+        logger.exception("Team invite email failed")
 
     return {"ok": True, "email": email, "name": name, "role": role, "permissions": permissions, "email_status": email_status}
 

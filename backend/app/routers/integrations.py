@@ -194,7 +194,7 @@ async def whatsapp_test(bot_id: str, user: dict[str, Any] = Depends(require_user
     except HTTPException:
         raise
     except (httpx.HTTPError, ValueError):
-        logger.exception("WhatsApp connection test failed for bot %s", bot_id)
+        logger.exception("WhatsApp connection test failed")
         raise HTTPException(status_code=502, detail="Could not reach Meta to test the WhatsApp connection")
 
 
@@ -252,7 +252,7 @@ async def whatsapp_deauthorize(bot_id: str, user: dict[str, Any] = Depends(requi
         except HTTPException:
             raise
         except (httpx.HTTPError, ValueError, TypeError):
-            logger.exception("WhatsApp Meta deauthorization failed for bot %s", bot_id)
+            logger.exception("WhatsApp Meta deauthorization failed")
             raise HTTPException(status_code=502, detail="Could not reach Meta to revoke the WhatsApp authorization")
 
     await run_db(lambda: supabase.table("chatty_bots").update({
@@ -490,9 +490,9 @@ async def get_google_calendars(
         return {"calendars": calendars}
     except g.GoogleNotConnected:
         return {"calendars": [], "connected": False}
-    except Exception as exc:
-        logger.warning(f"Failed to list Google calendars: {exc}")
-        return {"calendars": [], "error": str(exc)}
+    except Exception:
+        logger.warning("Failed to list Google calendars", exc_info=True)
+        return {"calendars": [], "error": "Google calendar listing unavailable"}
 
 
 @router.get("/api/integrations/google/drive-folders")
@@ -516,9 +516,9 @@ async def get_google_drive_folders(
         return {"folders": folders}
     except g.GoogleNotConnected:
         return {"folders": [], "connected": False}
-    except Exception as exc:
-        logger.warning(f"Failed to list Google Drive folders: {exc}")
-        return {"folders": [], "error": str(exc)}
+    except Exception:
+        logger.warning("Failed to list Google Drive folders", exc_info=True)
+        return {"folders": [], "error": "Google Drive folder listing unavailable"}
 
 
 @router.delete("/api/integrations/google/accounts/{account_id}")

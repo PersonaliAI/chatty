@@ -325,7 +325,7 @@ async def _send_gmail_html(*, supabase, owner_user: dict, to: str,
                            body=html, html=True)
         return True
     except Exception:
-        logger.exception("Gmail fallback send failed for %s", to)
+        logger.exception("Gmail fallback send failed")
         return False
 
 
@@ -551,7 +551,7 @@ async def enqueue_webhook_event(
             data=data, job_queue=job_queue or _webhook_job_queue,
         )
     except Exception:
-        logger.exception("flow event handoff failed bot=%s event=%s", bot_id, event)
+        logger.exception("Flow event handoff failed")
     try:
         res = await run_db(lambda: (
             supabase.table("chatty_webhooks")
@@ -562,7 +562,7 @@ async def enqueue_webhook_event(
         ))
         webhooks = res.data or []
     except Exception:
-        logger.exception("webhook subscription lookup failed for bot %s", bot_id)
+        logger.exception("Webhook subscription lookup failed")
         return
 
     subscribed = [w for w in webhooks if event in (w.get("events") or [])]

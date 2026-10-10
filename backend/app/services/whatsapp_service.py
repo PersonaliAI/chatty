@@ -80,7 +80,7 @@ def verify_whatsapp_booking_signature(
             )
             return False
     except (ValueError, TypeError):
-        logger.warning("WhatsApp booking token has invalid timestamp: %s", timestamp)
+        logger.warning("WhatsApp booking token has invalid timestamp")
         return False
 
     expected = generate_whatsapp_booking_signature(bot_id, phone, str(ts), secret)
@@ -128,6 +128,7 @@ async def send_whatsapp_message(
         logger.warning("Invalid WhatsApp API version supplied")
         return False
     path = f"/{version}/{phone_number_id}/messages"
+    graph_url = httpx.URL("https://graph.facebook.com").join(path)
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -184,10 +185,10 @@ async def send_whatsapp_message(
         delivered = False
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(base_url="https://graph.facebook.com", timeout=15) as client:
-                    # phone_number_id and version are strictly allowlisted
-                    # above; the host is always graph.facebook.com.
-                    res = await client.post(path, headers=headers, json=payload)
+                async with httpx.AsyncClient(timeout=15) as client:
+                    # The base host is a fixed Meta endpoint; the validated
+                    # path is joined to it before the request is issued.
+                    res = await client.post(graph_url, headers=headers, json=payload)
                 if res.status_code < 400:
                     delivered = True
                     break

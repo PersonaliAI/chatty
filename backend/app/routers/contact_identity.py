@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import secrets
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -17,12 +18,19 @@ from app.services.contact_identity import create_visitor, credential, hash_token
 router = APIRouter()
 
 def _visitor_cookie(bot_id: str) -> str:
-    return f"chatty_visitor_{bot_id}"
+    try:
+        # UUID canonicalization keeps the bot-specific cookie name bounded to
+        # a safe cookie-token alphabet while preserving per-bot isolation.
+        canonical_bot_id = uuid.UUID(str(bot_id)).hex
+    except (ValueError, AttributeError, TypeError):
+        canonical_bot_id = "invalid"
+    return f"chatty_visitor_{canonical_bot_id}"
 
 def _set_visitor_cookie(response: Response, bot_id: str, token: str, expires_at: str, request: Request) -> None:
     expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
     max_age = max(0, int((expiry - datetime.now(timezone.utc)).total_seconds()))
-    response.set_cookie(_visitor_cookie(bot_id), token, max_age=max_age, expires=max_age,
+    safe_token = token if re.fullmatch(r"[A-Za-z0-9_-]{1,512}", token or "") else ""
+    response.set_cookie(_visitor_cookie(bot_id), safe_token, max_age=max_age, expires=max_age,
         httponly=True, secure=request.url.scheme == "https",
         samesite="none" if request.url.scheme == "https" else "lax", path="/api/widget")
 

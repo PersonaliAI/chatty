@@ -38,19 +38,31 @@ export interface InboxMeeting {
  * bucket (or a same-session blob: URL from the composer preview, which a
  * remote visitor can't forge) - not any arbitrary http(s) URL a visitor
  * could type to get rendered as a trusted-looking attachment. */
-function isTrustedAttachmentUrl(url: string): boolean {
-  if (url.startsWith("blob:")) return true;
+function getTrustedAttachmentUrl(url: string): string | null {
+  if (url.startsWith("blob:")) return url;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) return false;
+  if (!supabaseUrl) return null;
   try {
     const parsed = new URL(url);
     const base = new URL(supabaseUrl);
-    return (
+    if (
       parsed.origin === base.origin &&
       parsed.pathname.startsWith("/storage/v1/object/public/chatty-uploads/")
-    );
+    ) {
+      return parsed.href;
+    }
+    return null;
   } catch {
-    return false;
+    return null;
+  }
+}
+
+function getSafeMeetingUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return parsed.protocol === "https:" ? parsed.href : null;
+  } catch {
+    return null;
   }
 }
 
@@ -60,6 +72,7 @@ function InboxBookingCard({ content, meeting }: { content: string; meeting?: Inb
   const isConfirmed = !isCancelled && Boolean(meeting || (/scheduled|confirmed|booked/i.test(content) && /meeting|demo|appointment|booking/i.test(content)));
   const meetLinkMatch = content.match(/https:\/\/(?:meet\.google\.com|teams\.microsoft\.com|zoom\.us\/j)\/[^\s)>]+/i);
   const meetUrl = meeting?.meeting_link || (meetLinkMatch ? meetLinkMatch[0] : null);
+  const safeMeetUrl = meetUrl ? getSafeMeetingUrl(meetUrl) : null;
 
   const confirmationTime = content.match(/(?:scheduled|confirmed|booked)\s+(?:for|on)\s+([^\n.!]+?)(?:\.|!|\s+Join\b|\s+https?:\/\/|$)/i);
   const dateMatch = content.match(/(?:for|on)\s+([A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)?(?:\s*\([^)]+\))?)/i);
@@ -108,11 +121,11 @@ function InboxBookingCard({ content, meeting }: { content: string; meeting?: Inb
         <p className="text-[10px] opacity-80 mt-0.5">The visitor’s selected slot is locked and the calendar invitation was sent.</p>
       )}
 
-      {meetUrl && (
+      {safeMeetUrl && (
         <div className="mt-1.5 pt-1.5 border-t border-current/15 flex items-center justify-between gap-2">
-          <span className="text-[10px] opacity-75 font-mono truncate">{meetUrl}</span>
+          <span className="text-[10px] opacity-75 font-mono truncate">{safeMeetUrl}</span>
           <a
-            href={meetUrl}
+            href={safeMeetUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shadow-xs transition-colors"
@@ -181,7 +194,7 @@ function MessageListInner({
         if (lines.length >= 2) {
           const lastLine = lines[lines.length - 1].trim();
           const prevLine = lines[lines.length - 2].trim();
-          if (isTrustedAttachmentUrl(lastLine)) {
+          if (getTrustedAttachmentUrl(lastLine)) {
             if (prevLine.includes("[attachment:")) {
               attachmentUrl = lastLine;
               const match = prevLine.match(/\[attachment:\s*(.*?)\]/);
@@ -217,7 +230,7 @@ function MessageListInner({
           attachmentName.toLowerCase().endsWith(".ogg") ||
           attachmentUrl.includes("audio/")
         );
-        const safeAttachmentUrl = attachmentUrl && isTrustedAttachmentUrl(attachmentUrl) ? attachmentUrl : null;
+        const safeAttachmentUrl = attachmentUrl ? getTrustedAttachmentUrl(attachmentUrl) : null;
 
         const senderName = isVisitor
           ? visitorName

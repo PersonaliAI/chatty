@@ -792,7 +792,7 @@ function IdentifiedChatWidget({
           }
         }
         if (!company) {
-          const cm = text.match(/(?:company is|work at|work for|company:\s*|from)\s+([A-Za-z0-9&., -]{2,40})/i);
+          const cm = text.slice(0, 500).match(/(?:company is|work at|work for|company:|from)[ \t]+([A-Za-z0-9&., -]{2,40})/i);
           if (cm) {
             const cand = cm[1].trim();
             if (!["home", "here", "myself"].includes(cand.toLowerCase())) {
