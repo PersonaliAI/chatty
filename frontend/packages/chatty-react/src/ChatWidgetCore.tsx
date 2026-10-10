@@ -3530,7 +3530,7 @@ function IdentifiedChatWidget({
       </div>
 
       {/* Composer (Messages tab only) */}
-      {tab === "messages" && chatView === "conversation" && (
+      {tab === "messages" && chatView === "conversation" && !voiceModeActive && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
           {!showOfflineForm && !emailCaptureDismissed && (
             <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/70 px-2.5 py-1.5">

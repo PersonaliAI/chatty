@@ -56,7 +56,8 @@ export function AgentChatTranscript({
         <MessageScrollerViewport preserveScrollOnPrepend={preserveScrollOnPrepend}>
           <MessageScrollerContent spacerClassName="min-h-2" aria-busy={agentState === 'thinking'}>
             {[...messages].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).map((receivedMessage) => {
-              const isUser = receivedMessage.from?.isLocal;
+              const isUser = (receivedMessage as { type?: string }).type === 'userTranscript'
+                || ((receivedMessage as { type?: string }).type !== 'agentTranscript' && Boolean(receivedMessage.from?.isLocal));
               const time = new Date(receivedMessage.timestamp);
               const locale = typeof navigator !== 'undefined' ? navigator.language : 'en-US';
               const title = time.toLocaleTimeString(locale, { timeStyle: 'short' });

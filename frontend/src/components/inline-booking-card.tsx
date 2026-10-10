@@ -567,6 +567,7 @@ export function InlineBookingCard({
           setSelectedDate(autoMatch.date);
           setSelectedSlot(autoMatch.slot);
           autoSelectedTextRef.current = preferredText || "";
+          setStep(2);
         } else {
           setSelectedDate(data.available_dates[0]);
         }
@@ -596,8 +597,27 @@ export function InlineBookingCard({
       setSelectedDate(autoMatch.date);
       setSelectedSlot(autoMatch.slot);
       autoSelectedTextRef.current = preferredText;
+      setStep(2);
     }
   }, [preferredText, slotsData, activeTimezone, selectedSlot]);
+
+  // Auto-detect 6-digit OTP code when verification is active
+  useEffect(() => {
+    if (!otpSent || !preferredText) return;
+    const match = preferredText.match(/\b\d{6}\b/);
+    if (match && match[0] !== verificationCode) {
+      setVerificationCode(match[0]);
+    }
+  }, [otpSent, preferredText, verificationCode]);
+
+  // Auto-fill email from text or speech if not yet filled
+  useEffect(() => {
+    if (!preferredText || email) return;
+    const emailMatch = preferredText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (emailMatch) {
+      setEmail(emailMatch[0]);
+    }
+  }, [preferredText, email]);
 
   const selectTimezone = (tzId: string) => {
     setActiveTimezone(tzId);

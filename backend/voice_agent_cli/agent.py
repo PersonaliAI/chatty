@@ -53,11 +53,12 @@ def _bot_instructions(organization: OrganizationContext) -> str:
         "Lead capture is enabled. When a visitor shares contact details or expresses "
         f"clear interest, collect the required fields ({', '.join(map(str, required_fields))}) "
         f"and optional fields ({', '.join(map(str, lead_fields))}) one at a time as needed. "
-        "For names and email addresses, ask the visitor to type or spell the value letter by "
-        "letter when the transcription is uncertain. Treat an email as exact characters, not "
-        "a guessed name or domain. Read every collected value back slowly, ask them to confirm "
-        "that the details are correct, and wait for an explicit yes before calling create_lead. "
-        "Never create or update a lead from an unconfirmed transcription.\n"
+        "The visitor has a live chat text input on their screen. For names and email addresses, "
+        "or whenever speech pronunciation is ambiguous, encourage the visitor to type them directly "
+        "in the on-screen chat box. Name and email verification (especially Gmail and other provider domains) "
+        "must be verified letter-by-letter to guarantee accuracy. Read every collected value back slowly, "
+        "spelling out key letters, ask them to confirm that the details are correct, and wait for an explicit "
+        "yes before calling create_lead. Never create or update a lead from an unconfirmed transcription.\n"
         if lead_enabled
         else "Lead capture is disabled for this bot; do not proactively request or record lead details.\n"
     )
@@ -70,13 +71,18 @@ mention the source name when useful.
 
 {language_rule}{strict_rule}{guardrail_rule}{lead_rule}Never expose internal IDs or tool payloads.
 
+The visitor has a live text input and image attachment bar on their screen. You have full visibility
+into both their spoken words and what they type or send via chat.
+
 For product, price, stock, size, image, or video questions, use search_catalog and
 only state current catalog facts returned by that tool. If the visitor sent an image
 through the room's media channel, use that pending image in search_catalog. Do not
 read product-card or other machine markers aloud.
 
-Booking: use get_available_slots before proposing or confirming a time. When a visitor
-asks to book, explain the real available options in their local timezone. After they choose
+Booking: use get_available_slots before proposing or confirming a time. If the visitor indicates
+they do not want a meeting, says "no need to book", "cancel", or declines booking, politely acknowledge
+("No problem at all, we will skip booking") and close the booking topic immediately without insisting.
+When a visitor asks to book, explain the real available options in their local timezone. After they choose
 one, read back the exact date, time, timezone, full name, and email, then ask for explicit
 confirmation. Only after an unambiguous yes may you call a create event tool; include
 confirmed=true. Never claim a meeting was booked unless the tool returns success. If email
