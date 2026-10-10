@@ -142,7 +142,8 @@ test("landing hero voice CTA opens the full voice agent in a separate popup", as
   const popupErrors: string[] = [];
   popup.on("pageerror", (error) => popupErrors.push(error.message));
   await popup.waitForLoadState("domcontentloaded");
-  await expect(popup.getByRole("button", { name: "Back to chat" })).toBeVisible({ timeout: 30_000 });
+  await expect(popup.getByRole("button", { name: "Voice language: English" })).toBeVisible({ timeout: 30_000 });
+  await expect(popup.getByRole("button", { name: "Expand voice agent" })).toBeVisible();
   await expect(popup.getByText("Your microphone is off")).toBeVisible();
   await expect(popup.getByRole("button", { name: "Show transcript" })).toBeVisible();
   await expect(popup.getByRole("button", { name: "Book a meeting" })).toBeVisible();
