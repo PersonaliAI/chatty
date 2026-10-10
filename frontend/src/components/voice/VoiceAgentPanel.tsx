@@ -14,7 +14,7 @@ import {
   VoiceAssistantControlBar,
   type ReceivedMessage,
 } from '@livekit/components-react';
-import { TokenSource, type SendTextOptions, type TokenSourceResponseObject } from 'livekit-client';
+import { TokenSource, Room, AudioPresets, type SendTextOptions, type TokenSourceResponseObject } from 'livekit-client';
 import { AlertCircle, CalendarPlus, Check, ChevronDown, ImagePlus, Maximize2, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
 import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
@@ -32,6 +32,7 @@ type VoiceAgentPanelProps = {
   widgetMode?: boolean;
   visualizer?: 'wave' | 'bar' | 'grid' | 'radial' | 'aura';
   onClose?: () => void;
+  onSessionReset?: (newSessionId: string) => void;
   className?: string;
 };
 
@@ -222,7 +223,7 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
   );
 }
 
-function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageOptions, onLanguageChange, compact = false, widgetMode = false, visualizer = 'wave', onClose, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; language: string; languageOptions: VoiceLanguageOption[]; onLanguageChange: (language: string) => void; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onFullscreen?: () => void }) {
+function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageOptions, onLanguageChange, compact = false, widgetMode = false, visualizer = 'wave', onClose, onReset, onFullscreen }: { botId: string; sessionId: string; backendUrl: string; language: string; languageOptions: VoiceLanguageOption[]; onLanguageChange: (language: string) => void; compact?: boolean; widgetMode?: boolean; visualizer?: VoiceAgentPanelProps['visualizer']; onClose?: () => void; onReset?: () => Promise<void> | void; onFullscreen?: () => void }) {
   const session = useSessionContext();
   const sessionRef = useRef(session);
   sessionRef.current = session;
@@ -359,7 +360,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
     // producing "Cancelled publication by calling unpublish" and leaving the
     // UI in an endless connecting state.
     void activeSession.start({
-      tracks: { microphone: { enabled: true, publishOptions: { preConnectBuffer: true } } },
+      tracks: { microphone: { enabled: true, publishOptions: { preConnectBuffer: false } } },
     })
       .then(() => {
         if (!active) return;
@@ -458,8 +459,15 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
     setError(null);
     setBookingOpen(false);
     setShowTranscript(false);
+    setDraft('');
+    setAttachments([]);
+    setConfirmedMeeting(null);
+    lastProcessedUtteranceRef.current = null;
     reconnectAttemptRef.current = 0;
     await session.end();
+    if (onReset) {
+      await onReset();
+    }
   };
   const retrySession = () => {
     intentionalEndRef.current = false;
@@ -661,8 +669,38 @@ export function VoiceAgentPanel({
   widgetMode = false,
   visualizer,
   onClose,
+  onSessionReset,
   className = '',
 }: VoiceAgentPanelProps) {
+  const [activeSessionId, setActiveSessionId] = useState(sessionId);
+
+  useEffect(() => {
+    setActiveSessionId(sessionId);
+  }, [sessionId]);
+
+  const handleSessionReset = async () => {
+    try {
+      await fetch(`${backendUrl}/api/widget/voice/reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(widgetToken ? { 'x-widget-token': widgetToken } : {}),
+          ...(visitorToken ? { 'x-chatty-visitor': visitorToken } : {}),
+        },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: activeSessionId,
+        }),
+      });
+    } catch {
+      // Best-effort database history deletion
+    }
+
+    const nextSessionId = createVoiceRoomNonce();
+    setActiveSessionId(nextSessionId);
+    onSessionReset?.(nextSessionId);
+  };
+
   const [language, setLanguage] = useState('en-US');
   const [modelConfig, setModelConfig] = useState<VoiceModelConfig>();
   const [languageOptions, setLanguageOptions] = useState<VoiceLanguageOption[]>(VOICE_LANGUAGE_OPTIONS);
@@ -716,7 +754,7 @@ export function VoiceAgentPanel({
       TokenSource.custom(async (): Promise<TokenSourceResponseObject> => {
         // TokenSource caches the first response for useSession.prepareConnection
         // and refreshes it after an unexpected disconnect.  Generate a new
-        // room nonce for each actual token request, while keeping sessionId as
+        // room nonce for each actual token request, while keeping activeSessionId as
         // the stable Chatty conversation key for history, tools, and usage.
         const roomNonce = createVoiceRoomNonce();
         const response = await fetch(`${backendUrl}/api/widget/voice/token`, {
@@ -728,7 +766,7 @@ export function VoiceAgentPanel({
           },
           body: JSON.stringify({
             bot_id: botId,
-            session_id: sessionId,
+            session_id: activeSessionId,
             room_nonce: roomNonce,
             visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             voice_language: language,
@@ -739,8 +777,9 @@ export function VoiceAgentPanel({
         const data = (await response.json()) as VoiceTokenResponse;
         return { serverUrl: data.serverUrl, participantToken: data.participantToken };
       }),
-    [backendUrl, botId, language, sessionId, visitorToken, widgetToken],
+    [backendUrl, botId, language, activeSessionId, visitorToken, widgetToken],
   );
+
   const session = useSession(tokenSource);
   const panelRef = useRef<HTMLElement>(null);
   const toggleFullscreen = () => {
@@ -751,7 +790,7 @@ export function VoiceAgentPanel({
   return (
     <section ref={panelRef} className={`flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} language={language} languageOptions={languageOptions} onLanguageChange={handleLanguageChange} compact={compact} widgetMode={widgetMode} visualizer={activeVisualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent botId={botId} sessionId={activeSessionId} backendUrl={backendUrl} language={language} languageOptions={languageOptions} onLanguageChange={handleLanguageChange} compact={compact} widgetMode={widgetMode} visualizer={activeVisualizer} onClose={onClose} onReset={handleSessionReset} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>

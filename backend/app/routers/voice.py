@@ -17,7 +17,7 @@ from app.core.crypto import encrypt_secret
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
-from app.schemas.voice import VoiceConfigUpdate, VoiceTokenRequest
+from app.schemas.voice import VoiceConfigUpdate, VoiceTokenRequest, VoiceResetRequest
 from app.services.contact_identity import guard_widget_session
 from main import _client_ip, _widget_rate_limit_or_429
 
@@ -300,3 +300,16 @@ async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
         "roomName": room_name,
         "participantName": participant_name,
     }
+
+
+@router.post("/api/widget/voice/reset")
+async def reset_widget_voice_session(body: VoiceResetRequest, request: Request):
+    await guard_widget_session(request)
+    await run_db(
+        lambda: supabase.table("chatty_conversations")
+        .delete()
+        .eq("bot_id", body.bot_id)
+        .eq("session_id", body.session_id)
+        .execute()
+    )
+    return {"success": True, "session_id": body.session_id, "reset": True}

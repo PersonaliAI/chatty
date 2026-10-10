@@ -24,6 +24,11 @@ class VoiceTokenRequest(BaseModel):
     voice_language: Optional[str] = Field(default=None, min_length=2, max_length=20)
 
 
+class VoiceResetRequest(BaseModel):
+    bot_id: str = Field(min_length=1, max_length=80)
+    session_id: str = Field(min_length=1, max_length=160)
+
+
 class VoiceConfigUpdate(BaseModel):
     welcome_message: Optional[str] = Field(default=None, min_length=1, max_length=300)
     enabled: Optional[bool] = None

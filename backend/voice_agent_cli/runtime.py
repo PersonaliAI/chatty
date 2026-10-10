@@ -175,7 +175,7 @@ async def entrypoint(ctx: JobContext) -> None:
                     timeout=settings.llm_timeout_seconds
                 ),
             ),
-            expressive=expression_enabled,
+            expressive=False,
             turn_handling=TurnHandlingOptions(
                 interruption={
                     "enabled": True,
@@ -185,7 +185,6 @@ async def entrypoint(ctx: JobContext) -> None:
                 },
                 preemptive_generation={"enabled": False},
             ),
-            aec_warmup_duration=3.0,
             tts_text_transforms=["filter_emoji", "filter_markdown"],
         )
     recorder = ConversationRecorder(organization, session_id)

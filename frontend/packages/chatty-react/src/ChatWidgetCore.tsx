@@ -2720,6 +2720,11 @@ function IdentifiedChatWidget({
               visualizer={voiceVisualizer}
               widgetMode
               className="chatty-sdk-voice-widget-surface"
+              onSessionReset={(newId) => {
+                if (mode === "voice") {
+                  setSessionId(newId);
+                }
+              }}
               onClose={() => {
                 if (mode === "voice") {
                   onWidgetClose?.();

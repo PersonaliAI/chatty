@@ -14,7 +14,7 @@ import {
   useVoiceAssistant,
   type ReceivedMessage,
 } from "@livekit/components-react";
-import { TokenSource, type SendTextOptions, type TokenSourceResponseObject } from "livekit-client";
+import { TokenSource, Room, AudioPresets, type SendTextOptions, type TokenSourceResponseObject } from "livekit-client";
 import { CalendarPlus, ImagePlus, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from "lucide-react";
 
 import "@livekit/components-styles";
@@ -46,6 +46,8 @@ export interface VoiceAgentProps {
   onError?: (error: Error) => void;
   /** Called when the host wants to close the in-widget voice surface. */
   onClose?: () => void;
+  /** Called when the visitor resets the voice session. */
+  onSessionReset?: (newSessionId: string) => void;
   /** Visualizer selected in the Chatty voice settings. */
   visualizer?: "wave" | "bar" | "grid" | "radial" | "aura";
   /** Compact layout flag used by the dashboard/embedded preview. */
@@ -109,7 +111,7 @@ function VoiceVisualizer({ state, bars, visualizer = "aura" }: { state: string; 
   );
 }
 
-function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; apiRef: ForwardedRef<VoiceAgentHandle>; sessionId: string }) {
+function VoiceSurface({ props, apiRef, sessionId, onReset }: { props: VoiceAgentProps; apiRef: ForwardedRef<VoiceAgentHandle>; sessionId: string; onReset?: () => Promise<void> | void }) {
   const bookingBackendUrl = props.backendUrl ?? DEFAULT_BACKEND_URL;
   const session = useSessionContext();
   // The LiveKit session object changes identity as its connection state
@@ -237,7 +239,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     // signaling. A second setMicrophoneEnabled() call after start can race
     // the official control bar and cancel publication with
     // "Cancelled publication by calling unpublish".
-    void sessionRef.current.start({ tracks: { microphone: { enabled: true, publishOptions: { preConnectBuffer: true } } } })
+    void sessionRef.current.start({ tracks: { microphone: { enabled: true, publishOptions: { preConnectBuffer: false } } } })
       .then(() => {
         if (!active) return;
         connectedRef.current = true;
@@ -356,8 +358,14 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
     setError(null);
     setTranscriptOpen(false);
     setBookingOpen(false);
+    setDraft("");
+    setAttachments([]);
+    setConfirmedMeeting(null);
     reconnectAttemptRef.current = 0;
     await session.end();
+    if (onReset) {
+      await onReset();
+    }
   };
   const label = retrying ? "Reconnecting…" : starting ? "Connecting…" : agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : started ? "Ready when you are" : "Ready to talk";
 
@@ -391,7 +399,36 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
 /** A standalone LiveKit voice surface for React and Next.js applications. */
 export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function VoiceAgent(props, ref) {
   const backendUrl = props.backendUrl ?? DEFAULT_BACKEND_URL;
-  const sessionId = props.sessionId ?? `voice-${props.botId}-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now()}`;
+  const initialSessionId = props.sessionId ?? `voice-${props.botId}-${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Date.now()}`;
+  const [activeSessionId, setActiveSessionId] = useState(initialSessionId);
+
+  useEffect(() => {
+    if (props.sessionId) setActiveSessionId(props.sessionId);
+  }, [props.sessionId]);
+
+  const handleReset = async () => {
+    try {
+      await fetch(`${backendUrl}/api/widget/voice/reset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(props.widgetToken ? { "x-widget-token": props.widgetToken } : {}),
+          ...(props.visitorToken ? { "x-chatty-visitor": props.visitorToken } : {}),
+        },
+        body: JSON.stringify({
+          bot_id: props.botId,
+          session_id: activeSessionId,
+        }),
+      });
+    } catch {
+      // Best-effort database history deletion
+    }
+
+    const nextSessionId = createVoiceRoomNonce();
+    setActiveSessionId(nextSessionId);
+    props.onSessionReset?.(nextSessionId);
+  };
+
   const [language, setLanguage] = useState(props.language ?? "en-US");
   useEffect(() => { if (props.language) setLanguage(props.language); }, [props.language]);
   const surfaceProps = useMemo(() => ({ ...props, language, onLanguageChange: (next: string) => { setLanguage(next); props.onLanguageChange?.(next); } }), [props, language]);
@@ -405,7 +442,7 @@ export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function
       },
       body: JSON.stringify({
         bot_id: props.botId,
-        session_id: sessionId,
+        session_id: activeSessionId,
         // Keep the Chatty conversation stable while forcing every LiveKit
         // connection attempt into a fresh room. This prevents reconnects
         // from inheriting stale participant/thread state.
@@ -418,7 +455,9 @@ export const VoiceAgent = forwardRef<VoiceAgentHandle, VoiceAgentProps>(function
     if (!response.ok) throw new Error((await response.text()) || `Voice token failed (${response.status})`);
     const data = (await response.json()) as VoiceTokenResponse;
     return { serverUrl: data.serverUrl, participantToken: data.participantToken };
-  }), [backendUrl, language, props.botId, props.visitorToken, props.widgetToken, sessionId]);
+  }), [backendUrl, language, props.botId, props.visitorToken, props.widgetToken, activeSessionId]);
+
   const session = useSession(tokenSource);
-  return <SessionProvider session={session}><VoiceSurface props={surfaceProps} apiRef={ref} sessionId={sessionId} /></SessionProvider>;
+
+  return <SessionProvider session={session}><VoiceSurface props={surfaceProps} apiRef={ref} sessionId={activeSessionId} onReset={handleReset} /></SessionProvider>;
 });

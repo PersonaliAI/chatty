@@ -637,7 +637,10 @@ export function VoiceAgentTab({
   useEffect(() => {
     void load();
   }, [load]);
-  const sessionId = useMemo(() => `dashboard-voice-${botId}`, [botId]);
+  const [sessionId, setSessionId] = useState(() => `dashboard-voice-${botId}-${Date.now()}`);
+  useEffect(() => {
+    setSessionId(`dashboard-voice-${botId}-${Date.now()}`);
+  }, [botId]);
   const voiceOptions = useMemo(() => {
     const options = VOICE_OPTIONS[config.tts_provider] ?? [];
     if (options.some((option) => option.value === config.tts_voice)) return options;
@@ -1119,6 +1122,7 @@ export function VoiceAgentTab({
             botId={botId}
             sessionId={sessionId}
             visualizer={config.visualizer}
+            onSessionReset={(newId) => setSessionId(newId)}
             className="h-[min(680px,calc(100dvh-7rem))] min-h-[520px]"
           />
         </aside>
