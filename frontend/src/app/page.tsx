@@ -888,7 +888,6 @@ export default function Home() {
               botId="ad32f373-7694-43f4-9465-f8d65ce291e3"
               sessionId={heroVoiceSessionId}
               backendUrl={BACKEND_URL}
-              visualizer="grid"
               onClose={() => setHeroVoiceOpen(false)}
               className="h-full"
             />

@@ -730,7 +730,7 @@ function IdentifiedChatWidget({
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceAgentEnabled, setVoiceAgentEnabled] = useState(false);
-  const [voiceVisualizer, setVoiceVisualizer] = useState<"wave" | "bar" | "grid" | "radial" | "aura">("wave");
+  const [voiceVisualizer, setVoiceVisualizer] = useState<"wave" | "bar" | "grid" | "radial" | "aura" | undefined>(undefined);
   const [voiceAgentOpen, setVoiceAgentOpen] = useState(false);
   const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
@@ -1764,7 +1764,7 @@ function IdentifiedChatWidget({
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
           setVoiceAgentEnabled(Boolean(bot.voice_enabled));
-          setVoiceVisualizer(["wave", "bar", "grid", "radial", "aura"].includes(bot.voice_visualizer) ? bot.voice_visualizer : "wave");
+          setVoiceVisualizer(["wave", "bar", "grid", "radial", "aura"].includes(bot.voice_visualizer) ? bot.voice_visualizer : undefined);
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
@@ -1919,7 +1919,7 @@ function IdentifiedChatWidget({
             return prev;
           });
           setVoiceAgentEnabled(Boolean(bot.voice_enabled));
-          setVoiceVisualizer(["wave", "bar", "grid", "radial", "aura"].includes(bot.voice_visualizer) ? bot.voice_visualizer : "wave");
+          setVoiceVisualizer(["wave", "bar", "grid", "radial", "aura"].includes(bot.voice_visualizer) ? bot.voice_visualizer : undefined);
         }
       } catch {}
     }, 30000);

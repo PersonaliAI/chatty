@@ -448,7 +448,6 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
         ) : (
           <div className="chatty-voice-stage-wrap">
             <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} widgetMode={widgetMode} />
-            {!widgetMode && <p className="chatty-voice-standalone-description">Discover answers, book meetings, and get help from your Chatty assistant.</p>}
           </div>
         )}
 
@@ -499,12 +498,19 @@ export function VoiceAgentPanel({
   visitorToken,
   compact = false,
   widgetMode = false,
-  visualizer = 'wave',
+  visualizer,
   onClose,
   className = '',
 }: VoiceAgentPanelProps) {
   const [language, setLanguage] = useState('en-US');
   const [languageOptions, setLanguageOptions] = useState<VoiceLanguageOption[]>(VOICE_LANGUAGE_OPTIONS);
+  const [activeVisualizer, setActiveVisualizer] = useState<'wave' | 'bar' | 'grid' | 'radial' | 'aura'>(visualizer || 'wave');
+
+  useEffect(() => {
+    if (visualizer) {
+      setActiveVisualizer(visualizer);
+    }
+  }, [visualizer]);
 
   useEffect(() => {
     let active = true;
@@ -513,18 +519,27 @@ export function VoiceAgentPanel({
       cache: 'no-store',
     }).then(async (response) => {
       if (!response.ok) return null;
-      return await response.json() as { stt_language?: string; stt_model?: string };
+      return await response.json() as {
+        stt_language?: string;
+        stt_model?: string;
+        visualizer?: 'wave' | 'bar' | 'grid' | 'radial' | 'aura';
+      };
     }).then((config) => {
       if (!active || !config) return;
       const nextLanguage = config.stt_language?.trim() || 'en-US';
       setLanguage(nextLanguage);
       setLanguageOptions(languageOptionsForModel(config.stt_model?.trim() || '', nextLanguage));
+      if (config.visualizer && ['wave', 'bar', 'grid', 'radial', 'aura'].includes(config.visualizer)) {
+        if (!visualizer || visualizer === 'wave') {
+          setActiveVisualizer(config.visualizer);
+        }
+      }
     }).catch(() => {
       // The token endpoint remains the source of truth if public config is
       // unavailable; the UI keeps the safe English default.
     });
     return () => { active = false; };
-  }, [backendUrl, botId, widgetToken]);
+  }, [backendUrl, botId, widgetToken, visualizer]);
 
   const tokenSource = useMemo(
     () =>
@@ -566,7 +581,7 @@ export function VoiceAgentPanel({
   return (
     <section ref={panelRef} className={`flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} language={language} languageOptions={languageOptions} onLanguageChange={setLanguage} compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} language={language} languageOptions={languageOptions} onLanguageChange={setLanguage} compact={compact} widgetMode={widgetMode} visualizer={activeVisualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>
@@ -595,7 +610,6 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-panel-standalone .chatty-voice-language { border-radius: 9999px; padding: 7px 12px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
     .chatty-voice-panel-standalone .chatty-voice-content { gap: 0; padding: 0 24px 20px; }
     .chatty-voice-panel-standalone .chatty-voice-stage-wrap { flex: none; min-height: 0; padding: 20px 0 0; }
-    .chatty-voice-panel-standalone .chatty-voice-standalone-description { max-width: 260px; margin: 16px auto 0; color: #737373; font-size: 14px; line-height: 1.4; text-align: center; }
     .chatty-voice-panel-standalone .chatty-voice-controls { max-width: 360px; margin: 0 auto; }
     .chatty-voice-panel-standalone .chatty-voice-start { width: 56px; height: 56px; border-radius: 9999px; box-shadow: 0 12px 24px rgba(0,0,0,.15); }
     .chatty-voice-panel-standalone .chatty-voice-footer-actions { font-size: 11px; }
@@ -612,7 +626,11 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-state-icon { display: grid !important; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--voice-accent); background: var(--voice-soft); }
     .chatty-voice-language { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--voice-border); border-radius: 8px; padding: 7px 9px; color: var(--voice-ink); background: #fff; font-size: 12px; cursor: pointer; }
     .chatty-voice-language-wrap { position: relative; flex: none; }
-    .chatty-voice-language-menu { position: absolute; z-index: 20; top: calc(100% + 7px); left: 0; display: grid; min-width: 190px; max-height: min(280px, 50dvh); overflow-y: auto; gap: 2px; border: 1px solid var(--voice-border); border-radius: 12px; padding: 5px; background: #fff; box-shadow: 0 16px 36px rgba(31,41,51,.16); }
+    .chatty-voice-language-menu { position: absolute; z-index: 20; top: calc(100% + 7px); left: 0; display: grid; min-width: 190px; max-height: min(280px, 50dvh); overflow-y: auto; gap: 2px; border: 1px solid var(--voice-border); border-radius: 12px; padding: 5px; background: #fff; box-shadow: 0 16px 36px rgba(31,41,51,.16); scrollbar-width: thin; scrollbar-color: #cbd3d7 transparent; }
+    .chatty-voice-language-menu::-webkit-scrollbar { width: 5px; height: 5px; }
+    .chatty-voice-language-menu::-webkit-scrollbar-track { background: transparent; }
+    .chatty-voice-language-menu::-webkit-scrollbar-thumb { border-radius: 999px; background: #cbd3d7; }
+    .chatty-voice-language-menu::-webkit-scrollbar-thumb:hover { background: #9aa4ab; }
     .chatty-voice-language-menu button { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-radius: 8px; padding: 8px 9px; color: var(--voice-ink); background: transparent; font-size: 11px; text-align: left; cursor: pointer; }
     .chatty-voice-language-menu button:hover, .chatty-voice-language-menu button.is-selected { background: var(--voice-soft); }
     .chatty-voice-language-menu button svg { margin-left: auto; color: var(--voice-accent); }
@@ -664,17 +682,38 @@ export function VoiceAgentPanelStyles() {
     .chatty-livekit-controls { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 42px; gap: 8px; color-scheme: light; }
     .chatty-livekit-controls .lk-agent-control-bar { display: flex; align-items: stretch; justify-content: center; flex: none; min-height: 42px; padding: 0; gap: .5rem; border: 0; background: transparent; }
     .chatty-livekit-controls .lk-button-group { display: inline-flex; align-items: stretch; height: 42px; flex: none; }
-    .chatty-livekit-controls .lk-button { display: inline-flex; align-items: center; justify-content: center; width: 42px; min-width: 42px; height: 42px; padding: 0; border: 1px solid var(--voice-border); border-radius: 10px; background: #fff; color: var(--voice-ink); box-shadow: none; }
+    .chatty-livekit-controls .lk-agent-control-bar > .lk-button-group > .lk-button { display: inline-flex; align-items: center; justify-content: center; width: 42px; min-width: 42px; height: 42px; padding: 0; border: 1px solid var(--voice-border); border-radius: 10px; background: #fff; color: var(--voice-ink); box-shadow: none; cursor: pointer; }
     .chatty-livekit-controls .lk-button-group > .lk-button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
     .chatty-livekit-controls .lk-button-group-menu { position: relative; display: flex; align-items: stretch; height: 42px; flex: none; }
-    .chatty-livekit-controls .lk-button-group-menu > .lk-button { width: 30px; min-width: 30px; border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .chatty-livekit-controls .lk-button-group-menu > .lk-button { width: 30px; min-width: 30px; height: 42px; border: 1px solid var(--voice-border); border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-top-right-radius: 10px; border-bottom-right-radius: 10px; background: #fff; color: var(--voice-ink); box-shadow: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
     .chatty-livekit-controls .lk-button-menu::after { width: .45em; height: .45em; margin: 0; border-width: .11em; }
     .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer { display: none; }
-    .chatty-livekit-controls .lk-device-menu { top: auto; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); min-width: 220px; }
-    .chatty-livekit-controls .lk-button:hover { background: var(--voice-soft); }
-    .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button { border-radius: 9999px; }
+    .chatty-livekit-controls .lk-agent-control-bar > .lk-button-group > .lk-button:hover,
+    .chatty-livekit-controls .lk-button-group-menu > .lk-button:hover { background: var(--voice-soft); }
+    .chatty-voice-panel-standalone .chatty-livekit-controls .lk-agent-control-bar > .lk-button-group > .lk-button { border-radius: 9999px; }
     .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group > .lk-button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-    .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group-menu > .lk-button { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group-menu > .lk-button { border-radius: 9999px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .chatty-livekit-controls .lk-device-menu { position: absolute !important; z-index: 1000 !important; min-width: 210px !important; max-width: min(22rem, calc(100vw - 2rem)) !important; max-height: min(16rem, calc(100dvh - 8rem)) !important; overflow-x: hidden !important; overflow-y: auto !important; padding: 6px !important; border: 1px solid var(--voice-border) !important; border-radius: 12px !important; background: #ffffff !important; color: var(--voice-ink) !important; box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18) !important; scrollbar-width: thin !important; scrollbar-color: #cbd3d7 transparent !important; bottom: auto !important; right: auto !important; transform: none !important; margin: 0 !important; box-sizing: border-box !important; }
+    .chatty-livekit-controls .lk-device-menu::-webkit-scrollbar { width: 5px; height: 5px; }
+    .chatty-livekit-controls .lk-device-menu::-webkit-scrollbar-track { background: transparent; }
+    .chatty-livekit-controls .lk-device-menu::-webkit-scrollbar-thumb { border-radius: 999px; background: #cbd3d7; }
+    .chatty-livekit-controls .lk-device-menu::-webkit-scrollbar-thumb:hover { background: #9aa4ab; }
+    .chatty-livekit-controls .lk-device-menu ul,
+    .chatty-livekit-controls .lk-device-menu .lk-media-device-select { margin: 0 !important; padding: 0 !important; list-style: none !important; display: flex !important; flex-direction: column !important; gap: 2px !important; }
+    .chatty-livekit-controls .lk-device-menu li { margin: 0 !important; padding: 0 !important; list-style: none !important; display: block !important; }
+    .chatty-livekit-controls .lk-device-menu .lk-button,
+    .chatty-livekit-controls .lk-device-menu button { width: 100% !important; min-width: 0 !important; height: auto !important; min-height: 32px !important; padding: 7px 10px !important; border: 0 !important; border-radius: 8px !important; background: transparent !important; color: var(--voice-ink) !important; font-size: 12px !important; line-height: 1.35 !important; text-align: left !important; justify-content: flex-start !important; white-space: normal !important; word-break: break-word !important; display: flex !important; align-items: center !important; gap: 8px !important; cursor: pointer !important; box-shadow: none !important; transition: background-color .15s ease, color .15s ease; }
+    .chatty-livekit-controls .lk-device-menu .lk-button:hover,
+    .chatty-livekit-controls .lk-device-menu button:hover { background: var(--voice-soft) !important; color: var(--voice-ink) !important; }
+    .chatty-livekit-controls .lk-device-menu li[data-lk-active="true"] .lk-button,
+    .chatty-livekit-controls .lk-device-menu li[aria-selected="true"] .lk-button,
+    .chatty-livekit-controls .lk-device-menu .lk-button[aria-selected="true"],
+    .chatty-livekit-controls .lk-device-menu [data-lk-active="true"] > .lk-button { background: var(--voice-soft) !important; color: var(--voice-accent) !important; font-weight: 600 !important; }
+    .chatty-livekit-controls .lk-device-menu li[data-lk-active="true"] .lk-button::after,
+    .chatty-livekit-controls .lk-device-menu li[aria-selected="true"] .lk-button::after,
+    .chatty-livekit-controls .lk-device-menu .lk-button[aria-selected="true"]::after,
+    .chatty-livekit-controls .lk-device-menu [data-lk-active="true"] > .lk-button::after { content: "✓"; margin-left: auto; font-size: 13px; font-weight: 700; color: var(--voice-accent); padding-left: 8px; flex-shrink: 0; }
+    .chatty-livekit-controls .lk-device-menu-heading { padding: 6px 8px 4px !important; font-size: 10px !important; font-weight: 700 !important; text-transform: uppercase !important; letter-spacing: .05em !important; color: var(--voice-muted) !important; }
     .chatty-voice-spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.38); border-top-color: #fff; border-radius: 50%; animation: chatty-voice-spin .8s linear infinite; }
     .chatty-voice-footer-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; color: var(--voice-muted); font-size: 10px; }
     .chatty-voice-footer-actions button, .chatty-voice-mic-status { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 3px; color: inherit; background: transparent; white-space: nowrap; cursor: pointer; }
@@ -709,7 +748,6 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-consent-actions button { border: 0; border-radius: 7px; padding: 7px 9px; color: #4c5961; background: var(--voice-soft); font-size: 11px; cursor: pointer; }
     .chatty-voice-consent-actions button:last-child { color: #fff; background: #1f2933; }
     .chatty-voice-panel:fullscreen { min-height: 100dvh; border-radius: 0; }
-    .chatty-voice-panel .lk-device-menu { z-index: 100; max-width: min(21rem, calc(100vw - 2rem)); max-height: min(18rem, calc(100dvh - 8rem)); overflow-x: hidden; overflow-y: auto; white-space: normal; }
     @keyframes chatty-voice-spin { to { transform: rotate(360deg); } }
     @media (max-width: 420px) { .chatty-voice-header { padding-inline: 10px; } .chatty-voice-content { gap: 10px; padding: 10px; } .chatty-voice-stage-wrap { min-height: 145px; } .chatty-voice-stage { min-height: 145px; padding: 14px 10px; } .chatty-voice-secure { display: none; } .chatty-voice-footer-actions { gap: 6px; } }
     @media (prefers-reduced-motion: reduce) { .chatty-voice-spinner { animation: none; } }

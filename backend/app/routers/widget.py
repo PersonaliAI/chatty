@@ -1383,7 +1383,7 @@ async def widget_theme(bot_id: str, response: Response):
             # panel_size's migration (20260902070328) may not be applied to
             # this environment yet - retry without it before falling further back.
             res = await run_db(lambda: supabase.table("chatty_bots").select(
-                f"{base_columns}, font_family, font_size_percent, voice_message_mode, voice_enabled").eq("id", bot_id).execute())
+                f"{base_columns}, font_family, font_size_percent, voice_message_mode, voice_enabled, voice_visualizer").eq("id", bot_id).execute())
         except Exception:
             try:
                 # voice_message_mode's migration (20260829020000) may not be
