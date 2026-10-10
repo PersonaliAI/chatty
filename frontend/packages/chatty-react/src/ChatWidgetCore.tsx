@@ -611,6 +611,8 @@ function IdentifiedChatWidget({
   notificationGranted,
   onThemeLoaded,
   voiceOpenRequest,
+  voicePopup = false,
+  onVoicePopupChange,
   identity,
 }: ChatWidgetCoreProps & { identity: VisitorIdentityClient }) {
   const fetch = identity.fetch;
@@ -737,8 +739,8 @@ function IdentifiedChatWidget({
   const [voiceAgentOpen, setVoiceAgentOpen] = useState(false);
   const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
   useEffect(() => {
-    props.onVoicePopupChange?.(voiceModeActive);
-  }, [props.onVoicePopupChange, voiceModeActive]);
+    onVoicePopupChange?.(voiceModeActive);
+  }, [onVoicePopupChange, voiceModeActive]);
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>("home");
@@ -2710,11 +2712,11 @@ function IdentifiedChatWidget({
       </div>}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? `chatty-widget-voice-host ${props.voicePopup ? "overflow-visible" : "overflow-hidden"}` : "widget-panel overflow-y-auto"}`}>
+      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? `chatty-widget-voice-host ${voicePopup ? "overflow-visible" : "overflow-hidden"}` : "widget-panel overflow-y-auto"}`}>
         {voiceModeActive ? (
-          <div className={props.voicePopup ? "chatty-widget-voice-modal-backdrop" : "chatty-widget-voice-stage"}>
-            {props.voicePopup ? <button type="button" className="chatty-widget-voice-modal-dismiss" aria-label="Close voice agent" onClick={() => setVoiceAgentOpen(false)} /> : null}
-            <div className={props.voicePopup ? "chatty-widget-voice-modal-card" : "chatty-widget-voice-stage-card"}>
+          <div className={voicePopup ? "chatty-widget-voice-modal-backdrop" : "chatty-widget-voice-stage"}>
+            {voicePopup ? <button type="button" className="chatty-widget-voice-modal-dismiss" aria-label="Close voice agent" onClick={() => setVoiceAgentOpen(false)} /> : null}
+            <div className={voicePopup ? "chatty-widget-voice-modal-card" : "chatty-widget-voice-stage-card"}>
               <VoiceAgentPanel
                 botId={botId}
                 backendUrl={BACKEND_URL}
