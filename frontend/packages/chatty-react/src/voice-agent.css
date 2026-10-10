@@ -303,6 +303,15 @@
 @keyframes chatty-sdk-voice-level { from { transform: scaleY(.45); opacity: .55; } to { transform: scaleY(1.1); opacity: 1; } }
 @media (max-width: 420px) { .chatty-sdk-voice-header { min-height: 4.2rem; padding-inline: .8rem; } .chatty-sdk-voice-content { padding-inline: .8rem; } .chatty-sdk-voice-transcript-panel { min-height: 9.5rem; } }
 
+/* The widget uses the same popup surface as the landing CTA. Keep the
+ * legacy widget voice class separate: it is intentionally a flat, compact
+ * layout, while this surface must remain a self-contained card. */
+.chatty-widget-voice-host { background: #f6f7f8; }
+.chatty-widget-voice-stage { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; padding: .55rem; background: linear-gradient(145deg, #f8fafb 0%, #f1f4f5 100%); }
+.chatty-sdk-voice-embedded-popup { min-width: 0; min-height: 0; width: 100%; border: 1px solid #e3e7e9; border-radius: 1.5rem; background: #fff; box-shadow: 0 1.25rem 3rem rgba(22, 38, 48, .16); animation: chatty-sdk-voice-popup-in .22s ease-out both; }
+@keyframes chatty-sdk-voice-popup-in { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 420px) { .chatty-widget-voice-stage { padding: .35rem; } .chatty-sdk-voice-embedded-popup { border-radius: 1.15rem; } }
+
 /* Keep the floating widget on the same visualizer-first surface as /embed. */
 .chatty-sdk-voice-content { justify-content: space-between; gap: 0; padding: 1rem; overflow: hidden; }
 .chatty-sdk-voice-stage { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; text-align: center; }

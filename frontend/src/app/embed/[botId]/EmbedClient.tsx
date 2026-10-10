@@ -2727,21 +2727,23 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       </div>}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin widget-panel flex flex-col ${voiceModeActive ? "overflow-hidden" : "overflow-y-auto"}`}>
+      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin flex flex-col ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto"}`}>
         {voiceModeActive ? (
-          <VoiceAgentPanel
-            botId={botId}
-            backendUrl={BACKEND_URL}
-            sessionId={sessionId}
-            widgetToken={originToken || undefined}
-            visitorToken={identity.value?.visitor_token}
-            /* Use the same voice surface as the landing-page CTA. The
-             * embed container still controls the available widget size. */
-            widgetMode={false}
-            visualizer={voiceVisualizer}
-            className="chatty-sdk-voice-widget"
-            onClose={() => setVoiceAgentOpen(false)}
-          />
+          <div className="chatty-widget-voice-stage">
+            <VoiceAgentPanel
+              botId={botId}
+              backendUrl={BACKEND_URL}
+              sessionId={sessionId}
+              widgetToken={originToken || undefined}
+              visitorToken={identity.value?.visitor_token}
+              /* Use the same popup surface as the landing-page CTA, with an
+               * inset card that is sized by the embedding widget. */
+              widgetMode={false}
+              visualizer={voiceVisualizer}
+              className="chatty-sdk-voice-embedded-popup"
+              onClose={() => setVoiceAgentOpen(false)}
+            />
+          </div>
         ) : (
           <>
         {showCsat ? (

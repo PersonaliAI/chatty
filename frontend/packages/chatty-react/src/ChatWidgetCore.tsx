@@ -2704,22 +2704,24 @@ function IdentifiedChatWidget({
       </div>}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`flex-1 widget-panel flex flex-col relative scrollbar-thin ${voiceModeActive ? "overflow-hidden" : "overflow-y-auto"}`}>
+      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto"}`}>
         {voiceModeActive ? (
-          <VoiceAgentPanel
-            botId={botId}
-            backendUrl={BACKEND_URL}
-            sessionId={sessionId}
-            widgetToken={originToken || undefined}
-            visitorToken={identity.value?.visitor_token}
-            visualizer={voiceVisualizer}
-            /* Keep the widget on the same voice surface as the landing CTA.
-             * The surrounding chat shell still supplies the widget's own
-             * width and height; only the voice presentation is shared. */
-            widgetMode={false}
-            className="chatty-sdk-voice-widget"
-            onClose={() => setVoiceAgentOpen(false)}
-          />
+          <div className="chatty-widget-voice-stage">
+            <VoiceAgentPanel
+              botId={botId}
+              backendUrl={BACKEND_URL}
+              sessionId={sessionId}
+              widgetToken={originToken || undefined}
+              visitorToken={identity.value?.visitor_token}
+              visualizer={voiceVisualizer}
+              /* Reuse the landing-page popup surface inside the widget, but
+               * keep it as an inset card so it does not collide with the
+               * widget shell or inherit the old compact voice layout. */
+              widgetMode={false}
+              className="chatty-sdk-voice-embedded-popup"
+              onClose={() => setVoiceAgentOpen(false)}
+            />
+          </div>
         ) : showCsat ? (
           /* CSAT Feedback Modal */
           // Colors here are deliberately currentColor-relative (style props,
