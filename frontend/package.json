@@ -32,7 +32,7 @@
     "@fullcalendar/daygrid": "^6.1.21",
     "@fullcalendar/interaction": "^6.1.21",
     "@fullcalendar/moment-timezone": "^6.1.21",
-    "@fullcalendar/react": "^6.1.21",
+    "@fullcalendar/react": "^7.1.1",
     "@fullcalendar/timegrid": "^6.1.21",
     "@livekit/components-react": "^2.9.24",
     "@livekit/components-styles": "^1.2.0",
