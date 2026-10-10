@@ -34,6 +34,7 @@
 - [流程构建器与集成](https://docs.chatty.personaliai.com/guides/flow-integrations)
 - [三行代码组件嵌入指南](docs/WIDGET_INTEGRATION.md)
 - [功能特性](#-功能特性)
+- [LiveKit 实时语音代理与 SDK](#-livekit-实时语音代理与-sdk)
 - [架构](#架构)
 - [环境依赖](#-环境依赖)
 - [快速开始 (Docker Compose)](#-快速开始-docker-compose)
@@ -53,20 +54,60 @@
 | **对话数据归属** | 始终存储在厂商的服务器上 | 存储在您自有的 Supabase 项目中（无论是自建还是使用 Chatty Cloud） |
 | **收费模式** | 按坐席 / 按消息计费，通常无免费层 | 自由免费自托管，或选择透明清晰的 Chatty Cloud 托管方案 |
 | **大语言模型 (LLM)** | 强绑定其特定模型 | **自带模型密钥 (BYOK)** —— 默认内置 Gemini，亦支持配置 OpenAI、Anthropic、OpenRouter |
-| **语音代理** | 通常作为更昂贵的高级套餐提供 | 原生包含，与文本聊天共享同一知识库 |
-| **Agent / 自动化集成** | 通常无开放接口或属于高价增购 | **原生内置完整 MCP 服务器** —— 55 项工具，OAuth 2.0 认证保护 |
+| **语音代理** | 通常作为更昂贵的高级套餐提供 | 原生包含，支持 5 种动态可视化动画与全平台 SDK |
+| **Agent / 自动化集成** | 通常无开放接口或属于高价增购 | **原生内置完整 MCP 服务器** —— 58 项工具，OAuth 2.0 认证保护 |
 | **代码与可控性** | 闭源黑盒 | **MIT 开源协议** —— 自由 Fork、安全审计、二次扩展，随处部署运行 |
 
 ## ✨ 功能特性
 
+- 🎙️ **LiveKit 实时语音代理** - 基于 WebRTC 的超低延迟双向语音对话，配备 5 种动态音频可视化动画（波形、频谱条、网格、径向、光环），支持实时语音听写转录、管道 (STT+LLM+TTS) 与多模态端到端模型，并提供全平台原生 SDK 嵌入。
 - 💬 **可嵌入式聊天组件** - 仅需一行 `<script>` 标签，支持流式打字机回复，兼容任何网站。
 - 📚 **基于自有知识库的 RAG** - 支持上传 PDF、DOCX、PPTX、XLSX 或抓取 URL 网页，自动切片、向量化并检索召回。
 - 🛠️ **工具调用 (Tool-calling)** - 自动预约会议（生成 Google Meet / Microsoft Teams / Zoom 链接）、捕获销售线索与核对日历冲突。
 - 🔌 **全渠道触达 (Omnichannel)** - 除了网页组件，原生支持 WhatsApp 与 Slack 渠道接入。
 - 🔑 **自带密钥 (BYOK)** - 默认采用 Google Gemini（提供慷慨的免费配额）；每个机器人均可单独换用专属的 OpenAI / Anthropic / OpenRouter API 密钥。
-- 🤖 **MCP 服务器** - 无缝接入 Claude、ChatGPT 或任何兼容 MCP 的客户端，仅凭自然语言对话即可操作整个仪表盘：创建机器人、调整工作流、发布运营活动、线索管理、配置语音等（包含 55 个通过 OAuth 2.0 + PKCE 鉴权的标准化工具）。
+- 🤖 **MCP 服务器** - 无缝接入 Claude、ChatGPT 或任何兼容 MCP 的客户端，仅凭自然语言对话即可操作整个仪表盘：创建机器人、调整工作流、发布运营活动、线索管理、配置语音等（包含 58 个通过 OAuth 2.0 + PKCE 鉴权的标准化工具，涵盖语音代理配置）。
 - 📊 **统一管理仪表盘** - 集中管理机器人矩阵、收件箱/人工接管、知识库源、预约规则、运营活动以及渠道连接。
 - 🐳 **一键式自托管** - `docker compose up` 结合 Supabase 项目即可秒级拉起完整生产可用环境。
+
+## 🎙️ LiveKit 实时语音代理与 SDK
+
+Chatty 原生集成了基于 [LiveKit WebRTC](https://livekit.io) 的企业级超低延迟实时语音代理，支持全双工双向对讲、5 种动态可视化波形动画、实时听写字幕卡片、知识库检索对齐、日历预约与会话记忆隔离。
+
+### 架构模式：模块化管道 (Pipeline) 与 端到端实时多模态 (Multimodal Realtime)
+
+- **模块化管道模式 (Modular Pipeline)**：
+  - **语音识别 (STT)**：Google Cloud Speech Chirp、Deepgram Nova-3、OpenAI Whisper、Cartesia、Soniox、AssemblyAI。
+  - **语言模型 (LLM)**：Gemini 2.5 Flash、Claude 3.5 Sonnet、GPT-4o-mini、OpenRouter。
+  - **语音合成 (TTS)**：Google Gemini TTS、Cartesia Sonic、ElevenLabs、Deepgram Aura、OpenAI Audio、Fish Audio。
+- **端到端实时多模态模式 (Multimodal Realtime)**：直连原生音频模型，包括 Gemini Live 2.5 Flash Native Audio、OpenAI Realtime、Azure OpenAI 与 Ultravox。
+
+### 5 种动态音频可视化动画
+
+可在控制台配置或通过 SDK 属性指定：
+- `wave` — 经典平滑流体正弦声波。
+- `bar` — 动感频段均衡器频谱条。
+- `grid` — 矩阵 LED 能量点阵。
+- `radial` — 随音量起伏同心扩散的脉冲光环。
+- `aura` — 呼吸式大气辉光，支持音高音调微动态。
+
+### 全平台 SDK 嵌入矩阵
+
+| 平台 / SDK | 语音组件 / 嵌入方式 | 编程式控制与令牌 |
+| :--- | :--- | :--- |
+| **HTML Script** (`widget.js`) | `<script src="..." data-mode="voice" data-display="modal"></script>` | `window.Chatty.openVoice()` |
+| **React / Next.js** (`@personaliai/react-widget`) | `<VoiceAgent botId="..." />` 或 `<ChattyWidget mode="voice" />` | `useChatty().openVoice()` |
+| **iOS** (SwiftUI) | `ChattyVoiceView(botId: "...")` | `ChattyClient.createVoiceToken(...)` |
+| **Android** (Compose) | `ChattyVoiceScreen(botId = "...")` | `ChattyApi.createVoiceToken(...)` |
+| **Flutter** | `ChattyVoiceScreen(botId: '...')` | `ChattyClient.createVoiceToken(...)` |
+| **React Native** | `<ChattyVoiceView botId="..." />` | `ChattyClient.createVoiceToken(...)` |
+| **Iframe 独立嵌入** | `<iframe src="https://chatty.personaliai.com/embed/{botId}?voice=only"></iframe>` | 独立浏览器 WebRTC 托管页 |
+
+### 声学工程与回声抑制
+
+- **硬件级 WebRTC AEC**：客户端浏览器与手机原生协商回声消除（AEC）、噪声抑制与自动增益控制。
+- **消除服务端二次滤波梳状效应**：LiveKit 后端 Worker 运行时关闭了冗余的服务端 AEC 预热滤镜，避免双重滤波导致的金属颤音、机械感与卡顿。
+- **独立会话记忆重置**：提供即时重置接口（`POST /api/widget/voice/reset`），一键清空数据库对话记忆并轮换房间 Nonce，彻底解决跨会话上下文串扰问题。
 
 ## 架构
 
@@ -202,7 +243,8 @@ Chatty 内置了完整的 [Model Context Protocol (MCP)](https://modelcontextpro
 
 - **身份认证**：采用 OAuth 2.0 授权码模式配合强制 PKCE (RFC 7636)、动态客户端注册 (RFC 7591) 与授权元数据发现 (RFC 8414)，无需手动复制黏贴静态 API Key。
 - **权限范围 (Scopes)**：`read`、`write`、`knowledge`、`voice`、`actions`、`admin`，客户端仅可执行明确授权的范围。
-- **55 个标准化工具**：涵盖机器人生命周期、外观定制、可视化流程构建、主动营销、语音代理、知识库 RAG、收件箱人工介入、线索与日程管理、分析报表与 RBAC 权限等。
+- **58 个标准化工具**：涵盖 11 个分类，包括机器人生命周期、外观定制、可视化流程构建、主动营销、知识库 RAG、收件箱人工介入、线索与日程管理、分析报表、RBAC 权限，以及专属的 **LiveKit 语音工作室**（`get_voice_agent_config`、`configure_voice_agent`、`get_voice_agent_embed_code`）。
+- **实时资源与智能体工作流**：支持通过 `chatty://bots/{bot_id}/voice-config` 实时获取语音配置快照，并通过 `setup-voice-agent` 引导式 Prompt 自动完成语音代理全套配置。
 - **真实数据协同**：每个工具直接读写与控制台完全相同的底层数据表，杜绝模拟数据。
 
 客户端连接配置示例：

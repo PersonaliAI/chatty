@@ -14,7 +14,7 @@ import {
   useVoiceAssistant,
   type ReceivedMessage,
 } from "@livekit/components-react";
-import { TokenSource, Room, AudioPresets, type SendTextOptions, type TokenSourceResponseObject } from "livekit-client";
+import { TokenSource, Room, AudioPresets, Track, type SendTextOptions, type TokenSourceResponseObject } from "livekit-client";
 import { CalendarPlus, ImagePlus, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from "lucide-react";
 
 import "@livekit/components-styles";
@@ -129,10 +129,16 @@ function VoiceSurface({ props, apiRef, sessionId, onReset }: { props: VoiceAgent
     onErrorRef.current = props.onError;
   }, [session, props.onError]);
   const { state: agentState } = useAgent();
-  const { localParticipant } = useLocalParticipant();
+  const { localParticipant, microphoneTrack } = useLocalParticipant();
   const { messages, send: sendMessage, isSending } = useSessionMessages(session);
   const { audioTrack } = useVoiceAssistant();
-  const { bars } = useAudioWaveform(audioTrack, { barCount: 20, updateInterval: 90, volMultiplier: 1.35 });
+  const userTrackRef = useMemo(() => ({
+    participant: localParticipant,
+    source: Track.Source.Microphone,
+    publication: microphoneTrack,
+  }), [localParticipant, microphoneTrack]);
+  const activeAudioTrack = (agentState === "listening" && microphoneTrack) ? userTrackRef : audioTrack;
+  const { bars } = useAudioWaveform(activeAudioTrack, { barCount: 20, updateInterval: 90, volMultiplier: 1.35 });
   const agentStateRef = useRef(agentState);
   const agentJoinTimerRef = useRef<number | null>(null);
   const onStateChange = props.onStateChange;

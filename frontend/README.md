@@ -37,6 +37,48 @@ Add a single `<script>` tag before `</body>` on any website:
 
 The script mounts directly into an isolated **Shadow DOM** container, rendering native vector DOM elements - zero iframes, 100% sharp text at all zoom levels.
 
+### LiveKit Voice Agent Embed
+
+Embed the real-time LiveKit Voice Agent directly via script tag, React SDK, or standalone iframe:
+
+#### Option A: HTML Script Tag (Voice Launcher Mode)
+
+```html
+<!-- Opens the Voice Agent modal or drawer on launcher click -->
+<script src="https://chatty.personaliai.com/widget.js"
+        data-id="YOUR_BOT_UUID"
+        data-mode="voice"
+        data-display="modal"
+        defer></script>
+
+<!-- Or trigger programmatically from JavaScript: -->
+<!-- window.Chatty.openVoice('modal') or window.Chatty.openVoice('drawer') -->
+```
+
+#### Option B: React SDK (`@personaliai/react-widget`)
+
+```tsx
+import { ChattyWidget, VoiceAgent } from "@personaliai/react-widget";
+
+// Voice Launcher Widget:
+<ChattyWidget botId="YOUR_BOT_UUID" mode="voice" display="modal" />
+
+// Or Standalone Inline Voice UI with Reactive Visualizer:
+<VoiceAgent botId="YOUR_BOT_UUID" visualizer="aura" />
+```
+
+#### Option C: Standalone Iframe Embed
+
+```html
+<iframe
+  src="https://chatty.personaliai.com/embed/YOUR_BOT_UUID?voice=only"
+  allow="microphone"
+  width="100%"
+  height="600"
+  style="border: none; border-radius: 16px;"
+></iframe>
+```
+
 ## Architecture
 
 The frontend and API are portable containers. Supabase remains the managed

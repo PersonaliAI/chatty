@@ -208,7 +208,10 @@ export function AgentAudioVisualizerBar({
   );
 
   const bands = useMemo(
-    () => (state === 'speaking' ? resolvedVolumeBands : new Array(_barCount).fill(0)),
+    () =>
+      state === 'speaking' || (state === 'listening' && resolvedVolumeBands.some((b) => b > 0.01))
+        ? resolvedVolumeBands
+        : new Array(_barCount).fill(0),
     [state, resolvedVolumeBands, _barCount],
   );
 

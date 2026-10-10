@@ -30,6 +30,7 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 - [Constructor de Flujos e Integraciones](https://docs.chatty.personaliai.com/guides/flow-integrations)
 - [Integración del Widget (3 Líneas)](docs/WIDGET_INTEGRATION.md)
 - [Características](#-características)
+- [Agente de Voz LiveKit y SDKs](#-agente-de-voz-livekit-y-sdks)
 - [Arquitectura](#arquitectura)
 - [Requisitos](#-requisitos)
 - [Inicio Rápido (Docker Compose)](#-inicio-rápido-docker-compose)
@@ -48,19 +49,60 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 | **Tus datos de conversación** | Residen en sus servidores de forma permanente | En tu proyecto de Supabase, ya sea autohospedado o en Chatty Cloud |
 | **Precios** | Por usuario / por mensaje, sin nivel gratuito | Autohospedaje gratuito o plan gestionado en Chatty Cloud |
 | **LLM** | Restringido a su propio modelo | **Trae tu propia clave (BYOK)**: Gemini por defecto, o claves de OpenAI/Anthropic/OpenRouter |
-| **Acceso para agentes/automatización** | Generalmente inexistente o complemento de pago | **Servidor MCP completo incluido**: 55 herramientas protegidas por OAuth 2.0 |
+| **Agente de voz** | Generalmente un complemento costoso | **Incluido nativamente**: 5 visualizadores dinámicos y SDKs para todas las plataformas |
+| **Acceso para agentes/automatización** | Generalmente inexistente o complemento de pago | **Servidor MCP completo incluido**: 58 herramientas protegidas por OAuth 2.0 |
 | **Código fuente** | Propietario / cerrado | **Licencia MIT**: audítalo, modifícalo, amplíalo y ejecútalo donde prefieras |
 
 ## ✨ Características
 
+- 🎙️ **Agente de voz LiveKit**: conversaciones de voz bidireccionales en tiempo real mediante WebRTC con 5 visualizadores dinámicos (wave, bar, grid, radial, aura), transcripción de voz en vivo, modos modulares (STT+LLM+TTS) y multimodales directos, e integración nativa en SDKs para Web, React, iOS, Android, Flutter y React Native.
 - 💬 **Widget de chat integrable**: una sola etiqueta `<script>`, respuestas en streaming y compatibilidad con cualquier sitio web.
 - 📚 **RAG sobre tu propia base de conocimientos**: carga archivos PDF, DOCX, PPTX o XLSX y rastrea URLs, con segmentación automática y generación de embeddings.
 - 🛠️ **Llamada a herramientas (Tool-calling)**: agenda reuniones reales (enlaces a Google Meet, Microsoft Teams o Zoom), captura leads y consulta disponibilidad en calendarios.
 - 🔌 **Omnicanalidad**: soporte integrado para WhatsApp y Slack, además del widget web.
 - 🔑 **BYOK (Bring Your Own Key)**: Gemini por defecto (generoso nivel gratuito); configura tus propias claves de OpenAI, Anthropic u OpenRouter por bot.
-- 🤖 **Servidor MCP**: conecta Claude, ChatGPT o cualquier cliente MCP y gestiona todo el panel conversacionalmente (creación de bots, flujos visuales, campañas, leads y voz con 55 herramientas aseguradas mediante OAuth 2.0 + PKCE).
+- 🤖 **Servidor MCP**: conecta Claude, ChatGPT o cualquier cliente MCP y gestiona todo el panel conversacionalmente (creación de bots, flujos visuales, campañas, leads y voz con 58 herramientas aseguradas mediante OAuth 2.0 + PKCE, incluyendo configuración de agentes de voz).
 - 📊 **Panel de administración**: control total sobre bots, bandeja de entrada y takeover humano, fuentes de conocimiento, reglas de agenda, campañas y canales.
 - 🐳 **Autohospedaje en un comando**: ejecuta `docker compose up`, conecta tu proyecto de Supabase y la solución estará lista.
+
+## 🎙️ Agente de Voz LiveKit y SDKs
+
+Chatty integra un agente de voz en tiempo real de nivel empresarial impulsado por [LiveKit WebRTC](https://livekit.io), con audio bidireccional de baja latencia, 5 visualizadores dinámicos, subtítulos transcritos en vivo, alineación con la base de conocimientos, reserva de citas y aislamiento seguro de sesiones.
+
+### Modos de Arquitectura: Pipeline Modular vs Multimodal en Tiempo Real
+
+- **Modo Pipeline Modular**:
+  - **Reconocimiento de Voz (STT)**: Google Cloud Speech Chirp, Deepgram Nova-3, OpenAI Whisper, Cartesia, Soniox, AssemblyAI.
+  - **Razonamiento (LLM)**: Gemini 2.5 Flash, Claude 3.5 Sonnet, GPT-4o-mini, OpenRouter.
+  - **Síntesis de Voz (TTS)**: Google Gemini TTS, Cartesia Sonic, ElevenLabs, Deepgram Aura, OpenAI Audio, Fish Audio.
+- **Modo Multimodal en Tiempo Real**: Conexión directa de audio nativo con Gemini Live 2.5 Flash Native Audio, OpenAI Realtime, Azure OpenAI y Ultravox.
+
+### 5 Visualizadores Dinámicos de Audio
+
+Seleccionables desde el panel de control o mediante propiedades del SDK:
+- `wave` — Onda senoidal fluida clásica.
+- `bar` — Barras de espectro de ecualizador de frecuencia.
+- `grid` — Cuadrícula matriz LED que reacciona a los decibelios de voz.
+- `radial` — Anillos concéntricos expansivos sincronizados con la intensidad de la voz.
+- `aura` — Resplandor atmosférico reactivo con modulación de tono.
+
+### Matriz de SDKs Multiplataforma
+
+| Plataforma / SDK | Componente de Voz / Integración | Control Programático y Tokens |
+| :--- | :--- | :--- |
+| **HTML Script** (`widget.js`) | `<script src="..." data-mode="voice" data-display="modal"></script>` | `window.Chatty.openVoice()` |
+| **React / Next.js** (`@personaliai/react-widget`) | `<VoiceAgent botId="..." />` o `<ChattyWidget mode="voice" />` | `useChatty().openVoice()` |
+| **iOS** (SwiftUI) | `ChattyVoiceView(botId: "...")` | `ChattyClient.createVoiceToken(...)` |
+| **Android** (Compose) | `ChattyVoiceScreen(botId = "...")` | `ChattyApi.createVoiceToken(...)` |
+| **Flutter** | `ChattyVoiceScreen(botId: '...')` | `ChattyClient.createVoiceToken(...)` |
+| **React Native** | `<ChattyVoiceView botId="..." />` | `ChattyClient.createVoiceToken(...)` |
+| **Iframe Embebido** | `<iframe src="https://chatty.personaliai.com/embed/{botId}?voice=only"></iframe>` | Vista de navegador aislada |
+
+### Ingeniería de Audio y Cancelación de Eco
+
+- **AEC por Hardware en WebRTC**: Los navegadores y clientes móviles negocian cancelación acústica de eco (AEC), supresión de ruido y control automático de ganancia.
+- **Eliminación del Doble Filtrado en el Servidor**: El runtime worker de LiveKit elimina filtros AEC redundantes en el servidor, evitando efectos de distorsión metálica, comb-filtering y voz robótica.
+- **Reinicio Seguro de Sesión**: La acción de reinicio (`POST /api/widget/voice/reset`) purga el historial de conversación en la base de datos y rota el nonce de la sala LiveKit para garantizar un inicio limpio sin contaminación de contexto.
 
 ## Arquitectura
 
@@ -194,7 +236,8 @@ Chatty incluye un servidor conforme a la especificación [Model Context Protocol
 
 - **Autenticación robusta**: Flujo OAuth 2.0 Authorization Code con PKCE obligatorio (RFC 7636), registro dinámico de clientes (RFC 7591) y descubrimiento RFC 8414.
 - **Permisos granulares**: Alcances `read`, `write`, `knowledge`, `voice`, `actions` y `admin`.
-- **55 herramientas disponibles**: Operaciones completas para gestionar bots, bases de conocimiento, flujos, campañas, agendas y transferencias a humanos.
+- **58 herramientas disponibles**: 11 categorías que cubren operaciones para gestionar bots, bases de conocimiento, flujos, campañas, agendas, transferencias a humanos y el nuevo **LiveKit Voice Agent Studio** (`get_voice_agent_config`, `configure_voice_agent`, `get_voice_agent_embed_code`).
+- **Recursos y prompts en vivo**: Inspección en tiempo real de la configuración de voz vía `chatty://bots/{bot_id}/voice-config` y workflows interactivos mediante el prompt `setup-voice-agent`.
 - **Datos reales**: Cada invocación de herramienta lee y escribe en las mismas tablas que utiliza el panel de control.
 
 Configura tu cliente MCP agregando el endpoint:

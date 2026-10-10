@@ -7,14 +7,16 @@ import {
   RoomAudioRenderer,
   SessionProvider,
   useAgent,
+  useLocalParticipant,
   useSession,
   useSessionContext,
   useSessionMessages,
   useVoiceAssistant,
   VoiceAssistantControlBar,
   type ReceivedMessage,
+  type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
-import { TokenSource, Room, AudioPresets, type SendTextOptions, type TokenSourceResponseObject } from 'livekit-client';
+import { TokenSource, Room, AudioPresets, Track, type SendTextOptions, type TokenSourceResponseObject } from 'livekit-client';
 import { AlertCircle, CalendarPlus, Check, ChevronDown, ImagePlus, Maximize2, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
 import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
@@ -183,7 +185,7 @@ function LiveKitTranscript({ messages, state }: { messages: ReceivedMessage[]; s
   );
 }
 
-function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: ReturnType<typeof useAgent>['state']; audioTrack: ReturnType<typeof useVoiceAssistant>['audioTrack']; visualizer: VoiceAgentPanelProps['visualizer']; widgetMode?: boolean }) {
+function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: ReturnType<typeof useAgent>['state']; audioTrack?: TrackReferenceOrPlaceholder; visualizer: VoiceAgentPanelProps['visualizer']; widgetMode?: boolean }) {
   const speaking = state === 'speaking';
   const listening = state === 'listening';
   const label = speaking ? 'Speaking…' : listening ? 'Listening…' : 'Ready when you are';
@@ -236,6 +238,13 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
   const { state } = useAgent();
   const agentStateRef = useRef(state);
   const { audioTrack } = useVoiceAssistant();
+  const { localParticipant, microphoneTrack } = useLocalParticipant();
+  const userTrackRef = useMemo<TrackReferenceOrPlaceholder>(() => ({
+    participant: localParticipant,
+    source: Track.Source.Microphone,
+    publication: microphoneTrack,
+  }), [localParticipant, microphoneTrack]);
+  const activeAudioTrack = (state === 'listening' && microphoneTrack) ? userTrackRef : audioTrack;
   const { messages } = useSessionMessages(session);
   const orderedMessages = useMemo(() => [...messages].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)), [messages]);
   const visitorTranscript = orderedMessages.filter((message) => message.type === 'userTranscript').map((message) => message.message.trim()).filter(Boolean).join(' ');
@@ -558,7 +567,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
           </div>
         ) : (
           <div className="chatty-voice-stage-wrap">
-            <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} widgetMode={widgetMode} />
+            <VoiceOrb state={state} audioTrack={activeAudioTrack} visualizer={visualizer} widgetMode={widgetMode} />
           </div>
         )}
 
@@ -909,8 +918,17 @@ export const VOICE_AGENT_PANEL_CSS = `
   .chatty-livekit-controls { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 42px; gap: 8px; color-scheme: light; }
   .chatty-livekit-controls .lk-agent-control-bar { display: flex; align-items: stretch; justify-content: center; flex: none; min-height: 42px; padding: 0; gap: .5rem; border: 0; background: transparent; }
   .chatty-livekit-controls .lk-button-group { display: inline-flex; align-items: stretch; height: 42px; flex: none; }
-  .chatty-livekit-controls .lk-agent-control-bar > .lk-button-group > .lk-button { display: inline-flex; align-items: center; justify-content: center; width: 42px; min-width: 42px; height: 42px; padding: 0; border: 1px solid var(--voice-border); border-radius: 10px; background: #fff; color: var(--voice-ink); box-shadow: none; cursor: pointer; }
-  .chatty-livekit-controls .lk-button-group > .lk-button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .chatty-livekit-controls .lk-agent-control-bar > .lk-button-group > .lk-button { display: inline-flex; align-items: center; justify-content: center; height: 42px; border: 1px solid var(--voice-border); border-radius: 10px; background: #fff; color: var(--voice-ink); box-shadow: none; cursor: pointer; transition: background-color .15s ease, border-color .15s ease; }
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child { min-width: 82px; width: auto; padding: 0 12px 0 10px; gap: 8px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child svg,
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-icon { width: 17px; height: 17px; flex: none; color: currentColor; }
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 3px !important; height: 20px !important; min-height: 20px !important; width: auto !important; min-width: 32px !important; background: transparent !important; flex: none !important; padding: 0 !important; }
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer .lk-audio-bar { display: inline-block !important; width: 2.5px !important; min-height: 5px !important; max-height: 20px !important; border-radius: 9999px !important; background-color: var(--voice-accent) !important; opacity: 0.85 !important; transition: height 0.08s ease, background-color 0.15s ease, opacity 0.15s ease !important; transform-origin: center !important; }
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer .lk-audio-bar.lk-highlighted,
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer .lk-audio-bar[data-lk-highlighted="true"] { background-color: var(--voice-accent) !important; opacity: 1 !important; }
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child[aria-pressed="false"] .lk-audio-bar-visualizer .lk-audio-bar,
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child[data-lk-enabled="false"] .lk-audio-bar-visualizer .lk-audio-bar,
+  .chatty-livekit-controls .lk-button-group > .lk-button:first-child[data-source="microphone"][data-enabled="false"] .lk-audio-bar-visualizer .lk-audio-bar { background-color: var(--voice-muted) !important; opacity: 0.35 !important; height: 5px !important; }
   .chatty-livekit-controls .lk-button-group-menu { position: relative !important; display: flex; align-items: stretch; height: 42px; flex: none; }
   .chatty-livekit-controls .lk-button-group-menu > .lk-button { width: 32px; min-width: 32px; height: 42px; border: 1px solid var(--voice-border); border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-top-right-radius: 10px; border-bottom-right-radius: 10px; background: #fff; color: var(--voice-ink); box-shadow: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
   .chatty-livekit-controls .lk-button-menu::before { display: none !important; }
@@ -931,11 +949,10 @@ export const VOICE_AGENT_PANEL_CSS = `
     transform: rotate(-135deg) !important;
     margin: 2px auto 0 !important;
   }
-  .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer { display: none; }
   .chatty-livekit-controls .lk-agent-control-bar > .lk-button-group > .lk-button:hover,
   .chatty-livekit-controls .lk-button-group-menu > .lk-button:hover { background: var(--voice-soft); }
   .chatty-voice-panel-standalone .chatty-livekit-controls .lk-agent-control-bar > .lk-button-group > .lk-button { border-radius: 9999px; }
-  .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group > .lk-button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group > .lk-button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; min-width: 88px; padding: 0 14px 0 12px; }
   .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group-menu > .lk-button { border-radius: 9999px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
   .chatty-livekit-controls .lk-device-menu {
     position: absolute !important;

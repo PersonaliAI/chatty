@@ -32,6 +32,7 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 - [フロービルダーと連携](https://docs.chatty.personaliai.com/guides/flow-integrations)
 - [ウィジェット埋め込みガイド (3行コード)](docs/WIDGET_INTEGRATION.md)
 - [✨ 機能](#-機能)
+- [LiveKit リアルタイム音声エージェントとSDK](#-livekit-リアルタイム音声エージェントとsdk)
 - [アーキテクチャ](#アーキテクチャ)
 - [📋 動作要件](#-動作要件)
 - [🚀 クイックスタート (Docker Compose)](#-クイックスタート-docker-compose)
@@ -53,20 +54,60 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 | **会話データの保管先** | 常にベンダー側のサーバーに保持 | あなた自身の Supabase プロジェクト（セルフホストまたは Chatty Cloud のどちらでも） |
 | **料金体系** | シート単位／メッセージ課金、無料枠なし | 無料でセルフホスト可能、または分かりやすい定額の Chatty Cloud ホストプラン |
 | **利用可能なLLM** | ベンダー指定のモデルに制限 | **BYOK (Bring Your Own Key)** — デフォルトは Gemini、または OpenAI / Anthropic / OpenRouter などを選択可能 |
-| **音声エージェント** | 通常は別料金の高額プラン | 標準搭載。チャットウィジェットと同一のナレッジベースを共有 |
-| **エージェント・自動化アクセス** | 通常は利用不可、または有料アドオン | **完全な MCP サーバーを標準同梱** — OAuth 2.0 で保護された 55 種類のツール |
+| **音声エージェント** | 通常は別料金の高額プラン | 標準搭載。5種類の動的ビジュアライザーと全プラットフォーム向けSDKを提供 |
+| **エージェント・自動化アクセス** | 通常は利用不可、または有料アドオン | **完全な MCP サーバーを標準同梱** — OAuth 2.0 で保護された 58 種類のツール |
 | **ソースコード** | 非公開 (Closed) | **MIT ライセンス** — フォーク、コード監査、カスタマイズ、自由な環境での運用が可能 |
 
 ## ✨ 機能
 
+- 🎙️ **LiveKit リアルタイム音声エージェント** — WebRTC による超低遅延の双方向音声会話。5種類の動的オーディオビジュアライザー（wave、bar、grid、radial、aura）、リアルタイム文字起こし字幕、パイプライン (STT+LLM+TTS) & マルチモーダル音声モデル、および全プラットフォーム向けネイティブ SDK 埋め込みに対応
 - 💬 **埋め込み可能チャットウィジェット** — `<script>` タグ1行で導入可能。ストリーミング応答に対応し、あらゆるWebサイトで動作
 - 📚 **独自ナレッジベースによるRAG** — PDF / DOCX / PPTX / XLSX のアップロードやURLクローリングに対応。テキストの自動チャンク分割およびベクトル埋め込み（Embedding）を実行
 - 🛠️ **ツール呼び出し (Tool-calling)** — ミーティング予約（Google Meet / Microsoft Teams / Zoom リンクの発行）、リード獲得、カレンダー空き枠の確認を自動化
 - 🔌 **オムニチャネル対応** — Webウィジェットに加え、WhatsApp および Slack にも対応
 - 🔑 **BYOK (モデル持ち込み)** — デフォルトで Gemini（寛容な無料枠あり）をサポート。ボットごとに OpenAI / Anthropic / OpenRouter の API キーを設定可能
-- 🤖 **MCP サーバー** — Claude、ChatGPT、その他の MCP クライアントを接続し、会話からダッシュボード全体を操作可能。ボット作成、フロー編集、キャンペーン実行、リード管理、音声設定など、OAuth 2.0 + PKCE で保護された 55 種類のツールを提供（詳細は [MCP サーバーとエージェント制御](#mcp-サーバーとエージェント制御) を参照）
+- 🤖 **MCP サーバー** — Claude、ChatGPT、その他の MCP クライアントを接続し、会話からダッシュボード全体を操作可能。ボット作成、フロー編集、キャンペーン実行、リード管理、音声設定など、OAuth 2.0 + PKCE で保護された 58 種類のツールを提供（詳細は [MCP サーバーとエージェント制御](#mcp-サーバーとエージェント制御) を参照）
 - 📊 **統合ダッシュボード** — ボット管理、受信トレイ・会話ログ、ナレッジソース、予約ルール、プロアクティブキャンペーン、外部チャネル連携を一元管理
 - 🐳 **ワンコマンドでマネージドセルフホスト** — `docker compose up` を実行し、Supabase プロジェクトに接続するだけで即座に起動
+
+## 🎙️ LiveKit リアルタイム音声エージェントとSDK
+
+Chatty は、[LiveKit WebRTC](https://livekit.io) を活用したエンタープライズ品質の超低遅延リアルタイム音声エージェントを標準搭載しています。全二重双方向会話、5種類の動的オーディオビジュアライザー、リアルタイム文字起こし字幕カード、ナレッジベース検索連携、カレンダー予約、セッションメモリ分離に対応しています。
+
+### アーキテクチャ構成：モジュラーパイプライン vs マルチモーダルリアルタイム
+
+- **モジュラーパイプラインモード (Modular Pipeline)**：
+  - **音声認識 (STT)**：Google Cloud Speech Chirp、Deepgram Nova-3、OpenAI Whisper、Cartesia、Soniox、AssemblyAI。
+  - **推論言語モデル (LLM)**：Gemini 2.5 Flash、Claude 3.5 Sonnet、GPT-4o-mini、OpenRouter。
+  - **音声合成 (TTS)**：Google Gemini TTS、Cartesia Sonic、ElevenLabs、Deepgram Aura、OpenAI Audio、Fish Audio。
+- **マルチモーダルリアルタイムモード (Multimodal Realtime)**：Gemini Live 2.5 Flash Native Audio、OpenAI Realtime、Azure OpenAI、Ultravox などによるエンドツーエンド直接音声通信。
+
+### 5種類の動的オーディオビジュアライザー
+
+ダッシュボード設定または SDK プロパティから選択可能：
+- `wave` — 滑らかな正弦波アニメーション。
+- `bar` — 周波数イコライザースペクトラムバー。
+- `grid` — 音声エネルギーに反応するLEDマトリクスグリッド。
+- `radial` — 音量に応じて同心円状に広がるパルスリング。
+- `aura` — 呼吸するように輝く大気オーラ（ピッチ反応対応）。
+
+### マルチプラットフォーム SDK マトリックス
+
+| プラットフォーム / SDK | コンポーネント / 埋め込みタグ | プログラム制御・トークン |
+| :--- | :--- | :--- |
+| **HTML Script** (`widget.js`) | `<script src="..." data-mode="voice" data-display="modal"></script>` | `window.Chatty.openVoice()` |
+| **React / Next.js** (`@personaliai/react-widget`) | `<VoiceAgent botId="..." />` または `<ChattyWidget mode="voice" />` | `useChatty().openVoice()` |
+| **iOS** (SwiftUI) | `ChattyVoiceView(botId: "...")` | `ChattyClient.createVoiceToken(...)` |
+| **Android** (Compose) | `ChattyVoiceScreen(botId = "...")` | `ChattyApi.createVoiceToken(...)` |
+| **Flutter** | `ChattyVoiceScreen(botId: '...')` | `ChattyClient.createVoiceToken(...)` |
+| **React Native** | `<ChattyVoiceView botId="..." />` | `ChattyClient.createVoiceToken(...)` |
+| **Iframe 埋め込み** | `<iframe src="https://chatty.personaliai.com/embed/{botId}?voice=only"></iframe>` | 独立したブラウザホスト画面 |
+
+### 音響エンジニアリングとエコー抑制
+
+- **ハードウェア加速 WebRTC AEC**：ブラウザおよびモバイルクライアント側で音響エコーキャンセラー（AEC）、ノイズ抑制、自動ゲイン制御を最適化ネゴシエーション。
+- **サーバー側二重フィルタリングの排除**：LiveKit ワーカーランタイムから不要なサーバー側 AEC フィルターを削除し、不快な金属音、コムフィルタリング、ロボット声アーティファクトを完全に防止。
+- **セッションメモリのリセット**：専用リセットエンドポイント（`POST /api/widget/voice/reset`）により、過去の会話履歴をDBから消去し、ルームNonceを再生成してコンテキスト汚染を完全に遮断。
 
 ## アーキテクチャ
 
@@ -241,7 +282,8 @@ Chatty には完全な [Model Context Protocol](https://modelcontextprotocol.io)
 
 - **認証**: 必須の PKCE（RFC 7636）、動的クライアント登録（RFC 7591）、認可サーバーメタデータ検出（RFC 8414）を備えた OAuth 2.0 認可コードフローを採用。設定ファイルに静的な API キーを貼り付ける必要はありません。
 - **スコープ**: `read`, `write`, `knowledge`, `voice`, `actions`, `admin` — クライアントには明示的に付与された権限のみが許可されます。
-- **55種類のツール**: ボットのライフサイクル、デザインカスタマイズ、ビジュアルフロービルダー、プロアクティブキャンペーン、音声エージェント、ナレッジベース & RAG、受信トレイと有人引き継ぎ、リード・カレンダー・予約、分析と自己修復、設定・ガードレール・BYOK・チーム RBAC の10カテゴリをカバー。
+- **58種類のツール**: 11カテゴリ（ボットライフサイクル、デザインカスタマイズ、ビジュアルフロービルダー、プロアクティブキャンペーン、ナレッジベース & RAG、受信トレイと有人対応、リード・カレンダー予約、分析、設定・ガードレール・BYOK・チーム RBAC、および **LiveKit 音声スタジオ** (`get_voice_agent_config`, `configure_voice_agent`, `get_voice_agent_embed_code`))。
+- **リアルタイムリソース & プロンプト**: `chatty://bots/{bot_id}/voice-config` でリアルタイムな音声設定状態を参照し、`setup-voice-agent` で対話型の自律セットアップワークフローを実行可能。
 - **本番データと直接連携**: すべてのツールはダッシュボードと同じテーブルを読み書きし、シミュレーションではない実データを操作します。
 
 MCP クライアントの設定例:

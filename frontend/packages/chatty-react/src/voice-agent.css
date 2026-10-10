@@ -105,7 +105,19 @@
 .chatty-sdk-voice-end:hover { background: #34414b; transform: translateY(-1px); }
 .chatty-sdk-voice-end { background: #7b3434; }
 .chatty-sdk-voice-live-controls { display: flex; align-items: center; gap: 8px; }
-.chatty-sdk-voice-live-controls [data-lk-theme="default"] { display: flex; align-items: center; min-height: 36px; border: 1px solid var(--chatty-voice-border); border-radius: 8px; padding: 2px 4px; background: #fff; --lk-fg: #26343b; --lk-bg: #fff; }
+.chatty-sdk-voice-live-controls [data-lk-theme="default"] { display: flex; align-items: center; min-height: 38px; border: 0; background: transparent; --lk-fg: #26343b; --lk-bg: transparent; }
+.chatty-sdk-voice-live-controls .lk-button-group { display: inline-flex; align-items: stretch; height: 38px; }
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child { display: inline-flex; align-items: center; justify-content: center; min-width: 76px; height: 38px; padding: 0 10px; gap: 7px; border: 1px solid var(--chatty-voice-border); border-radius: 8px; border-top-right-radius: 0; border-bottom-right-radius: 0; background: #fff; color: var(--chatty-voice-ink); cursor: pointer; }
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child svg,
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child .lk-icon { width: 16px; height: 16px; flex: none; color: currentColor; }
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 3px !important; height: 18px !important; min-height: 18px !important; width: auto !important; min-width: 32px !important; background: transparent !important; flex: none !important; padding: 0 !important; }
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer .lk-audio-bar { display: inline-block !important; width: 2.5px !important; min-height: 4px !important; max-height: 18px !important; border-radius: 9999px !important; background-color: var(--chatty-voice-accent) !important; opacity: 0.85 !important; transition: height 0.08s ease, background-color 0.15s ease !important; transform-origin: center !important; }
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer .lk-audio-bar.lk-highlighted,
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer .lk-audio-bar[data-lk-highlighted="true"] { background-color: var(--chatty-voice-accent) !important; opacity: 1 !important; }
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child[aria-pressed="false"] .lk-audio-bar-visualizer .lk-audio-bar,
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child[data-lk-enabled="false"] .lk-audio-bar-visualizer .lk-audio-bar,
+.chatty-sdk-voice-live-controls .lk-button-group > .lk-button:first-child[data-source="microphone"][data-enabled="false"] .lk-audio-bar-visualizer .lk-audio-bar { background-color: var(--chatty-voice-muted) !important; opacity: 0.35 !important; height: 4px !important; }
+.chatty-sdk-voice-live-controls .lk-button-group-menu > .lk-button { width: 28px; min-width: 28px; height: 38px; border: 1px solid var(--chatty-voice-border); border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; border-top-right-radius: 8px; border-bottom-right-radius: 8px; background: #fff; color: var(--chatty-voice-ink); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .chatty-sdk-voice-level { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 20px; }
 .chatty-sdk-voice-level i { display: block; width: 3px; min-height: 3px; border-radius: 99px; background: var(--chatty-voice-accent); animation: chatty-sdk-voice-level .75s ease-in-out infinite alternate; }
 .chatty-sdk-voice-spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.38); border-top-color: #fff; border-radius: 50%; animation: chatty-sdk-voice-spin .8s linear infinite; }

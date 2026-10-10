@@ -167,7 +167,7 @@ const GridCell = memo(function GridCell({
   highlightedCoordinate,
   children,
 }: GridCellProps) {
-  if (state === 'speaking') {
+  if (state === 'speaking' || (state === 'listening' && volumeBands.some((b) => b > 0.01))) {
     const y = Math.floor(index / columnCount);
     const rowMidPoint = Math.floor(rowCount / 2);
     const volumeChunks = 1 / (rowMidPoint + 1);

@@ -103,7 +103,7 @@ export function useAgentAudioVisualizerAura(
   }, [state, animateScale, animateAmplitude, animateFrequency, animateBrightness]);
 
   useEffect(() => {
-    if (state === 'speaking' && volume > 0 && !scaleMotionValue.isAnimating()) {
+    if ((state === 'speaking' || state === 'listening') && volume > 0 && !scaleMotionValue.isAnimating()) {
       animateScale(0.2 + 0.2 * volume, { duration: 0 });
     }
   }, [

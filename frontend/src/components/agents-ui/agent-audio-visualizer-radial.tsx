@@ -220,7 +220,10 @@ export function AgentAudioVisualizerRadial({
               style={{
                 width: dotSize,
                 minHeight: dotSize,
-                height: state === 'speaking' ? `${dotSize * 10 * band}px` : 0,
+                height:
+                  state === 'speaking' || (state === 'listening' && band > 0.01)
+                    ? `${dotSize * 10 * band}px`
+                    : 0,
               }}
             />
           </div>
