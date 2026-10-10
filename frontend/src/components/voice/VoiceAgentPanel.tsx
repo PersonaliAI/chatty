@@ -17,6 +17,7 @@ import {
 import { TokenSource, type TokenSourceResponseObject } from 'livekit-client';
 import { AlertCircle, CalendarPlus, Check, ChevronDown, Maximize2, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
+import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
 import { InlineBookingCard, type ConfirmedMeeting } from '@/components/inline-booking-card';
 
 type VoiceAgentPanelProps = {
@@ -69,10 +70,23 @@ function LiveKitTranscript() {
   );
 }
 
-function VoiceOrb({ state, audioTrack, visualizer }: { state: ReturnType<typeof useAgent>['state']; audioTrack: ReturnType<typeof useVoiceAssistant>['audioTrack']; visualizer: VoiceAgentPanelProps['visualizer'] }) {
+function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: ReturnType<typeof useAgent>['state']; audioTrack: ReturnType<typeof useVoiceAssistant>['audioTrack']; visualizer: VoiceAgentPanelProps['visualizer']; widgetMode?: boolean }) {
   const speaking = state === 'speaking';
   const listening = state === 'listening';
   const label = speaking ? 'Speaking…' : listening ? 'Listening…' : 'Ready when you are';
+  if (!widgetMode) {
+    const colors = { aura: '#1FD5F9', wave: '#FA954C', radial: '#04A43A', grid: '#C04CFA', bar: '#4CA3FA' } as const;
+    return (
+      <div className="flex flex-col items-center" aria-live="polite">
+        <div className={`chatty-livekit-visualizer relative flex size-[min(54vw,15rem)] max-w-[240px] items-center justify-center ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`}>
+          <LiveKitAgentVisualizer visualizer={visualizer ?? 'wave'} state={state ?? 'disconnected'} audioTrack={audioTrack} color={colors[visualizer ?? 'wave']} className="h-full w-full" />
+          {!speaking && !listening && <div className="absolute inset-0 flex items-center justify-center"><div className="flex size-14 items-center justify-center rounded-full bg-white/90 shadow-lg"><Phone className="size-6 text-neutral-950" aria-hidden="true" /></div></div>}
+        </div>
+        <p className="mt-6 text-center text-sm font-medium text-neutral-500 dark:text-neutral-400">{label}</p>
+        <p className="mt-1 text-center text-xs text-neutral-400 dark:text-neutral-500">{speaking ? 'You can interrupt at any time' : listening ? 'Ask anything about this business' : 'Your microphone is off'}</p>
+      </div>
+    );
+  }
   const { bars } = useAudioWaveform(audioTrack, { barCount: 16, updateInterval: 90, volMultiplier: 1.35 });
   const count = visualizer === 'bar' ? 8 : visualizer === 'grid' ? 12 : 16;
 
@@ -344,7 +358,8 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
           </div>
         ) : (
           <div className="chatty-voice-stage-wrap">
-            <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} />
+            <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} widgetMode={widgetMode} />
+            {!widgetMode && <p className="chatty-voice-standalone-description">Discover answers, book meetings, and get help from your Chatty assistant.</p>}
           </div>
         )}
 
@@ -448,7 +463,21 @@ export function VoiceAgentPanelStyles() {
     .chatty-widget-voice-stage { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; height: 100%; flex-direction: column; overflow: hidden; }
     .chatty-sdk-voice-widget-surface { flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; height: 100%; }
     .chatty-voice-panel { --voice-ink: #1f2933; --voice-muted: #74808a; --voice-soft: #f7f8f8; --voice-border: #e4e8ea; --voice-accent: #c67139; position: relative; display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; flex-direction: column; overflow: hidden; box-sizing: border-box; color: var(--voice-ink); background: #fff; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .chatty-voice-panel-standalone { border: 1px solid var(--voice-border); border-radius: 14px; }
+    .chatty-voice-panel-standalone { border: 1px solid rgb(229 229 229); border-radius: 28px; box-shadow: 0 20px 70px -30px rgba(0,0,0,.35); }
+    .chatty-voice-panel-standalone .chatty-voice-header-standalone { min-height: 0; padding: 20px 24px 4px; border-bottom: 0; background: transparent; }
+    .chatty-voice-panel-standalone .chatty-voice-header-main { gap: 8px; }
+    .chatty-voice-panel-standalone .chatty-voice-header-main > div { display: flex; }
+    .chatty-voice-panel-standalone .chatty-voice-header-button { width: 36px; height: 36px; border-radius: 9999px; background: #f5f5f5; }
+    .chatty-voice-panel-standalone .chatty-voice-header-button:hover { background: #e5e5e5; }
+    .chatty-voice-panel-standalone .chatty-voice-secure { display: none; }
+    .chatty-voice-panel-standalone .chatty-voice-language { border-radius: 9999px; padding: 7px 12px; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+    .chatty-voice-panel-standalone .chatty-voice-content { gap: 0; padding: 0 24px 20px; }
+    .chatty-voice-panel-standalone .chatty-voice-stage-wrap { flex: none; min-height: 0; padding: 20px 0 0; }
+    .chatty-voice-panel-standalone .chatty-voice-standalone-description { max-width: 260px; margin: 16px auto 0; color: #737373; font-size: 14px; line-height: 1.4; text-align: center; }
+    .chatty-voice-panel-standalone .chatty-voice-controls { max-width: 360px; margin: 0 auto; }
+    .chatty-voice-panel-standalone .chatty-voice-start { width: 56px; height: 56px; border-radius: 9999px; box-shadow: 0 12px 24px rgba(0,0,0,.15); }
+    .chatty-voice-panel-standalone .chatty-voice-footer-actions { font-size: 11px; }
+    .chatty-voice-panel-standalone .chatty-voice-interrupt { font-size: 10px; }
     .chatty-voice-header { display: flex; align-items: center; justify-content: space-between; flex: none; min-height: 54px; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--voice-border); background: #fff; }
     .chatty-voice-header-main { display: flex; align-items: center; min-width: 0; gap: 9px; }
     .chatty-voice-header-main > div { display: grid; min-width: 0; gap: 2px; }
