@@ -178,10 +178,12 @@ async def entrypoint(ctx: JobContext) -> None:
             expressive=expression_enabled,
             turn_handling=TurnHandlingOptions(
                 interruption={
-                    "resume_false_interruption": True,
-                    "false_interruption_timeout": 1.0,
+                    "enabled": True,
+                    "min_duration": 0.5,
+                    "min_words": 2,
+                    "resume_false_interruption": False,
                 },
-                preemptive_generation={"enabled": True, "max_retries": 2},
+                preemptive_generation={"enabled": False},
             ),
             aec_warmup_duration=3.0,
             tts_text_transforms=["filter_emoji", "filter_markdown"],

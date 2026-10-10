@@ -134,6 +134,14 @@ export function IntegrationsTab({
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
   const [deauthorizingWhatsApp, setDeauthorizingWhatsApp] = useState(false);
+  const [copiedVoiceSnippet, setCopiedVoiceSnippet] = useState<string | null>(null);
+
+  const handleCopyVoice = (code: string, id: string) => {
+    navigator.clipboard?.writeText(code);
+    setCopiedVoiceSnippet(id);
+    setTimeout(() => setCopiedVoiceSnippet(null), 2000);
+    if (showToast) showToast("Snippet copied to clipboard", "success");
+  };
 
   const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
 
@@ -554,86 +562,153 @@ export function IntegrationsTab({
         ))}
       </nav>
 
-      <div id="integration-voice" className="order-1 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-violet-200/80 dark:border-violet-900/60 rounded-2xl space-y-4 shadow-sm">
+            <div id="integration-voice" className="order-1 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-violet-200/80 dark:border-violet-900/60 rounded-2xl space-y-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold flex items-center gap-2">
-              <span className="inline-flex size-7 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">〰</span>
-              LiveKit voice agent
+              <span className="inline-flex size-7 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">🎙️</span>
+              Voice Agent Integration
             </h3>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-2xl">
-              The widget and SDKs use a short-lived Chatty token to connect to the self-hosted LiveKit server. LiveKit and provider secrets never ship to a browser or mobile app.
+              Embed a dedicated AI voice assistant on your website. Connects visitors instantly to real-time speech with dynamic audio visualizers, meeting scheduling, product photos, and smooth voice interaction.
             </p>
           </div>
-          <a href="https://docs.livekit.io/agents/" target="_blank" rel="noopener noreferrer" className="text-[11px] text-violet-600 dark:text-violet-300 hover:underline inline-flex items-center gap-1">
-            LiveKit docs <ExternalLink className="size-3" />
-          </a>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 dark:bg-violet-950/50 px-3 py-1 text-[11px] font-semibold text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+            Realtime LiveKit
+          </span>
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/60 p-3">
-            <div className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Voice token request</div>
-            <pre className="overflow-x-auto text-[10px] leading-relaxed text-neutral-600 dark:text-neutral-300"><code>{`POST /api/widget/voice/token\n{\n  "bot_id": "${botId || "YOUR_BOT_ID"}",\n  "session_id": "chatty-session-id",\n  "participant_name": "Visitor"\n}`}</code></pre>
-          </div>
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/60 p-3">
-            <div className="text-[11px] font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Self-hosted server</div>
-            <code className="text-[11px] text-violet-700 dark:text-violet-300 break-all">wss://livekit.personaliai.com</code>
-            <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">Use the token contract with a native LiveKit SDK, or use the React component below for the complete browser UI.</p>
-          </div>
-        </div>
-        <div className="rounded-xl border border-cyan-200/80 dark:border-cyan-900/70 bg-cyan-50/50 dark:bg-cyan-950/20 p-3">
+
+        {/* Option 1: Dedicated Script Tag */}
+        <div className="rounded-xl border border-violet-200/80 dark:border-violet-900/70 bg-violet-50/40 dark:bg-violet-950/20 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">React / Next.js voice surface</div>
-              <p className="mt-1 text-[10px] text-neutral-600 dark:text-neutral-400">Uses LiveKit Agents UI controls, audio visualization, realtime transcript messages, consent, interruption, and secure short-lived tokens.</p>
+              <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
+                <span>Option 1: Dedicated Voice Script Tag (No-Code Embed)</span>
+                <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-[9px] font-bold px-2 py-0.5">Recommended</span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
+                Paste this script before the closing <code>&lt;/body&gt;</code> tag. Adds a floating voice launcher orb to your site that opens straight into the voice assistant.
+              </p>
             </div>
-            <code className="rounded-full bg-white px-2.5 py-1 text-[10px] text-cyan-700 shadow-sm dark:bg-neutral-950 dark:text-cyan-300">@personaliai/react-widget</code>
           </div>
-          <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-950 p-3 text-[10px] leading-relaxed text-neutral-200"><code>{`npm install @personaliai/react-widget @livekit/components-react @livekit/components-styles livekit-client
-
-import { VoiceAgent } from "@personaliai/react-widget";
-
-export function SupportVoice() {
-  return <VoiceAgent botId="${botId || "YOUR_BOT_ID"}" title="Talk to support" language="en-US" />;
-}`}</code></pre>
-          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">The component calls <code>/api/widget/voice/token</code> through the configured API origin. The optional <code>language</code> prop is checked against the selected Voice Studio STT model for each session; changing it does not overwrite dashboard settings. Never put LiveKit API secrets or provider keys in this component.</p>
+          <div className="relative">
+            <pre className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-200 leading-relaxed">{`<script
+  src="https://chatty.personaliai.com/widget.js"
+  data-id="${botId || "YOUR_BOT_ID"}"
+  data-mode="voice"
+  defer
+></script>`}</pre>
+            <button
+              type="button"
+              onClick={() => handleCopyVoice(`<script
+  src="https://chatty.personaliai.com/widget.js"
+  data-id="${botId || "YOUR_BOT_ID"}"
+  data-mode="voice"
+  defer
+></script>`, "script")}
+              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors"
+            >
+              {copiedVoiceSnippet === "script" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              {copiedVoiceSnippet === "script" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-3 text-[10px] text-neutral-600 dark:text-neutral-400 pt-1">
+            <div className="rounded-lg bg-white/70 dark:bg-neutral-900/70 p-2 border border-neutral-200/60 dark:border-neutral-800">
+              <strong className="block font-semibold text-neutral-800 dark:text-neutral-200">data-display=&quot;drawer&quot;</strong>
+              <span>Default floating corner drawer with full voice controls.</span>
+            </div>
+            <div className="rounded-lg bg-white/70 dark:bg-neutral-900/70 p-2 border border-neutral-200/60 dark:border-neutral-800">
+              <strong className="block font-semibold text-neutral-800 dark:text-neutral-200">data-display=&quot;modal&quot;</strong>
+              <span>Centered popup dialog with backdrop blur (like Chatty demo).</span>
+            </div>
+            <div className="rounded-lg bg-white/70 dark:bg-neutral-900/70 p-2 border border-neutral-200/60 dark:border-neutral-800">
+              <strong className="block font-semibold text-neutral-800 dark:text-neutral-200">data-launcher=&quot;none&quot;</strong>
+              <span>Headless mode — hides the bubble; trigger via custom buttons.</span>
+            </div>
+          </div>
         </div>
-        <div className="rounded-xl border border-orange-200/80 dark:border-orange-900/70 bg-orange-50/50 dark:bg-orange-950/20 p-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
+
+        {/* Option 2: Custom Website Button Trigger */}
+        <div className="rounded-xl border border-cyan-200/80 dark:border-cyan-900/70 bg-cyan-50/40 dark:bg-cyan-950/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">Standalone voice agent — isolated from the chat widget</div>
-              <p className="mt-1 max-w-2xl text-[10px] text-neutral-600 dark:text-neutral-400">Use this when a website needs only the separate voice surface. Set the wrapper width and height to control the rendered agent size; it remains responsive inside the available space.</p>
+              <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
+                <span>Option 2: Trigger from Any Custom Website Button (JavaScript API)</span>
+                <span className="rounded-full bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 text-[9px] font-bold px-2 py-0.5">Custom CTA</span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
+                Attach the voice assistant to any existing button, banner, or navigation link on your website using <code>window.Chatty.openVoice()</code>.
+              </p>
             </div>
-            <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-orange-700 shadow-sm dark:bg-neutral-950 dark:text-orange-300">Width + height supported</span>
           </div>
-          <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-950 p-3 text-[10px] leading-relaxed text-neutral-200"><code>{`import { VoiceAgent } from "@personaliai/react-widget";
-
-export function StandaloneVoiceAgent() {
-  return (
-    <div style={{
-      width: "420px",
-      height: "680px",
-      maxWidth: "100vw",
-      maxHeight: "100dvh",
-    }}>
-      <VoiceAgent
-        botId="${botId || "YOUR_BOT_ID"}"
-        title="Talk to support"
-        className="h-full w-full"
-      />
-    </div>
-  );
-}`}</code></pre>
-          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">This is the independent centered-popup style surface. It includes the responsive language selector, microphone consent, official LiveKit controls, timestamped transcription with a compact scrollbar, text/image composer, booking, reconnect/reset, and interruption support. Voice Studio STT/TTS model settings are loaded by the token service for the selected bot; the session language follows the selected model’s supported locales.</p>
+          <div className="relative">
+            <pre className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-200 leading-relaxed">{`<!-- Custom button anywhere on your site -->
+<button onclick="window.Chatty.openVoice()">
+  🎙️ Talk with Voice AI
+</button>`}</pre>
+            <button
+              type="button"
+              onClick={() => handleCopyVoice(`<!-- Custom button anywhere on your site -->
+<button onclick="window.Chatty.openVoice()">
+  🎙️ Talk with Voice AI
+</button>`, "btn")}
+              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors"
+            >
+              {copiedVoiceSnippet === "btn" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              {copiedVoiceSnippet === "btn" ? "Copied!" : "Copy"}
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
+
+        {/* Option 3: Inline Container Embed */}
+        <div className="rounded-xl border border-orange-200/80 dark:border-orange-900/70 bg-orange-50/40 dark:bg-orange-950/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
+                <span>Option 3: Inline Container / Iframe Embed</span>
+                <span className="rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 text-[9px] font-bold px-2 py-0.5">Sidebar / Section</span>
+              </div>
+              <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
+                Embed the voice interface directly inside a webpage section, sidebar, or custom modal without floating bubbles.
+              </p>
+            </div>
+          </div>
+          <div className="relative">
+            <pre className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-200 leading-relaxed">{`<iframe
+  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?voice=only"
+  allow="microphone"
+  width="100%"
+  height="720"
+  style="border: none; border-radius: 24px; max-width: 520px;"
+></iframe>`}</pre>
+            <button
+              type="button"
+              onClick={() => handleCopyVoice(`<iframe
+  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?voice=only"
+  allow="microphone"
+  width="100%"
+  height="720"
+  style="border: none; border-radius: 24px; max-width: 520px;"
+></iframe>`, "iframe")}
+              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors"
+            >
+              {copiedVoiceSnippet === "iframe" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              {copiedVoiceSnippet === "iframe" ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        </div>
+
+        {/* Feature Badges */}
+        <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400 pt-1">
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Official LiveKit controls</span>
-          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Real-time transcription</span>
-          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Google Vertex + BYOK</span>
-          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">SDK token helpers</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">5 Audio visualizers</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Real-time transcript & images</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">In-call meeting booking</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Smooth adaptive interruption</span>
         </div>
       </div>
 
-      <div id="integration-embed" className="order-2 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+<div id="integration-embed" className="order-2 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold">Embed Chatbot</h3>
         <p className="text-xs text-neutral-400 mt-1">
           Select your website builder to get tailored installation instructions.

@@ -528,6 +528,8 @@ export interface ChatWidgetCoreProps {
   forceFullscreen?: boolean;
   notificationGranted?: boolean;
   voiceOpenRequest?: number;
+  mode?: "chat" | "voice";
+  initialVoiceOpen?: boolean;
   // Fires once the bot's theme/customization has loaded (both the initial
   // load and the periodic refresh). Lets a host app that renders its own
   // chrome around this widget (e.g. a custom floating launcher button)
@@ -608,6 +610,8 @@ function IdentifiedChatWidget({
   notificationGranted,
   onThemeLoaded,
   voiceOpenRequest,
+  mode = "chat",
+  initialVoiceOpen,
   identity,
 }: ChatWidgetCoreProps & { identity: VisitorIdentityClient }) {
   const fetch = identity.fetch;
@@ -731,7 +735,7 @@ function IdentifiedChatWidget({
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceAgentEnabled, setVoiceAgentEnabled] = useState(false);
   const [voiceVisualizer, setVoiceVisualizer] = useState<"wave" | "bar" | "grid" | "radial" | "aura" | undefined>(undefined);
-  const [voiceAgentOpen, setVoiceAgentOpen] = useState(false);
+  const [voiceAgentOpen, setVoiceAgentOpen] = useState(() => initialVoiceOpen ?? (mode === "voice"));
   const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
@@ -2716,7 +2720,13 @@ function IdentifiedChatWidget({
               visualizer={voiceVisualizer}
               widgetMode
               className="chatty-sdk-voice-widget-surface"
-              onClose={() => setVoiceAgentOpen(false)}
+              onClose={() => {
+                if (mode === "voice") {
+                  onWidgetClose?.();
+                } else {
+                  setVoiceAgentOpen(false);
+                }
+              }}
             />
           </div>
         ) : showCsat ? (

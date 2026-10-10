@@ -852,19 +852,57 @@ async def generate_business(
 ):
     """AI-generate a business description, support persona instructions, and a
     welcome message from a short hint (business name / URL / one-liner)."""
-    res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(
+    res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", req.bot_id).eq(
         "user_id", user["auth_user_id"]).execute())
     if not res.data:
         raise HTTPException(status_code=403, detail="Unauthorized")
+    bot = res.data[0]
+
+    # Retrieve real business knowledge and sources for this bot
+    sources_summary: list[str] = []
+    try:
+        src_res = await run_db(lambda: supabase.table("chatty_sources").select("name, type, status").eq("bot_id", req.bot_id).limit(10).execute())
+        if src_res.data:
+            sources_summary = [f"- {s.get('name')} ({s.get('type')})" for s in src_res.data if s.get("name")]
+    except Exception:
+        pass
+
+    knowledge_context = ""
+    try:
+        from plugins import widget_brain
+        ctx, _ = await widget_brain.search_knowledge(
+            bot_id=req.bot_id,
+            owner_user=user,
+            bot=bot,
+            query="business overview products services what we offer about us",
+            translate_query=False,
+        )
+        if ctx:
+            knowledge_context = ctx[:2500]
+    except Exception:
+        pass
+
+    bot_name = bot.get("name") or "this business"
+    is_voice_focused = "voice" in (req.hint or "").lower() or "spoken" in (req.hint or "").lower()
 
     prompt = (
-        "You are helping configure an AI customer-support assistant. Based on the hint below, "
-        "produce a JSON object with EXACTLY these keys:\n"
-        '  "description": a concise 2-3 sentence description of the business, what it sells, and who its customers are.\n'
-        '  "system_instructions": clear support-agent guidelines for this specific business (tone, what to help with, what to avoid).\n'
-        '  "welcome_message": a short friendly first message the chat assistant shows visitors.\n'
-        "Return ONLY raw JSON, no markdown, no commentary.\n\n"
-        f"Hint: {req.hint or 'A small business that wants a helpful website support assistant.'}"
+        f"You are configuring an AI customer representative for '{bot_name}'.\n\n"
+        "GROUNDED BUSINESS KNOWLEDGE & PROFILE:\n"
+        f"• Business Name: {bot_name}\n"
+        f"• Website: {bot.get('website_url') or 'N/A'}\n"
+        f"• Existing Description: {bot.get('description') or 'N/A'}\n"
+        f"• Current Instructions: {bot.get('system_instructions') or 'N/A'}\n"
+        f"• Knowledge Base Sources:\n{chr(10).join(sources_summary) if sources_summary else '• None configured'}\n"
+        f"• Key Business Knowledge Facts:\n{knowledge_context or (bot.get('description') or 'General business support')}\n\n"
+        f"User Hint: {req.hint or 'Write a warm, natural business welcome message'}\n\n"
+        "TASK:\n"
+        "Produce a JSON object with EXACTLY these keys:\n"
+        '  "welcome_message": The FIRST message visitors hear/read. It must be warmly personalized to this specific '
+        f'business name ({bot_name}) and mention what the business actually sells, offers, or helps with based on the knowledgebase above. '
+        'Keep it conversational, natural for voice speech, and under 25 words. Never use generic or robotic placeholder text.\n'
+        '  "description": A concise 2-3 sentence overview of this business and its offerings based on the knowledgebase.\n'
+        '  "system_instructions": Clear support guidelines for this business.\n'
+        "Return ONLY raw JSON, no markdown, no commentary."
     )
     try:
         response = await ai_client.chat(

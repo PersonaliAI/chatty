@@ -88,6 +88,9 @@
   var mobileFull = ((script && (script.getAttribute("data-mobile-fullscreen") || (script.dataset && script.dataset.mobileFullscreen))) || "true") !== "false";
   var teaserEnabled = ((script && (script.getAttribute("data-teaser") || (script.dataset && script.dataset.teaser))) || "true") !== "false";
   var soundEnabled = ((script && (script.getAttribute("data-sound") || (script.dataset && script.dataset.sound))) || "true") !== "false";
+  var mode = (script && (script.getAttribute("data-mode") || (script.dataset && script.dataset.mode))) || "chat"; // chat | voice
+  var display = (script && (script.getAttribute("data-display") || (script.dataset && script.dataset.display))) || "drawer"; // drawer | modal
+  var launcher = (script && (script.getAttribute("data-launcher") || (script.dataset && script.dataset.launcher))) || "visible"; // visible | none
   var origin = (script && script.src) ? new URL(script.src, location.href).origin : "https://chatty.personaliai.com";
 
   // Cache-buster for chatty-app.js/.css: they're served from a fixed,
@@ -100,7 +103,7 @@
   // no error, so the widget never appears. Bump this on every release that
   // Bump this whenever the widget shell or embedded chat surface changes so
   // customer sites do not keep loading a stale cached voice UI bundle.
-  var ASSET_VERSION = "2026-10-10.voice-visualizer-menu-2";
+  var ASSET_VERSION = "2026-10-10.standalone-voice-embed-1";
 
   // Preconnect to origin for fast asset loading
   try {
@@ -140,6 +143,9 @@
           mobileFullscreen: mobileFull,
           teaserEnabled: teaserEnabled,
           soundEnabled: soundEnabled,
+          mode: mode,
+          display: display,
+          launcher: launcher,
           onApiReady: onApiReady,
         });
       }

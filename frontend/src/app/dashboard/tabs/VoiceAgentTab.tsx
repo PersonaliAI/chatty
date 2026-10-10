@@ -575,9 +575,11 @@ function RealtimeCard({
 export function VoiceAgentTab({
   botId,
   fetchBackend,
+  onNavigateTab,
 }: {
   botId: string;
   fetchBackend: FetchBackend;
+  onNavigateTab?: (tab: string) => void;
 }) {
   const [config, setConfig] = useState<VoiceConfig>(defaults);
   const [draftKey, setDraftKey] = useState({
@@ -1059,36 +1061,56 @@ export function VoiceAgentTab({
               </label>
             </div>
           </Card>
-          <section className="rounded-[26px] border border-neutral-200 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-6">
-            <div className="flex items-start gap-3">
-              <div className="flex size-10 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">
-                <Info className="size-5" />
+          <section className="rounded-[26px] border border-violet-200/80 bg-white p-5 shadow-sm dark:border-violet-900/60 dark:bg-neutral-950 sm:p-6 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex size-10 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                  <AudioWaveform className="size-5" />
+                </div>
+                <div>
+                  <h2 className="font-semibold text-neutral-900 dark:text-white">Embed Voice Agent on your website</h2>
+                  <p className="mt-1 text-sm leading-5 text-neutral-500">
+                    Deploy your configured LiveKit voice assistant using a 1-line script tag or custom button trigger.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-semibold">Safe integration contract</h2>
-                <p className="mt-1 text-sm leading-5 text-neutral-500">
-                  Client apps receive short-lived room tokens only. LiveKit API
-                  secrets and provider keys remain server-side.
-                </p>
-              </div>
+              {onNavigateTab && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab("integrations")}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 px-3.5 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40 cursor-pointer"
+                >
+                  All integration options →
+                </button>
+              )}
             </div>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <a
-                href="https://docs.livekit.io/frontends/agents-ui/"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium hover:border-cyan-300 hover:text-cyan-700 dark:border-neutral-800 dark:hover:border-cyan-700"
-              >
-                Agents UI docs <ExternalLink className="size-3.5" />
-              </a>
-              <a
-                href="https://docs.livekit.io/agents/models/"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium hover:border-cyan-300 hover:text-cyan-700 dark:border-neutral-800 dark:hover:border-cyan-700"
-              >
-                Model catalog <ExternalLink className="size-3.5" />
-              </a>
+
+            <div className="relative">
+              <pre className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-200 leading-relaxed">{`<script
+  src="https://chatty.personaliai.com/widget.js"
+  data-id="${botId || "YOUR_BOT_ID"}"
+  data-mode="voice"
+  defer
+></script>`}</pre>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs text-neutral-500">
+              <div className="flex items-center gap-2">
+                <span>Trigger from custom button:</span>
+                <code className="rounded bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 text-[11px] font-mono text-neutral-800 dark:text-neutral-200">
+                  window.Chatty.openVoice()
+                </code>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://docs.livekit.io/frontends/agents-ui/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 inline-flex items-center gap-1 hover:underline"
+                >
+                  LiveKit Agents docs <ExternalLink className="size-3" />
+                </a>
+              </div>
             </div>
           </section>
         </main>

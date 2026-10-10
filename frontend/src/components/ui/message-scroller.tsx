@@ -50,10 +50,15 @@ function MessageScrollerButton({ direction = 'end', className, children, ...prop
     <MessageScrollerPrimitive.Button
       data-slot="message-scroller-button"
       direction={direction}
-      className={cn('absolute inset-s-1/2 size-8 -translate-x-1/2 rounded-full border bg-background p-2 shadow-sm', className)}
+      className={cn(
+        'absolute left-1/2 -translate-x-1/2 z-20 size-8 rounded-full border border-neutral-200/90 bg-white/95 dark:border-neutral-800 dark:bg-neutral-900/95 p-1.5 shadow-md flex items-center justify-center text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white transition-all duration-200 cursor-pointer backdrop-blur-sm',
+        direction === 'start' ? 'top-3' : 'bottom-3',
+        'data-[active=false]:pointer-events-none data-[active=false]:opacity-0 data-[active=false]:scale-75 data-[active=true]:opacity-100 data-[active=true]:scale-100',
+        className
+      )}
       {...props}
     >
-      {children ?? <><ArrowDownIcon className={direction === 'start' ? 'rotate-180' : undefined} /><span className="sr-only">Scroll to end</span></>}
+      {children ?? <><ArrowDownIcon className={cn('size-4', direction === 'start' ? 'rotate-180' : undefined)} /><span className="sr-only">Scroll to end</span></>}
     </MessageScrollerPrimitive.Button>
   );
 }

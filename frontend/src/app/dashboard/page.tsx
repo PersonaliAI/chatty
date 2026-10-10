@@ -4646,7 +4646,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
           {/* TAB: LIVEKIT VOICE AGENT */}
           {activeTab === "voice" && botId && (
-            <VoiceAgentTab botId={botId} fetchBackend={fetchWithFallback} />
+            <VoiceAgentTab botId={botId} fetchBackend={fetchWithFallback} onNavigateTab={(tab) => setActiveTab(tab as any)} />
           )}
 
           {/* TAB: MCP */}

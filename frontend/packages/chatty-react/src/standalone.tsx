@@ -8,12 +8,15 @@ import { getOnColor, hexToRgb } from "./color-contrast";
 import { normalizeWidgetStyle } from "./widget-style";
 import "./standalone.css";
 import "katex/dist/katex.min.css";
+import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
 import {
   Bot,
   Headphones,
   Sparkles,
   MessageSquare,
   MessageCircle,
+  Mic,
+  AudioWaveform,
   User,
   X,
   type LucideIcon,
@@ -96,6 +99,9 @@ export interface StandaloneMountOptions {
   mobileFullscreen?: boolean;
   teaserEnabled?: boolean;
   soundEnabled?: boolean;
+  mode?: "chat" | "voice";
+  display?: "drawer" | "modal";
+  launcher?: "visible" | "none";
   onOpen?: () => void;
   onClose?: () => void;
   // widget.js's documented `window.Chatty.open()/.close()/.toggle()` API -
@@ -112,6 +118,9 @@ export function ChattyStandaloneApp({
   mobileFullscreen = true,
   teaserEnabled = true,
   soundEnabled = true,
+  mode = "chat",
+  display = "drawer",
+  launcher = "visible",
   onOpen,
   onClose,
   onApiReady,
@@ -155,9 +164,20 @@ export function ChattyStandaloneApp({
   // Launcher stays strictly hidden until all customized assets, styles, and widget core settle
   const [revealed, setRevealed] = useState(false);
   const [teaserVisible, setTeaserVisible] = useState(false);
-  const [teaserText, setTeaserText] = useState("👋 Need help? Chat with us.");
+  const [teaserText, setTeaserText] = useState(() => mode === "voice" ? "🎙️ Talk with our AI voice assistant" : "👋 Need help? Chat with us.");
   const triggerRulesRef = useRef<TriggerRule[]>([]);
   const triggeredRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const host = document.getElementById("chatty-widget-host");
+    if (!host) return;
+    if (open && display === "modal") {
+      host.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:2147483646;pointer-events:auto;";
+    } else {
+      host.style.cssText = "position:fixed;bottom:0;right:0;width:auto;height:auto;z-index:2147483646;pointer-events:none;";
+    }
+  }, [open, display]);
 
   const [notificationGranted, setNotificationGranted] = useState(() =>
     typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted"
@@ -339,6 +359,9 @@ export function ChattyStandaloneApp({
     if (next) {
       setUnread(0);
       setTeaserVisible(false);
+      if (mode === "voice") {
+        setVoiceOpenRequest((v) => v + 1);
+      }
       onOpen?.();
     } else {
       onClose?.();
