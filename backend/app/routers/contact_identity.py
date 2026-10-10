@@ -104,7 +104,9 @@ async def visitor_identity(body: VisitorRequest, request: Request, response: Res
     # fresh session, leaving the anonymous transcript unmerged.
     if old_row and not body.identity_token:
         row = old_row
-        _set_visitor_cookie(response, body.bot_id, old_token, row["expires_at"], request)
+        # Do not re-emit a token supplied by the request. A cookie-authenticated
+        # visitor already has the cookie, while header-authenticated visitors
+        # continue using the header on subsequent requests.
         response.headers["Cache-Control"] = "no-store"
         return {"visitor_token": old_token, "session_id": row["session_id"], "expires_at": row["expires_at"]}
     result = await create_visitor(body.bot_id, body.identity_token)
