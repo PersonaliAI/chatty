@@ -504,7 +504,21 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     void identity.newConversation().catch(() => showToast("Could not start a conversation", "error"));
   };
 
-  const openVoiceAgent = () => setVoiceAgentOpen(true);
+  const openVoiceAgentPopup = () => {
+    if (typeof window === "undefined") return;
+    const popupUrl = new URL(window.location.href);
+    popupUrl.searchParams.set("voice", "only");
+    const popup = window.open(
+      popupUrl.toString(),
+      "chatty-voice-agent",
+      "popup=yes,width=420,height=760,resizable=yes,scrollbars=yes",
+    );
+    if (popup) {
+      popup.focus();
+    } else {
+      showToast("Allow pop-ups to open the voice agent", "error");
+    }
+  };
 
   const [loading, setLoading] = useState(true);
   const [botName, setBotName] = useState("Chatty Assistant");
@@ -2668,7 +2682,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               />
             )}
             {voiceAgentEnabled && (
-              <button type="button" onClick={openVoiceAgent} className="group relative flex size-7 shrink-0 items-center justify-center rounded-full p-0 text-current transition-colors hover:bg-white/15" aria-label="Open voice agent in chat widget" title="Open live voice agent">
+              <button type="button" onClick={openVoiceAgentPopup} className="group relative flex size-7 shrink-0 items-center justify-center rounded-full p-0 text-current transition-colors hover:bg-white/15" aria-label="Open voice agent in a new window" title="Open live voice agent">
                 <AudioWaveform className="size-4 stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
                 <span className="sr-only">Voice</span>
               </button>
@@ -3807,7 +3821,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 <button type="button" onClick={toggleRecord} disabled={transcribing} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 disabled:opacity-50" aria-label="Record audio" title="Record voice message">
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
-                {voiceAgentEnabled && <button type="button" onClick={openVoiceAgent} className="chat-input-bar-icon rounded-full p-1 text-neutral-500 transition hover:text-neutral-800 dark:hover:text-neutral-200" aria-label="Open live voice agent in chat widget" title="Open live voice agent"><AudioWaveform className="size-4 stroke-[2.1]" aria-hidden="true" /></button>}
+                {voiceAgentEnabled && <button type="button" onClick={openVoiceAgentPopup} className="chat-input-bar-icon rounded-full p-1 text-neutral-500 transition hover:text-neutral-800 dark:hover:text-neutral-200" aria-label="Open live voice agent in a new window" title="Open live voice agent"><AudioWaveform className="size-4 stroke-[2.1]" aria-hidden="true" /></button>}
               </div>
               {(() => {
                 const c = SEND_BUTTON_STYLES[sendStyle] || SEND_BUTTON_STYLES.plane;
