@@ -38,7 +38,8 @@ def _visitor_token(request: Request, bot_id: str) -> str:
 def _set_visitor_cookie(response: Response, bot_id: str, token: str, expires_at: str, request: Request) -> None:
     expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
     max_age = max(0, int((expiry - datetime.now(timezone.utc)).total_seconds()))
-    safe_token = token if re.fullmatch(r"[A-Za-z0-9_-]{1,512}", token or "") else ""
+    token_match = re.fullmatch(r"[A-Za-z0-9_-]{1,512}", token or "")
+    safe_token = token_match.group(0) if token_match else ""
     response.set_cookie(VISITOR_COOKIE_NAME, safe_token, max_age=max_age, expires=max_age,
         httponly=True, secure=request.url.scheme == "https",
         samesite="none" if request.url.scheme == "https" else "lax", path="/api/widget")
