@@ -35,6 +35,18 @@ export interface ChattyWidgetProps {
    * Whether to play notification audio chimes on new AI replies (defaults to true).
    */
   sound?: boolean;
+  /**
+   * Launch mode: "chat" (default chat widget) or "voice" (voice assistant).
+   */
+  mode?: "chat" | "voice";
+  /**
+   * Voice display mode: "drawer" or "modal".
+   */
+  display?: "drawer" | "modal";
+  /**
+   * Launcher button display: "default" or "none" (hide launcher to use custom triggers).
+   */
+  launcher?: "default" | "none";
 }
 
 export interface ChattyAPI {
@@ -43,6 +55,8 @@ export interface ChattyAPI {
   open: () => void;
   close: () => void;
   toggle: () => void;
+  openVoice?: () => void;
+  closeVoice?: () => void;
 }
 
 declare global {
@@ -77,6 +91,9 @@ export function ChattyWidget({
   mobileFullscreen = true,
   teaser = true,
   sound = true,
+  mode,
+  display,
+  launcher,
 }: ChattyWidgetProps): null {
   useEffect(() => {
     if (typeof window === "undefined" || !botId) return;
@@ -100,6 +117,9 @@ export function ChattyWidget({
     script.setAttribute("data-mobile-fullscreen", String(mobileFullscreen));
     script.setAttribute("data-teaser", String(teaser));
     script.setAttribute("data-sound", String(sound));
+    if (mode) script.setAttribute("data-mode", mode);
+    if (display) script.setAttribute("data-display", display);
+    if (launcher) script.setAttribute("data-launcher", launcher);
     script.defer = true;
 
     document.body.appendChild(script);
@@ -110,7 +130,7 @@ export function ChattyWidget({
         window.Chatty.close();
       }
     };
-  }, [botId, widgetUrl, position, color, style, mobileFullscreen, teaser, sound]);
+  }, [botId, widgetUrl, position, color, style, mobileFullscreen, teaser, sound, mode, display, launcher]);
 
   return null;
 }
@@ -127,7 +147,7 @@ export type ChatWidgetProps = ChattyWidgetProps;
  * import { useChatty } from "@personaliai/react-widget";
  *
  * export function HelpButton() {
- *   const { open, close, toggle } = useChatty();
+ *   const { open, close, toggle, openVoice } = useChatty();
  *   return <button onClick={open}>Chat with Support</button>;
  * }
  * ```
@@ -151,6 +171,18 @@ export function useChatty() {
     }
   }, []);
 
+  const openVoice = useCallback(() => {
+    if (typeof window !== "undefined" && window.Chatty && window.Chatty.openVoice) {
+      window.Chatty.openVoice();
+    }
+  }, []);
+
+  const closeVoice = useCallback(() => {
+    if (typeof window !== "undefined" && window.Chatty && window.Chatty.closeVoice) {
+      window.Chatty.closeVoice();
+    }
+  }, []);
+
   const identify = useCallback((token: string) => {
     if (!window.Chatty) return Promise.reject(new Error("Chatty is not ready"));
     return window.Chatty.identify(token);
@@ -159,7 +191,7 @@ export function useChatty() {
     if (!window.Chatty) return Promise.reject(new Error("Chatty is not ready"));
     return window.Chatty.logout();
   }, []);
-  return { open, close, toggle, identify, logout };
+  return { open, close, toggle, openVoice, closeVoice, identify, logout };
 }
 
 export { ProductCard, type ProductCardData } from "./product-card";
