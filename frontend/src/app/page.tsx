@@ -17,6 +17,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { captureAffiliateReferral } from "@/lib/affiliate-referral";
+import { BACKEND_URL } from "@/lib/backend-client";
+import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 
 
 // Color tokens - a single warm, organic palette (this design has no dark
@@ -292,6 +294,8 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
   const [activeAnnouncement, setActiveAnnouncement] = useState(0);
+  const [heroVoiceOpen, setHeroVoiceOpen] = useState(false);
+  const [heroVoiceSessionId, setHeroVoiceSessionId] = useState("");
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveAnnouncement((prev) => (prev === 0 ? 1 : 0));
@@ -302,18 +306,25 @@ export default function Home() {
   useEffect(() => {
     captureAffiliateReferral(new URLSearchParams(window.location.search));
   }, []);
+
+  useEffect(() => {
+    if (!heroVoiceOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setHeroVoiceOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [heroVoiceOpen]);
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   const openHeroVoiceAgent = () => {
-    const botId = "ad32f373-7694-43f4-9465-f8d65ce291e3";
-    const voiceUrl = new URL(`/embed/${botId}`, window.location.origin);
-    voiceUrl.searchParams.set("voice", "only");
-    const popup = window.open(
-      voiceUrl.toString(),
-      "chatty-voice-agent",
-      "popup=yes,width=460,height=820,resizable=yes,scrollbars=no",
-    );
-    popup?.focus();
+    setHeroVoiceSessionId(`landing-voice-${Date.now()}`);
+    setHeroVoiceOpen(true);
   };
 
   // widget.js cleanup on unmount
@@ -855,6 +866,34 @@ export default function Home() {
         </div>
         <p className="mt-6 text-[12.5px]" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>&copy; {new Date().getFullYear()} PersonaliAI. All rights reserved.</p>
       </footer>
+
+      {/* Hero voice agent: render in-page with the same standalone surface as
+          the embed widget, instead of opening a second browser window. */}
+      {heroVoiceOpen && heroVoiceSessionId && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chatty voice agent"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default bg-neutral-950/35 backdrop-blur-sm"
+            onClick={() => setHeroVoiceOpen(false)}
+            aria-label="Close voice agent"
+          />
+          <div className="relative z-10 h-[min(820px,calc(100dvh-1.5rem))] max-h-[calc(100dvh-1.5rem)] w-full max-w-[560px] overflow-hidden rounded-[28px] bg-white shadow-[0_28px_90px_-28px_rgba(0,0,0,.55)] animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <VoiceAgentPanel
+              botId="ad32f373-7694-43f4-9465-f8d65ce291e3"
+              sessionId={heroVoiceSessionId}
+              backendUrl={BACKEND_URL}
+              visualizer="grid"
+              onClose={() => setHeroVoiceOpen(false)}
+              className="h-full"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Feature detail modal */}
       {selectedFeature && (
