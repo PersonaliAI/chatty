@@ -119,6 +119,7 @@ export function ChattyStandaloneApp({
   const side = position === "left" ? "left" : "right";
   const [open, setOpen] = useState(false);
   const [voiceOpenRequest, setVoiceOpenRequest] = useState(0);
+  const [voicePopupActive, setVoicePopupActive] = useState(false);
   const [unread, setUnread] = useState(0);
   const [coreReady, setCoreReady] = useState(false);
   const [themeLoaded, setThemeLoaded] = useState(false);
@@ -507,9 +508,9 @@ export function ChattyStandaloneApp({
           zIndex: 2147483646,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden",
-          backgroundColor: "#ffffff",
-          boxShadow: "0 12px 48px rgba(0,0,0,.28)",
+          overflow: voicePopupActive ? "visible" : "hidden",
+          backgroundColor: voicePopupActive ? "transparent" : "#ffffff",
+          boxShadow: voicePopupActive ? "none" : "0 12px 48px rgba(0,0,0,.28)",
           transition: "opacity 0.2s ease, transform 0.2s ease",
           opacity: open ? 1 : 0,
           transform: open ? "none" : "translateY(12px)",
@@ -578,6 +579,8 @@ export function ChattyStandaloneApp({
           onWidgetReady={() => setCoreReady(true)}
           onWidgetClose={() => handleOpen(false)}
           voiceOpenRequest={voiceOpenRequest}
+          voicePopup
+          onVoicePopupChange={setVoicePopupActive}
           onAssistantMessage={() => {
             if (!open) {
               setUnread((u) => u + 1);

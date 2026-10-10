@@ -308,9 +308,16 @@
  * layout, while this surface must remain a self-contained card. */
 .chatty-widget-voice-host { background: #f6f7f8; }
 .chatty-widget-voice-stage { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; padding: .55rem; background: linear-gradient(145deg, #f8fafb 0%, #f1f4f5 100%); }
+.chatty-widget-voice-stage-card { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; }
 .chatty-sdk-voice-embedded-popup { min-width: 0; min-height: 0; width: 100%; border: 1px solid #e3e7e9; border-radius: 1.5rem; background: #fff; box-shadow: 0 1.25rem 3rem rgba(22, 38, 48, .16); animation: chatty-sdk-voice-popup-in .22s ease-out both; }
+.chatty-widget-voice-modal-backdrop { position: fixed; inset: 0; z-index: 2147483647; display: flex; align-items: center; justify-content: center; min-width: 100vw; min-height: 100dvh; padding: .75rem; background: rgba(15, 23, 42, .34); backdrop-filter: blur(8px); animation: chatty-sdk-voice-modal-in .2s ease-out both; }
+.chatty-widget-voice-modal-dismiss { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; cursor: default; }
+.chatty-widget-voice-modal-card { position: relative; z-index: 1; display: flex; width: min(560px, calc(100vw - 1.5rem)); height: min(820px, calc(100dvh - 1.5rem)); min-height: 0; overflow: hidden; border-radius: 1.75rem; background: #fff; box-shadow: 0 1.75rem 5rem rgba(15, 23, 42, .26); }
+.chatty-widget-voice-modal-card .chatty-sdk-voice-embedded-popup { border: 0; border-radius: inherit; box-shadow: none; animation: none; }
 @keyframes chatty-sdk-voice-popup-in { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes chatty-sdk-voice-modal-in { from { opacity: 0; } to { opacity: 1; } }
 @media (max-width: 420px) { .chatty-widget-voice-stage { padding: .35rem; } .chatty-sdk-voice-embedded-popup { border-radius: 1.15rem; } }
+@media (max-width: 520px) { .chatty-widget-voice-modal-backdrop { padding: .5rem; } .chatty-widget-voice-modal-card { width: calc(100vw - 1rem); height: calc(100dvh - 1rem); border-radius: 1.25rem; } }
 
 /* Keep the floating widget on the same visualizer-first surface as /embed. */
 .chatty-sdk-voice-content { justify-content: space-between; gap: 0; padding: 1rem; overflow: hidden; }
