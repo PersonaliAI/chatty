@@ -74,6 +74,7 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
   const speaking = state === 'speaking';
   const listening = state === 'listening';
   const label = speaking ? 'Speaking…' : listening ? 'Listening…' : 'Ready when you are';
+  const { bars } = useAudioWaveform(audioTrack, { barCount: 16, updateInterval: 90, volMultiplier: 1.35 });
   if (!widgetMode) {
     const colors = { aura: '#1FD5F9', wave: '#FA954C', radial: '#04A43A', grid: '#C04CFA', bar: '#4CA3FA' } as const;
     return (
@@ -87,7 +88,6 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
       </div>
     );
   }
-  const { bars } = useAudioWaveform(audioTrack, { barCount: 16, updateInterval: 90, volMultiplier: 1.35 });
   const count = visualizer === 'bar' ? 8 : visualizer === 'grid' ? 12 : 16;
 
   return (
