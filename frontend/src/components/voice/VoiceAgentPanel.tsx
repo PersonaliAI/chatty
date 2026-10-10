@@ -444,6 +444,9 @@ export function VoiceAgentLoading() {
 // The classes are scoped to this panel so the dashboard's other LiveKit surfaces are unchanged.
 export function VoiceAgentPanelStyles() {
   return <style jsx global>{`
+    .chatty-widget-voice-host,
+    .chatty-widget-voice-stage { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; height: 100%; flex-direction: column; overflow: hidden; }
+    .chatty-sdk-voice-widget-surface { flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; height: 100%; }
     .chatty-voice-panel { --voice-ink: #1f2933; --voice-muted: #74808a; --voice-soft: #f7f8f8; --voice-border: #e4e8ea; --voice-accent: #c67139; position: relative; display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; width: 100%; flex-direction: column; overflow: hidden; box-sizing: border-box; color: var(--voice-ink); background: #fff; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     .chatty-voice-panel-standalone { border: 1px solid var(--voice-border); border-radius: 14px; }
     .chatty-voice-header { display: flex; align-items: center; justify-content: space-between; flex: none; min-height: 54px; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--voice-border); background: #fff; }
@@ -474,6 +477,12 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-waveform { display: flex; align-items: center; justify-content: center; width: min(100%, 210px); height: 54px; gap: 4px; }
     .chatty-voice-waveform i { display: block; width: 3px; min-height: 4px; border-radius: 99px; background: #8c969d; opacity: .45; transition: height .12s ease, opacity .12s ease, background-color .12s ease; }
     .chatty-voice-waveform.is-speaking i, .chatty-voice-waveform.is-listening i { background: var(--voice-accent); opacity: .9; }
+    .chatty-voice-waveform.is-bar { width: min(100%, 180px); gap: 6px; }
+    .chatty-voice-waveform.is-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); width: min(100%, 132px); height: 66px; gap: 4px; }
+    .chatty-voice-waveform.is-grid i { width: 100%; height: auto !important; min-height: 0; border-radius: 4px; }
+    .chatty-voice-waveform.is-radial { width: 72px; height: 72px; border: 1px solid var(--voice-border); border-radius: 50%; gap: 3px; background: #fff; }
+    .chatty-voice-waveform.is-radial i { width: 3px; transform-origin: center 34px; }
+    .chatty-voice-waveform.is-aura { width: 120px; height: 72px; border-radius: 50%; gap: 4px; background: radial-gradient(circle, rgba(198,113,57,.18), rgba(198,113,57,.04) 58%, transparent 72%); }
     .chatty-transcript-layout { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 8px; }
     .chatty-voice-section-heading { display: flex; align-items: center; justify-content: space-between; flex: none; padding: 0 2px; font-size: 12px; }
     .chatty-voice-section-heading span { color: var(--voice-muted); font-size: 10px; }
