@@ -18,12 +18,15 @@ from app.services.contact_identity import create_visitor, credential, hash_token
 router = APIRouter()
 
 def _visitor_cookie(bot_id: str) -> str:
-    try:
-        # UUID canonicalization keeps the bot-specific cookie name bounded to
-        # a safe cookie-token alphabet while preserving per-bot isolation.
-        canonical_bot_id = uuid.UUID(str(bot_id)).hex
-    except (ValueError, AttributeError, TypeError):
-        canonical_bot_id = "invalid"
+    # Keep the cookie name bot-specific while accepting only the canonical UUID
+    # alphabet. The validated match prevents attributes or separators from
+    # reaching Starlette's Set-Cookie serializer.
+    match = re.fullmatch(
+        r"([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})",
+        str(bot_id),
+        re.IGNORECASE,
+    )
+    canonical_bot_id = match.group(1).replace("-", "").lower() if match else "invalid"
     return f"chatty_visitor_{canonical_bot_id}"
 
 def _set_visitor_cookie(response: Response, bot_id: str, token: str, expires_at: str, request: Request) -> None:

@@ -1178,7 +1178,7 @@ export function ProductsMediaCatalog({
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="size-12 rounded-lg bg-neutral-200 dark:bg-neutral-800 overflow-hidden shrink-0 border border-neutral-300 dark:border-neutral-700">
                         <img
-                          src={getSafePreviewUrl(prodImageUrl) ?? ""}
+                          src={encodeURI(getSafePreviewUrl(prodImageUrl) ?? "")}
                           alt="Product preview"
                           className="w-full h-full object-cover"
                         />

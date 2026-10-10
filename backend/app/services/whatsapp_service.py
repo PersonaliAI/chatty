@@ -12,6 +12,7 @@ import re
 import time
 import asyncio
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -127,8 +128,13 @@ async def send_whatsapp_message(
     if not re.fullmatch(r"v\d+(?:\.\d+)?", str(version)):
         logger.warning("Invalid WhatsApp API version supplied")
         return False
-    path = f"/{version}/{phone_number_id}/messages"
-    graph_url = httpx.URL("https://graph.facebook.com").join(path)
+    # Quote each validated path segment before joining it to the fixed Meta
+    # origin so separators and URL control characters cannot alter the target.
+    graph_path = "/".join(
+        quote(segment, safe="")
+        for segment in (str(version), str(phone_number_id), "messages")
+    )
+    graph_url = f"https://graph.facebook.com/{graph_path}"
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",

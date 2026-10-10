@@ -246,13 +246,13 @@ function MessageListInner({
             <div className={`inbox-message-bubble p-2.5 rounded-2xl ${isVisitor ? "bg-neutral-100 dark:bg-neutral-800 rounded-tl-none" : isHuman ? "bg-purple-500 text-white rounded-tr-none" : "text-white rounded-tr-none"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
               {safeAttachmentUrl && isImage && (
                 // eslint-disable-next-line @next/next/no-img-element -- uploaded-file/blob URL, not in next/image's domain allowlist
-                <img src={safeAttachmentUrl} alt="attachment" className="rounded-lg mb-1.5 max-h-40 object-cover" />
+                <img src={encodeURI(safeAttachmentUrl)} alt="attachment" className="rounded-lg mb-1.5 max-h-40 object-cover" />
               )}
               {safeAttachmentUrl && isAudio && (
-                <audio controls src={safeAttachmentUrl} className="mb-1.5 max-w-[180px]" />
+                <audio controls src={encodeURI(safeAttachmentUrl)} className="mb-1.5 max-w-[180px]" />
               )}
               {safeAttachmentUrl && !isImage && !isAudio && (
-                <a href={safeAttachmentUrl} target="_blank" rel="noreferrer" className={`flex items-center gap-1 text-[10px] underline mb-1.5 ${isVisitor ? "text-neutral-600 dark:text-neutral-300" : "text-white"}`}>
+                <a href={encodeURI(safeAttachmentUrl)} target="_blank" rel="noreferrer" className={`flex items-center gap-1 text-[10px] underline mb-1.5 ${isVisitor ? "text-neutral-600 dark:text-neutral-300" : "text-white"}`}>
                   <Paperclip className="size-3 animate-[pulse_2s_infinite]" />
                   {attachmentName}
                 </a>
