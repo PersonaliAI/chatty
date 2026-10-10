@@ -305,36 +305,15 @@ export default function Home() {
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   const openHeroVoiceAgent = () => {
-    let attempts = 0;
-    let retryTimer: number | undefined;
-
-    const tryOpen = () => {
-      const chatty = (window as unknown as { Chatty?: { openVoice?: () => void; open?: () => void } }).Chatty;
-      if (chatty?.openVoice) {
-        chatty.openVoice();
-        return true;
-      }
-      // Do not fall back to Chatty.open() here. The hero CTA is explicitly a
-      // voice CTA; opening the text widget while openVoice is still warming
-      // up makes the button appear broken and loses the user's intent.
-      return false;
-    };
-
-    const onReady = () => {
-      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
-      tryOpen();
-    };
-    // widget.js exposes a queue immediately, but its React API becomes
-    // authoritative only after the widget has revealed its mounted surface.
-    // Retry briefly so a fast hero click cannot be consumed during that gap.
-    window.addEventListener("chatty:ready", onReady, { once: true });
-    const retry = () => {
-      tryOpen();
-      if (attempts >= 8) return;
-      attempts += 1;
-      retryTimer = window.setTimeout(retry, 250);
-    };
-    retry();
+    const botId = "ad32f373-7694-43f4-9465-f8d65ce291e3";
+    const voiceUrl = new URL(`/embed/${botId}`, window.location.origin);
+    voiceUrl.searchParams.set("voice", "only");
+    const popup = window.open(
+      voiceUrl.toString(),
+      "chatty-voice-agent",
+      "popup=yes,width=460,height=820,resizable=yes,scrollbars=no",
+    );
+    popup?.focus();
   };
 
   // widget.js cleanup on unmount

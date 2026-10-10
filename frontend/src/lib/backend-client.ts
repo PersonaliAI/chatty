@@ -3,7 +3,14 @@ import { SELF_HOST_MODE, SELF_HOST_PROXY_PREFIX } from "@/lib/deployment";
 
 export const PRODUCTION_BACKEND_URL = "https://api.chatty.personaliai.com";
 
-export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? PRODUCTION_BACKEND_URL;
+// This module is also bundled into the standalone Shadow-DOM widget through
+// the shared voice preview surface. `process` is not a browser global, so the
+// environment lookup must be guarded for that bundle while remaining usable
+// by the Next.js dashboard build.
+const configuredBackendUrl =
+  typeof process !== "undefined" ? process.env?.NEXT_PUBLIC_BACKEND_URL : undefined;
+
+export const BACKEND_URL = configuredBackendUrl ?? PRODUCTION_BACKEND_URL;
 
 export function backendUrl(path: string): string {
   if (SELF_HOST_MODE) return `${SELF_HOST_PROXY_PREFIX}${path}`;

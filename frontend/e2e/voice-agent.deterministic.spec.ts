@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const BOT_ID = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
 
 async function mockVoiceBackend(page: Page) {
-  await page.route("**/api/widget/**", async (route) => {
+  await page.context().route("**/api/widget/**", async (route) => {
     const url = new URL(route.request().url());
 
     if (url.pathname.endsWith("/theme")) {
@@ -121,7 +121,7 @@ test("voice entry points, transcript layout, and booking surface stay mounted", 
   expect(pageErrors).toEqual([]);
 });
 
-test("landing hero voice CTA opens the same visualizer-first widget surface", async ({ page }) => {
+test("landing hero voice CTA opens the full voice agent in a separate popup", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => window.localStorage.clear());
@@ -130,10 +130,16 @@ test("landing hero voice CTA opens the same visualizer-first widget surface", as
   await page.goto("/", { waitUntil: "domcontentloaded" });
   const talkButton = page.getByRole("button", { name: "Talk to Chatty" });
   await expect(talkButton).toBeVisible({ timeout: 30_000 });
+  const popupPromise = page.waitForEvent("popup");
   await talkButton.click();
 
-  await expect(page.getByRole("button", { name: "Back to chat" })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("Your microphone is off")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Show transcript" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Book a meeting" })).toBeVisible();
+  const popup = await popupPromise;
+  const popupErrors: string[] = [];
+  popup.on("pageerror", (error) => popupErrors.push(error.message));
+  await popup.waitForLoadState("domcontentloaded");
+  await expect(popup.getByRole("button", { name: "Back to chat" })).toBeVisible({ timeout: 30_000 });
+  await expect(popup.getByText("Your microphone is off")).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Show transcript" })).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Book a meeting" })).toBeVisible();
+  expect(popupErrors).toEqual([]);
 });

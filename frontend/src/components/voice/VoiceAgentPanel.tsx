@@ -41,7 +41,9 @@ type VoiceTokenResponse = {
   participantName: string;
 };
 
-const defaultBackendUrl = 'https://api.chatty.personaliai.com';
+const configuredBackendUrl =
+  typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_BACKEND_URL : undefined;
+const defaultBackendUrl = configuredBackendUrl ?? 'https://api.chatty.personaliai.com';
 
 function createVoiceRoomNonce() {
   return globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -379,7 +381,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
 export function VoiceAgentPanel({
   botId,
   sessionId,
-  backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? defaultBackendUrl,
+  backendUrl = defaultBackendUrl,
   widgetToken,
   visitorToken,
   compact = false,
@@ -425,7 +427,7 @@ export function VoiceAgentPanel({
   };
 
   return (
-    <section ref={panelRef} className={`flex min-h-0 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
+    <section ref={panelRef} className={`flex h-full min-h-0 w-full flex-1 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
         <ConnectedVoiceAgent botId={botId} sessionId={sessionId} backendUrl={backendUrl} compact={compact} widgetMode={widgetMode} visualizer={visualizer} onClose={onClose} onFullscreen={toggleFullscreen} />
       </SessionProvider>
