@@ -8,6 +8,7 @@ environment variables or returned to a client.
 from __future__ import annotations
 
 import os
+from importlib import import_module
 from typing import Any
 
 from app.core.crypto import decrypt_secret
@@ -25,6 +26,18 @@ def _value(bot: dict[str, Any], key: str, default: str) -> str:
 def _secret(bot: dict[str, Any], key: str) -> str | None:
     raw = str(bot.get(key) or "").strip()
     return decrypt_secret(raw) if raw else None
+
+
+def _import_realtime_plugin(provider: str) -> Any:
+    """Import one optional LiveKit realtime plugin only when it is selected."""
+    return import_module(f"livekit.plugins.{provider}")
+
+
+def _azure_transcription_options(language: str) -> Any:
+    """Build the typed Azure Voice Live transcription options lazily."""
+    from azure.ai.voicelive.models import AudioInputTranscriptionOptions  # type: ignore[import-not-found]
+
+    return AudioInputTranscriptionOptions(model="whisper-1", language=language)
 
 
 def _load_google_credentials(settings: VoiceSettings) -> Any | None:
@@ -239,7 +252,7 @@ def build_realtime_model(
     bot = organization.bot
     provider = _value(bot, "voice_realtime_provider", "google").lower()
     model = _value(bot, "voice_realtime_model", "")
-    voice = _value(bot, "voice_tts_voice", "Puck")
+    configured_voice = str(bot.get("voice_tts_voice") or "").strip()
     api_key = _secret(bot, "voice_realtime_byok_key_encrypted")
     language = _value(bot, "voice_stt_language", settings.stt_language)
 
@@ -247,7 +260,7 @@ def build_realtime_model(
         realtime_model = model or "gemini-live-2.5-flash-native-audio"
         kwargs: dict[str, Any] = {
             "model": realtime_model,
-            "voice": voice,
+            "voice": configured_voice or "Puck",
             "vertexai": True,
             "location": settings.google_cloud_location,
             # Vertex's Beyond backend currently rejects affective dialog with
@@ -264,61 +277,66 @@ def build_realtime_model(
         return google.realtime.RealtimeModel(**kwargs)
 
     if provider == "openai":
-        from livekit.plugins import openai  # type: ignore[import-not-found]
+        openai = _import_realtime_plugin("openai")
 
         return openai.realtime.GPTLiveModel(
             model=model or "gpt-live-1",
-            voice=voice or "marin",
+            voice=configured_voice or "marin",
             api_key=api_key,
         )
 
     if provider == "azure":
-        from livekit.plugins import azure  # type: ignore[import-not-found]
+        azure = _import_realtime_plugin("azure")
 
         return azure.realtime.RealtimeModel(
             model=model or "gpt-realtime",
-            voice=voice or "en-US-AvaNeural",
+            voice=configured_voice or "en-US-AvaNeural",
             api_key=api_key,
-            input_audio_transcription={"model": "whisper-1", "language": language},
+            input_audio_transcription=_azure_transcription_options(language),
         )
 
     if provider == "aws":
-        from livekit.plugins import aws  # type: ignore[import-not-found]
+        aws = _import_realtime_plugin("aws")
 
         # Nova Sonic authenticates through the standard boto credential chain.
         # The dashboard key is retained for the common single-secret contract,
         # while production AWS deployments should use an IAM role or secret
         # manager-backed AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY pair.
-        return aws.realtime.RealtimeModel(model=model or "amazon.nova-2-sonic-v1:0", voice=voice or "tiffany")
+        return aws.realtime.RealtimeModel(
+            model=model or "amazon.nova-2-sonic-v1:0",
+            voice=configured_voice or "tiffany",
+        )
 
     if provider == "nvidia":
-        from livekit.plugins import nvidia  # type: ignore[import-not-found]
+        nvidia = _import_realtime_plugin("nvidia")
 
-        return nvidia.realtime.RealtimeModel(voice=voice or "NATF2")
+        return nvidia.realtime.RealtimeModel(voice=configured_voice or "NATF2")
 
     if provider == "phonic":
-        from livekit.plugins import phonic  # type: ignore[import-not-found]
+        phonic = _import_realtime_plugin("phonic")
 
         return phonic.realtime.RealtimeModel(
             phonic_model=model or "phonic_v1_1",
-            voice=voice or None,
+            voice=configured_voice or None,
             api_key=api_key,
             default_language=language,
         )
 
     if provider == "spacexai":
-        from livekit.plugins import xai  # type: ignore[import-not-found]
+        xai = _import_realtime_plugin("xai")
 
         return xai.realtime.RealtimeModel(
-            model=model or "grok-voice-latest", voice=voice or "Ara", api_key=api_key
+            model=model or "grok-voice-latest",
+            voice=configured_voice or "Ara",
+            api_key=api_key,
         )
 
     if provider == "ultravox":
-        from livekit.plugins import ultravox  # type: ignore[import-not-found]
+        ultravox = _import_realtime_plugin("ultravox")
 
         return ultravox.RealtimeModel(
-            model_id=model or "fixie-ai/ultravox",
-            voice=voice or "Mark",
+            model=model or "fixie-ai/ultravox",
+            voice=configured_voice or "Mark",
             api_key=api_key,
             language_hint=language,
         )

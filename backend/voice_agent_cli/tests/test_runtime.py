@@ -140,6 +140,64 @@ def test_google_realtime_receives_warmed_adc_credentials(monkeypatch):
     assert captured["credentials"] is credentials
 
 
+def test_all_configured_realtime_plugins_receive_official_constructor_arguments(monkeypatch):
+    """Keep the dashboard's realtime provider catalog aligned with SDK APIs."""
+    captured = {}
+
+    class FakeRealtimeModel:
+        def __init__(self, **kwargs):
+            captured.clear()
+            captured.update(kwargs)
+
+    class FakePlugin:
+        realtime = SimpleNamespace(
+            GPTLiveModel=FakeRealtimeModel,
+            RealtimeModel=FakeRealtimeModel,
+        )
+        RealtimeModel = FakeRealtimeModel
+
+    monkeypatch.setattr(providers, "_import_realtime_plugin", lambda _provider: FakePlugin)
+    monkeypatch.setattr(providers, "_azure_transcription_options", lambda language: {
+        "model": "whisper-1",
+        "language": language,
+    })
+
+    settings = SimpleNamespace(
+        google_cloud_location="global",
+        google_cloud_project="project",
+        stt_language="en-US",
+    )
+    expected = {
+        "openai": {"model": "gpt-live-1", "voice": "marin", "api_key": None},
+        "azure": {
+            "model": "gpt-realtime",
+            "voice": "en-US-AvaNeural",
+            "api_key": None,
+            "input_audio_transcription": {"model": "whisper-1", "language": "en-US"},
+        },
+        "aws": {"model": "amazon.nova-2-sonic-v1:0", "voice": "tiffany"},
+        "nvidia": {"voice": "NATF2"},
+        "phonic": {
+            "phonic_model": "phonic_v1_1",
+            "voice": None,
+            "api_key": None,
+            "default_language": "en-US",
+        },
+        "spacexai": {"model": "grok-voice-latest", "voice": "Ara", "api_key": None},
+        "ultravox": {
+            "model": "fixie-ai/ultravox",
+            "voice": "Mark",
+            "api_key": None,
+            "language_hint": "en-US",
+        },
+    }
+
+    for provider, provider_expected in expected.items():
+        organization = SimpleNamespace(bot={"voice_realtime_provider": provider})
+        providers.build_realtime_model(organization, settings, expression_enabled=True)
+        assert captured == provider_expected, provider
+
+
 def test_runtime_normalizes_max_duration_minutes():
     assert runtime._resolve_max_duration_minutes(None) == 15
     assert runtime._resolve_max_duration_minutes("30") == 30
