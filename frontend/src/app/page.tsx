@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Script from "next/script";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
   Zap,
@@ -17,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { captureAffiliateReferral } from "@/lib/affiliate-referral";
+import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 
 
 // Color tokens - a single warm, organic palette (this design has no dark
@@ -292,6 +294,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeMcpInstallTab, setActiveMcpInstallTab] = useState<McpInstallTab>("plugin");
   const [activeAnnouncement, setActiveAnnouncement] = useState(0);
+  const [heroVoiceOpen, setHeroVoiceOpen] = useState(false);
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveAnnouncement((prev) => (prev === 0 ? 1 : 0));
@@ -304,17 +307,7 @@ export default function Home() {
   }, []);
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
-  const openHeroVoiceAgent = () => {
-    const botId = "ad32f373-7694-43f4-9465-f8d65ce291e3";
-    const voiceUrl = new URL(`/embed/${botId}`, window.location.origin);
-    voiceUrl.searchParams.set("voice", "only");
-    const popup = window.open(
-      voiceUrl.toString(),
-      "chatty-voice-agent",
-      "popup=yes,width=460,height=820,resizable=yes,scrollbars=no",
-    );
-    popup?.focus();
-  };
+  const openHeroVoiceAgent = () => setHeroVoiceOpen(true);
 
   // widget.js cleanup on unmount
   useEffect(() => {
@@ -900,6 +893,39 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {heroVoiceOpen && (
+          <motion.div
+            className="fixed inset-0 z-[100] flex items-end justify-center bg-neutral-950/35 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Talk to Chatty voice agent"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setHeroVoiceOpen(false);
+            }}
+          >
+            <motion.div
+              className="relative h-[min(760px,calc(100dvh-24px))] w-[min(420px,calc(100vw-24px))] overflow-hidden rounded-[28px] bg-white shadow-[0_30px_90px_-30px_rgba(32,30,29,0.5)]"
+              initial={{ opacity: 0, y: 28, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 340, damping: 28 }}
+            >
+              <VoiceAgentPanel
+                botId="ad32f373-7694-43f4-9465-f8d65ce291e3"
+                sessionId="chatty-landing-voice"
+                className="h-full rounded-[28px] border-0 shadow-none"
+                onClose={() => setHeroVoiceOpen(false)}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Chatty on Chatty support widget */}
       <Script

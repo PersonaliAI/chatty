@@ -83,7 +83,7 @@ async function mockVoiceBackend(page: Page) {
   });
 }
 
-test("voice entry points open the standalone surface without replacing chat", async ({ page }) => {
+test("voice entry points open the standalone surface inside the chat widget", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => window.localStorage.clear());
@@ -93,40 +93,34 @@ test("voice entry points open the standalone surface without replacing chat", as
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await page.goto(`/embed/${BOT_ID}?test=voice-ui`, { waitUntil: "domcontentloaded" });
-  const waveHeader = page.getByRole("button", { name: "Open voice agent in a new window" });
+  const waveHeader = page.getByRole("button", { name: "Open voice agent in chat widget" });
   await expect(waveHeader).toBeVisible({ timeout: 30_000 });
 
-  const popupPromise = page.waitForEvent("popup");
   await waveHeader.click();
-  const popup = await popupPromise;
-  const popupErrors: string[] = [];
-  popup.on("pageerror", (error) => popupErrors.push(error.message));
-  await popup.waitForLoadState("domcontentloaded");
-  await expect(popup.getByRole("button", { name: "Start voice conversation" })).toBeVisible();
-  await expect(popup.getByText("Ready to talk").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Back to chat" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start voice conversation" })).toBeVisible();
+  await expect(page.getByText("Ready to talk").first()).toBeVisible();
 
-  await expect(popup.getByRole("button", { name: "Show transcript" })).toBeVisible();
-  await popup.getByRole("button", { name: "Show transcript" }).click();
-  await expect(popup.getByText("Live transcript", { exact: true })).toBeVisible();
-  await expect(popup.getByText("Start the voice agent to see real-time transcription here.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show transcript" })).toBeVisible();
+  await page.getByRole("button", { name: "Show transcript" }).click();
+  await expect(page.getByText("Live transcript", { exact: true })).toBeVisible();
+  await expect(page.getByText("Start the voice agent to see real-time transcription here.")).toBeVisible();
 
-  await expect(popup.getByRole("button", { name: "Book a meeting" })).toBeVisible();
-  const slotsResponse = popup.waitForResponse((response) => response.url().includes("/api/widget/booking/slots") && response.ok());
-  await popup.getByRole("button", { name: "Book a meeting" }).click();
-  await expect(popup.getByRole("button", { name: "Hide booking" })).toBeVisible();
-  await expect(popup.getByText("Choose a slot or tell the agent what works.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Book a meeting" })).toBeVisible();
+  const slotsResponse = page.waitForResponse((response) => response.url().includes("/api/widget/booking/slots") && response.ok());
+  await page.getByRole("button", { name: "Book a meeting" }).click();
+  await expect(page.getByRole("button", { name: "Hide booking" })).toBeVisible();
+  await expect(page.getByText("Choose a slot or tell the agent what works.")).toBeVisible();
   await slotsResponse;
-  await expect(popup.getByRole("button", { name: /^\d{1,2}:\d{2} (?:AM|PM)$/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /^\d{1,2}:\d{2} (?:AM|PM)$/ })).toBeVisible({ timeout: 15_000 });
 
-  await popup.close();
+  await page.getByRole("button", { name: "Back to chat" }).click();
   await expect(waveHeader).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open live voice agent in a new window" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Back to chat" })).toHaveCount(0);
   expect(pageErrors).toEqual([]);
-  expect(popupErrors).toEqual([]);
 });
 
-test("landing hero voice CTA opens the full voice agent in a separate popup", async ({ page }) => {
+test("landing hero voice CTA opens the full voice agent in an in-page modal", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => window.localStorage.clear());
@@ -135,16 +129,14 @@ test("landing hero voice CTA opens the full voice agent in a separate popup", as
   await page.goto("/", { waitUntil: "domcontentloaded" });
   const talkButton = page.getByRole("button", { name: "Talk to Chatty" });
   await expect(talkButton).toBeVisible({ timeout: 30_000 });
-  const popupPromise = page.waitForEvent("popup");
   await talkButton.click();
 
-  const popup = await popupPromise;
-  const popupErrors: string[] = [];
-  popup.on("pageerror", (error) => popupErrors.push(error.message));
-  await popup.waitForLoadState("domcontentloaded");
-  await expect(popup.getByRole("button", { name: "Back to chat" })).toBeVisible({ timeout: 30_000 });
-  await expect(popup.getByText("Your microphone is off")).toBeVisible();
-  await expect(popup.getByRole("button", { name: "Show transcript" })).toBeVisible();
-  await expect(popup.getByRole("button", { name: "Book a meeting" })).toBeVisible();
-  expect(popupErrors).toEqual([]);
+  const voiceDialog = page.getByRole("dialog", { name: "Talk to Chatty voice agent" });
+  await expect(voiceDialog).toBeVisible({ timeout: 30_000 });
+  await expect(voiceDialog.getByText("Your microphone is off")).toBeVisible();
+  await expect(voiceDialog.getByRole("button", { name: "Show transcript" })).toBeVisible();
+  await expect(voiceDialog.getByRole("button", { name: "Book a meeting" })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await voiceDialog.getByRole("button", { name: "Close voice agent" }).click();
+  await expect(voiceDialog).toHaveCount(0);
 });

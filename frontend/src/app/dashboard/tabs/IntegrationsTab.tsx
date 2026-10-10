@@ -134,6 +134,8 @@ export function IntegrationsTab({
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
   const [deauthorizingWhatsApp, setDeauthorizingWhatsApp] = useState(false);
+  const [voiceEmbedWidth, setVoiceEmbedWidth] = useState("420px");
+  const [voiceEmbedHeight, setVoiceEmbedHeight] = useState("760px");
 
   const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
 
@@ -176,6 +178,14 @@ export function IntegrationsTab({
 
   const isWaConnected = whatsappEnabled && !!whatsappPhoneNumberId && !!whatsappAccessToken;
   const isWaConfigured = !!whatsappPhoneNumberId || !!whatsappAccessToken;
+
+  const voiceEmbedUrl = `https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?voice=only`;
+  const voiceEmbedCode = `<iframe
+  src="${voiceEmbedUrl}"
+  title="Chatty voice assistant"
+  allow="microphone"
+  style="width: ${voiceEmbedWidth || "420px"}; height: ${voiceEmbedHeight || "760px"}; border: 0; border-radius: 24px;"
+></iframe>`;
 
   const handleConnectWhatsApp = async () => {
     if (!botId || !authToken) {
@@ -596,6 +606,36 @@ export function SupportVoice() {
   return <VoiceAgent botId="${botId || "YOUR_BOT_ID"}" title="Talk to support" />;
 }`}</code></pre>
           <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">The component calls <code>/api/widget/voice/token</code> through the configured API origin. Never put LiveKit API secrets or provider keys in this component.</p>
+        </div>
+        <div className="rounded-xl border border-orange-200/80 bg-orange-50/60 p-3 dark:border-orange-900/60 dark:bg-orange-950/20">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">Standalone voice agent embed</div>
+              <p className="mt-1 max-w-2xl text-[10px] leading-relaxed text-neutral-600 dark:text-neutral-400">
+                Add the voice-only surface anywhere on your website. It opens in-page at the exact size you choose and includes microphone consent, the animated visualizer, transcript, reconnect, and meeting booking controls.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-orange-700 shadow-sm dark:bg-neutral-950 dark:text-orange-300">iframe · no popup</span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-[120px_120px_1fr] sm:items-end">
+            <label className="grid gap-1 text-[10px] font-semibold text-neutral-600 dark:text-neutral-300">
+              Width
+              <input value={voiceEmbedWidth} onChange={(event) => setVoiceEmbedWidth(event.target.value)} placeholder="420px" className="h-8 rounded-lg border border-orange-200 bg-white px-2 text-xs font-normal text-neutral-800 outline-none focus:border-orange-400 dark:border-orange-900/60 dark:bg-neutral-950 dark:text-neutral-100" />
+            </label>
+            <label className="grid gap-1 text-[10px] font-semibold text-neutral-600 dark:text-neutral-300">
+              Height
+              <input value={voiceEmbedHeight} onChange={(event) => setVoiceEmbedHeight(event.target.value)} placeholder="760px" className="h-8 rounded-lg border border-orange-200 bg-white px-2 text-xs font-normal text-neutral-800 outline-none focus:border-orange-400 dark:border-orange-900/60 dark:bg-neutral-950 dark:text-neutral-100" />
+            </label>
+            <p className="text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">Use CSS values such as <code>420px</code>, <code>100%</code>, or <code>min(100vw, 420px)</code>.</p>
+          </div>
+          <div className="relative mt-3">
+            <pre className="overflow-x-auto rounded-lg bg-neutral-950 p-3 text-[10px] leading-relaxed text-neutral-200"><code>{voiceEmbedCode}</code></pre>
+            <button type="button" onClick={() => copyToClipboard(voiceEmbedCode, "script")} className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-neutral-300 transition hover:text-white">
+              {copiedScript ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              {copiedScript ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">The iframe must be served from a secure context for microphone access. Keep <code>allow=&quot;microphone&quot;</code> in place.</p>
         </div>
         <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Official LiveKit controls</span>
