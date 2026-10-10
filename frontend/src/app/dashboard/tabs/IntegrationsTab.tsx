@@ -597,6 +597,34 @@ export function SupportVoice() {
 }`}</code></pre>
           <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">The component calls <code>/api/widget/voice/token</code> through the configured API origin. Never put LiveKit API secrets or provider keys in this component.</p>
         </div>
+        <div className="rounded-xl border border-orange-200/80 dark:border-orange-900/70 bg-orange-50/50 dark:bg-orange-950/20 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <div className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">Standalone voice agent — isolated from the chat widget</div>
+              <p className="mt-1 max-w-2xl text-[10px] text-neutral-600 dark:text-neutral-400">Use this when a website needs only the separate voice surface. Set the wrapper width and height to control the rendered agent size; it remains responsive inside the available space.</p>
+            </div>
+            <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-orange-700 shadow-sm dark:bg-neutral-950 dark:text-orange-300">Width + height supported</span>
+          </div>
+          <pre className="mt-3 overflow-x-auto rounded-lg bg-neutral-950 p-3 text-[10px] leading-relaxed text-neutral-200"><code>{`import { VoiceAgent } from "@personaliai/react-widget";
+
+export function StandaloneVoiceAgent() {
+  return (
+    <div style={{
+      width: "420px",
+      height: "680px",
+      maxWidth: "100vw",
+      maxHeight: "100dvh",
+    }}>
+      <VoiceAgent
+        botId="${botId || "YOUR_BOT_ID"}"
+        title="Talk to support"
+        className="h-full w-full"
+      />
+    </div>
+  );
+}`}</code></pre>
+          <p className="mt-2 text-[10px] text-neutral-500 dark:text-neutral-400">This is the independent centered-popup style surface. It includes microphone consent, LiveKit controls, transcription, booking, reconnect/reset, and interruption support. Voice Studio settings are loaded by the token service for the selected bot.</p>
+        </div>
         <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400">
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Official LiveKit controls</span>
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Real-time transcription</span>

@@ -528,9 +528,6 @@ export interface ChatWidgetCoreProps {
   forceFullscreen?: boolean;
   notificationGranted?: boolean;
   voiceOpenRequest?: number;
-  /** Render voice as the centered popup surface used by the landing CTA. */
-  voicePopup?: boolean;
-  onVoicePopupChange?: (open: boolean) => void;
   // Fires once the bot's theme/customization has loaded (both the initial
   // load and the periodic refresh). Lets a host app that renders its own
   // chrome around this widget (e.g. a custom floating launcher button)
@@ -611,8 +608,6 @@ function IdentifiedChatWidget({
   notificationGranted,
   onThemeLoaded,
   voiceOpenRequest,
-  voicePopup = false,
-  onVoicePopupChange,
   identity,
 }: ChatWidgetCoreProps & { identity: VisitorIdentityClient }) {
   const fetch = identity.fetch;
@@ -738,9 +733,6 @@ function IdentifiedChatWidget({
   const [voiceVisualizer, setVoiceVisualizer] = useState<"wave" | "bar" | "grid" | "radial" | "aura">("wave");
   const [voiceAgentOpen, setVoiceAgentOpen] = useState(false);
   const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
-  useEffect(() => {
-    onVoicePopupChange?.(voiceModeActive);
-  }, [onVoicePopupChange, voiceModeActive]);
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
 
   const [tab, setTab] = useState<Tab>("home");
@@ -2712,27 +2704,20 @@ function IdentifiedChatWidget({
       </div>}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? `chatty-widget-voice-host ${voicePopup ? "overflow-visible" : "overflow-hidden"}` : "widget-panel overflow-y-auto"}`}>
+      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto"}`}>
         {voiceModeActive ? (
-          <div className={voicePopup ? "chatty-widget-voice-modal-backdrop" : "chatty-widget-voice-stage"}>
-            {voicePopup ? <button type="button" className="chatty-widget-voice-modal-dismiss" aria-label="Close voice agent" onClick={() => setVoiceAgentOpen(false)} /> : null}
-            <div className={voicePopup ? "chatty-widget-voice-modal-card" : "chatty-widget-voice-stage-card"}>
-              <VoiceAgentPanel
-                botId={botId}
-                backendUrl={BACKEND_URL}
-                sessionId={sessionId}
-                widgetToken={originToken || undefined}
-                visitorToken={identity.value?.visitor_token}
-                visualizer={voiceVisualizer}
-                /* Reuse the exact landing-page popup surface. The standalone
-                 * host can lift it out of the widget shell into a centered
-                 * modal; the compact fallback stays available to consumers
-                 * that explicitly opt out of popup presentation. */
-                widgetMode={false}
-                className="chatty-sdk-voice-embedded-popup"
-                onClose={() => setVoiceAgentOpen(false)}
-              />
-            </div>
+          <div className="chatty-widget-voice-stage">
+            <VoiceAgentPanel
+              botId={botId}
+              backendUrl={BACKEND_URL}
+              sessionId={sessionId}
+              widgetToken={originToken || undefined}
+              visitorToken={identity.value?.visitor_token}
+              visualizer={voiceVisualizer}
+              widgetMode
+              className="chatty-sdk-voice-widget-surface"
+              onClose={() => setVoiceAgentOpen(false)}
+            />
           </div>
         ) : showCsat ? (
           /* CSAT Feedback Modal */

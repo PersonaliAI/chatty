@@ -320,6 +320,7 @@ export default function Home() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [heroVoiceOpen]);
+
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   const openHeroVoiceAgent = () => {
@@ -867,8 +868,8 @@ export default function Home() {
         <p className="mt-6 text-[12.5px]" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>&copy; {new Date().getFullYear()} PersonaliAI. All rights reserved.</p>
       </footer>
 
-      {/* Hero voice agent: render in-page with the same standalone surface as
-          the embed widget, instead of opening a second browser window. */}
+      {/* Keep the landing CTA as a centered in-page popup. The floating chat
+          widget has its own compact voice surface and does not reuse this shell. */}
       {heroVoiceOpen && heroVoiceSessionId && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
