@@ -126,7 +126,7 @@ test("voice entry points open the standalone surface without replacing chat", as
   expect(popupErrors).toEqual([]);
 });
 
-test("landing hero voice CTA opens the full voice agent in a separate popup", async ({ page }) => {
+test("landing hero voice CTA opens the full voice agent in an in-page modal", async ({ page }) => {
   test.setTimeout(60_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => window.localStorage.clear());
@@ -135,17 +135,14 @@ test("landing hero voice CTA opens the full voice agent in a separate popup", as
   await page.goto("/", { waitUntil: "domcontentloaded" });
   const talkButton = page.getByRole("button", { name: "Talk to Chatty" });
   await expect(talkButton).toBeVisible({ timeout: 30_000 });
-  const popupPromise = page.waitForEvent("popup");
   await talkButton.click();
 
-  const popup = await popupPromise;
-  const popupErrors: string[] = [];
-  popup.on("pageerror", (error) => popupErrors.push(error.message));
-  await popup.waitForLoadState("domcontentloaded");
-  await expect(popup.getByRole("button", { name: "Voice language: English" })).toBeVisible({ timeout: 30_000 });
-  await expect(popup.getByRole("button", { name: "Expand voice agent" })).toBeVisible();
-  await expect(popup.getByText("Your microphone is off")).toBeVisible();
-  await expect(popup.getByRole("button", { name: "Show transcript" })).toBeVisible();
-  await expect(popup.getByRole("button", { name: "Book a meeting" })).toBeVisible();
-  expect(popupErrors).toEqual([]);
+  const modal = page.getByRole("dialog", { name: "Chatty voice agent" });
+  await expect(modal).toBeVisible({ timeout: 30_000 });
+  await expect(modal.getByRole("button", { name: "Voice language: English" })).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Expand voice agent" })).toBeVisible();
+  await expect(modal.getByText("Your microphone is off")).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Show transcript" })).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Book a meeting" })).toBeVisible();
+  await expect(modal.locator("header").getByRole("button", { name: "Close voice agent" })).toBeVisible();
 });
