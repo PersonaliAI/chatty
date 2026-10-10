@@ -16,8 +16,9 @@ from app.core.deps import require_user
 from app.services.contact_identity import create_visitor, credential, hash_token
 
 router = APIRouter()
+VISITOR_COOKIE_NAME = "chatty_visitor"
 
-def _visitor_cookie(bot_id: str) -> str:
+def _legacy_visitor_cookie(bot_id: str) -> str:
     # Keep the cookie name bot-specific while accepting only the canonical UUID
     # alphabet. The validated match prevents attributes or separators from
     # reaching Starlette's Set-Cookie serializer.
@@ -29,11 +30,16 @@ def _visitor_cookie(bot_id: str) -> str:
     canonical_bot_id = match.group(1).replace("-", "").lower() if match else "invalid"
     return f"chatty_visitor_{canonical_bot_id}"
 
+def _visitor_token(request: Request, bot_id: str) -> str:
+    # New writes use one fixed cookie key. Keep reading the previous
+    # per-bot key so existing visitors are not logged out by the migration.
+    return request.cookies.get(VISITOR_COOKIE_NAME, "") or request.cookies.get(_legacy_visitor_cookie(bot_id), "")
+
 def _set_visitor_cookie(response: Response, bot_id: str, token: str, expires_at: str, request: Request) -> None:
     expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
     max_age = max(0, int((expiry - datetime.now(timezone.utc)).total_seconds()))
     safe_token = token if re.fullmatch(r"[A-Za-z0-9_-]{1,512}", token or "") else ""
-    response.set_cookie(_visitor_cookie(bot_id), safe_token, max_age=max_age, expires=max_age,
+    response.set_cookie(VISITOR_COOKIE_NAME, safe_token, max_age=max_age, expires=max_age,
         httponly=True, secure=request.url.scheme == "https",
         samesite="none" if request.url.scheme == "https" else "lax", path="/api/widget")
 
@@ -79,7 +85,7 @@ async def visitor_identity(body: VisitorRequest, request: Request, response: Res
     bots = (await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", body.bot_id).limit(1).execute())).data
     if not bots:
         raise HTTPException(404, "Bot not found")
-    old_token = request.headers.get("x-chatty-visitor", "") or request.cookies.get(_visitor_cookie(body.bot_id), "")
+    old_token = request.headers.get("x-chatty-visitor", "") or _visitor_token(request, body.bot_id)
     old_row = await credential(body.bot_id, old_token) if old_token else None
     if body.new_conversation:
         if not old_row or body.identity_token:
@@ -111,17 +117,17 @@ async def visitor_identity(body: VisitorRequest, request: Request, response: Res
 
 @router.post("/api/widget/identity/logout")
 async def visitor_logout(body: VisitorRequest, request: Request, response: Response):
-    row = await credential(body.bot_id, request.headers.get("x-chatty-visitor", "") or request.cookies.get(_visitor_cookie(body.bot_id), ""))
+    row = await credential(body.bot_id, request.headers.get("x-chatty-visitor", "") or _visitor_token(request, body.bot_id))
     await run_db(lambda: supabase.table("chatty_visitor_credentials").update({"revoked_at": datetime.now(timezone.utc).isoformat()})
         .eq("bot_id", body.bot_id).eq("family_id", row["family_id"]).execute())
     response.headers["Cache-Control"] = "no-store"
-    response.delete_cookie(_visitor_cookie(body.bot_id), path="/api/widget")
+    response.delete_cookie(VISITOR_COOKIE_NAME, path="/api/widget")
     return {"ok": True}
 
 
 @router.get("/api/widget/identity/history")
 async def visitor_history(bot_id: str, request: Request, response: Response):
-    row = await credential(bot_id, request.headers.get("x-chatty-visitor", "") or request.cookies.get(_visitor_cookie(bot_id), ""))
+    row = await credential(bot_id, request.headers.get("x-chatty-visitor", "") or _visitor_token(request, bot_id))
     bindings = (await run_db(lambda: supabase.table("chatty_visitor_credentials").select("session_id")
         .eq("bot_id", bot_id).eq("contact_id", row["contact_id"]).limit(100).execute())).data or []
     ids = [binding["session_id"] for binding in bindings]

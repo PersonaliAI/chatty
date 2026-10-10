@@ -12,7 +12,6 @@ import re
 import time
 import asyncio
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 
@@ -122,19 +121,22 @@ async def send_whatsapp_message(
     version = api_version or WHATSAPP_API_VERSION
     # Keep the request host fixed and allow only Meta's numeric phone-id path
     # component; never interpolate an arbitrary URL supplied by a bot owner.
-    if not re.fullmatch(r"\d{5,32}", str(phone_number_id)):
+    phone_id_text = str(phone_number_id)
+    if not phone_id_text.isdecimal() or not 5 <= len(phone_id_text) <= 32:
         logger.warning("Invalid WhatsApp phone number id supplied")
         return False
-    if not re.fullmatch(r"v\d+(?:\.\d+)?", str(version)):
+    version_text = str(version)
+    version_parts = version_text[1:].split(".") if version_text.startswith("v") else []
+    if len(version_parts) not in (1, 2) or not all(part.isdecimal() for part in version_parts):
         logger.warning("Invalid WhatsApp API version supplied")
         return False
-    # Quote each validated path segment before joining it to the fixed Meta
-    # origin so separators and URL control characters cannot alter the target.
-    graph_path = "/".join(
-        quote(segment, safe="")
-        for segment in (str(version), str(phone_number_id), "messages")
+    # Numeric reconstruction removes the original string from the request
+    # target after validation; the host remains a fixed Meta endpoint.
+    safe_phone_id = str(int(phone_id_text))
+    safe_version = "v" + ".".join(str(int(part)) for part in version_parts)
+    graph_url = httpx.URL("https://graph.facebook.com").join(
+        f"/{safe_version}/{safe_phone_id}/messages"
     )
-    graph_url = f"https://graph.facebook.com/{graph_path}"
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
