@@ -7,7 +7,6 @@ import {
   RoomAudioRenderer,
   SessionProvider,
   useAgent,
-  useAudioWaveform,
   useSession,
   useSessionContext,
   useSessionMessages,
@@ -46,6 +45,14 @@ const configuredBackendUrl =
   typeof process !== 'undefined' ? process.env?.NEXT_PUBLIC_BACKEND_URL : undefined;
 const defaultBackendUrl = configuredBackendUrl ?? 'https://api.chatty.personaliai.com';
 
+const voiceVisualizerColors = {
+  aura: '#1FD5F9',
+  wave: '#FA954C',
+  radial: '#04A43A',
+  grid: '#C04CFA',
+  bar: '#4CA3FA',
+} as const;
+
 function createVoiceRoomNonce() {
   return globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -74,13 +81,12 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
   const speaking = state === 'speaking';
   const listening = state === 'listening';
   const label = speaking ? 'Speaking…' : listening ? 'Listening…' : 'Ready when you are';
-  const { bars } = useAudioWaveform(audioTrack, { barCount: 16, updateInterval: 90, volMultiplier: 1.35 });
+  const selectedVisualizer = visualizer ?? 'wave';
   if (!widgetMode) {
-    const colors = { aura: '#1FD5F9', wave: '#FA954C', radial: '#04A43A', grid: '#C04CFA', bar: '#4CA3FA' } as const;
     return (
       <div className="flex flex-col items-center" aria-live="polite">
         <div className={`chatty-livekit-visualizer relative flex size-[min(54vw,15rem)] max-w-[240px] items-center justify-center ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`}>
-          <LiveKitAgentVisualizer visualizer={visualizer ?? 'wave'} state={state ?? 'disconnected'} audioTrack={audioTrack} color={colors[visualizer ?? 'wave']} className="h-full w-full" />
+          <LiveKitAgentVisualizer visualizer={selectedVisualizer} state={state ?? 'disconnected'} audioTrack={audioTrack} color={voiceVisualizerColors[selectedVisualizer]} className="h-full w-full" />
           {!speaking && !listening && <div className="absolute inset-0 flex items-center justify-center"><div className="flex size-14 items-center justify-center rounded-full bg-white/90 shadow-lg"><Phone className="size-6 text-neutral-950" aria-hidden="true" /></div></div>}
         </div>
         <p className="mt-6 text-center text-sm font-medium text-neutral-500 dark:text-neutral-400">{label}</p>
@@ -88,12 +94,11 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
       </div>
     );
   }
-  const count = visualizer === 'bar' ? 8 : visualizer === 'grid' ? 12 : 16;
-
   return (
     <div className="chatty-voice-stage" aria-live="polite">
-      <div className={`chatty-voice-waveform is-${visualizer ?? 'wave'} ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`} aria-hidden="true">
-        {bars.slice(0, count).map((bar, index) => <i key={index} style={{ height: `${Math.max(4, (speaking || listening ? bar : 0.12) * 42)}px` }} />)}
+      <div className={`chatty-widget-livekit-visualizer is-${selectedVisualizer} ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`} data-visualizer={selectedVisualizer}>
+        <LiveKitAgentVisualizer visualizer={selectedVisualizer} state={state ?? 'disconnected'} audioTrack={audioTrack} color={voiceVisualizerColors[selectedVisualizer]} className="h-full w-full" />
+        {!speaking && !listening && <div className="chatty-widget-visualizer-mark" aria-hidden="true"><Mic className="size-5" /></div>}
       </div>
       <strong>{label === 'Ready when you are' ? 'Ready to talk' : label}</strong>
       <span>{speaking ? 'You can interrupt at any time' : listening ? 'Listening for your question' : 'Microphone is off'}</span>
@@ -381,7 +386,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, compact = false, wi
         </div>}
 
         <div className="chatty-voice-controls">
-          {started ? <div className="chatty-livekit-controls"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="chatty-voice-end" aria-label="End voice session"><PhoneOff className="size-4" /></button></div> : <button type="button" className="chatty-voice-start" onClick={requestStart} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-voice-spinner" /> : <Phone className="size-5" />}</button>}
+          {started ? <div className="chatty-livekit-controls" aria-label="Voice controls"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" onClick={() => void endSession()} className="chatty-voice-end" aria-label="End voice session"><PhoneOff className="size-4" /></button></div> : <button type="button" className="chatty-voice-start" onClick={requestStart} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-voice-spinner" /> : widgetMode ? <Mic className="size-5" /> : <Phone className="size-5" />}</button>}
           <div className="chatty-voice-footer-actions"><button type="button" onClick={() => setShowTranscript((value) => !value)}><MessageCircle />{showTranscript ? 'Hide transcript' : 'Show transcript'}</button><span aria-hidden="true">·</span><button type="button" onClick={() => setBookingOpen((value) => !value)}><CalendarPlus />{bookingOpen ? 'Hide booking' : 'Book a meeting'}</button><span aria-hidden="true">·</span><span className="chatty-voice-mic-status"><Mic />{connectionLabel}</span></div>
           {!started && !retrying && <p className="chatty-voice-interrupt"><Check />Interrupt anytime — the agent will stop speaking</p>}
         </div>
@@ -503,6 +508,11 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-stage strong { margin: 0; color: var(--voice-ink); font-size: 14px; font-weight: 650; }
     .chatty-voice-stage > span { color: var(--voice-muted); font-size: 11px; }
     .chatty-voice-stage p { margin: 3px 0 0; color: var(--voice-muted); font-size: 11px; }
+    .chatty-widget-livekit-visualizer { position: relative; display: flex; align-items: center; justify-content: center; width: clamp(108px, 34vw, 156px); height: clamp(108px, 34vw, 156px); flex: none; overflow: hidden; }
+    .chatty-widget-livekit-visualizer > * { width: 100%; height: 100%; }
+    .chatty-widget-visualizer-mark { position: absolute; inset: 0; display: grid; place-items: center; color: var(--voice-ink); pointer-events: none; }
+    .chatty-widget-visualizer-mark::before { position: absolute; inset: 30%; content: ''; border: 1px solid color-mix(in srgb, var(--voice-ink) 18%, transparent); border-radius: 9999px; background: rgba(255,255,255,.75); box-shadow: 0 8px 18px rgba(31,41,51,.1); }
+    .chatty-widget-visualizer-mark svg { position: relative; z-index: 1; }
     .chatty-voice-waveform { display: flex; align-items: center; justify-content: center; width: min(100%, 210px); height: 54px; gap: 4px; }
     .chatty-voice-waveform i { display: block; width: 3px; min-height: 4px; border-radius: 99px; background: #8c969d; opacity: .45; transition: height .12s ease, opacity .12s ease, background-color .12s ease; }
     .chatty-voice-waveform.is-speaking i, .chatty-voice-waveform.is-listening i { background: var(--voice-accent); opacity: .9; }
@@ -529,10 +539,20 @@ export function VoiceAgentPanelStyles() {
     .chatty-voice-start, .chatty-voice-end { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border: 0; border-radius: 9px; color: #fff; background: #1f2933; cursor: pointer; }
     .chatty-voice-start:hover, .chatty-voice-end:hover { background: #34414b; }
     .chatty-voice-end { background: #7b3434; }
-    .chatty-livekit-controls { display: flex; align-items: center; gap: 8px; }
-    .chatty-livekit-controls .lk-agent-control-bar { display: flex; flex-wrap: wrap; padding: 0; gap: .5rem; border: 0; background: transparent; }
-    .chatty-livekit-controls .lk-button { width: 2.5rem; height: 2.5rem; border-radius: 8px; border: 1px solid var(--voice-border); background: #fff; color: var(--voice-ink); box-shadow: none; }
+    .chatty-livekit-controls { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 42px; gap: 8px; color-scheme: light; }
+    .chatty-livekit-controls .lk-agent-control-bar { display: flex; align-items: stretch; justify-content: center; flex: none; min-height: 42px; padding: 0; gap: .5rem; border: 0; background: transparent; }
+    .chatty-livekit-controls .lk-button-group { display: inline-flex; align-items: stretch; height: 42px; flex: none; }
+    .chatty-livekit-controls .lk-button { display: inline-flex; align-items: center; justify-content: center; width: 42px; min-width: 42px; height: 42px; padding: 0; border: 1px solid var(--voice-border); border-radius: 10px; background: #fff; color: var(--voice-ink); box-shadow: none; }
+    .chatty-livekit-controls .lk-button-group > .lk-button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .chatty-livekit-controls .lk-button-group-menu { position: relative; display: flex; align-items: stretch; height: 42px; flex: none; }
+    .chatty-livekit-controls .lk-button-group-menu > .lk-button { width: 30px; min-width: 30px; border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .chatty-livekit-controls .lk-button-menu::after { width: .45em; height: .45em; margin: 0; border-width: .11em; }
+    .chatty-livekit-controls .lk-button-group > .lk-button:first-child .lk-audio-bar-visualizer { display: none; }
+    .chatty-livekit-controls .lk-device-menu { top: auto; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); min-width: 220px; }
     .chatty-livekit-controls .lk-button:hover { background: var(--voice-soft); }
+    .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button { border-radius: 9999px; }
+    .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group > .lk-button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .chatty-voice-panel-standalone .chatty-livekit-controls .lk-button-group-menu > .lk-button { border-top-left-radius: 0; border-bottom-left-radius: 0; }
     .chatty-voice-spinner { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.38); border-top-color: #fff; border-radius: 50%; animation: chatty-voice-spin .8s linear infinite; }
     .chatty-voice-footer-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 7px; color: var(--voice-muted); font-size: 10px; }
     .chatty-voice-footer-actions button, .chatty-voice-mic-status { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 3px; color: inherit; background: transparent; white-space: nowrap; cursor: pointer; }

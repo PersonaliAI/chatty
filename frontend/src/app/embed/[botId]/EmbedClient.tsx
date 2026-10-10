@@ -2668,8 +2668,8 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               />
             )}
             {voiceAgentEnabled && (
-              <button type="button" onClick={openVoiceAgent} className="group relative flex size-7 shrink-0 items-center justify-center rounded-full p-0 text-current transition-colors hover:bg-white/15" aria-label="Open voice agent" title="Open live voice agent">
-                <AudioWaveform className="size-4 stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
+              <button type="button" onClick={openVoiceAgent} className="group relative flex size-8 shrink-0 items-center justify-center rounded-full p-0 text-current transition-colors hover:bg-white/15" aria-label="Open voice agent" title="Open live voice agent">
+                <AudioWaveform className="size-[18px] stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
                 <span className="sr-only">Voice</span>
               </button>
             )}

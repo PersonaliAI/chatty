@@ -2656,12 +2656,12 @@ function IdentifiedChatWidget({
               <button
                 type="button"
                 onClick={() => setVoiceAgentOpen((open) => !open)}
-                className="group flex size-7 shrink-0 items-center justify-center rounded-full p-0 transition-colors hover:bg-white/15"
+                className="group flex size-8 shrink-0 items-center justify-center rounded-full p-0 transition-colors hover:bg-white/15"
                 aria-label="Open voice agent"
                 aria-pressed={voiceModeActive}
                 title="Live voice agent"
               >
-                <AudioWaveform className="size-4 stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
+                <AudioWaveform className="size-[18px] stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
               </button>
             )}
             <button
