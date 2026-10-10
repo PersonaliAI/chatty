@@ -24,7 +24,7 @@ from main import _client_ip, _widget_rate_limit_or_429
 router = APIRouter()
 
 _CONFIG_FIELDS = (
-    "voice_enabled, voice_mode, voice_expression_enabled, voice_visualizer, voice_agent_name, "
+    "welcome_message, voice_enabled, voice_mode, voice_expression_enabled, voice_visualizer, voice_agent_name, "
     "voice_realtime_provider, voice_realtime_model, voice_realtime_byok_key_encrypted, "
     "voice_llm_provider, voice_llm_model, voice_llm_byok_key_encrypted, voice_stt_provider, "
     "voice_stt_model, voice_stt_language, voice_stt_byok_key_encrypted, voice_tts_provider, "
@@ -137,6 +137,7 @@ def _safe_room_name(bot_id: str, session_id: str, room_nonce: str | None = None)
 
 def _public_voice_config(bot: dict[str, Any]) -> dict[str, Any]:
     return {
+        "welcome_message": bot.get("welcome_message") or "Hello! How can I help you today?",
         "enabled": bool(bot.get("voice_enabled")),
         "mode": bot.get("voice_mode") or "pipeline",
         "expression_enabled": bool(bot.get("voice_expression_enabled", True)),
@@ -191,6 +192,7 @@ async def update_voice_config(
         raise HTTPException(status_code=404, detail="Bot not found")
     current = dict(current_result.data[0])
     mapping = {
+        "welcome_message": "welcome_message",
         "enabled": "voice_enabled", "mode": "voice_mode",
         "expression_enabled": "voice_expression_enabled", "visualizer": "voice_visualizer",
         "agent_name": "voice_agent_name", "llm_provider": "voice_llm_provider",

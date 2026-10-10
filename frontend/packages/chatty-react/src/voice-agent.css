@@ -317,6 +317,26 @@
 .chatty-sdk-voice-aura-core { position: relative; z-index: 1; display: grid; place-items: center; width: 4.45rem; height: 4.45rem; border-radius: 50%; color: #15191b; background: rgba(255, 255, 255, .92); box-shadow: 0 .55rem 1.1rem rgba(41, 100, 125, .16); }
 .chatty-sdk-voice-aura-bars { display: flex; align-items: center; justify-content: center; gap: .12rem; height: 2.6rem; }
 .chatty-sdk-voice-aura-bars i { display: block; width: .16rem; border-radius: 999px; background: #20b9cf; animation: chatty-sdk-voice-level .72s ease-in-out infinite alternate; }
+.chatty-sdk-voice-wave,
+.chatty-sdk-voice-bars { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: .18rem; width: 8.8rem; height: 6rem; }
+.chatty-sdk-voice-wave i,
+.chatty-sdk-voice-bars i { display: block; width: .2rem; min-height: .35rem; border-radius: 999px; background: linear-gradient(180deg, #20c7d4, #188ab4); animation: chatty-sdk-voice-level .8s ease-in-out infinite alternate; }
+.chatty-sdk-voice-wave i:nth-child(2n),
+.chatty-sdk-voice-bars i:nth-child(2n) { animation-delay: -.25s; }
+.chatty-sdk-voice-wave { gap: .1rem; width: 10rem; height: 5rem; align-items: center; }
+.chatty-sdk-voice-wave i { width: .14rem; background: #18a9c0; }
+.chatty-sdk-voice-bars { width: 8rem; height: 7rem; gap: .42rem; }
+.chatty-sdk-voice-bars i { width: .58rem; background: linear-gradient(180deg, #4ca3fa, #2083d5); }
+.chatty-sdk-voice-grid { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(7, .38rem); gap: .48rem; width: 6rem; height: 6rem; place-content: center; }
+.chatty-sdk-voice-grid i { width: .38rem; height: .38rem; border-radius: 999px; background: #c04cfa; box-shadow: 0 0 .3rem rgba(192, 76, 250, .22); transition: opacity .12s ease; }
+.chatty-sdk-voice-radial { position: relative; z-index: 1; width: 8.5rem; height: 8.5rem; border: .35rem solid rgba(4, 164, 58, .12); border-radius: 50%; }
+.chatty-sdk-voice-radial i { position: absolute; top: 50%; left: 50%; width: .34rem; height: 1.2rem; margin: -.6rem -.17rem; border-radius: 999px; background: #04a43a; transform-origin: 50% 50%; transition: opacity .12s ease; }
+.chatty-sdk-voice-visualizer.is-grid .chatty-sdk-voice-aura-core,
+.chatty-sdk-voice-visualizer.is-radial .chatty-sdk-voice-aura-core,
+.chatty-sdk-voice-visualizer.is-wave .chatty-sdk-voice-aura-core,
+.chatty-sdk-voice-visualizer.is-bar .chatty-sdk-voice-aura-core { display: none; }
+.chatty-sdk-voice-visualizer:not(.is-speaking):not(.is-listening) .chatty-sdk-voice-wave i,
+.chatty-sdk-voice-visualizer:not(.is-speaking):not(.is-listening) .chatty-sdk-voice-bars i { animation-play-state: paused; }
 .chatty-sdk-voice-visualizer.is-speaking .chatty-sdk-voice-aura { animation-duration: 1.25s; opacity: .95; }
 .chatty-sdk-voice-visualizer.is-listening .chatty-sdk-voice-aura-core { box-shadow: 0 0 0 .3rem rgba(34, 190, 219, .1), 0 .55rem 1.1rem rgba(41, 100, 125, .16); }
 .chatty-sdk-voice-transcript-view { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: .65rem; }

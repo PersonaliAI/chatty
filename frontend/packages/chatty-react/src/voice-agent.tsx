@@ -46,6 +46,12 @@ export interface VoiceAgentProps {
   onError?: (error: Error) => void;
   /** Called when the host wants to close the in-widget voice surface. */
   onClose?: () => void;
+  /** Visualizer selected in the Chatty voice settings. */
+  visualizer?: "wave" | "bar" | "grid" | "radial" | "aura";
+  /** Compact layout flag used by the dashboard/embedded preview. */
+  compact?: boolean;
+  /** Render without the standalone card shell when mounted inside the widget. */
+  widgetMode?: boolean;
   /** Show Chatty's verified calendar booking flow inside the voice surface. */
   showBooking?: boolean;
   /** Optional primary color used by the embedded booking flow. */
@@ -86,15 +92,18 @@ function Transcript({ messages }: { messages: ReceivedMessage[] }) {
   );
 }
 
-function VoiceVisualizer({ state, bars }: { state: string; bars: number[] }) {
+function VoiceVisualizer({ state, bars, visualizer = "aura" }: { state: string; bars: number[]; visualizer?: VoiceAgentProps["visualizer"] }) {
   const active = state === "speaking" || state === "listening";
+  const normalized = visualizer ?? "aura";
   return (
-    <div className={`chatty-sdk-voice-visualizer ${state === "speaking" ? "is-speaking" : ""} ${state === "listening" ? "is-listening" : ""}`} aria-hidden="true">
-      <span className="chatty-sdk-voice-aura chatty-sdk-voice-aura-one" />
-      <span className="chatty-sdk-voice-aura chatty-sdk-voice-aura-two" />
-      <span className="chatty-sdk-voice-aura chatty-sdk-voice-aura-three" />
+    <div className={`chatty-sdk-voice-visualizer is-${normalized} ${state === "speaking" ? "is-speaking" : ""} ${state === "listening" ? "is-listening" : ""}`} aria-hidden="true">
+      {normalized === "aura" && <><span className="chatty-sdk-voice-aura chatty-sdk-voice-aura-one" /><span className="chatty-sdk-voice-aura chatty-sdk-voice-aura-two" /><span className="chatty-sdk-voice-aura chatty-sdk-voice-aura-three" /></>}
+      {normalized === "grid" && <div className="chatty-sdk-voice-grid">{Array.from({ length: 49 }, (_, index) => <i key={index} style={{ opacity: active ? Math.max(.18, Math.min(1, (bars[index % bars.length] ?? .2) * 1.25)) : .22 }} />)}</div>}
+      {normalized === "radial" && <div className="chatty-sdk-voice-radial">{bars.slice(0, 24).map((bar, index) => <i key={index} style={{ transform: `rotate(${index * 15}deg) translateY(-${active ? 38 + bar * 20 : 34}px)`, opacity: active ? .9 : .35 }} />)}</div>}
+      {normalized === "wave" && <div className="chatty-sdk-voice-wave">{bars.slice(0, 20).map((bar, index) => <i key={index} style={{ height: `${Math.max(6, (active ? bar : .14) * 54)}px` }} />)}</div>}
+      {normalized === "bar" && <div className="chatty-sdk-voice-bars">{bars.slice(0, 7).map((bar, index) => <i key={index} style={{ height: `${Math.max(10, (active ? bar : .14) * 76)}px` }} />)}</div>}
       <div className="chatty-sdk-voice-aura-core">
-        {active ? <div className="chatty-sdk-voice-aura-bars">{bars.slice(0, 12).map((bar, index) => <i key={index} style={{ height: `${Math.max(5, bar * 38)}px` }} />)}</div> : <Phone size={29} strokeWidth={1.8} />}
+        {active && normalized !== "grid" && normalized !== "radial" && normalized !== "wave" && normalized !== "bar" ? <div className="chatty-sdk-voice-aura-bars">{bars.slice(0, 12).map((bar, index) => <i key={index} style={{ height: `${Math.max(5, bar * 38)}px` }} />)}</div> : <Phone size={29} strokeWidth={1.8} />}
       </div>
     </div>
   );
@@ -333,7 +342,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
   const label = retrying ? "Reconnecting…" : starting ? "Connecting…" : agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : started ? "Ready when you are" : "Ready to talk";
 
   return (
-    <section className={`chatty-sdk-voice ${props.className ?? ""}`}>
+      <section className={`chatty-sdk-voice ${props.widgetMode ? "chatty-sdk-voice-widget" : ""} ${props.className ?? ""}`}>
       <header className="chatty-sdk-voice-header">
         <div className="chatty-sdk-voice-header-main">
           {props.onClose && <button type="button" className="chatty-sdk-voice-header-close" onClick={props.onClose} aria-label="Back to chat"><X size={17} /></button>}
@@ -343,7 +352,7 @@ function VoiceSurface({ props, apiRef, sessionId }: { props: VoiceAgentProps; ap
       </header>
       {error && <div className="chatty-sdk-voice-error" role="alert"><span>{error}</span>{canRetry && <button type="button" className="chatty-sdk-voice-retry" onClick={retry}>Reconnect</button>}<button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><X size={15} /></button></div>}
       <div className="chatty-sdk-voice-content">
-        {transcriptOpen ? <div className="chatty-sdk-voice-transcript-view"><div className="chatty-sdk-voice-section-heading"><strong>Live transcript</strong><span>LiveKit Agents UI</span></div><div className="chatty-sdk-voice-transcript-panel"><Transcript messages={messages} /></div></div> : <div className="chatty-sdk-voice-stage"><VoiceVisualizer state={agentState} bars={bars} /><strong>{agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : "Ready when you are"}</strong><span>{agentState === "speaking" ? "You can interrupt at any time" : agentState === "listening" ? "Ask anything about this business" : "Your microphone is off"}</span><p>Discover answers, book meetings, and get help from your Chatty assistant.</p></div>}
+        {transcriptOpen ? <div className="chatty-sdk-voice-transcript-view"><div className="chatty-sdk-voice-section-heading"><strong>Live transcript</strong><span>LiveKit Agents UI</span></div><div className="chatty-sdk-voice-transcript-panel"><Transcript messages={messages} /></div></div> : <div className="chatty-sdk-voice-stage"><VoiceVisualizer state={agentState} bars={bars} visualizer={props.visualizer} /><strong>{agentState === "speaking" ? "Speaking…" : agentState === "listening" ? "Listening…" : "Ready when you are"}</strong><span>{agentState === "speaking" ? "You can interrupt at any time" : agentState === "listening" ? "Ask anything about this business" : "Your microphone is off"}</span><p>Discover answers, book meetings, and get help from your Chatty assistant.</p></div>}
         {bookingOpen && props.showBooking !== false && <div className="chatty-sdk-voice-booking-card"><div className="chatty-sdk-voice-booking-heading"><div><strong>Book a meeting</strong><span>Choose a slot or tell the agent what works.</span></div><button type="button" className="chatty-sdk-voice-booking-close" onClick={() => setBookingOpen(false)} aria-label="Close booking"><X size={15} /></button></div><InlineBookingCard botId={props.botId} sessionId={sessionId} primaryColor={props.primaryColor} backendUrl={bookingBackendUrl} initialMeeting={confirmedMeeting ?? undefined} onBookingSuccess={(meeting) => { setConfirmedMeeting(meeting); props.onBookingSuccess?.(meeting); }} /></div>}
         <div className="chatty-sdk-voice-call-control">
           {started ? <div className="chatty-sdk-voice-live-controls"><VoiceAssistantControlBar controls={{ microphone: true, leave: false }} /><button type="button" className="chatty-sdk-voice-end" onClick={end} aria-label="End voice session"><PhoneOff size={19} /></button></div> : <button type="button" className="chatty-sdk-voice-start" onClick={start} disabled={starting || retrying} aria-label="Start voice conversation">{starting || retrying ? <span className="chatty-sdk-voice-spinner" /> : <Phone size={22} />}</button>}

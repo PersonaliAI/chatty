@@ -314,10 +314,9 @@ export default function Home() {
         chatty.openVoice();
         return true;
       }
-      if (chatty?.open) {
-        chatty.open();
-        return true;
-      }
+      // Do not fall back to Chatty.open() here. The hero CTA is explicitly a
+      // voice CTA; opening the text widget while openVoice is still warming
+      // up makes the button appear broken and loses the user's intent.
       return false;
     };
 

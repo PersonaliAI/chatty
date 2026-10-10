@@ -551,6 +551,7 @@ export interface WidgetThemeData {
   font_family?: string | null;
   font_size_percent?: number;
   voice_message_mode?: "transcribe" | "audio";
+  voice_visualizer?: "wave" | "bar" | "grid" | "radial" | "aura";
   panel_size?: string;
 }
 
@@ -727,6 +728,7 @@ function IdentifiedChatWidget({
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
   const [voiceAgentEnabled, setVoiceAgentEnabled] = useState(false);
+  const [voiceVisualizer, setVoiceVisualizer] = useState<"wave" | "bar" | "grid" | "radial" | "aura">("wave");
   const [voiceAgentOpen, setVoiceAgentOpen] = useState(false);
   const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
@@ -1760,6 +1762,7 @@ function IdentifiedChatWidget({
           setCsatEnabled(isPreview && paramCsatEnabled !== null ? paramCsatEnabled === "true" : bot.csat_enabled !== false);
           setVoiceMessageMode(bot.voice_message_mode === "audio" ? "audio" : "transcribe");
           setVoiceAgentEnabled(Boolean(bot.voice_enabled));
+          setVoiceVisualizer(["wave", "bar", "grid", "radial", "aura"].includes(bot.voice_visualizer) ? bot.voice_visualizer : "wave");
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
@@ -1914,6 +1917,7 @@ function IdentifiedChatWidget({
             return prev;
           });
           setVoiceAgentEnabled(Boolean(bot.voice_enabled));
+          setVoiceVisualizer(["wave", "bar", "grid", "radial", "aura"].includes(bot.voice_visualizer) ? bot.voice_visualizer : "wave");
         }
       } catch {}
     }, 30000);
@@ -2707,6 +2711,8 @@ function IdentifiedChatWidget({
             widgetToken={originToken || undefined}
             visitorToken={identity.value?.visitor_token}
             title="Voice agent"
+            visualizer={voiceVisualizer}
+            widgetMode
             className="chatty-sdk-voice-widget"
             primaryColor={primaryColor}
             onError={(error) => showToast(error.message, "error")}

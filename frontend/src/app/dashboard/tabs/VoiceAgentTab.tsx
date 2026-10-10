@@ -38,6 +38,7 @@ import {
 type FetchBackend = (path: string, options?: RequestInit) => Promise<Response>;
 type Visualizer = "wave" | "bar" | "grid" | "radial" | "aura";
 type VoiceConfig = {
+  welcome_message: string;
   enabled: boolean;
   mode: "pipeline" | "realtime";
   expression_enabled: boolean;
@@ -62,6 +63,7 @@ type VoiceConfig = {
 };
 
 const defaults: VoiceConfig = {
+  welcome_message: "Hello! How can I help you today?",
   enabled: false,
   mode: "pipeline",
   expression_enabled: true,
@@ -162,6 +164,35 @@ const VOICE_LANGUAGE_OPTIONS: ModernSelectOption[] = [
   ["vi-VN", "Vietnamese"], ["yi", "Yiddish"], ["yue-HK", "Chinese (Cantonese)"],
   ["zh-CN", "Chinese (Mandarin)"], ["zh-TW", "Chinese (Traditional)"], ["zu", "Zulu"],
 ].map(([value, label]) => ({ value, label, hint: "LiveKit / provider support varies" }));
+
+const MODEL_LANGUAGE_LIMITS: Record<string, string[]> = {
+  "cartesia/ink-2": ["en"],
+  "deepgram/aura": ["en"],
+  "deepgram/aura-2": ["en"],
+  "xai/stt-1": "en ar cs da nl fr de hi id it ja ko ms fa pl pt ro ru es sv th tr vi fil mk".split(" "),
+  "xai/stt-2": "en ar cs da nl fr de hi id it ja ko ms fa pl pt ro ru es sv th tr vi fil mk".split(" "),
+  "xai/tts-1": "en ar bn zh fr de hi id it ja ko pt ru es tr vi".split(" "),
+  "inworld/inworld-tts-1.5-max": "en zh ja ko ru it es pt fr de pl nl hi he ar".split(" "),
+  "google/gemini-3.5-transcribe-live": "en es fr de it pt nl pl tr ru ar hi ja ko zh id th vi sv da no fi cs el he uk".split(" "),
+  "speechmatics/linden-1": "ar ba be bg bn ca cmn cs cy da de el en es et eu fa fi fr ga gl he hi hr hu id it ja ko lt lv mn mr ms mt nl no pl pt ro ru sk sl sv sw ta th tl tr uk ur vi yue".split(" "),
+};
+
+function languageOptionsFor(
+  provider: string,
+  model: string,
+  currentValue: string,
+): ModernSelectOption[] {
+  const limits = MODEL_LANGUAGE_LIMITS[model];
+  if (!limits) return VOICE_LANGUAGE_OPTIONS;
+  const supported = new Set(limits);
+  const options = VOICE_LANGUAGE_OPTIONS.filter((option) => {
+    const base = option.value.split("-")[0];
+    return supported.has(option.value) || supported.has(base);
+  });
+  return options.some((option) => option.value === currentValue)
+    ? options
+    : [{ value: currentValue, label: currentValue, hint: `${provider} model current value` }, ...options];
+}
 
 const VOICE_OPTIONS: Record<string, ModernSelectOption[]> = {
   google: [
@@ -558,6 +589,7 @@ export function VoiceAgentTab({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [generatingWelcome, setGeneratingWelcome] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hydratedRef = useRef(false);
   const skipAutosaveRef = useRef(false);
@@ -698,6 +730,28 @@ export function VoiceAgentTab({
   useEffect(() => () => {
     if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
   }, []);
+  const generateWelcome = async () => {
+    setGeneratingWelcome(true);
+    setError(null);
+    try {
+      const response = await fetchBackendRef.current("/api/generate-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          hint: "Write a concise, friendly spoken welcome for this voice agent. Keep it natural and under 25 words.",
+        }),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const generated = (await response.json()) as { welcome_message?: string };
+      if (!generated.welcome_message?.trim()) throw new Error("The generator returned no welcome message.");
+      update("welcome_message", generated.welcome_message.trim());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not generate the welcome message.");
+    } finally {
+      setGeneratingWelcome(false);
+    }
+  };
   if (loading)
     return (
       <div className="flex min-h-[400px] items-center justify-center text-sm text-neutral-500">
@@ -937,6 +991,35 @@ export function VoiceAgentTab({
             </div>
           </Card>
           <Card
+            icon={<Sparkles className="size-5" />}
+            title="Voice welcome"
+            description="The first message visitors hear when they start a voice session."
+          >
+            <div className="mt-5 grid gap-3">
+              <textarea
+                value={config.welcome_message}
+                onChange={(event) => update("welcome_message", event.target.value)}
+                maxLength={300}
+                rows={3}
+                className={`${fieldClass} min-h-24 resize-y py-3`}
+                placeholder="Hello! How can I help you today?"
+                aria-label="Voice welcome message"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-neutral-500">Autosaves for new voice sessions · {config.welcome_message.length}/300</span>
+                <button
+                  type="button"
+                  onClick={() => void generateWelcome()}
+                  disabled={generatingWelcome}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition hover:bg-cyan-50 disabled:cursor-wait disabled:opacity-60 dark:border-cyan-900 dark:text-cyan-300 dark:hover:bg-cyan-950/40"
+                >
+                  {generatingWelcome ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                  {generatingWelcome ? "Generating…" : "Auto-generate"}
+                </button>
+              </div>
+            </div>
+          </Card>
+          <Card
             icon={<Languages className="size-5" />}
             title="Language and voice"
             description="Search the supported provider locales and voice IDs used for new sessions."
@@ -947,9 +1030,12 @@ export function VoiceAgentTab({
                 <Select
                   value={config.stt_language}
                   onChange={(value) => update("stt_language", value)}
-                  options={VOICE_LANGUAGE_OPTIONS}
-                  label="STT language"
-                />
+                   options={languageOptionsFor(config.stt_provider, config.stt_model, config.stt_language)}
+                   label="STT language"
+                 />
+                <span className="text-[10px] leading-4 text-neutral-500">
+                  This locale is passed to the selected STT and TTS providers. The list narrows when the selected LiveKit model publishes a language limit.
+                </span>
               </label>
               <label className="grid gap-2 text-sm">
                 <span className="font-medium">TTS voice / voice ID</span>

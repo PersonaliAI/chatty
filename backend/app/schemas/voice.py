@@ -22,6 +22,7 @@ class VoiceTokenRequest(BaseModel):
 
 
 class VoiceConfigUpdate(BaseModel):
+    welcome_message: Optional[str] = Field(default=None, min_length=1, max_length=300)
     enabled: Optional[bool] = None
     mode: Optional[Literal["pipeline", "realtime"]] = None
     expression_enabled: Optional[bool] = None

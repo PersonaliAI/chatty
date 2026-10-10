@@ -11,10 +11,9 @@ import "katex/dist/katex.min.css";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
-// Reuse the exact standalone LiveKit voice surface in the embedded widget.
-// Keeping a second VoiceAgentPanel here caused the embed to drift from the
-// public Chatty voice agent shown by the hero "Talk to Chatty" launcher.
-import { VoiceAgent } from "../../../../packages/chatty-react/src/voice-agent";
+// The embedded preview, dashboard preview, and public widget all resolve to
+// the same VoiceAgentPanel implementation.
+import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
@@ -2714,13 +2713,14 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       {/* Body */}
       <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin widget-panel flex flex-col ${voiceModeActive ? "overflow-hidden" : "overflow-y-auto"}`}>
         {voiceModeActive ? (
-          <VoiceAgent
+          <VoiceAgentPanel
             botId={botId}
             backendUrl={BACKEND_URL}
             sessionId={sessionId}
             widgetToken={originToken || undefined}
             visitorToken={identity.value?.visitor_token}
             title="Voice agent"
+            visualizer={voiceVisualizer}
             className="chatty-sdk-voice-widget"
             primaryColor={primaryColor}
             onError={(error) => showToast(error.message, "error")}
