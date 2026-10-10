@@ -14,7 +14,9 @@ import { AttachMenu } from "./attach-menu";
 import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
-import { VoiceAgent } from "./voice-agent";
+// Use the exact LiveKit voice panel rendered by the dashboard preview. The
+// public widget must not maintain a second visualizer/transcript implementation.
+import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
 import { parseRichContent } from "./rich-content";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
@@ -2704,18 +2706,15 @@ function IdentifiedChatWidget({
       {/* Body */}
       <div ref={chatBodyRef} className={`flex-1 widget-panel flex flex-col relative scrollbar-thin ${voiceModeActive ? "overflow-hidden" : "overflow-y-auto"}`}>
         {voiceModeActive ? (
-          <VoiceAgent
+          <VoiceAgentPanel
             botId={botId}
             backendUrl={BACKEND_URL}
             sessionId={sessionId}
             widgetToken={originToken || undefined}
             visitorToken={identity.value?.visitor_token}
-            title="Voice agent"
             visualizer={voiceVisualizer}
             widgetMode
             className="chatty-sdk-voice-widget"
-            primaryColor={primaryColor}
-            onError={(error) => showToast(error.message, "error")}
             onClose={() => setVoiceAgentOpen(false)}
           />
         ) : showCsat ? (

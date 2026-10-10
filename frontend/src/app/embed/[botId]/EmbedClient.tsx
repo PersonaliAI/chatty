@@ -2719,11 +2719,8 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             sessionId={sessionId}
             widgetToken={originToken || undefined}
             visitorToken={identity.value?.visitor_token}
-            title="Voice agent"
             visualizer={voiceVisualizer}
             className="chatty-sdk-voice-widget"
-            primaryColor={primaryColor}
-            onError={(error) => showToast(error.message, "error")}
             onClose={() => setVoiceAgentOpen(false)}
           />
         ) : (

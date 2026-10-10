@@ -28,6 +28,11 @@ export default defineConfig([
     esbuildOptions: (options) => {
       options.alias = {
         ...(options.alias ?? {}),
+        // The shared voice panel is authored in the Next app and uses the
+        // same @/* imports as the dashboard preview. Keep the standalone
+        // widget on that exact source instead of maintaining a second voice
+        // implementation.
+        "@": path.resolve(packageDir, "../../src"),
         react: path.join(frontendNodeModules, "react"),
         "react/jsx-runtime": path.join(frontendNodeModules, "react/jsx-runtime.js"),
         "react/jsx-dev-runtime": path.join(frontendNodeModules, "react/jsx-dev-runtime.js"),
@@ -61,5 +66,11 @@ export default defineConfig([
     clean: false,
     minify: false,
     external: ["react", "react-dom", "@livekit/components-react", "@livekit/components-styles", "livekit-client"],
+    esbuildOptions: (options) => {
+      options.alias = {
+        ...(options.alias ?? {}),
+        "@": path.resolve(packageDir, "../../src"),
+      };
+    },
   },
 ]);
