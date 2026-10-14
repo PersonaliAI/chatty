@@ -998,6 +998,31 @@ async def get_voice_agent_embed_code(
     )
 
 
+@mcp.tool()
+async def generate_claimable_demo_bot(
+    target_name: str,
+    target_url: str,
+    primary_color: str = "#0f172a",
+    welcome_message: str = "",
+    suggested_prompts: Optional[List[str]] = None,
+) -> dict:
+    """Creates a pre-configured claimable demo chatbot for cold outreach or client handoffs.
+    Returns the unique public /claim/ link, bot_id, and an outreach email pitch.
+    """
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    from app.routers.claim import generate_claimable_bot, GenerateClaimBotRequest
+    user_dict = {"auth_user_id": principal["user_id"], "email": ""}
+    req = GenerateClaimBotRequest(
+        target_name=target_name,
+        target_url=target_url,
+        primary_color=primary_color,
+        welcome_message=welcome_message or None,
+        suggested_prompts=suggested_prompts,
+    )
+    return await generate_claimable_bot(req, user=user_dict)
+
+
 # ===========================================================================
 # 12. MCP RESOURCES (Live Context Providers)
 # ===========================================================================
@@ -1102,6 +1127,18 @@ def prompt_setup_voice_agent(bot_id: str, voice_name: str = "Kore") -> str:
         f"1. Inspect current voice settings with `get_voice_agent_config`.\n"
         f"2. Enable voice, choose visualizer, welcome message, and TTS voice with `configure_voice_agent` (voice='{voice_name}').\n"
         f"3. Generate embed snippets for Web, React SDK, and Mobile with `get_voice_agent_embed_code`."
+    )
+
+
+@mcp.prompt("outreach-prepare-demo-bot")
+def prompt_outreach_prepare_demo_bot(target_name: str, target_url: str) -> str:
+    """Autonomous cold outreach workflow: generates a pre-trained claimable demo bot and ready-to-send email."""
+    return (
+        f"Please prepare a pre-trained Chatty demo bot for '{target_name}' ({target_url}):\n"
+        f"1. Generate a claimable bot using `generate_claimable_demo_bot(target_name='{target_name}', target_url='{target_url}')`.\n"
+        f"2. Crawl the startup's key website pages and pricing with `crawl_website_knowledge(bot_id=..., url='{target_url}')`.\n"
+        f"3. Run a quick RAG test using `test_rag_retrieval(bot_id=..., query='pricing plans and features')` to verify accuracy.\n"
+        f"4. Output the finalized /claim/ URL and ready-to-send founder outreach email."
     )
 
 

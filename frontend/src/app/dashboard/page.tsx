@@ -1680,6 +1680,19 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Handle post-claim redirect toast and tab navigation
+  useEffect(() => {
+    if (!user?.id || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("claimed") !== "1") return;
+    setActiveTab("customizer");
+    showToast("Assistant claimed successfully! Your 1-line website embed script is ready below.", "success");
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete("claimed");
+    window.history.replaceState({}, "", cleanUrl.toString());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   // Create a new chatbot configuration
   async function handleCreateBot(name: string, websiteUrl?: string) {
     if (!user) return;
