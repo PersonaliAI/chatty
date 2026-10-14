@@ -1388,7 +1388,7 @@ async def widget_theme(bot_id: str, response: Response):
         "send_button_style, conversation_starters, teaser_message, avatar_icon, avatar_url, "
         "hide_branding, custom_css, custom_js, show_sender_tag, csat_enabled, "
         "color_scheme, calendar_scheduling_enabled, meeting_provider, lead_capture_enabled, "
-        "lead_fields, lead_required_fields"
+        "lead_fields, lead_required_fields, agent_display_name, agent_avatar_url, agent_role_title"
     )
     try:
         res = await run_db(lambda: supabase.table("chatty_bots").select(
@@ -1442,7 +1442,7 @@ async def widget_theme(bot_id: str, response: Response):
     candidates: list[dict[str, Any]] = []
     seen_keys: set[str] = set()
 
-    def _add_candidate(name: str, avatar_url: Optional[str], role: str, is_online: bool, priority_score: int, key: str, last_seen_at: Optional[str] = None):
+    def _add_candidate(name: str, avatar_url: Optional[str], role: str, is_online: bool, priority_score: int, key: str, last_seen_at: Optional[str] = None, locked_avatar: bool = False):
         clean_name = name.strip() if name else ""
         if not clean_name:
             return
@@ -1455,7 +1455,7 @@ async def widget_theme(bot_id: str, response: Response):
         for existing in candidates:
             if existing["_key"] == norm_key or existing["name"].lower() == clean_name.lower():
                 # Upgrade existing candidate if this one has an avatar or is active online
-                if clean_av and not existing["avatar_url"]:
+                if clean_av and not existing["avatar_url"] and not existing.get("locked_avatar"):
                     existing["avatar_url"] = clean_av
                     existing["priority"] += 150
                 if is_online and not existing["online"]:
@@ -1474,6 +1474,7 @@ async def widget_theme(bot_id: str, response: Response):
             "online": is_online,
             "last_seen_at": last_seen_at,
             "priority": priority_score + (150 if clean_av else 0),
+            "locked_avatar": locked_avatar,
         })
 
     # 1. Bot Owner (Primary identity of the bot)
@@ -1491,7 +1492,7 @@ async def widget_theme(bot_id: str, response: Response):
                     o_av = None
                 else:
                     o_av = o.get("avatar_url")
-                _add_candidate(o_name, o_av, b.get("agent_role_title") or "Owner", False, 250, o.get("email") or o_name)
+                _add_candidate(o_name, o_av, b.get("agent_role_title") or "Owner", False, 250, o.get("email") or o_name, locked_avatar=has_custom)
     except Exception:
         pass
 
