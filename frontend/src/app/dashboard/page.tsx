@@ -207,8 +207,21 @@ export default function Dashboard() {
     onConfirm: () => void | Promise<void>;
   } | null>(null);
 
-  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
-    setToast({ message, type });
+  const showToast = (message: any, type: "success" | "error" | "info" = "success") => {
+    let cleanMessage = "";
+    if (typeof message === "string") {
+      cleanMessage = message;
+    } else if (Array.isArray(message)) {
+      cleanMessage = message
+        .map((item) => (typeof item === "object" && item ? item.msg || item.message || JSON.stringify(item) : String(item)))
+        .join(", ");
+    } else if (typeof message === "object" && message !== null) {
+      cleanMessage = message.msg || message.message || message.detail || JSON.stringify(message);
+      if (typeof cleanMessage !== "string") cleanMessage = JSON.stringify(cleanMessage);
+    } else {
+      cleanMessage = String(message ?? "");
+    }
+    setToast({ message: cleanMessage, type });
   };
   const showConfirm = (title: string, message: string, onConfirm: () => void | Promise<void>) => {
     setConfirmModal({ title, message, onConfirm });
@@ -4905,6 +4918,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               user={user}
               botId={botId}
               fetchWithFallback={fetchWithFallback}
+              allBots={userBots}
               t={t}
             />
           )}

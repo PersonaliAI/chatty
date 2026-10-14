@@ -17,6 +17,7 @@ import {
   Camera,
   Upload,
   Trash2,
+  Copy,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
@@ -160,6 +161,7 @@ export interface SettingsTabProps {
   showToast: (message: string, type?: "success" | "error" | "info") => void;
   user: SupabaseUser | null;
   botId: string | null;
+  allBots?: Array<{ id: string; name: string; [key: string]: any }>;
   fetchWithFallback: (url: string, init?: RequestInit) => Promise<Response>;
   t: (key: string) => string;
 }
@@ -167,6 +169,7 @@ export interface SettingsTabProps {
 export function SettingsTab({
   user,
   botId,
+  allBots = [],
   fetchWithFallback,
   t,
   canAccessTab,
@@ -339,28 +342,66 @@ export function SettingsTab({
       .finally(() => setLoadingCalendars(false));
   }, [googleConnected, googleConnectedAccountId, botId, fetchWithFallback]);
 
-  // User Profile Settings state
+  const otherBots = React.useMemo(() => (allBots || []).filter((b) => b.id !== botId), [allBots, botId]);
+
+  // User Profile Settings state (bot-isolated with optional sharing)
   const [profileName, setProfileName] = React.useState("");
   const [profileAvatarUrl, setProfileAvatarUrl] = React.useState<string | null>(null);
+  const [profileRoleTitle, setProfileRoleTitle] = React.useState("Team Member");
+  const [profileSource, setProfileSource] = React.useState<string>("custom");
   const [savingProfile, setSavingProfile] = React.useState(false);
   const [uploadingAvatar, setUploadingAvatar] = React.useState(false);
   const profileFileInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // Team multi-bot sync state
+  const [selectedTeamSourceBotId, setSelectedTeamSourceBotId] = React.useState("");
+  const [syncingTeam, setSyncingTeam] = React.useState(false);
+
   React.useEffect(() => {
     if (!fetchWithFallback) return;
     let active = true;
-    fetchWithFallback("/api/user/profile")
+    const url = botId ? `/api/agent/profile?bot_id=${encodeURIComponent(botId)}` : "/api/user/profile";
+    fetchWithFallback(url)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (!active || !data) return;
         setProfileName(data.display_name || "");
         setProfileAvatarUrl(data.avatar_url || null);
+        setProfileRoleTitle(data.role_title || "Team Member");
+        setProfileSource(data.is_bot_custom ? "custom" : "default");
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [fetchWithFallback]);
+  }, [fetchWithFallback, botId]);
+
+  const handleProfileSourceChange = async (val: string) => {
+    setProfileSource(val);
+    if (val === "default") {
+      try {
+        const res = await fetchWithFallback("/api/user/profile");
+        if (res.ok) {
+          const d = await res.json();
+          setProfileName(d.display_name || "");
+          setProfileAvatarUrl(d.avatar_url || null);
+          setProfileRoleTitle("Team Member");
+          showToast("Loaded workspace default profile. Click Save to apply to this bot.", "info");
+        }
+      } catch {}
+    } else if (val !== "custom" && otherBots.some((b) => b.id === val)) {
+      try {
+        const res = await fetchWithFallback(`/api/agent/profile?bot_id=${encodeURIComponent(val)}`);
+        if (res.ok) {
+          const d = await res.json();
+          setProfileName(d.display_name || "");
+          setProfileAvatarUrl(d.avatar_url || null);
+          setProfileRoleTitle(d.role_title || "Team Member");
+          showToast("Loaded profile from selected bot. Click Save to apply to this bot.", "info");
+        }
+      } catch {}
+    }
+  };
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -370,16 +411,24 @@ export function SettingsTab({
       const fd = new FormData();
       fd.append("file", file);
       if (profileName) fd.append("display_name", profileName);
+      if (profileRoleTitle) fd.append("role_title", profileRoleTitle);
+      if (botId) fd.append("bot_id", botId);
       const res = await fetchWithFallback("/api/user/avatar", { method: "POST", body: fd });
       if (res.ok) {
         const data = await res.json();
         if (data.avatar_url) {
           setProfileAvatarUrl(data.avatar_url);
-          showToast("Profile photo uploaded successfully!", "success");
+          showToast("Profile photo uploaded successfully for this bot!", "success");
         }
       } else {
         const errData = await res.json().catch(() => ({}));
-        showToast(errData.detail || "Failed to upload photo", "error");
+        const errMsg =
+          typeof errData.detail === "string"
+            ? errData.detail
+            : Array.isArray(errData.detail)
+            ? errData.detail.map((x: any) => x.msg || JSON.stringify(x)).join(", ")
+            : errData.message || "Failed to upload photo";
+        showToast(errMsg, "error");
       }
     } catch (err) {
       console.error("Avatar upload error:", err);
@@ -397,12 +446,19 @@ export function SettingsTab({
       const res = await fetchWithFallback("/api/user/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_name: profileName, avatar_url: profileAvatarUrl }),
+        body: JSON.stringify({
+          display_name: profileName,
+          avatar_url: profileAvatarUrl,
+          role_title: profileRoleTitle,
+          bot_id: botId,
+        }),
       });
       if (res.ok) {
-        showToast("Profile updated successfully!", "success");
+        showToast("Profile updated successfully for this bot!", "success");
       } else {
-        showToast("Failed to update profile", "error");
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = typeof errData.detail === "string" ? errData.detail : "Failed to update profile";
+        showToast(errMsg, "error");
       }
     } catch (err) {
       showToast("Error updating profile", "error");
@@ -418,16 +474,45 @@ export function SettingsTab({
       const res = await fetchWithFallback("/api/user/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_name: profileName, avatar_url: null }),
+        body: JSON.stringify({ display_name: profileName, avatar_url: null, bot_id: botId }),
       });
       if (res.ok) {
         setProfileAvatarUrl(null);
-        showToast("Profile photo removed", "info");
+        showToast("Profile photo removed for this bot", "info");
       }
     } catch {
       showToast("Error removing photo", "error");
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleSyncTeamFromBot = async () => {
+    if (!selectedTeamSourceBotId || !botId || !fetchWithFallback) return;
+    setSyncingTeam(true);
+    try {
+      const res = await fetchWithFallback("/api/team/sync-from-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_bot_id: selectedTeamSourceBotId,
+          target_bot_id: botId,
+        }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        showToast(`Successfully copied ${d.copied || 0} team member(s) to this bot!`, "success");
+        if (typeof window !== "undefined") {
+          window.location.reload();
+        }
+      } else {
+        const d = await res.json().catch(() => ({}));
+        showToast(d.detail || "Failed to sync team", "error");
+      }
+    } catch {
+      showToast("Error syncing team", "error");
+    } finally {
+      setSyncingTeam(false);
     }
   };
 
@@ -441,13 +526,39 @@ export function SettingsTab({
 
                 {/* SECTION: YOUR PROFILE & PHOTO */}
                 <div id="settings-profile-section" className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <User className="size-4 text-[#f97316]" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Your Profile & Photo</h3>
+                  <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                    <div className="flex items-center gap-2">
+                      <User className="size-4 text-[#f97316]" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Bot Agent Profile & Photo</h3>
+                    </div>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">
+                      Bot Isolated
+                    </span>
                   </div>
                   <p className="text-[11px] text-neutral-400 -mt-2">
-                    Manage your personal photo, display name, and identity. Your profile picture appears in the widget header, live conversation replies, and team rosters.
+                    Manage the agent identity, display name, and photo for this specific bot. Changes here will not affect your other bots unless you choose to share.
                   </p>
+
+                  {/* Profile Source Dropdown */}
+                  {otherBots.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 bg-neutral-100/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60">
+                      <div>
+                        <span className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">Profile Source</span>
+                        <p className="text-[10px] text-neutral-400">Use custom details or copy from another bot</p>
+                      </div>
+                      <div className="w-full sm:w-64">
+                        <ModernSelect
+                          value={profileSource}
+                          options={[
+                            { value: "custom", label: "✨ Custom (This Bot Only)" },
+                            { value: "default", label: "🏢 Workspace Default" },
+                            ...otherBots.map((b) => ({ value: b.id, label: `🤖 Use from ${b.name}` })),
+                          ]}
+                          onChange={(v) => handleProfileSourceChange(v)}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/50">
                     <div className="relative group shrink-0">
@@ -490,12 +601,13 @@ export function SettingsTab({
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Email Address</label>
+                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Role / Title</label>
                           <input
-                            type="email"
-                            value={user?.email || ""}
-                            disabled
-                            className="w-full text-xs bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-neutral-500 cursor-not-allowed"
+                            type="text"
+                            value={profileRoleTitle}
+                            onChange={(e) => setProfileRoleTitle(e.target.value)}
+                            placeholder="e.g. Support Specialist"
+                            className="w-full text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                           />
                         </div>
                       </div>
@@ -544,17 +656,51 @@ export function SettingsTab({
                   const grantableTabs = CHATTY_TEAM_TABS.filter((t) => myRole === "owner" || !OWNER_ONLY_TABS.has(t));
                   return (
                   <div className="space-y-4">
-                    <div className="flex items-center gap-2 pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                      <Users className="size-4 text-[#f97316]" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team</h3>
+                    <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+                      <div className="flex items-center gap-2">
+                        <Users className="size-4 text-[#f97316]" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Team Roster</h3>
+                      </div>
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold uppercase tracking-wider">
+                        Unique to this Bot
+                      </span>
                     </div>
                     <p className="text-[11px] text-neutral-400 -mt-2">
-                      Invite teammates to help manage this bot. We&apos;ll email them, but this doesn&apos;t create an
-                      account for them - they need their own: if they don&apos;t have one yet, they sign up at
-                      chatty.personaliai.com with the exact email below, and this bot appears in their dashboard
-                      automatically. Access is limited to this bot only, and to the tabs checked below - pick which
-                      dashboard sections they can reach.
+                      Invite teammates to help manage this bot. Each bot maintains its own isolated team roster. You can invite dedicated teammates or copy an existing team roster from another bot below.
                     </p>
+
+                    {/* Team Isolation & Sharing Options */}
+                    {otherBots.length > 0 && (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 bg-neutral-100/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60">
+                        <div>
+                          <div className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">Team Roster Source</div>
+                          <p className="text-[10px] text-neutral-400">Keep unique or copy team members from another bot</p>
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <div className="w-full sm:w-56">
+                            <ModernSelect
+                              value={selectedTeamSourceBotId}
+                              options={[
+                                { value: "", label: "✨ Dedicated (Unique to this bot)" },
+                                ...otherBots.map((b) => ({ value: b.id, label: `🤖 Copy team from ${b.name}` })),
+                              ]}
+                              onChange={(v) => setSelectedTeamSourceBotId(v)}
+                            />
+                          </div>
+                          {selectedTeamSourceBotId && (
+                            <button
+                              type="button"
+                              onClick={handleSyncTeamFromBot}
+                              disabled={syncingTeam}
+                              className="px-3 py-1.5 text-[11px] font-semibold bg-[#f97316] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+                            >
+                              {syncingTeam ? <Loader2 className="size-3 animate-spin" /> : <Copy className="size-3" />}
+                              Sync Team
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <input
                         type="text" value={inviteName} onChange={(e) => setInviteName(e.target.value)}
@@ -1244,20 +1390,89 @@ export function SettingsTab({
                         </p>
                       </div>
 
-                      {/* Connected Google Account (Multi-account isolation) */}
-                      {meetingProvider === "google_meet" && googleConnected && googleAccounts.length > 1 && (
+                      {/* Calendar Connection & Data Isolation */}
+                      {meetingProvider === "google_meet" && (
                         <div>
-                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Google Account</label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase">
+                              Calendar Connection & Data Isolation
+                            </label>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
+                              {googleConnectedAccountId ? "Dedicated Account" : "Default / Isolated"}
+                            </span>
+                          </div>
                           <ModernSelect
-                            value={googleConnectedAccountId || ""}
-                            options={googleAccounts.map((a) => ({
-                              value: a.id || "",
-                              label: a.label,
-                            }))}
-                            onChange={(v) => handleInputChange(setGoogleConnectedAccountId, v || null)}
+                            value={
+                              !googleConnected && !googleConnectedAccountId
+                                ? "none"
+                                : googleConnectedAccountId
+                                ? googleConnectedAccountId
+                                : "primary"
+                            }
+                            options={[
+                              { value: "none", label: "🚫 Isolated (No Calendar Sharing / Internal Only)" },
+                              ...(googleConnected
+                                ? [
+                                    {
+                                      value: "primary",
+                                      label: `🏢 Workspace Primary (${googleAccounts.find((a) => a.id === null)?.email || "Google"})`,
+                                    },
+                                  ]
+                                : []),
+                              ...googleAccounts
+                                .filter((a) => a.id !== null)
+                                .map((a) => ({
+                                  value: a.id || "",
+                                  label: `👤 Dedicated: ${a.label}`,
+                                })),
+                              ...otherBots.map((b) => ({
+                                value: `bot:${b.id}`,
+                                label: `🔗 Use same calendar as ${b.name}`,
+                              })),
+                              { value: "connect_new", label: "➕ Connect New Google Account for this bot..." },
+                            ]}
+                            onChange={async (v) => {
+                              if (v === "none") {
+                                handleInputChange(setGoogleConnectedAccountId, null);
+                                handleInputChange(setGoogleCalendarId, "");
+                                handleInputChange(setGoogleCalendarName, "");
+                                showToast("Bot calendar set to isolated (no external calendar sync)", "info");
+                              } else if (v === "connect_new") {
+                                handleConnectCloud("google");
+                              } else if (v === "primary") {
+                                handleInputChange(setGoogleConnectedAccountId, null);
+                                handleInputChange(setGoogleCalendarId, "primary");
+                                handleInputChange(setGoogleCalendarName, "Primary Calendar");
+                                showToast("Bound to workspace default Google account", "success");
+                              } else if (v.startsWith("bot:")) {
+                                const srcBotId = v.replace("bot:", "");
+                                try {
+                                  const res = await fetchWithFallback("/api/integrations/calendar/sync-from-bot", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ source_bot_id: srcBotId, target_bot_id: botId }),
+                                  });
+                                  if (res.ok) {
+                                    const d = await res.json();
+                                    handleInputChange(setGoogleConnectedAccountId, d.google_connected_account_id);
+                                    handleInputChange(setGoogleCalendarId, d.google_calendar_id || "primary");
+                                    handleInputChange(setGoogleCalendarName, d.google_calendar_name || "Synced Calendar");
+                                    showToast("Synced calendar settings from bot!", "success");
+                                    loadCalendars();
+                                  } else {
+                                    showToast("Failed to sync calendar from bot", "error");
+                                  }
+                                } catch {
+                                  showToast("Error syncing calendar from bot", "error");
+                                }
+                              } else {
+                                handleInputChange(setGoogleConnectedAccountId, v);
+                                showToast("Dedicated Google account selected", "success");
+                              }
+                            }}
                           />
                           <p className="text-[9px] text-neutral-400 mt-1">
-                            Bind this bot to a dedicated Google account instead of the workspace default.
+                            New bots never share calendar slots or events by default. Pick an exclusive account, workspace default, or sync with another bot.
                           </p>
                         </div>
                       )}

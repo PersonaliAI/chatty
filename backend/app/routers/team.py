@@ -217,3 +217,69 @@ async def set_availability(member_id: str, req: AvailabilityRulesRequest, user: 
         user,
     )
     return {"ok": True, "rules": [r.model_dump() for r in req.rules]}
+
+
+@router.post("/api/team/sync-from-bot")
+async def sync_team_from_bot(
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Copy or sync team members from source_bot_id to target_bot_id."""
+    target_bot_id = body.get("target_bot_id")
+    source_bot_id = body.get("source_bot_id")
+    if not target_bot_id or not source_bot_id:
+        raise HTTPException(status_code=400, detail="source_bot_id and target_bot_id are required")
+    if target_bot_id == source_bot_id:
+        raise HTTPException(status_code=400, detail="Source and target bot cannot be the same")
+
+    await verify_bot_permission(source_bot_id, user, "team")
+    await verify_bot_permission(target_bot_id, user, "team")
+
+    src_rows = (await run_db(lambda: supabase.table("chatty_team_members").select("*").eq(
+        "bot_id", source_bot_id
+    ).execute())).data or []
+
+    copied = 0
+    for m in src_rows:
+        row = {
+            "bot_id": target_bot_id,
+            "email": m["email"],
+            "name": m.get("name"),
+            "role": m.get("role") or "agent",
+            "permissions": m.get("permissions") or [],
+            "phone": m.get("phone"),
+            "bookable": m.get("bookable", False),
+            "book_on_own_calendar": m.get("book_on_own_calendar", True),
+            "avatar_url": m.get("avatar_url"),
+        }
+        await run_db(lambda: supabase.table("chatty_team_members").upsert(
+            row, on_conflict="bot_id,email"
+        ).execute())
+        copied += 1
+
+    await run_db(lambda: supabase.table("chatty_bots").update({
+        "team_source_bot_id": source_bot_id
+    }).eq("id", target_bot_id).execute())
+
+    await _write_team_audit_log(
+        target_bot_id,
+        "team_synced_from_bot",
+        f"Copied {copied} member(s) from bot {source_bot_id}",
+        user,
+    )
+    return {"ok": True, "copied": copied}
+
+
+@router.post("/api/team/unlink-shared")
+async def unlink_shared_team(
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    bot_id = body.get("bot_id")
+    if not bot_id:
+        raise HTTPException(status_code=400, detail="bot_id is required")
+    await verify_bot_permission(bot_id, user, "team")
+    await run_db(lambda: supabase.table("chatty_bots").update({
+        "team_source_bot_id": None
+    }).eq("id", bot_id).execute())
+    return {"ok": True}

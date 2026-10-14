@@ -481,8 +481,10 @@ async def get_google_calendars(
         b_res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id, google_connected_account_id").eq("id", bot_id).execute())
         if b_res.data:
             bot = b_res.data[0]
-            if bot.get("user_id") != user["id"]:
-                raise HTTPException(status_code=403, detail="Forbidden: Bot not owned by user")
+            bot_owner = bot.get("user_id")
+            if bot_owner not in (user.get("auth_user_id"), user.get("id")):
+                from app.core.permissions import get_bot_role_and_permissions
+                await get_bot_role_and_permissions(bot_id, user)
             target_account_id = bot.get("google_connected_account_id")
 
     try:
@@ -507,8 +509,10 @@ async def get_google_drive_folders(
         b_res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id, google_connected_account_id").eq("id", bot_id).execute())
         if b_res.data:
             bot = b_res.data[0]
-            if bot.get("user_id") != user["id"]:
-                raise HTTPException(status_code=403, detail="Forbidden: Bot not owned by user")
+            bot_owner = bot.get("user_id")
+            if bot_owner not in (user.get("auth_user_id"), user.get("id")):
+                from app.core.permissions import get_bot_role_and_permissions
+                await get_bot_role_and_permissions(bot_id, user)
             target_account_id = bot.get("google_connected_account_id")
 
     try:
@@ -531,7 +535,10 @@ async def disconnect_extra_google_account(account_id: str, user: dict[str, Any] 
 
 
 @router.get("/api/integrations/calendar/events")
-async def calendar_events(user: dict[str, Any] = Depends(require_user)):
+async def calendar_events(
+    bot_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user)
+):
     now = datetime.now(tz=timezone.utc)
     end = now + timedelta(days=7)
 
@@ -539,16 +546,50 @@ async def calendar_events(user: dict[str, Any] = Depends(require_user)):
     google_connected = bool(user.get("google_access_token"))
     ms_connected = bool(user.get("microsoft_access_token"))
 
-    if google_connected:
+    target_account_id = None
+    target_calendar_id = "primary"
+    bot_scheduling_enabled = True
+
+    if bot_id:
+        b_res = await run_db(lambda: supabase.table("chatty_bots").select(
+            "id, user_id, calendar_scheduling_enabled, google_connected_account_id, google_calendar_id, sync_google_calendar, sync_outlook_calendar"
+        ).eq("id", bot_id).execute())
+        if b_res.data:
+            bot = b_res.data[0]
+            bot_owner = bot.get("user_id")
+            if bot_owner not in (user.get("auth_user_id"), user.get("id")):
+                from app.core.permissions import get_bot_role_and_permissions
+                await get_bot_role_and_permissions(bot_id, user)
+
+            bot_scheduling_enabled = bool(bot.get("calendar_scheduling_enabled", False))
+            target_account_id = bot.get("google_connected_account_id")
+            target_calendar_id = bot.get("google_calendar_id") or "primary"
+
+            # If scheduling is explicitly disabled, return empty events
+            if not bot_scheduling_enabled:
+                return {
+                    "events": [],
+                    "connected": {
+                        "google": False,
+                        "microsoft": False,
+                    },
+                }
+
+    if google_connected and bot_scheduling_enabled:
         try:
-            g_events = await g.list_calendar_events(supabase, user, now - timedelta(hours=2), end)
+            acc_user, table = await g.resolve_account_user(supabase, user, target_account_id)
+            g_events = await g.list_calendar_events(
+                supabase, acc_user, now - timedelta(hours=2), end,
+                calendar_id=target_calendar_id,
+                table=table
+            )
             for e in g_events:
                 e["source"] = "google"
             events.extend(g_events)
         except Exception:
-            logger.exception("google calendar list failed")
+            logger.warning("google calendar list failed", exc_info=True)
 
-    if ms_connected:
+    if ms_connected and bot_scheduling_enabled:
         try:
             ms_events = await ms.list_outlook_events(
                 supabase, user, time_min=now - timedelta(hours=2), time_max=end
@@ -557,7 +598,7 @@ async def calendar_events(user: dict[str, Any] = Depends(require_user)):
                 e["source"] = "microsoft"
             events.extend(ms_events)
         except Exception:
-            logger.exception("microsoft calendar list failed")
+            logger.warning("microsoft calendar list failed", exc_info=True)
 
     # Sort by start time ascending
     events.sort(key=lambda x: x.get("start") or "")
@@ -568,6 +609,44 @@ async def calendar_events(user: dict[str, Any] = Depends(require_user)):
             "microsoft": ms_connected,
         },
     }
+
+
+@router.post("/api/integrations/calendar/sync-from-bot")
+async def sync_calendar_from_bot(
+    body: dict[str, Any] = Body(...),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Copy calendar connection configuration from source_bot_id to target_bot_id."""
+    target_bot_id = body.get("target_bot_id")
+    source_bot_id = body.get("source_bot_id")
+    if not target_bot_id or not source_bot_id:
+        raise HTTPException(status_code=400, detail="source_bot_id and target_bot_id are required")
+
+    from app.core.permissions import get_bot_role_and_permissions
+    await get_bot_role_and_permissions(source_bot_id, user)
+    await get_bot_role_and_permissions(target_bot_id, user)
+
+    src_res = await run_db(lambda: supabase.table("chatty_bots").select(
+        "google_connected_account_id, google_calendar_id, google_calendar_name, google_calendar_color, "
+        "meeting_provider, calendar_scheduling_enabled, sync_google_calendar, sync_outlook_calendar"
+    ).eq("id", source_bot_id).limit(1).execute())
+    if not src_res.data:
+        raise HTTPException(status_code=404, detail="Source bot not found")
+
+    src = src_res.data[0]
+    updates = {
+        "calendar_source_bot_id": source_bot_id,
+        "google_connected_account_id": src.get("google_connected_account_id"),
+        "google_calendar_id": src.get("google_calendar_id"),
+        "google_calendar_name": src.get("google_calendar_name"),
+        "google_calendar_color": src.get("google_calendar_color"),
+        "meeting_provider": src.get("meeting_provider") or "google_meet",
+        "calendar_scheduling_enabled": bool(src.get("calendar_scheduling_enabled")),
+        "sync_google_calendar": bool(src.get("sync_google_calendar")),
+        "sync_outlook_calendar": bool(src.get("sync_outlook_calendar")),
+    }
+    await run_db(lambda: supabase.table("chatty_bots").update(updates).eq("id", target_bot_id).execute())
+    return {"ok": True, **updates}
 
 
 # ---------------------------------------------------------------------------

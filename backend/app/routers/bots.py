@@ -432,6 +432,12 @@ async def create_dashboard_bot(
         "allowed_domains": allowed_domains,
         "onboarding_step": 9,
         "onboarding_completed": True,
+        "calendar_scheduling_enabled": False,
+        "sync_google_calendar": False,
+        "sync_outlook_calendar": False,
+        "google_connected_account_id": None,
+        "google_calendar_id": None,
+        "google_calendar_name": None,
     }
 
     created = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
@@ -467,6 +473,8 @@ _DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
     "advance_notice_hours", "max_daily_meetings", "max_weekly_meetings", "booking_email_verification",
     "booking_block_disposable_emails", "booking_limit_one_active", "booking_require_business_email",
     "allowed_domains",
+    "agent_display_name", "agent_avatar_url", "agent_role_title", "team_source_bot_id", "calendar_source_bot_id",
+    "microsoft_connected_account_id", "microsoft_calendar_id", "microsoft_calendar_name",
     "whatsapp_enabled", "whatsapp_phone_number_id", "whatsapp_waba_id", "whatsapp_access_token",
     "whatsapp_verify_token", "whatsapp_app_secret", "whatsapp_quick_replies", "onboarding_step",
     "onboarding_completed", "lead_fields", "lead_capture_enabled", "lead_required_fields",
@@ -708,13 +716,18 @@ async def upload_bot_avatar(
 
 @router.get("/api/user/profile")
 @router.get("/api/agent/profile")
-async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
-    """Get current user's profile (photo, name, email)."""
+async def get_user_profile(
+    bot_id: Optional[str] = Query(None),
+    user: dict[str, Any] = Depends(require_user)
+):
+    """Get user profile (photo, name, email) - supports bot-specific profile overrides."""
     user_id = user["auth_user_id"]
     email = user.get("email", "")
     display_name = user.get("display_name")
     avatar_url = user.get("avatar_url")
+    role_title = "Team Member"
     row: dict[str, Any] | None = None
+    is_bot_custom = False
 
     try:
         res = await run_db(lambda: supabase.table("users").select(
@@ -727,6 +740,25 @@ async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
     except Exception as e:
         logger.warning("Could not read users table for profile: %s", e)
 
+    # Check for bot-specific agent profile if bot_id is provided
+    if bot_id:
+        try:
+            bot_res = await run_db(lambda: supabase.table("chatty_bots").select(
+                "agent_display_name, agent_avatar_url, agent_role_title"
+            ).eq("id", bot_id).limit(1).execute())
+            if bot_res.data:
+                b = bot_res.data[0]
+                if b.get("agent_display_name"):
+                    display_name = b["agent_display_name"]
+                    is_bot_custom = True
+                if b.get("agent_avatar_url"):
+                    avatar_url = b["agent_avatar_url"]
+                    is_bot_custom = True
+                if b.get("agent_role_title"):
+                    role_title = b["agent_role_title"]
+        except Exception as e:
+            logger.warning("Could not read bot-specific agent profile: %s", e)
+
     if not display_name and email:
         display_name = email.split("@")[0].capitalize()
 
@@ -736,7 +768,8 @@ async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
         "display_name": display_name or "User",
         "avatar_url": avatar_url,
         "role": (row or {}).get("role") or user.get("role") or "user",
-        "role_title": "Team Member",
+        "role_title": role_title,
+        "is_bot_custom": is_bot_custom,
         "plan": (row or {}).get("plan") or "free",
         "subscription_status": (row or {}).get("subscription_status"),
         "subscription_renews_at": (row or {}).get("subscription_renews_at"),
@@ -747,14 +780,52 @@ async def get_user_profile(user: dict[str, Any] = Depends(require_user)):
 @router.post("/api/agent/profile")
 async def update_user_profile(
     body: dict[str, Any],
+    bot_id: Optional[str] = Query(None),
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Update user profile (display name, avatar url) in users and team members tables."""
+    """Update user profile. When bot_id is passed, strictly scopes profile to that bot."""
     user_id = user["auth_user_id"]
     email = user.get("email") or ""
+    target_bot_id = body.get("bot_id") or bot_id
     display_name = (body.get("display_name") or "").strip()
+    role_title = (body.get("role_title") or "").strip()
     avatar_url = body.get("avatar_url")
 
+    # If bot_id is specified, isolate changes to that bot only!
+    if target_bot_id:
+        bot_updates: dict[str, Any] = {}
+        if display_name:
+            bot_updates["agent_display_name"] = display_name
+        if role_title:
+            bot_updates["agent_role_title"] = role_title
+        if "avatar_url" in body:
+            bot_updates["agent_avatar_url"] = avatar_url
+        if bot_updates:
+            await run_db(lambda: supabase.table("chatty_bots").update(bot_updates).eq("id", target_bot_id).execute())
+
+        if email:
+            tm_updates: dict[str, Any] = {}
+            if display_name:
+                tm_updates["name"] = display_name
+            if "avatar_url" in body:
+                tm_updates["avatar_url"] = avatar_url
+            if tm_updates:
+                try:
+                    await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("bot_id", target_bot_id).eq("email", email).execute())
+                except Exception:
+                    pass
+
+        return {
+            "user_id": user_id,
+            "bot_id": target_bot_id,
+            "email": email,
+            "display_name": display_name,
+            "avatar_url": avatar_url,
+            "role_title": role_title or "Team Member",
+            "is_bot_custom": True,
+        }
+
+    # Otherwise update the workspace default / user table
     updates: dict[str, Any] = {}
     if display_name:
         updates["display_name"] = display_name
@@ -766,18 +837,6 @@ async def update_user_profile(
             await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", user_id).execute())
         except Exception as e:
             logger.warning("Failed to update users table: %s", e)
-
-        if email:
-            try:
-                tm_updates: dict[str, Any] = {}
-                if display_name:
-                    tm_updates["name"] = display_name
-                if "avatar_url" in body:
-                    tm_updates["avatar_url"] = avatar_url
-                if tm_updates:
-                    await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("email", email).execute())
-            except Exception as e:
-                logger.warning("Failed to sync team member profile: %s", e)
 
     return {
         "user_id": user_id,
@@ -794,9 +853,10 @@ async def upload_user_avatar(
     file: UploadFile = File(...),
     display_name: str = Form(""),
     role_title: str = Form(""),
+    bot_id: Optional[str] = Form(None),
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Upload user profile photo and store in Supabase storage & users table."""
+    """Upload user profile photo. Scoped to bot_id if supplied."""
     user_id = user["auth_user_id"]
     email = user.get("email") or ""
     data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Photo must be under 10MB")
@@ -807,11 +867,11 @@ async def upload_user_avatar(
         raise HTTPException(status_code=400, detail="File must be an image")
     import uuid as _uuid
     ext = (file.filename or "avatar.png").split(".")[-1][:8]
-    path = f"avatars/users/{user_id}/{_uuid.uuid4().hex[:8]}.{ext}"
+    prefix = f"avatars/bots/{bot_id}" if bot_id else f"avatars/users/{user_id}"
+    path = f"{prefix}/{_uuid.uuid4().hex[:8]}.{ext}"
 
     try:
         def _upload():
-            # Try chatty-uploads bucket, fallback to chatty_assets if needed
             try:
                 supabase.storage.from_("chatty-uploads").upload(path, data, {"content-type": mime})
                 url = supabase.storage.from_("chatty-uploads").get_public_url(path)
@@ -820,24 +880,33 @@ async def upload_user_avatar(
                 supabase.storage.from_("chatty_assets").upload(path, data, {"content-type": mime})
                 url = supabase.storage.from_("chatty_assets").get_public_url(path)
 
-            upd: dict[str, Any] = {"avatar_url": url}
-            if display_name:
-                upd["display_name"] = display_name
-            supabase.table("users").update(upd).eq("auth_user_id", user_id).execute()
-
-            if email:
-                tm_upd: dict[str, Any] = {"avatar_url": url}
+            if bot_id:
+                # Isolate to this bot only!
+                b_upd: dict[str, Any] = {"agent_avatar_url": url}
                 if display_name:
-                    tm_upd["name"] = display_name
-                try:
-                    supabase.table("chatty_team_members").update(tm_upd).eq("email", email).execute()
-                except Exception:
-                    pass
+                    b_upd["agent_display_name"] = display_name
+                if role_title:
+                    b_upd["agent_role_title"] = role_title
+                supabase.table("chatty_bots").update(b_upd).eq("id", bot_id).execute()
+
+                if email:
+                    tm_upd: dict[str, Any] = {"avatar_url": url}
+                    if display_name:
+                        tm_upd["name"] = display_name
+                    try:
+                        supabase.table("chatty_team_members").update(tm_upd).eq("bot_id", bot_id).eq("email", email).execute()
+                    except Exception:
+                        pass
+            else:
+                upd: dict[str, Any] = {"avatar_url": url}
+                if display_name:
+                    upd["display_name"] = display_name
+                supabase.table("users").update(upd).eq("auth_user_id", user_id).execute()
 
             return url
 
         url = await run_db(_upload)
-        return {"avatar_url": url}
+        return {"avatar_url": url, "bot_id": bot_id}
     except HTTPException:
         raise
     except Exception as e:
