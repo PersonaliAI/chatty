@@ -571,7 +571,9 @@ export function SettingsTab({
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/50">
                     <div className="relative group shrink-0">
                       <div className="size-16 rounded-full overflow-hidden border-2 border-white dark:border-neutral-800 shadow-sm bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center font-bold text-lg text-neutral-700 dark:text-neutral-200 select-none">
-                        {profileAvatarUrl ? (
+                        {(uploadingAvatar || savingProfile) ? (
+                          <Loader2 className="size-6 text-[#f97316] animate-spin" />
+                        ) : profileAvatarUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={profileAvatarUrl} alt={profileName || "User"} className="size-full object-cover" />
                         ) : (
