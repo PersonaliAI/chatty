@@ -124,7 +124,10 @@ async def process_widget_booking(
 
         provider = bot.get("meeting_provider") or "google_meet"
         tz_label = bot.get("bot_timezone") or "UTC"
-        if provider == "google_meet":
+        custom_link = (bot.get("custom_meeting_link") or "").strip()
+        if custom_link:
+            meeting_link = custom_link
+        elif provider == "google_meet":
             meeting_link = result.get("hangoutLink") or result.get("hangout_link")
             event_id = result.get("id")
             if not meeting_link and event_id:

@@ -87,7 +87,13 @@ async def visitor_identity(body: VisitorRequest, request: Request, response: Res
     if not bots:
         raise HTTPException(404, "Bot not found")
     old_token = request.headers.get("x-chatty-visitor", "") or _visitor_token(request, body.bot_id)
-    old_row = await credential(body.bot_id, old_token) if old_token else None
+    old_row = None
+    if old_token:
+        try:
+            old_row = await credential(body.bot_id, old_token)
+        except HTTPException:
+            old_row = None
+            old_token = ""
     if body.new_conversation:
         if not old_row or body.identity_token:
             raise HTTPException(400, "Existing visitor credential required")
@@ -110,7 +116,7 @@ async def visitor_identity(body: VisitorRequest, request: Request, response: Res
         response.headers["Cache-Control"] = "no-store"
         return {"visitor_token": old_token, "session_id": row["session_id"], "expires_at": row["expires_at"]}
     result = await create_visitor(body.bot_id, body.identity_token)
-    if old_token:
+    if old_token and old_row:
         await run_db(lambda: supabase.table("chatty_visitor_credentials").update({"revoked_at": datetime.now(timezone.utc).isoformat()})
             .eq("bot_id", body.bot_id).eq("family_id", old_row["family_id"]).execute())
     _set_visitor_cookie(response, body.bot_id, result["visitor_token"], result["expires_at"], request)

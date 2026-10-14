@@ -9,7 +9,7 @@ import re
 import secrets
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from app.core.clients import supabase
@@ -472,7 +472,7 @@ _DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
     "meeting_provider", "business_hours_start", "business_hours_end", "working_days", "buffer_minutes",
     "advance_notice_hours", "max_daily_meetings", "max_weekly_meetings", "booking_email_verification",
     "booking_block_disposable_emails", "booking_limit_one_active", "booking_require_business_email",
-    "allowed_domains",
+    "allowed_domains", "custom_meeting_link",
     "agent_display_name", "agent_avatar_url", "agent_role_title", "team_source_bot_id", "calendar_source_bot_id",
     "microsoft_connected_account_id", "microsoft_calendar_id", "microsoft_calendar_name",
     "whatsapp_enabled", "whatsapp_phone_number_id", "whatsapp_waba_id", "whatsapp_access_token",
@@ -715,7 +715,6 @@ async def upload_bot_avatar(
 
 
 @router.get("/api/user/profile")
-@router.get("/api/agent/profile")
 async def get_user_profile(
     bot_id: Optional[str] = Query(None),
     user: dict[str, Any] = Depends(require_user)
@@ -776,8 +775,15 @@ async def get_user_profile(
     }
 
 
+@router.get("/api/agent/profile")
+async def get_agent_profile(
+    bot_id: Optional[str] = Query(None),
+    user: dict[str, Any] = Depends(require_user)
+):
+    return await get_user_profile(bot_id=bot_id, user=user)
+
+
 @router.post("/api/user/profile")
-@router.post("/api/agent/profile")
 async def update_user_profile(
     body: dict[str, Any],
     bot_id: Optional[str] = Query(None),
@@ -847,8 +853,16 @@ async def update_user_profile(
     }
 
 
+@router.post("/api/agent/profile")
+async def update_agent_profile(
+    body: dict[str, Any],
+    bot_id: Optional[str] = Query(None),
+    user: dict[str, Any] = Depends(require_user),
+):
+    return await update_user_profile(body=body, bot_id=bot_id, user=user)
+
+
 @router.post("/api/user/avatar")
-@router.post("/api/agent/avatar")
 async def upload_user_avatar(
     file: UploadFile = File(...),
     display_name: str = Form(""),
@@ -912,6 +926,23 @@ async def upload_user_avatar(
     except Exception as e:
         logger.exception("User photo upload failed: %s", e)
         raise HTTPException(status_code=500, detail="User photo upload failed") from e
+
+
+@router.post("/api/agent/avatar")
+async def upload_agent_avatar(
+    file: UploadFile = File(...),
+    display_name: str = Form(""),
+    role_title: str = Form(""),
+    bot_id: Optional[str] = Form(None),
+    user: dict[str, Any] = Depends(require_user),
+):
+    return await upload_user_avatar(
+        file=file,
+        display_name=display_name,
+        role_title=role_title,
+        bot_id=bot_id,
+        user=user,
+    )
 
 
 @router.post("/api/generate-business")

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -330,13 +329,13 @@ export default function ClaimClient({ token }: { token: string }) {
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2.5 group">
-            <Image
+            <img
               src="/favicon.png"
               alt="Chatty Logo"
-              width={28}
-              height={28}
-              className="size-7 object-contain"
-              priority
+              className="size-7 object-contain shrink-0"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "/logo.png";
+              }}
             />
             <span className="font-semibold text-slate-900 text-base tracking-tight">Chatty</span>
           </Link>

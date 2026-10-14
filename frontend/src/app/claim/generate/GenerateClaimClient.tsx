@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -102,13 +101,13 @@ export default function GenerateClaimClient() {
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2.5 group">
-            <Image
+            <img
               src="/favicon.png"
               alt="Chatty Logo"
-              width={28}
-              height={28}
-              className="size-7 object-contain"
-              priority
+              className="size-7 object-contain shrink-0"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "/logo.png";
+              }}
             />
             <span className="font-semibold text-slate-900 text-base tracking-tight">Chatty</span>
           </Link>
@@ -284,30 +283,32 @@ export default function GenerateClaimClient() {
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                   Public Claim &amp; Sandbox Link
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <input
                     type="text"
                     readOnly
                     value={result.claim_url}
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 select-all"
+                    className="flex-1 min-w-0 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-800 select-all truncate"
                   />
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(result.claim_url, "link")}
-                    className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer shrink-0"
-                  >
-                    {copiedLink ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
-                    <span>{copiedLink ? "Copied" : "Copy Link"}</span>
-                  </button>
-                  <a
-                    href={result.claim_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer shrink-0"
-                    title="Open Sandbox"
-                  >
-                    <ExternalLink className="size-4" />
-                  </a>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(result.claim_url, "link")}
+                      className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedLink ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+                      <span>{copiedLink ? "Copied" : "Copy Link"}</span>
+                    </button>
+                    <a
+                      href={result.claim_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 cursor-pointer"
+                      title="Open Sandbox"
+                    >
+                      <ExternalLink className="size-4" />
+                    </a>
+                  </div>
                 </div>
               </div>
 

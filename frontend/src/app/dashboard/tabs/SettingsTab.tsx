@@ -86,6 +86,10 @@ export interface SettingsTabProps {
   setEmailNotify: (e: boolean) => void;
   csatEnabled: boolean;
   setCsatEnabled: (c: boolean) => void;
+  leadCaptureEnabled?: boolean;
+  setLeadCaptureEnabled?: (l: boolean) => void;
+  customMeetingLink?: string;
+  setCustomMeetingLink?: (l: string) => void;
   // Guardrails & Language
   responseLanguage: string;
   setResponseLanguage: (l: string) => void;
@@ -220,6 +224,10 @@ export function SettingsTab({
   setEmailNotify,
   csatEnabled,
   setCsatEnabled,
+  leadCaptureEnabled = false,
+  setLeadCaptureEnabled,
+  customMeetingLink = "",
+  setCustomMeetingLink,
   responseLanguage,
   setResponseLanguage,
   botCountry,
@@ -550,9 +558,9 @@ export function SettingsTab({
                         <ModernSelect
                           value={profileSource}
                           options={[
-                            { value: "custom", label: "✨ Custom (This Bot Only)" },
-                            { value: "default", label: "🏢 Workspace Default" },
-                            ...otherBots.map((b) => ({ value: b.id, label: `🤖 Use from ${b.name}` })),
+                            { value: "custom", label: "Custom (This bot only)" },
+                            { value: "default", label: "Workspace default" },
+                            ...otherBots.map((b) => ({ value: b.id, label: `Use from ${b.name}` })),
                           ]}
                           onChange={(v) => handleProfileSourceChange(v)}
                         />
@@ -681,8 +689,8 @@ export function SettingsTab({
                             <ModernSelect
                               value={selectedTeamSourceBotId}
                               options={[
-                                { value: "", label: "✨ Dedicated (Unique to this bot)" },
-                                ...otherBots.map((b) => ({ value: b.id, label: `🤖 Copy team from ${b.name}` })),
+                                { value: "", label: "Dedicated (Unique to this bot)" },
+                                ...otherBots.map((b) => ({ value: b.id, label: `Copy team from ${b.name}` })),
                               ]}
                               onChange={(v) => setSelectedTeamSourceBotId(v)}
                             />
@@ -1022,6 +1030,25 @@ export function SettingsTab({
                         <div className={`size-4 rounded-full bg-white transition-transform ${csatEnabled ? "translate-x-4" : ""}`} />
                       </button>
                     </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-semibold">Inline Lead Capture Form</span>
+                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Show email/contact collection prompt inside chat messages for visitors.</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (setLeadCaptureEnabled) {
+                            handleInputChange(setLeadCaptureEnabled, !leadCaptureEnabled);
+                          }
+                        }}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                          leadCaptureEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
+                        }`}
+                      >
+                        <div className={`size-4 rounded-full bg-white transition-transform ${leadCaptureEnabled ? "translate-x-4" : ""}`} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1089,101 +1116,101 @@ export function SettingsTab({
                       value={responseLanguage}
                       onChange={(v) => handleInputChange(setResponseLanguage, v)}
                       options={[
-                        { value: "", label: "🌐 Mirror visitor's language (default)" },
+                        { value: "", label: "Mirror visitor's language (default)" },
                         // - Most common -
-                        { value: "en",    label: "🇬🇧 English" },
-                        { value: "es",    label: "🇪🇸 Spanish" },
-                        { value: "es-MX", label: "🇲🇽 Spanish (Mexico)" },
-                        { value: "zh",    label: "🇨🇳 Chinese (Simplified)" },
-                        { value: "zh-TW", label: "🇹🇼 Chinese (Traditional)" },
-                        { value: "hi",    label: "🇮🇳 Hindi" },
-                        { value: "ar",    label: "🇸🇦 Arabic" },
-                        { value: "pt",    label: "🇵🇹 Portuguese" },
-                        { value: "pt-BR", label: "🇧🇷 Portuguese (Brazil)" },
-                        { value: "fr",    label: "🇫🇷 French" },
-                        { value: "ru",    label: "🇷🇺 Russian" },
-                        { value: "de",    label: "🇩🇪 German" },
-                        { value: "ja",    label: "🇯🇵 Japanese" },
-                        { value: "ko",    label: "🇰🇷 Korean" },
-                        { value: "it",    label: "🇮🇹 Italian" },
-                        { value: "tr",    label: "🇹🇷 Turkish" },
-                        { value: "vi",    label: "🇻🇳 Vietnamese" },
-                        { value: "pl",    label: "🇵🇱 Polish" },
-                        { value: "nl",    label: "🇳🇱 Dutch" },
-                        { value: "th",    label: "🇹🇭 Thai" },
-                        { value: "id",    label: "🇮🇩 Indonesian" },
-                        { value: "ms",    label: "🇲🇾 Malay" },
-                        { value: "tl",    label: "🇵🇭 Filipino (Tagalog)" },
-                        { value: "sv",    label: "🇸🇪 Swedish" },
-                        { value: "uk",    label: "🇺🇦 Ukrainian" },
-                        { value: "fa",    label: "🇮🇷 Persian (Farsi)" },
-                        { value: "ur",    label: "🇵🇰 Urdu" },
-                        { value: "bn",    label: "🇧🇩 Bengali" },
-                        { value: "sw",    label: "🇰🇪 Swahili" },
-                        { value: "ta",    label: "🇮🇳 Tamil" },
-                        { value: "te",    label: "🇮🇳 Telugu" },
-                        { value: "mr",    label: "🇮🇳 Marathi" },
-                        { value: "gu",    label: "🇮🇳 Gujarati" },
-                        { value: "kn",    label: "🇮🇳 Kannada" },
-                        { value: "ml",    label: "🇮🇳 Malayalam" },
-                        { value: "pa",    label: "🇮🇳 Punjabi" },
-                        { value: "ne",    label: "🇳🇵 Nepali" },
-                        { value: "si",    label: "🇱🇰 Sinhala" },
+                        { value: "en",    label: "English" },
+                        { value: "es",    label: "Spanish" },
+                        { value: "es-MX", label: "Spanish (Mexico)" },
+                        { value: "zh",    label: "Chinese (Simplified)" },
+                        { value: "zh-TW", label: "Chinese (Traditional)" },
+                        { value: "hi",    label: "Hindi" },
+                        { value: "ar",    label: "Arabic" },
+                        { value: "pt",    label: "Portuguese" },
+                        { value: "pt-BR", label: "Portuguese (Brazil)" },
+                        { value: "fr",    label: "French" },
+                        { value: "ru",    label: "Russian" },
+                        { value: "de",    label: "German" },
+                        { value: "ja",    label: "Japanese" },
+                        { value: "ko",    label: "Korean" },
+                        { value: "it",    label: "Italian" },
+                        { value: "tr",    label: "Turkish" },
+                        { value: "vi",    label: "Vietnamese" },
+                        { value: "pl",    label: "Polish" },
+                        { value: "nl",    label: "Dutch" },
+                        { value: "th",    label: "Thai" },
+                        { value: "id",    label: "Indonesian" },
+                        { value: "ms",    label: "Malay" },
+                        { value: "tl",    label: "Filipino (Tagalog)" },
+                        { value: "sv",    label: "Swedish" },
+                        { value: "uk",    label: "Ukrainian" },
+                        { value: "fa",    label: "Persian (Farsi)" },
+                        { value: "ur",    label: "Urdu" },
+                        { value: "bn",    label: "Bengali" },
+                        { value: "sw",    label: "Swahili" },
+                        { value: "ta",    label: "Tamil" },
+                        { value: "te",    label: "Telugu" },
+                        { value: "mr",    label: "Marathi" },
+                        { value: "gu",    label: "Gujarati" },
+                        { value: "kn",    label: "Kannada" },
+                        { value: "ml",    label: "Malayalam" },
+                        { value: "pa",    label: "Punjabi" },
+                        { value: "ne",    label: "Nepali" },
+                        { value: "si",    label: "Sinhala" },
                         // - European -
-                        { value: "da",    label: "🇩🇰 Danish" },
-                        { value: "fi",    label: "🇫🇮 Finnish" },
-                        { value: "no",    label: "🇳🇴 Norwegian" },
-                        { value: "cs",    label: "🇨🇿 Czech" },
-                        { value: "sk",    label: "🇸🇰 Slovak" },
-                        { value: "ro",    label: "🇷🇴 Romanian" },
-                        { value: "hu",    label: "🇭🇺 Hungarian" },
-                        { value: "bg",    label: "🇧🇬 Bulgarian" },
-                        { value: "hr",    label: "🇭🇷 Croatian" },
-                        { value: "sr",    label: "🇷🇸 Serbian" },
-                        { value: "bs",    label: "🇧🇦 Bosnian" },
-                        { value: "sl",    label: "🇸🇮 Slovenian" },
-                        { value: "mk",    label: "🇲🇰 Macedonian" },
-                        { value: "sq",    label: "🇦🇱 Albanian" },
-                        { value: "lt",    label: "🇱🇹 Lithuanian" },
-                        { value: "lv",    label: "🇱🇻 Latvian" },
-                        { value: "et",    label: "🇪🇪 Estonian" },
-                        { value: "el",    label: "🇬🇷 Greek" },
-                        { value: "ca",    label: "🏳️ Catalan" },
-                        { value: "gl",    label: "🏳️ Galician" },
-                        { value: "eu",    label: "🏳️ Basque" },
-                        { value: "cy",    label: "🏴󠁧󠁢󠁷󠁬󠁳󠁿 Welsh" },
-                        { value: "ga",    label: "🇮🇪 Irish" },
-                        { value: "is",    label: "🇮🇸 Icelandic" },
-                        { value: "mt",    label: "🇲🇹 Maltese" },
-                        { value: "lb",    label: "🇱🇺 Luxembourgish" },
-                        { value: "yi",    label: "🕍 Yiddish" },
+                        { value: "da",    label: "Danish" },
+                        { value: "fi",    label: "Finnish" },
+                        { value: "no",    label: "Norwegian" },
+                        { value: "cs",    label: "Czech" },
+                        { value: "sk",    label: "Slovak" },
+                        { value: "ro",    label: "Romanian" },
+                        { value: "hu",    label: "Hungarian" },
+                        { value: "bg",    label: "Bulgarian" },
+                        { value: "hr",    label: "Croatian" },
+                        { value: "sr",    label: "Serbian" },
+                        { value: "bs",    label: "Bosnian" },
+                        { value: "sl",    label: "Slovenian" },
+                        { value: "mk",    label: "Macedonian" },
+                        { value: "sq",    label: "Albanian" },
+                        { value: "lt",    label: "Lithuanian" },
+                        { value: "lv",    label: "Latvian" },
+                        { value: "et",    label: "Estonian" },
+                        { value: "el",    label: "Greek" },
+                        { value: "ca",    label: "Catalan" },
+                        { value: "gl",    label: "Galician" },
+                        { value: "eu",    label: "Basque" },
+                        { value: "cy",    label: "Welsh" },
+                        { value: "ga",    label: "Irish" },
+                        { value: "is",    label: "Icelandic" },
+                        { value: "mt",    label: "Maltese" },
+                        { value: "lb",    label: "Luxembourgish" },
+                        { value: "yi",    label: "Yiddish" },
                         // - Central & Eastern Asia -
-                        { value: "mn",    label: "🇲🇳 Mongolian" },
-                        { value: "my",    label: "🇲🇲 Burmese (Myanmar)" },
-                        { value: "km",    label: "🇰🇭 Khmer" },
-                        { value: "lo",    label: "🇱🇦 Lao" },
-                        { value: "ka",    label: "🇬🇪 Georgian" },
-                        { value: "hy",    label: "🇦🇲 Armenian" },
-                        { value: "az",    label: "🇦🇿 Azerbaijani" },
-                        { value: "kk",    label: "🇰🇿 Kazakh" },
-                        { value: "ky",    label: "🇰🇬 Kyrgyz" },
-                        { value: "uz",    label: "🇺🇿 Uzbek" },
-                        { value: "tg",    label: "🇹🇯 Tajik" },
-                        { value: "tk",    label: "🇹🇲 Turkmen" },
-                        { value: "tt",    label: "🇷🇺 Tatar" },
+                        { value: "mn",    label: "Mongolian" },
+                        { value: "my",    label: "Burmese (Myanmar)" },
+                        { value: "km",    label: "Khmer" },
+                        { value: "lo",    label: "Lao" },
+                        { value: "ka",    label: "Georgian" },
+                        { value: "hy",    label: "Armenian" },
+                        { value: "az",    label: "Azerbaijani" },
+                        { value: "kk",    label: "Kazakh" },
+                        { value: "ky",    label: "Kyrgyz" },
+                        { value: "uz",    label: "Uzbek" },
+                        { value: "tg",    label: "Tajik" },
+                        { value: "tk",    label: "Turkmen" },
+                        { value: "tt",    label: "Tatar" },
                         // - Middle East & Africa -
-                        { value: "he",    label: "🇮🇱 Hebrew" },
-                        { value: "ku",    label: "🏳️ Kurdish" },
-                        { value: "am",    label: "🇪🇹 Amharic" },
-                        { value: "so",    label: "🇸🇴 Somali" },
-                        { value: "ha",    label: "🇳🇬 Hausa" },
-                        { value: "yo",    label: "🇳🇬 Yoruba" },
-                        { value: "ig",    label: "🇳🇬 Igbo" },
-                        { value: "xh",    label: "🇿🇦 Xhosa" },
-                        { value: "zu",    label: "🇿🇦 Zulu" },
+                        { value: "he",    label: "Hebrew" },
+                        { value: "ku",    label: "Kurdish" },
+                        { value: "am",    label: "Amharic" },
+                        { value: "so",    label: "Somali" },
+                        { value: "ha",    label: "Hausa" },
+                        { value: "yo",    label: "Yoruba" },
+                        { value: "ig",    label: "Igbo" },
+                        { value: "xh",    label: "Xhosa" },
+                        { value: "zu",    label: "Zulu" },
                         // - Pacific & Other -
-                        { value: "mi",    label: "🇳🇿 Māori" },
-                        { value: "ht",    label: "🇭🇹 Haitian Creole" },
+                        { value: "mi",    label: "Māori" },
+                        { value: "ht",    label: "Haitian Creole" },
                       ]}
                     />
                     <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">By default the assistant replies in whatever language the visitor writes in. Force a single language here if you need consistent transcripts.</p>
@@ -1410,12 +1437,12 @@ export function SettingsTab({
                                 : "primary"
                             }
                             options={[
-                              { value: "none", label: "🚫 Isolated (No Calendar Sharing / Internal Only)" },
+                              { value: "none", label: "Isolated (No calendar sharing)" },
                               ...(googleConnected
                                 ? [
                                     {
                                       value: "primary",
-                                      label: `🏢 Workspace Primary (${googleAccounts.find((a) => a.id === null)?.email || "Google"})`,
+                                      label: `Workspace Primary (${googleAccounts.find((a) => a.id === null)?.email || "Google"})`,
                                     },
                                   ]
                                 : []),
@@ -1423,13 +1450,13 @@ export function SettingsTab({
                                 .filter((a) => a.id !== null)
                                 .map((a) => ({
                                   value: a.id || "",
-                                  label: `👤 Dedicated: ${a.label}`,
+                                  label: `Dedicated: ${a.label}`,
                                 })),
                               ...otherBots.map((b) => ({
                                 value: `bot:${b.id}`,
-                                label: `🔗 Use same calendar as ${b.name}`,
+                                label: `Use same calendar as ${b.name}`,
                               })),
-                              { value: "connect_new", label: "➕ Connect New Google Account for this bot..." },
+                              { value: "connect_new", label: "Connect new Google account..." },
                             ]}
                             onChange={async (v) => {
                               if (v === "none") {
@@ -1523,18 +1550,18 @@ export function SettingsTab({
                           <ModernSelect
                             value={googleCalendarColor || "auto_multiple"}
                             options={[
-                              { value: "auto_multiple", label: "🎨 Multi-Color Palette (Dynamic per visitor & topic)" },
-                              { value: "7", label: "🔷 Peacock (Cyan / Turquoise) - Demos" },
-                              { value: "3", label: "🍇 Grape (Royal Purple) - VIP & Strategy" },
-                              { value: "10", label: "🌲 Basil (Forest Green) - Sales & Quotes" },
-                              { value: "6", label: "🍊 Tangerine (Vivid Orange) - Tech Support" },
-                              { value: "9", label: "🫐 Blueberry (Royal Blue) - Onboarding" },
-                              { value: "2", label: "🌿 Sage (Soft Green) - Discovery" },
-                              { value: "4", label: "🦩 Flamingo (Coral / Rose) - Reviews" },
-                              { value: "5", label: "🍌 Banana (Yellow) - Rescheduled" },
-                              { value: "1", label: "🪻 Lavender (Pale Blue) - General" },
-                              { value: "11", label: "🍅 Tomato (Crimson Red) - Urgent" },
-                              { value: "8", label: "⚪ Graphite (Neutral Gray)" },
+                              { value: "auto_multiple", label: "Multi-Color Palette (Dynamic per visitor & topic)" },
+                              { value: "7", label: "Peacock (Cyan / Turquoise) - Demos" },
+                              { value: "3", label: "Grape (Royal Purple) - VIP & Strategy" },
+                              { value: "10", label: "Basil (Forest Green) - Sales & Quotes" },
+                              { value: "6", label: "Tangerine (Vivid Orange) - Tech Support" },
+                              { value: "9", label: "Blueberry (Royal Blue) - Onboarding" },
+                              { value: "2", label: "Sage (Soft Green) - Discovery" },
+                              { value: "4", label: "Flamingo (Coral / Rose) - Reviews" },
+                              { value: "5", label: "Banana (Yellow) - Rescheduled" },
+                              { value: "1", label: "Lavender (Pale Blue) - General" },
+                              { value: "11", label: "Tomato (Crimson Red) - Urgent" },
+                              { value: "8", label: "Graphite (Neutral Gray)" },
                             ]}
                             onChange={(v) => {
                               if (setGoogleCalendarColor) {
@@ -1546,6 +1573,29 @@ export function SettingsTab({
                             {googleCalendarColor === "auto_multiple" || !googleCalendarColor
                               ? "Chatty uses multiple distinct colors across your Google Calendar so different bookings and topics are easily distinguishable."
                               : "New appointments created by this bot will be tagged with this Google Calendar color chip."}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Dedicated Zoom Meeting Link / PMI */}
+                      {meetingProvider === "zoom" && (
+                        <div>
+                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">
+                            Dedicated Zoom Meeting Link or PMI (Optional)
+                          </label>
+                          <input
+                            type="url"
+                            value={customMeetingLink}
+                            onChange={(e) => {
+                              if (setCustomMeetingLink) {
+                                handleInputChange(setCustomMeetingLink, e.target.value);
+                              }
+                            }}
+                            placeholder="https://zoom.us/j/1234567890 or your personal meeting room"
+                            className="w-full text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]"
+                          />
+                          <p className="text-[9px] text-neutral-400 mt-1">
+                            When configured, this bot uses this dedicated Zoom link for booked appointments so calls don&apos;t mix across bots.
                           </p>
                         </div>
                       )}

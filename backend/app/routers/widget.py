@@ -1387,7 +1387,8 @@ async def widget_theme(bot_id: str, response: Response):
         "user_id, name, primary_color, widget_style, logo_url, welcome_message, "
         "send_button_style, conversation_starters, teaser_message, avatar_icon, avatar_url, "
         "hide_branding, custom_css, custom_js, show_sender_tag, csat_enabled, "
-        "color_scheme, calendar_scheduling_enabled, meeting_provider"
+        "color_scheme, calendar_scheduling_enabled, meeting_provider, lead_capture_enabled, "
+        "lead_fields, lead_required_fields"
     )
     try:
         res = await run_db(lambda: supabase.table("chatty_bots").select(
@@ -1617,6 +1618,9 @@ async def widget_theme(bot_id: str, response: Response):
         "panel_size": b.get("panel_size") or "default",
         "calendar_scheduling_enabled": bool(b.get("calendar_scheduling_enabled")),
         "meeting_provider": b.get("meeting_provider") or "google_meet",
+        "lead_capture_enabled": bool(b.get("lead_capture_enabled", False)),
+        "lead_fields": b.get("lead_fields") or ["name", "email"],
+        "lead_required_fields": b.get("lead_required_fields") or ["email"],
         "team_profiles": team_profiles,
     }
 

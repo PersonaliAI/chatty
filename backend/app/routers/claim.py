@@ -79,6 +79,83 @@ class ClaimResponse(BaseModel):
     dashboard_url: str
 
 
+@router.post("/api/claim/generate")
+async def generate_claimable_bot(
+    req: GenerateClaimBotRequest,
+    background_tasks: BackgroundTasks,
+    user: dict[str, Any] = Depends(require_user),
+) -> dict[str, Any]:
+    """Creates a pre-configured demo bot ready for cold outreach claiming."""
+    claim_token = f"clm_{secrets.token_urlsafe(16)}"
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=CLAIM_TOKEN_TTL_DAYS)).isoformat()
+
+    prompts = req.suggested_prompts or [
+        f"What is {req.target_name} and what problem does it solve?",
+        "What are your pricing plans and features?",
+        "How do I sign up or get started?",
+    ]
+
+    welcome = (
+        req.welcome_message
+        or f"Hello! I am {req.target_name}'s AI assistant. Ask me anything about our features, pricing, or docs."
+    )
+
+    system_inst = (
+        req.system_instructions
+        or f"You are the official customer support AI assistant for {req.target_name} ({req.target_url}). "
+        f"Answer visitors accurately based on the company knowledge. Be polite, concise, and helpful."
+    )
+
+    row = {
+        "user_id": user["auth_user_id"],
+        "name": f"{req.target_name} Assistant",
+        "welcome_message": welcome,
+        "system_instructions": system_inst,
+        "selected_model": req.model or "gemini-2.5-flash",
+        "primary_color": req.primary_color or "#0f172a",
+        "claim_token": claim_token,
+        "claim_status": "unclaimed",
+        "demo_target_name": req.target_name,
+        "demo_target_url": req.target_url,
+        "demo_expires_at": expires_at,
+        "suggested_prompts": prompts,
+    }
+
+    res = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create claimable demo bot")
+
+    created = res.data[0]
+    bot_id = created["id"]
+    if req.target_url:
+        background_tasks.add_task(_crawl_demo_target_site, bot_id, req.target_url)
+
+    base_frontend = (FRONTEND_URL or "https://chatty.personaliai.com").rstrip("/")
+    claim_url = f"{base_frontend}/claim/{claim_token}"
+
+    email_template = (
+        f"Subject: Congrats on the launch! (+ pre-trained an AI assistant for {req.target_name})\n\n"
+        f"Hi,\n\n"
+        f"Congrats on launching {req.target_name}! Saw your launch and loved the concept.\n\n"
+        f"Launch traffic usually brings dozens of repetitive visitor questions about pricing and features. "
+        f"To help out, I ran {req.target_url} through Chatty and pre-trained a 24/7 AI support assistant on your site.\n\n"
+        f"You can test it live with your team here (zero signup required):\n"
+        f"{claim_url}\n\n"
+        f"If you like how it answers, you can claim this assistant with 1 click and drop the 1-line script onto your site.\n\n"
+        f"Best,\n"
+        f"Founder, Chatty"
+    )
+
+    return {
+        "success": True,
+        "bot_id": bot_id,
+        "claim_token": claim_token,
+        "claim_url": claim_url,
+        "demo_expires_at": expires_at,
+        "email_template": email_template,
+    }
+
+
 @router.get("/api/claim/{claim_token}")
 async def get_claim_details(claim_token: str) -> dict[str, Any]:
     """Public endpoint to fetch sanitized demo bot info for prospective claimants."""
@@ -168,7 +245,7 @@ async def claim_bot(
 ) -> ClaimResponse:
     """Authenticated endpoint that transfers bot ownership to the logged-in user."""
     token = claim_token.strip()
-    if not token:
+    if not token or token.lower() in ("generate", "create", "new"):
         raise HTTPException(status_code=400, detail="Invalid claim token")
 
     res = await run_db(
@@ -278,81 +355,4 @@ async def decline_and_delete_demo_bot(claim_token: str) -> dict[str, Any]:
     return {
         "success": True,
         "message": f"Demo assistant '{bot.get('name')}' and all associated knowledge data have been permanently deleted.",
-    }
-
-
-@router.post("/api/claim/generate")
-async def generate_claimable_bot(
-    req: GenerateClaimBotRequest,
-    background_tasks: BackgroundTasks,
-    user: dict[str, Any] = Depends(require_user),
-) -> dict[str, Any]:
-    """Creates a pre-configured demo bot ready for cold outreach claiming."""
-    claim_token = f"clm_{secrets.token_urlsafe(16)}"
-    expires_at = (datetime.now(timezone.utc) + timedelta(days=CLAIM_TOKEN_TTL_DAYS)).isoformat()
-
-    prompts = req.suggested_prompts or [
-        f"What is {req.target_name} and what problem does it solve?",
-        "What are your pricing plans and features?",
-        "How do I sign up or get started?",
-    ]
-
-    welcome = (
-        req.welcome_message
-        or f"Hello! I am {req.target_name}'s AI assistant. Ask me anything about our features, pricing, or docs."
-    )
-
-    system_inst = (
-        req.system_instructions
-        or f"You are the official customer support AI assistant for {req.target_name} ({req.target_url}). "
-        f"Answer visitors accurately based on the company knowledge. Be polite, concise, and helpful."
-    )
-
-    row = {
-        "user_id": user["auth_user_id"],
-        "name": f"{req.target_name} Assistant",
-        "welcome_message": welcome,
-        "system_instructions": system_inst,
-        "selected_model": req.model or "gemini-2.5-flash",
-        "primary_color": req.primary_color or "#0f172a",
-        "claim_token": claim_token,
-        "claim_status": "unclaimed",
-        "demo_target_name": req.target_name,
-        "demo_target_url": req.target_url,
-        "demo_expires_at": expires_at,
-        "suggested_prompts": prompts,
-    }
-
-    res = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
-    if not res.data:
-        raise HTTPException(status_code=500, detail="Failed to create claimable demo bot")
-
-    created = res.data[0]
-    bot_id = created["id"]
-    if req.target_url:
-        background_tasks.add_task(_crawl_demo_target_site, bot_id, req.target_url)
-
-    base_frontend = (FRONTEND_URL or "https://chatty.personaliai.com").rstrip("/")
-    claim_url = f"{base_frontend}/claim/{claim_token}"
-
-    email_template = (
-        f"Subject: Congrats on the launch! (+ pre-trained an AI assistant for {req.target_name})\n\n"
-        f"Hi,\n\n"
-        f"Congrats on launching {req.target_name}! Saw your launch and loved the concept.\n\n"
-        f"Launch traffic usually brings dozens of repetitive visitor questions about pricing and features. "
-        f"To help out, I ran {req.target_url} through Chatty and pre-trained a 24/7 AI support assistant on your site.\n\n"
-        f"You can test it live with your team here (zero signup required):\n"
-        f"{claim_url}\n\n"
-        f"If you like how it answers, you can claim this assistant with 1 click and drop the 1-line script onto your site.\n\n"
-        f"Best,\n"
-        f"Founder, Chatty"
-    )
-
-    return {
-        "success": True,
-        "bot_id": bot_id,
-        "claim_token": claim_token,
-        "claim_url": claim_url,
-        "demo_expires_at": expires_at,
-        "email_template": email_template,
     }

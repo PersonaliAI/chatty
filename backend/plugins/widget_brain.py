@@ -1456,6 +1456,24 @@ def _query_tokens(query: str) -> set:
     return q_tokens
 
 
+def _score_source_candidate(s: dict, q_tokens: set[str]) -> int:
+    name = (s.get("name") or "")
+    content = (s.get("content") or "")
+    haystack = (name + " " + content).lower()
+    if not q_tokens:
+        return 0
+    words = re.findall(r"[a-z0-9]+", haystack)
+    name_lower = name.lower()
+    name_words = set(re.findall(r"[a-z0-9]+", name_lower))
+    term_score = sum(min(words.count(tok), 4) for tok in q_tokens)
+    matched_toks = {tok for tok in q_tokens if tok in haystack}
+    if not matched_toks:
+        return 0
+    diversity_boost = (len(matched_toks) ** 2) * 8
+    title_boost = sum(15 for tok in q_tokens if tok in name_words or tok in name_lower)
+    return term_score + diversity_boost + title_boost
+
+
 def _choose_sources(query: str, sources: list[dict], max_sources: int = 6) -> tuple[list[dict], set]:
     """Score sources by query-token overlap; return (chosen_sources, q_tokens).
     Shared by the prompt builder and the citation builder so both agree on which
@@ -1463,16 +1481,7 @@ def _choose_sources(query: str, sources: list[dict], max_sources: int = 6) -> tu
     q_tokens = _query_tokens(query)
     scored = []
     for s in sources:
-        name = (s.get("name") or "")
-        content = (s.get("content") or "")
-        haystack = (name + " " + content).lower()
-        if not q_tokens:
-            score = 0
-        else:
-            words = re.findall(r"[a-z0-9]+", haystack)
-            score = sum(words.count(tok) for tok in q_tokens)
-            if any(tok in name.lower() for tok in q_tokens):
-                score += 5  # title match boost
+        score = _score_source_candidate(s, q_tokens)
         scored.append((score, s))
 
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -1500,23 +1509,17 @@ def _rank_sources(query: str, sources: list[dict], max_sources: int = 6,
 
 
 def _refs_grounded_in_reply(refs: list[dict], reply: str) -> list[dict]:
-    """`_ranked_source_refs` scores candidates against the visitor's raw
-    message alone, so a message like "can I book a demo?" spuriously matches
-    any doc that happens to mention "book"/"demo" (an API-reference page, the
-    Zoom integration doc, etc.) even when the actual reply is a plain
-    scheduling question that used none of that content. Keep only the refs
-    whose own name shares a real token with what the assistant actually said
-    - a cheap proxy for "this citation reflects the reply", not just "this
-    document matched the question"."""
+    """Keep citations reflecting the reply. If strict name-token matching filters out
+    everything, fallback to the top retrieved refs so citations are not dropped."""
     reply_tokens = _query_tokens(reply)
     if not reply_tokens:
-        return []
+        return refs[:2] if refs else []
     grounded = []
     for ref in refs:
         name_tokens = _query_tokens(ref.get("name") or "")
         if name_tokens & reply_tokens:
             grounded.append(ref)
-    return grounded
+    return grounded if grounded else (refs[:2] if refs else [])
 
 
 def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list[dict]:
@@ -1529,11 +1532,7 @@ def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list
         return []
     scored = []
     for s in sources:
-        haystack = ((s.get("name") or "") + " " + (s.get("content") or "")).lower()
-        words = re.findall(r"[a-z0-9]+", haystack)
-        score = sum(words.count(tok) for tok in q_tokens)
-        if any(tok in (s.get("name") or "").lower() for tok in q_tokens):
-            score += 5
+        score = _score_source_candidate(s, q_tokens)
         if score > 0:
             scored.append((score, s))
     scored.sort(key=lambda x: x[0], reverse=True)
@@ -1552,3 +1551,4 @@ def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list
             "url": name if is_url else None,
         })
     return refs
+

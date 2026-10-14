@@ -544,6 +544,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- loaded from the bot record but not yet surfaced in any UI control
   const [syncOffice365Calendar, setSyncOffice365Calendar] = useState<boolean>(false);
   const [meetingProvider, setMeetingProvider] = useState<string>("google_meet");
+  const [customMeetingLink, setCustomMeetingLink] = useState<string>("");
   // agenticSetupStep: which conversational setup step the chat assistant is at
   // 0=not started, 1=welcome, 2=docs_upload, 3=instructions, 4=lead_fields, 5=meetings, 6=calendar, 7=meeting_provider, 8=notifications, 9=done
   const [agenticSetupStep, setAgenticSetupStep] = useState<number>(0);
@@ -1423,6 +1424,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setSyncOutlookCalendar(activeBot.sync_outlook_calendar || false);
         setSyncOffice365Calendar(activeBot.sync_office365_calendar || false);
         setMeetingProvider(activeBot.meeting_provider || "google_meet");
+        setCustomMeetingLink(String((activeBot as Record<string, unknown>).custom_meeting_link || ""));
         setBookingEmailVerification(activeBot.booking_email_verification || false);
         setBookingBlockDisposableEmails(activeBot.booking_block_disposable_emails || false);
         setBookingLimitOneActive(activeBot.booking_limit_one_active || false);
@@ -1604,6 +1606,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setSyncOutlookCalendar(selected.sync_outlook_calendar || false);
       setSyncOffice365Calendar(selected.sync_office365_calendar || false);
       setMeetingProvider(selected.meeting_provider || "google_meet");
+      setCustomMeetingLink(String((selected as Record<string, unknown>).custom_meeting_link || ""));
       setBookingEmailVerification(selected.booking_email_verification || false);
       setBookingBlockDisposableEmails(selected.booking_block_disposable_emails || false);
       setBookingLimitOneActive(selected.booking_limit_one_active || false);
@@ -1893,11 +1896,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   );
   const languageOptions: ModernSelectOption[] = useMemo(
     () => [
-      { value: "EN", label: "English", icon: <span>🇬🇧</span> },
-      { value: "ES", label: "Español", icon: <span>🇪🇸</span> },
-      { value: "FR", label: "Français", icon: <span>🇫🇷</span> },
-      { value: "DE", label: "Deutsch", icon: <span>🇩🇪</span> },
-      { value: "IT", label: "Italiano", icon: <span>🇮🇹</span> },
+      { value: "EN", label: "English" },
+      { value: "ES", label: "Español" },
+      { value: "FR", label: "Français" },
+      { value: "DE", label: "Deutsch" },
+      { value: "IT", label: "Italiano" },
     ],
     []
   );
@@ -2466,30 +2469,49 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   };
 
   // Handle Cloud Connector Disconnects
-  const handleDisconnectCloud = async (provider: "google" | "microsoft") => {
+  const handleDisconnectCloud = async (provider: "google" | "microsoft" | "zoom", targetBotId?: string) => {
+    const effectiveBotId = targetBotId || botId;
+    const providerLabel = provider === "google" ? "Google" : provider === "microsoft" ? "Microsoft" : "Zoom";
     showConfirm(
-      `Disconnect ${provider === "google" ? "Google" : "Microsoft"}`,
-      `Are you sure you want to disconnect ${provider === "google" ? "Google" : "Microsoft"}? This will turn off all syncing sources and clear connection tokens.`,
+      `Disconnect ${providerLabel}`,
+      effectiveBotId
+        ? `Disconnect ${providerLabel} for this assistant? Other assistants will retain their connections.`
+        : `Are you sure you want to disconnect ${providerLabel}? This will turn off all syncing sources and clear connection tokens.`,
       async () => {
         try {
           const res = await fetchWithFallback(`/api/integrations/${provider}/disconnect`, {
-            method: "POST"
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bot_id: effectiveBotId }),
           });
           if (res.ok) {
-            if (provider === "google") {
-              setGoogleConnected(false);
-              setGoogleEmail(null);
+            if (effectiveBotId) {
+              if (provider === "google") {
+                setSyncGoogleCalendar(false);
+                setSyncGoogleDrive(false);
+                setGoogleConnectedAccountId("");
+              } else if (provider === "microsoft") {
+                setSyncOutlookCalendar(false);
+              } else if (provider === "zoom") {
+                setCustomMeetingLink("");
+                setMeetingProvider("google_meet");
+              }
             } else {
-              setMicrosoftConnected(false);
-              setMicrosoftEmail(null);
+              if (provider === "google") {
+                setGoogleConnected(false);
+                setGoogleEmail(null);
+              } else if (provider === "microsoft") {
+                setMicrosoftConnected(false);
+                setMicrosoftEmail(null);
+              }
             }
-            showToast(`${provider === "google" ? "Google" : "Microsoft"} disconnected successfully.`, "success");
+            showToast(`${providerLabel} disconnected successfully.`, "success");
           } else {
-            showToast(`Failed to disconnect ${provider}.`, "error");
+            showToast(`Failed to disconnect ${providerLabel}.`, "error");
           }
         } catch (err) {
-          console.error(`Error disconnecting ${provider}:`, err);
-          showToast(`Error disconnecting ${provider}.`, "error");
+          console.error(`Error disconnecting ${providerLabel}:`, err);
+          showToast(`Error disconnecting ${providerLabel}.`, "error");
         }
       }
     );
@@ -2552,6 +2574,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           hide_branding: hideBranding,
           show_sender_tag: showSenderTag,
           csat_enabled: csatEnabled,
+          lead_capture_enabled: leadCaptureEnabled,
+          custom_meeting_link: customMeetingLink.trim() || null,
           voice_message_mode: voiceMessageMode,
           webhook_url: webhookUrl,
           notification_emails: notificationEmails,
@@ -4847,6 +4871,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setEmailNotify={setEmailNotify}
               csatEnabled={csatEnabled}
               setCsatEnabled={setCsatEnabled}
+              leadCaptureEnabled={leadCaptureEnabled}
+              setLeadCaptureEnabled={setLeadCaptureEnabled}
+              customMeetingLink={customMeetingLink}
+              setCustomMeetingLink={setCustomMeetingLink}
               responseLanguage={responseLanguage}
               setResponseLanguage={setResponseLanguage}
               botCountry={botCountry}

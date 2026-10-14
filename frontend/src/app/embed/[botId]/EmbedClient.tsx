@@ -588,6 +588,11 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   }, []);
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
+  const [leadCaptureEnabled, setLeadCaptureEnabled] = useState(false);
+  const [leadFormSubmitted, setLeadFormSubmitted] = useState(false);
+  const [inlineEmailInput, setInlineEmailInput] = useState("");
+  const [submittingLead, setSubmittingLead] = useState(false);
+
 
   // Auto-extract visitor contact info if provided in chat conversation
   const extractedVisitorInfo = useMemo(() => {
@@ -1819,6 +1824,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           setVoiceAgentEnabled(Boolean(bot.voice_enabled));
           setVoiceVisualizer(['wave', 'bar', 'grid', 'radial', 'aura'].includes(bot.voice_visualizer) ? bot.voice_visualizer : 'wave');
           setCalendarSchedulingEnabled(!!bot.calendar_scheduling_enabled);
+          setLeadCaptureEnabled(Boolean(bot.lead_capture_enabled));
           try {
             const rawScheme = isPreview ? (paramColorScheme || (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null)) : (bot.color_scheme ? JSON.stringify(bot.color_scheme) : null);
             setColorScheme(rawScheme ? JSON.parse(rawScheme) : null);
@@ -1928,6 +1934,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           setVoiceAgentEnabled(Boolean(bot.voice_enabled));
           if (['wave', 'bar', 'grid', 'radial', 'aura'].includes(bot.voice_visualizer)) {
             setVoiceVisualizer(bot.voice_visualizer);
+          }
+          if (bot.lead_capture_enabled !== undefined) {
+            setLeadCaptureEnabled(Boolean(bot.lead_capture_enabled));
           }
         }
       } catch {}
@@ -2149,7 +2158,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           } else if (payload.type === "done") {
             if (payload.reply && payload.reply !== acc) { acc = payload.reply; writeAssistant(acc); }
             else if (!created && payload.reply) { writeAssistant(payload.reply); }
-            if (payload.sources && payload.sources.length && created) {
+            if (payload.sources && payload.sources.length) {
               const srcs = payload.sources;
               setMessages((p) => {
                 const copy = [...p];
@@ -3333,6 +3342,38 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                                     }}
                                   />
                                 )}
+                                {msg.sources && msg.sources.length > 0 && (
+                                  <div className="mt-2.5 pt-2 border-t border-neutral-200/70 dark:border-neutral-700/60 flex flex-wrap gap-1.5 items-center">
+                                    <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+                                      <Link2 className="size-2.5" /> Sources:
+                                    </span>
+                                    {msg.sources.map((s, sIdx) => {
+                                      const isUrl = s.url || (s.name && (s.name.startsWith("http://") || s.name.startsWith("https://")));
+                                      const href = s.url || (isUrl ? s.name : undefined);
+                                      return href ? (
+                                        <a
+                                          key={sIdx}
+                                          href={href}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-200/60 hover:bg-neutral-300/80 dark:bg-neutral-700/60 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-200 transition-colors max-w-[200px] truncate"
+                                          title={s.name}
+                                        >
+                                          <span className="truncate">{s.name.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                                        </a>
+                                      ) : (
+                                        <span
+                                          key={sIdx}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-200/60 dark:bg-neutral-700/60 text-neutral-600 dark:text-neutral-300 max-w-[200px] truncate"
+                                          title={s.name}
+                                        >
+                                          <FileText className="size-2.5 shrink-0 opacity-60" />
+                                          <span className="truncate">{s.name}</span>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </>
                             ) : (
                               <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -3373,6 +3414,70 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                       <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.2s]" />
                       <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.4s]" />
                     </div>
+                  </motion.div>
+                )}
+
+                {/* Inline Lead Capture Card */}
+                {leadCaptureEnabled && !leadFormSubmitted && !extractedVisitorInfo.email && !activeNodeId && messages.filter((m) => m.role === "user").length >= 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-3 my-2 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-850 shadow-xs space-y-2 max-w-[92%]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="size-6 rounded-full flex items-center justify-center text-white text-[11px] shrink-0" style={{ backgroundColor: primaryColor }}>
+                        <Mail className="size-3" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Stay connected with our team</p>
+                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Leave your email so we can follow up with your questions.</p>
+                      </div>
+                    </div>
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const em = inlineEmailInput.trim().toLowerCase();
+                        if (!em || submittingLead) return;
+                        setSubmittingLead(true);
+                        try {
+                          await fetch(`${BACKEND_URL}/api/widget/contact`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+                            body: JSON.stringify({
+                              bot_id: botId,
+                              session_id: sessionId,
+                              email: em,
+                              name: extractedVisitorInfo.name || undefined,
+                            }),
+                          });
+                          setLeadFormSubmitted(true);
+                          setCapturedLeadData((prev) => ({ ...prev, email: em }));
+                          showToast("Thank you! Contact details saved.", "success");
+                        } catch {
+                          setLeadFormSubmitted(true);
+                        } finally {
+                          setSubmittingLead(false);
+                        }
+                      }}
+                      className="flex gap-1.5 pt-0.5"
+                    >
+                      <input
+                        type="email"
+                        required
+                        value={inlineEmailInput}
+                        onChange={(e) => setInlineEmailInput(e.target.value)}
+                        placeholder="Your email address..."
+                        className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-xs text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={submittingLead}
+                        className="px-3 py-1.5 rounded-xl text-xs font-medium text-white shadow-2xs hover:opacity-90 transition-opacity cursor-pointer shrink-0 disabled:opacity-50"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {submittingLead ? <Loader2 className="size-3 animate-spin" /> : "Save"}
+                      </button>
+                    </form>
                   </motion.div>
                 )}
 

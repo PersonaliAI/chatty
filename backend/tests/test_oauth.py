@@ -182,8 +182,10 @@ def test_check_principal_scope_rejects_missing_scope():
 
 def test_require_bot_access_api_key_rejects_wrong_bot():
     principal = {"auth_type": "api_key", "bot_id": "bot-A"}
-    with pytest.raises(HTTPException) as exc:
-        asyncio.run(oauth.require_bot_access(principal, "bot-B"))
+    query = _mock_select_result([])
+    with patch.object(oauth.supabase, "table", return_value=query):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(oauth.require_bot_access(principal, "bot-B"))
     assert exc.value.status_code == 403
 
 
@@ -322,11 +324,11 @@ def test_token_endpoint_requires_form_encoding_not_json():
 def test_create_bot_requires_oauth_not_api_key():
     # A single-bot API key must never be able to create additional bots -
     # bot creation only makes sense for a user-scoped OAuth principal.
-    async def fake_resolve_api_key(*_args, **_kwargs):
-        return {"id": "key-1", "bot_id": "bot-1", "user_id": "user-1", "revoked": False, "scopes": ["admin"]}
+    async def fake_resolve_principal(*_args, **_kwargs):
+        return {"auth_type": "api_key", "id": "key-1", "bot_id": "bot-1", "user_id": "user-1", "revoked": False, "scopes": ["admin"]}
 
     client = TestClient(main.app)
-    with patch("main._resolve_api_key", new=fake_resolve_api_key):
+    with patch("app.routers.bots_api._oauth.resolve_principal", new=fake_resolve_principal):
         r = client.post(
             "/api/v1/bots",
             json={"name": "New Bot"},

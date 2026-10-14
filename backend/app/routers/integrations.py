@@ -13,8 +13,14 @@ from urllib.parse import urlencode
 
 import httpx
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
+
+
+class DisconnectIntegrationRequest(BaseModel):
+    bot_id: Optional[str] = None
+
 
 from app.core.clients import supabase
 from app.core.config import ALLOWED_ORIGINS, CHATTY_BACKEND_URL, CHATTY_FRONTEND_URL, FUNCTION_SECRET
@@ -431,7 +437,23 @@ async def google_callback(code: str, state: str):
 
 
 @router.post("/api/integrations/google/disconnect")
-async def google_disconnect(user: dict[str, Any] = Depends(require_user)):
+async def google_disconnect(
+    body: Optional[DisconnectIntegrationRequest] = None,
+    bot_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    target_bot_id = (body.bot_id if body else None) or bot_id
+    if target_bot_id:
+        await run_db(lambda: supabase.table("chatty_bots").update({
+            "google_connected_account_id": None,
+            "google_calendar_id": None,
+            "google_calendar_name": None,
+            "sync_google_calendar": False,
+            "sync_google_drive": False,
+            "calendar_scheduling_enabled": False,
+        }).eq("id", target_bot_id).execute())
+        return {"status": "disconnected", "bot_id": target_bot_id}
+
     await run_db(lambda: supabase.table("users").update(
         {
             "google_access_token": None,
@@ -558,8 +580,17 @@ async def calendar_events(
             bot = b_res.data[0]
             bot_owner = bot.get("user_id")
             if bot_owner not in (user.get("auth_user_id"), user.get("id")):
-                from app.core.permissions import get_bot_role_and_permissions
-                await get_bot_role_and_permissions(bot_id, user)
+                try:
+                    from app.core.permissions import get_bot_role_and_permissions
+                    await get_bot_role_and_permissions(bot_id, user)
+                except HTTPException:
+                    return {
+                        "events": [],
+                        "connected": {
+                            "google": False,
+                            "microsoft": False,
+                        },
+                    }
 
             bot_scheduling_enabled = bool(bot.get("calendar_scheduling_enabled", False))
             target_account_id = bot.get("google_connected_account_id")
@@ -706,7 +737,19 @@ async def microsoft_callback(code: str, state: str):
 
 
 @router.post("/api/integrations/microsoft/disconnect")
-async def microsoft_disconnect(user: dict[str, Any] = Depends(require_user)):
+async def microsoft_disconnect(
+    body: Optional[DisconnectIntegrationRequest] = None,
+    bot_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    target_bot_id = (body.bot_id if body else None) or bot_id
+    if target_bot_id:
+        await run_db(lambda: supabase.table("chatty_bots").update({
+            "sync_outlook_calendar": False,
+            "calendar_scheduling_enabled": False,
+        }).eq("id", target_bot_id).execute())
+        return {"status": "disconnected", "bot_id": target_bot_id}
+
     await run_db(lambda: supabase.table("users").update(
         {
             "microsoft_access_token": None,
@@ -717,3 +760,35 @@ async def microsoft_disconnect(user: dict[str, Any] = Depends(require_user)):
         }
     ).eq("id", user["id"]).execute())
     return {"status": "disconnected"}
+
+
+@router.post("/api/integrations/zoom/disconnect")
+async def zoom_disconnect(
+    body: Optional[DisconnectIntegrationRequest] = None,
+    bot_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    target_bot_id = (body.bot_id if body else None) or bot_id
+    if target_bot_id:
+        await run_db(lambda: supabase.table("chatty_bots").update({
+            "custom_meeting_link": None,
+            "meeting_provider": "google_meet",
+        }).eq("id", target_bot_id).execute())
+        return {"status": "disconnected", "bot_id": target_bot_id}
+    return {"status": "disconnected"}
+
+
+@router.get("/api/integrations/microsoft/calendars")
+async def get_microsoft_calendars(
+    bot_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    ms_connected = bool(user.get("microsoft_access_token"))
+    if not ms_connected:
+        return {"calendars": [], "connected": False}
+    try:
+        events = await ms.list_outlook_events(supabase, user)
+        return {"calendars": [{"id": "default", "name": "Outlook Calendar", "primary": True}], "connected": True}
+    except Exception:
+        return {"calendars": [], "connected": False}
+
