@@ -15,6 +15,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl
 
 from app.core import oauth as _oauth
@@ -86,6 +87,7 @@ mcp = FastMCP(
         resource_server_url=AnyHttpUrl(_MCP_RESOURCE_URL),
         required_scopes=["chat"],
     ),
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
     # Cloud Run scales this service to zero and recycles instances under
     # normal idle traffic. FastMCP's default (stateful) mode keeps each MCP
     # session's state in that one process's memory and requires every
