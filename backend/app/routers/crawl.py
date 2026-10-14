@@ -65,7 +65,14 @@ async def crawl_discover(
         raise HTTPException(status_code=400, detail=f"Invalid URL: {exc}") from exc
     origin = f"{parsed.scheme}://{parsed.netloc}"
     urls: set[str] = set()
-    candidates = [urljoin(origin, "/sitemap.xml"), urljoin(origin, "/sitemap_index.xml")]
+    candidates: list[str] = []
+    if base.lower().endswith(".xml") or "sitemap" in parsed.path.lower():
+        candidates.append(base)
+    candidates.extend([
+        urljoin(origin, "/sitemap.xml"),
+        urljoin(origin, "/sitemap_index.xml"),
+        urljoin(origin, "/sitemap/sitemap.xml"),
+    ])
 
     # Manual redirect handling (not httpx's follow_redirects) so every hop -
     # not just the URL the caller supplied - gets SSRF-checked. A redirect
@@ -108,19 +115,45 @@ async def crawl_discover(
                 return
             if r.status_code >= 300:
                 return
-            for loc in _re.findall(r"<loc>\s*([^<]+?)\s*</loc>", r.text, _re.I):
+            text = r.text
+            # Strip CDATA tags if present (<loc><![CDATA[https://...]]></loc>)
+            clean_text = _re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", text, flags=_re.DOTALL)
+
+            # 1. Standard <loc>...</loc> tags
+            for loc in _re.findall(r"<loc>\s*([^<>\s]+?)\s*</loc>", clean_text, _re.I):
                 loc = loc.strip()
-                if loc.lower().endswith(".xml") and "sitemap" in loc.lower():
+                if (loc.lower().endswith(".xml") or ".xml?" in loc.lower()) and ("sitemap" in loc.lower() or "index" in loc.lower()):
                     await fetch_sitemap(loc, depth + 1)
-                else:
+                elif loc.startswith(("http://", "https://")):
                     urls.add(loc)
+
+            # 2. Alternate/multilingual <xhtml:link ... href="..." /> tags
+            for match in _re.finditer(r'''<[^>]+(?:rel=["']alternate["'][^>]+href=["']([^"']+)["']|href=["']([^"']+)["'][^>]+rel=["']alternate["'])''', clean_text, _re.I):
+                alt_url = (match.group(1) or match.group(2) or "").strip()
+                if alt_url.startswith(("http://", "https://")):
+                    urls.add(alt_url)
 
         for sm in candidates:
             await fetch_sitemap(sm)
 
-    same_domain = sorted(
-        u for u in urls if urlparse(u).netloc == parsed.netloc
-    )[:500]
+    def _is_same_domain(u: str) -> bool:
+        netloc = urlparse(u).netloc.lower()
+        target = parsed.netloc.lower()
+        if netloc == target:
+            return True
+        return netloc.removeprefix("www.") == target.removeprefix("www.")
+
+    valid_urls = [u.split("#")[0] for u in urls if _is_same_domain(u)]
+
+    def _url_priority(u: str) -> tuple[int, int, str]:
+        p = urlparse(u).path.lower()
+        # Non-English language subpaths (e.g. /zh-hans/, /ja/, /es/, /de/, /fr/) get lower priority
+        is_foreign = bool(_re.search(r"^/(zh-hans|zh-hant|ja|ko|es|pt-br|de|fr|ru|it|ar)(/|$)", p))
+        is_en = bool(_re.search(r"^/en(/|$)", p))
+        priority = 2 if is_foreign else (0 if is_en else 1)
+        return (priority, len(p), u)
+
+    same_domain = sorted(list(dict.fromkeys(valid_urls)), key=_url_priority)[:500]
     if not same_domain:
         same_domain = [base]  # no sitemap - fall back to the single page
         return {"urls": same_domain, "count": 1, "sitemap_found": False}
