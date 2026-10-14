@@ -185,12 +185,16 @@ async def _enqueue_widget_ticket_escalation(
         f"{bot_id}:{session_id}:{reason}:{priority}:{custom_message or ''}".encode("utf-8")
     ).hexdigest()[:32]
     if _widget_job_queue:
-        await _widget_job_queue.enqueue(
-            name="widget.ticket_escalation",
-            payload=payload,
-            idempotency_key=f"widget.ticket_escalation:{digest}",
-        )
-        return "queued"
+        try:
+            await _widget_job_queue.enqueue(
+                name="widget.ticket_escalation",
+                payload=payload,
+                idempotency_key=f"widget.ticket_escalation:{digest}",
+            )
+            return "queued"
+        except Exception:
+            logger.warning("Widget ticket escalation queue failed; falling back to background", exc_info=True)
+            return "background"
     if not _allow_ephemeral_jobs():
         raise HTTPException(status_code=503, detail="Durable job queue is required for widget ticket escalation")
     return "background"
@@ -212,12 +216,16 @@ async def _enqueue_widget_unanswered(
         f"{bot_id}:{session_id}:{question[:2000]}:{reply[:4000]}".encode("utf-8")
     ).hexdigest()[:32]
     if _widget_job_queue:
-        await _widget_job_queue.enqueue(
-            name="widget.unanswered",
-            payload=payload,
-            idempotency_key=f"widget.unanswered:{digest}",
-        )
-        return "queued"
+        try:
+            await _widget_job_queue.enqueue(
+                name="widget.unanswered",
+                payload=payload,
+                idempotency_key=f"widget.unanswered:{digest}",
+            )
+            return "queued"
+        except Exception:
+            logger.warning("Widget unanswered queue failed; falling back to background", exc_info=True)
+            return "background"
     if not _allow_ephemeral_jobs():
         raise HTTPException(status_code=503, detail="Durable job queue is required for unanswered-question logging")
     return "background"
@@ -929,15 +937,21 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 }).execute())
             except Exception:
                 logger.exception("Failed to save assistant conversation message")
-            await _schedule_widget_webhook(
-                background_tasks, bot_id=bot_id, event="message.assistant",
-                session_id=session_id, data={"content": reply},
-            )
-            unanswered_mode = await _enqueue_widget_unanswered(
-                bot_id=bot_id, session_id=session_id, question=text, reply=reply,
-            )
-            if unanswered_mode == "background":
-                background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
+            try:
+                await _schedule_widget_webhook(
+                    background_tasks, bot_id=bot_id, event="message.assistant",
+                    session_id=session_id, data={"content": reply},
+                )
+            except Exception:
+                logger.warning("Failed to schedule widget webhook (non-fatal)", exc_info=True)
+            try:
+                unanswered_mode = await _enqueue_widget_unanswered(
+                    bot_id=bot_id, session_id=session_id, question=text, reply=reply,
+                )
+                if unanswered_mode == "background":
+                    background_tasks.add_task(_log_unanswered_if_needed, bot_id, session_id, text, reply)
+            except Exception:
+                logger.warning("Failed to enqueue unanswered check (non-fatal)", exc_info=True)
             await queue.put(_sse({"type": "done", "reply": reply, "sources": result.get("sources") or [], "flow_action": result.get("flow_action")}))
         except Exception:  # noqa: BLE001
             request_id = getattr(request.state, "request_id", "")

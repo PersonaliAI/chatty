@@ -141,9 +141,9 @@ export function GenerateClaimModal({
               <Share2 className="size-4" />
             </div>
             <div>
-              <h4 className="text-sm font-bold">Generate Claimable Demo Link</h4>
+              <h4 className="text-sm font-bold">Generate Outreach Assistant</h4>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Target startups on Product Hunt with a pre-trained assistant.
+                Pre-trained demo chatbot ready for cold emails or DMs.
               </p>
             </div>
           </div>
@@ -261,14 +261,13 @@ export function GenerateClaimModal({
             </div>
 
             {/* Note box */}
-            <div className="p-3 rounded-lg border border-neutral-100 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/30 text-[11px] text-neutral-500 space-y-1">
-              <p className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300">
-                <Sparkles className="size-3.5 text-blue-500" />
-                How Outreach Claim Works
+            <div className="p-3 rounded-lg border border-blue-100 dark:border-blue-905 bg-blue-50/40 dark:bg-blue-950/20 text-[11px] text-neutral-600 dark:text-neutral-350 space-y-1">
+              <p className="flex items-center gap-1.5 font-medium text-blue-700 dark:text-blue-300">
+                <Sparkles className="size-3.5 text-blue-500 shrink-0" />
+                Automated Background Pre-Training
               </p>
               <p className="leading-relaxed">
-                Creates an assistant with a live test sandbox at{" "}
-                <code className="text-neutral-700 dark:text-neutral-300">/claim/[token]</code>. The prospect can test questions with zero login and claim the bot to their account with 1 click.
+                Chatty will automatically crawl this website in the background so the demo bot is pre-trained with real answers. Prospects can test it live at <code className="text-blue-700 dark:text-blue-300">/claim/[token]</code> with zero login required.
               </p>
             </div>
 
@@ -289,11 +288,11 @@ export function GenerateClaimModal({
                 {loading ? (
                   <>
                     <Loader2 className="size-3.5 animate-spin" />
-                    Generating...
+                    Creating &amp; crawling...
                   </>
                 ) : (
                   <>
-                    Generate Link & Email <ArrowRight className="size-3.5" />
+                    Generate Link &amp; Email <ArrowRight className="size-3.5" />
                   </>
                 )}
               </button>

@@ -4,32 +4,36 @@ import { BACKEND_URL } from "@/lib/backend-client";
 
 export default async function EmbedPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ botId: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { botId } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const directToken = typeof resolvedSearchParams.token === "string" ? resolvedSearchParams.token : null;
+
   const hdrs = await headers();
   const referer = hdrs.get("referer") || "";
 
-  // Exchange the real Referer (only genuinely available here, on the
-  // iframe's own document load) for a short-lived signed token the client
-  // then attaches to every chat/media call. Never let this block the widget
-  // - a failed/errored call just means the token comes back null and the
-  // backend falls into its stricter unverified-origin rate tier.
-  let originToken: string | null = null;
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/widget/verify-origin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ bot_id: botId, referer }),
-      cache: "no-store",
-    });
-    if (res.ok) {
-      const data = (await res.json()) as { token?: string };
-      originToken = data.token ?? null;
+  // If a pre-verified widget token was directly supplied (e.g. from the claim sandbox or preview),
+  // use it directly. Otherwise exchange the real Referer for an origin token.
+  let originToken: string | null = directToken;
+  if (!originToken) {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/verify-origin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_id: botId, referer }),
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { token?: string };
+        originToken = data.token ?? null;
+      }
+    } catch {
+      // graceful degradation
     }
-  } catch {
-    // graceful degradation - see comment above
   }
 
   return <EmbedClient botId={botId} originToken={originToken} />;

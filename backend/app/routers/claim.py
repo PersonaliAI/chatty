@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header
 from pydantic import BaseModel, HttpUrl
 
 from app.core.clients import supabase
@@ -52,6 +52,26 @@ class GenerateClaimBotRequest(BaseModel):
     model: Optional[str] = "gemini-2.5-flash"
 
 
+
+async def _crawl_demo_target_site(bot_id: str, target_url: str):
+    """Background task to fetch and index the demo startup's site so the claimable
+    assistant is pre-trained with real answers when the prospect opens the link."""
+    try:
+        from main import _fetch_url_content
+        content = await _fetch_url_content(target_url)
+        if content and content.strip():
+            await run_db(lambda: supabase.table("chatty_sources").insert({
+                "bot_id": bot_id,
+                "type": "url",
+                "name": target_url,
+                "content": content[:150000],
+                "status": "trained",
+                "char_count": len(content[:150000]),
+            }).execute())
+            logger.info("Successfully pre-trained demo bot %s on %s (%d chars)", bot_id, target_url, len(content))
+    except Exception:
+        logger.exception("Failed to pre-train demo bot %s on %s", bot_id, target_url)
+
 class ClaimResponse(BaseModel):
     success: bool
     bot_id: str
@@ -63,7 +83,7 @@ class ClaimResponse(BaseModel):
 async def get_claim_details(claim_token: str) -> dict[str, Any]:
     """Public endpoint to fetch sanitized demo bot info for prospective claimants."""
     token = claim_token.strip()
-    if not token:
+    if not token or token.lower() in ("generate", "create", "new"):
         raise HTTPException(status_code=400, detail="Invalid claim token")
 
     res = await run_db(
@@ -264,6 +284,7 @@ async def decline_and_delete_demo_bot(claim_token: str) -> dict[str, Any]:
 @router.post("/api/claim/generate")
 async def generate_claimable_bot(
     req: GenerateClaimBotRequest,
+    background_tasks: BackgroundTasks,
     user: dict[str, Any] = Depends(require_user),
 ) -> dict[str, Any]:
     """Creates a pre-configured demo bot ready for cold outreach claiming."""
@@ -308,6 +329,8 @@ async def generate_claimable_bot(
 
     created = res.data[0]
     bot_id = created["id"]
+    if req.target_url:
+        background_tasks.add_task(_crawl_demo_target_site, bot_id, req.target_url)
 
     base_frontend = (FRONTEND_URL or "https://chatty.personaliai.com").rstrip("/")
     claim_url = f"{base_frontend}/claim/{claim_token}"

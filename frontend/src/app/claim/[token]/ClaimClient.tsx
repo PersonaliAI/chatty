@@ -52,6 +52,7 @@ export default function ClaimClient({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [bot, setBot] = useState<ClaimBotDetails | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [mobileTab, setMobileTab] = useState<"chat" | "overview">("chat");
 
   // Modals & action states
   const [showClaimModal, setShowClaimModal] = useState(false);
@@ -328,10 +329,15 @@ export default function ClaimClient({ token }: { token: string }) {
       {/* Top Navigation */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="size-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm tracking-tight shadow-sm">
-              C
-            </div>
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <Image
+              src="/favicon.png"
+              alt="Chatty Logo"
+              width={28}
+              height={28}
+              className="size-7 object-contain"
+              priority
+            />
             <span className="font-semibold text-slate-900 text-base tracking-tight">Chatty</span>
           </Link>
 
@@ -373,10 +379,38 @@ export default function ClaimClient({ token }: { token: string }) {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+        {/* Mobile View Segmented Tab Selector */}
+        <div className="lg:hidden mb-5 bg-slate-200/80 p-1 rounded-xl flex items-center gap-1 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setMobileTab("chat")}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileTab === "chat"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <MessageSquare className="size-3.5" />
+            Interactive Sandbox
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab("overview")}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileTab === "overview"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Sparkles className="size-3.5" />
+            Bot Details &amp; Prompts
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Left Column: Context, Verified Sources, Suggested Prompts, CTAs */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className={`lg:col-span-5 space-y-6 ${mobileTab === "overview" ? "block" : "hidden lg:block"}`}>
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-7 space-y-6">
               {/* Badge & Title */}
               <div className="space-y-2">
@@ -486,7 +520,23 @@ export default function ClaimClient({ token }: { token: string }) {
           </div>
 
           {/* Right Column: Live Interactive Widget Sandbox */}
-          <div className="lg:col-span-7">
+          <div className={`lg:col-span-7 space-y-3 ${mobileTab === "chat" ? "block" : "hidden lg:block"}`}>
+            {/* Quick suggested prompt pills for mobile when on chat tab */}
+            {bot.suggested_prompts && bot.suggested_prompts.length > 0 && (
+              <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+                {bot.suggested_prompts.map((promptText, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleCopyPrompt(promptText, idx)}
+                    className="shrink-0 px-2.5 py-1 bg-white border border-slate-200 rounded-full text-slate-700 text-[11px] font-medium hover:border-slate-300 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  >
+                    <span className="truncate max-w-[200px]">{promptText}</span>
+                    {copiedIndex === idx ? <Check className="size-3 text-emerald-600 shrink-0" /> : <Copy className="size-3 text-slate-400 shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col">
               {/* Browser Window Header */}
               <div className="bg-slate-100/80 border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between select-none">
@@ -510,7 +560,7 @@ export default function ClaimClient({ token }: { token: string }) {
               {/* Embedded Live Widget Sandbox */}
               <div className="relative w-full h-[620px] sm:h-[660px] bg-slate-50/50">
                 <iframe
-                  src={`/embed/${bot.bot_id}`}
+                  src={`/embed/${bot.bot_id}?token=${encodeURIComponent(bot.widget_token || "")}&preview=true`}
                   title={`${bot.name} Interactive Sandbox`}
                   className="w-full h-full border-0"
                   allow="microphone; camera; clipboard-write"
