@@ -158,16 +158,23 @@ async def resolve_principal(authorization: Optional[str], request: Any = None) -
             "scopes": (token_row.get("scope") or "").split(),
             "client_id": token_row["client_id"],
         }
-    # Legacy API key path - imported lazily to avoid a circular import
-    # (main.py imports several routers, which would import this module).
-    from main import _resolve_api_key
-
-    key_row = await _resolve_api_key(authorization, request)
+    # API key path - resolved directly to avoid importing main.py (circular router imports)
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing Bearer API key")
+    raw_key = authorization.split(" ", 1)[1].strip()
+    key_hash = hash_token(raw_key)
+    key_res = await run_db(lambda: supabase.table("chatty_api_keys").select("*").eq(
+        "key_hash", key_hash).execute())
+    key_row = key_res.data[0] if key_res.data else None
+    if not key_row:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    if key_row.get("revoked"):
+        raise HTTPException(status_code=401, detail="API key revoked")
     return {
         "auth_type": "api_key",
         "user_id": key_row["user_id"],
         "scopes": key_row.get("scopes") or ["chat", "read"],
-        "bot_id": key_row["bot_id"],
+        "bot_id": key_row.get("bot_id"),
         "key_row": key_row,
     }
 
@@ -202,9 +209,13 @@ async def require_bot_access(principal: dict[str, Any], bot_id: str) -> dict[str
       matches the token's user_id) - checked by an actual query, since one
       user can own several bots.
     """
-    if principal["auth_type"] == "api_key":
-        if principal["bot_id"] != bot_id:
-            raise HTTPException(status_code=403, detail="This API key is not authorized for this bot")
+    if principal.get("auth_type") == "api_key":
+        if principal.get("bot_id") and principal["bot_id"] != bot_id:
+            res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
+            bot = res.data[0] if res.data else None
+            if not bot or (principal.get("user_id") and bot.get("user_id") != principal["user_id"]):
+                raise HTTPException(status_code=403, detail="This API key is not authorized for this bot")
+            return bot
 
     res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     bot = res.data[0] if res.data else None

@@ -435,3 +435,36 @@ def test_update_campaign_maps_field_names_to_real_columns():
             ))
             assert res["type"] == "popup_modal"
             assert res["message"] == "New copy"
+
+
+def test_chatty_token_verifier_supports_api_key():
+    from app.routers.mcp import ChattyTokenVerifier
+    verifier = ChattyTokenVerifier()
+    fake_principal = {
+        "auth_type": "api_key",
+        "user_id": "test-user-456",
+        "scopes": ["chat", "read"],
+        "bot_id": "bot-abc-123",
+        "key_row": {"id": "key-1"},
+    }
+    with patch("app.core.oauth.resolve_principal", return_value=fake_principal):
+        token_info = asyncio.run(verifier.verify_token("chatty_sk_testkey123"))
+        assert token_info is not None
+        assert token_info.token == "chatty_sk_testkey123"
+        assert "chat" in token_info.scopes
+        assert "read" in token_info.scopes
+
+
+def test_list_bots_with_api_key_principal():
+    principal = {
+        "auth_type": "api_key",
+        "user_id": "test-user-456",
+        "scopes": ["chat", "read"],
+        "bot_id": "bot-abc-123",
+    }
+    bot_data = [{"id": "bot-abc-123", "name": "Key Bot", "created_at": "2026-10-14T00:00:00Z"}]
+    with patch("app.services.bots_service.supabase.table") as mock_table:
+        mock_table.return_value = _mock_query_result(bot_data)
+        res = asyncio.run(bots_service.list_bots(principal))
+        assert len(res) == 1
+        assert res[0]["id"] == "bot-abc-123"

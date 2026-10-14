@@ -51,13 +51,16 @@ _MCP_RESOURCE_URL = f"{_BACKEND_BASE_URL}/mcp"
 class ChattyTokenVerifier(TokenVerifier):
     async def verify_token(self, token: str) -> Optional[AccessToken]:
         try:
-            row = await _oauth.resolve_access_token(f"Bearer {token}")
+            principal = await _oauth.resolve_principal(f"Bearer {token}")
         except Exception:
             return None
+        scopes = list(principal.get("scopes") or ["chat", "read"])
+        if "chat" not in scopes:
+            scopes.append("chat")
         return AccessToken(
             token=token,
-            client_id=row["client_id"],
-            scopes=(row.get("scope") or "").split(),
+            client_id=principal.get("client_id") or "api_key",
+            scopes=scopes,
             expires_at=None,
         )
 
@@ -104,13 +107,7 @@ async def _current_principal() -> dict:
     access_token = get_access_token()
     if access_token is None:
         raise RuntimeError("No authenticated MCP session")
-    row = await _oauth.resolve_access_token(f"Bearer {access_token.token}")
-    return {
-        "auth_type": "oauth",
-        "user_id": row["user_id"],
-        "scopes": (row.get("scope") or "").split(),
-        "client_id": row["client_id"],
-    }
+    return await _oauth.resolve_principal(f"Bearer {access_token.token}")
 
 
 # ===========================================================================
