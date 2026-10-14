@@ -332,3 +332,93 @@ def test_token_encryption_fernet():
     assert raw_token not in encrypted
     decrypted = decrypt_secret(encrypted)
     assert decrypted == raw_token
+
+
+# ---------------------------------------------------------------------------
+# Test 12: Bot-Isolated Profile Photo Removal
+# ---------------------------------------------------------------------------
+
+def test_bot_isolated_avatar_removal_does_not_fallback_to_user_avatar():
+    """When a bot has a custom profile and avatar_url is explicitly removed (''),
+    get_user_profile must return avatar_url=None and NOT fall back to users.avatar_url."""
+    async def _test():
+        from app.routers.bots import get_user_profile
+
+        user = {"auth_user_id": "auth-user-123", "email": "test@example.com"}
+        user_row = {
+            "display_name": "Global Account Name",
+            "avatar_url": "https://storage.googleapis.com/account-photo.png",
+            "email": "test@example.com",
+            "plan": "pro",
+            "role": "user",
+        }
+        bot_row = {
+            "agent_display_name": "Bot Agent",
+            "agent_avatar_url": "",  # explicitly removed
+            "agent_role_title": "Support Specialist",
+        }
+
+        mock_sb = MagicMock()
+        def mock_table(table_name):
+            query = MagicMock()
+            if table_name == "users":
+                query.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[user_row])
+            elif table_name == "chatty_bots":
+                query.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[bot_row])
+            return query
+
+        mock_sb.table.side_effect = mock_table
+
+        with patch("app.routers.bots.supabase", mock_sb):
+            profile = await get_user_profile(bot_id="bot-123", user=user)
+
+        assert profile["is_bot_custom"] is True
+        assert profile["display_name"] == "Bot Agent"
+        assert profile["role_title"] == "Support Specialist"
+        # Must be None, NOT "https://storage.googleapis.com/account-photo.png"
+        assert profile["avatar_url"] is None
+
+    _run(_test())
+
+
+# ---------------------------------------------------------------------------
+# Test 13: Google Disconnect Account Scope
+# ---------------------------------------------------------------------------
+
+def test_google_disconnect_account_scope_clears_user_tokens():
+    """Account-level disconnect must update users table and reset sync on user's bots."""
+    async def _test():
+        from app.routers.integrations import google_disconnect, DisconnectIntegrationRequest
+
+        user = {"auth_user_id": "auth-user-123", "id": "user-uuid-123"}
+        body = DisconnectIntegrationRequest(bot_id="bot-123", scope="account")
+
+        mock_sb = MagicMock()
+        mock_user_update = MagicMock()
+        mock_user_update.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "user-uuid-123"}])
+
+        mock_bots_update = MagicMock()
+        mock_bots_update.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+        def mock_table(name):
+            if name == "users":
+                return mock_user_update
+            if name == "chatty_bots":
+                return mock_bots_update
+            return MagicMock()
+
+        mock_sb.table.side_effect = mock_table
+
+        with patch("app.routers.integrations.supabase", mock_sb):
+            res = await google_disconnect(body=body, user=user)
+
+        assert res["status"] == "disconnected"
+        # Verify users table was updated to clear google tokens
+        mock_user_update.update.assert_called_once()
+        update_args = mock_user_update.update.call_args[0][0]
+        assert update_args["google_access_token"] is None
+        assert update_args["google_refresh_token"] is None
+        assert update_args["google_email"] is None
+
+    _run(_test())
+
