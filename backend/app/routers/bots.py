@@ -747,11 +747,17 @@ async def get_user_profile(
             ).eq("id", bot_id).limit(1).execute())
             if bot_res.data:
                 b = bot_res.data[0]
+                has_custom_profile = bool(b.get("agent_display_name") or b.get("agent_avatar_url") is not None or b.get("agent_role_title"))
                 if b.get("agent_display_name"):
                     display_name = b["agent_display_name"]
                     is_bot_custom = True
-                if b.get("agent_avatar_url"):
-                    avatar_url = b["agent_avatar_url"]
+                if b.get("agent_avatar_url") is not None:
+                    # Explicit setting for this bot ("" or "none" means no photo, URL means custom photo)
+                    avatar_url = b["agent_avatar_url"] if b["agent_avatar_url"] not in ("", "none") else None
+                    is_bot_custom = True
+                elif has_custom_profile:
+                    # Custom profile exists for this bot, but no avatar set: do NOT fall back to account user photo!
+                    avatar_url = None
                     is_bot_custom = True
                 if b.get("agent_role_title"):
                     role_title = b["agent_role_title"]
@@ -805,7 +811,8 @@ async def update_user_profile(
         if role_title:
             bot_updates["agent_role_title"] = role_title
         if "avatar_url" in body:
-            bot_updates["agent_avatar_url"] = avatar_url
+            # Store "" (empty string) if null/None to explicitly persist removal
+            bot_updates["agent_avatar_url"] = avatar_url or ""
         if bot_updates:
             await run_db(lambda: supabase.table("chatty_bots").update(bot_updates).eq("id", target_bot_id).execute())
 
@@ -814,7 +821,7 @@ async def update_user_profile(
             if display_name:
                 tm_updates["name"] = display_name
             if "avatar_url" in body:
-                tm_updates["avatar_url"] = avatar_url
+                tm_updates["avatar_url"] = avatar_url or ""
             if tm_updates:
                 try:
                     await run_db(lambda: supabase.table("chatty_team_members").update(tm_updates).eq("bot_id", target_bot_id).eq("email", email).execute())
@@ -826,7 +833,7 @@ async def update_user_profile(
             "bot_id": target_bot_id,
             "email": email,
             "display_name": display_name,
-            "avatar_url": avatar_url,
+            "avatar_url": avatar_url or None,
             "role_title": role_title or "Team Member",
             "is_bot_custom": True,
         }

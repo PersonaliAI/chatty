@@ -2470,40 +2470,41 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
   // Handle Cloud Connector Disconnects
   const handleDisconnectCloud = async (provider: "google" | "microsoft" | "zoom", targetBotId?: string) => {
-    const effectiveBotId = targetBotId || botId;
     const providerLabel = provider === "google" ? "Google" : provider === "microsoft" ? "Microsoft" : "Zoom";
     showConfirm(
       `Disconnect ${providerLabel}`,
-      effectiveBotId
+      targetBotId
         ? `Disconnect ${providerLabel} for this assistant? Other assistants will retain their connections.`
-        : `Are you sure you want to disconnect ${providerLabel}? This will turn off all syncing sources and clear connection tokens.`,
+        : `Are you sure you want to disconnect ${providerLabel}? This will disconnect your ${providerLabel} account and disable synced calendars and drives across your assistants.`,
       async () => {
         try {
           const res = await fetchWithFallback(`/api/integrations/${provider}/disconnect`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ bot_id: effectiveBotId }),
+            body: JSON.stringify({
+              bot_id: targetBotId || undefined,
+              scope: targetBotId ? "bot" : "account",
+            }),
           });
           if (res.ok) {
-            if (effectiveBotId) {
-              if (provider === "google") {
-                setSyncGoogleCalendar(false);
-                setSyncGoogleDrive(false);
-                setGoogleConnectedAccountId("");
-              } else if (provider === "microsoft") {
-                setSyncOutlookCalendar(false);
-              } else if (provider === "zoom") {
-                setCustomMeetingLink("");
-                setMeetingProvider("google_meet");
-              }
-            } else {
-              if (provider === "google") {
+            if (provider === "google") {
+              if (!targetBotId) {
                 setGoogleConnected(false);
                 setGoogleEmail(null);
-              } else if (provider === "microsoft") {
+              }
+              setSyncGoogleCalendar(false);
+              setSyncGoogleDrive(false);
+              setGoogleConnectedAccountId("");
+              setGoogleCalendarId("primary");
+            } else if (provider === "microsoft") {
+              if (!targetBotId) {
                 setMicrosoftConnected(false);
                 setMicrosoftEmail(null);
               }
+              setSyncOutlookCalendar(false);
+            } else if (provider === "zoom") {
+              setCustomMeetingLink("");
+              setMeetingProvider("google_meet");
             }
             showToast(`${providerLabel} disconnected successfully.`, "success");
           } else {

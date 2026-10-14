@@ -1483,9 +1483,15 @@ async def widget_theme(bot_id: str, response: Response):
                 "auth_user_id", b.get("user_id")).limit(1).execute())
             if owner_res.data:
                 o = owner_res.data[0]
-                o_name = o.get("display_name") or (o.get("email", "").split("@")[0].capitalize() if o.get("email") else "Team Lead")
-                o_av = o.get("avatar_url")
-                _add_candidate(o_name, o_av, "Owner", False, 250, o.get("email") or o_name)
+                has_custom = bool(b.get("agent_display_name") or b.get("agent_avatar_url") is not None or b.get("agent_role_title"))
+                o_name = b.get("agent_display_name") or o.get("display_name") or (o.get("email", "").split("@")[0].capitalize() if o.get("email") else "Team Lead")
+                if b.get("agent_avatar_url") is not None:
+                    o_av = b["agent_avatar_url"] if b["agent_avatar_url"] not in ("", "none") else None
+                elif has_custom:
+                    o_av = None
+                else:
+                    o_av = o.get("avatar_url")
+                _add_candidate(o_name, o_av, b.get("agent_role_title") or "Owner", False, 250, o.get("email") or o_name)
     except Exception:
         pass
 

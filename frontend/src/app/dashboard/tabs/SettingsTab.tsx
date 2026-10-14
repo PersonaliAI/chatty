@@ -482,7 +482,7 @@ export function SettingsTab({
       const res = await fetchWithFallback("/api/user/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_name: profileName, avatar_url: null, bot_id: botId }),
+        body: JSON.stringify({ display_name: profileName, role_title: profileRoleTitle, avatar_url: null, bot_id: botId }),
       });
       if (res.ok) {
         setProfileAvatarUrl(null);

@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 class DisconnectIntegrationRequest(BaseModel):
     bot_id: Optional[str] = None
+    scope: Optional[str] = "account"
 
 
 from app.core.clients import supabase
@@ -443,7 +444,11 @@ async def google_disconnect(
     user: dict[str, Any] = Depends(require_user),
 ):
     target_bot_id = (body.bot_id if body else None) or bot_id
-    if target_bot_id:
+    scope = (body.scope if body else None) or "account"
+    auth_user_id = user.get("auth_user_id") or user.get("id")
+
+    # If specifically disconnecting only a single bot's calendar/drive without disconnecting the account
+    if target_bot_id and scope == "bot":
         await run_db(lambda: supabase.table("chatty_bots").update({
             "google_connected_account_id": None,
             "google_calendar_id": None,
@@ -454,6 +459,7 @@ async def google_disconnect(
         }).eq("id", target_bot_id).execute())
         return {"status": "disconnected", "bot_id": target_bot_id}
 
+    # Disconnect the Google account across the workspace
     await run_db(lambda: supabase.table("users").update(
         {
             "google_access_token": None,
@@ -462,7 +468,20 @@ async def google_disconnect(
             "google_email": None,
             "google_scopes": None,
         }
-    ).eq("id", user["id"]).execute())
+    ).eq("auth_user_id", auth_user_id).execute())
+
+    # Also clear calendar/drive sync on bots owned by this user
+    try:
+        await run_db(lambda: supabase.table("chatty_bots").update({
+            "google_calendar_id": None,
+            "google_calendar_name": None,
+            "sync_google_calendar": False,
+            "sync_google_drive": False,
+            "calendar_scheduling_enabled": False,
+        }).eq("user_id", auth_user_id).execute())
+    except Exception as e:
+        logger.warning("Failed to reset bots on google disconnect: %s", e)
+
     return {"status": "disconnected"}
 
 
@@ -743,13 +762,17 @@ async def microsoft_disconnect(
     user: dict[str, Any] = Depends(require_user),
 ):
     target_bot_id = (body.bot_id if body else None) or bot_id
-    if target_bot_id:
+    scope = (body.scope if body else None) or "account"
+    auth_user_id = user.get("auth_user_id") or user.get("id")
+
+    if target_bot_id and scope == "bot":
         await run_db(lambda: supabase.table("chatty_bots").update({
             "sync_outlook_calendar": False,
             "calendar_scheduling_enabled": False,
         }).eq("id", target_bot_id).execute())
         return {"status": "disconnected", "bot_id": target_bot_id}
 
+    # Disconnect the Microsoft account across the workspace
     await run_db(lambda: supabase.table("users").update(
         {
             "microsoft_access_token": None,
@@ -758,7 +781,17 @@ async def microsoft_disconnect(
             "microsoft_email": None,
             "microsoft_scopes": None,
         }
-    ).eq("id", user["id"]).execute())
+    ).eq("auth_user_id", auth_user_id).execute())
+
+    # Also clear calendar sync on bots owned by this user
+    try:
+        await run_db(lambda: supabase.table("chatty_bots").update({
+            "sync_outlook_calendar": False,
+            "calendar_scheduling_enabled": False,
+        }).eq("user_id", auth_user_id).execute())
+    except Exception as e:
+        logger.warning("Failed to reset bots on microsoft disconnect: %s", e)
+
     return {"status": "disconnected"}
 
 
