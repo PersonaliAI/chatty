@@ -70,6 +70,17 @@ interface WidgetCampaign {
   safety_config?: { frequency_cap_hours?: number };
 }
 
+function isPlausibleEmail(value: string): boolean {
+  const email = value.trim();
+  if (email.length < 5 || email.length > 254) return false;
+  const at = email.indexOf("@");
+  if (at <= 0 || at !== email.lastIndexOf("@") || at === email.length - 1) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (!local || !domain || domain.indexOf(".") <= 0 || domain.endsWith(".")) return false;
+  return !/[\s<>()[\]\\,;:]/.test(email);
+}
+
 function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
   const extract = <T extends object>(source: string, marker: string): { text: string; items: T[] } => {
     const items: T[] = [];
@@ -589,9 +600,12 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
 
   const [capturedLeadData, setCapturedLeadData] = useState<{ name?: string; email?: string; phone?: string; company?: string }>({});
   const [leadCaptureEnabled, setLeadCaptureEnabled] = useState(false);
-  const [leadFormSubmitted, setLeadFormSubmitted] = useState(false);
-  const [inlineEmailInput, setInlineEmailInput] = useState("");
-  const [submittingLead, setSubmittingLead] = useState(false);
+  const [supportEmail, setSupportEmail] = useState("");
+  const [emailCaptureDismissed, setEmailCaptureDismissed] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [supportEmailSaved, setSupportEmailSaved] = useState(false);
+  const [supportEmailSaving, setSupportEmailSaving] = useState(false);
+  const [supportEmailError, setSupportEmailError] = useState("");
 
 
   // Auto-extract visitor contact info if provided in chat conversation
@@ -1532,6 +1546,51 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     };
   }, [botId, isPreview, originToken, sessionId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !botId || !sessionId) return;
+    try {
+      const stored = capturedLeadData.email || "";
+      if (stored) { setSupportEmail(stored); setSupportEmailSaved(true); }
+      setMarketingConsent(localStorage.getItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`) === "1");
+      setEmailCaptureDismissed(localStorage.getItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`) === "1");
+    } catch {}
+  }, [botId, hostKey, sessionId, capturedLeadData.email]);
+
+  const saveSupportEmail = useCallback(async () => {
+    const email = supportEmail.trim().toLowerCase();
+    if (!isPlausibleEmail(email)) {
+      setSupportEmailError("Enter a valid email address.");
+      setSupportEmailSaved(false);
+      return;
+    }
+    setSupportEmailSaving(true);
+    setSupportEmailError("");
+    setCapturedLeadData((prev) => ({ ...prev, email }));
+    try {
+      localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, marketingConsent ? "1" : "0");
+    } catch {}
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/widget/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          email,
+          name: extractedVisitorInfo.name || undefined,
+          marketing_consent: marketingConsent,
+        }),
+      });
+      if (!response.ok && response.status !== 404) throw new Error("Unable to save email");
+      setSupportEmailSaved(true);
+      showToast("Thank you! Contact details saved.", "success");
+    } catch {
+      setSupportEmailSaved(true);
+    } finally {
+      setSupportEmailSaving(false);
+    }
+  }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader, extractedVisitorInfo.name]);
+
   // Conversation history and transcripts are restored from the authenticated
   // server endpoints below; no message bodies are read from localStorage.
   // Conversation switcher
@@ -2115,6 +2174,8 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           bot_id: botId,
           session_id: sessionId,
           text,
+          visitor_email: extractedVisitorInfo.email || supportEmail.trim().toLowerCase() || undefined,
+          visitor_name: extractedVisitorInfo.name || undefined,
           visitor_timezone: visitorTimezone,
           visitor_country: visitorCountry,
           host: getHost(),
@@ -2212,6 +2273,12 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       fd.append("visitor_timezone", visitorTimezone);
       fd.append("visitor_country", visitorCountry);
       fd.append("host", getHost());
+      if (extractedVisitorInfo.email || supportEmail.trim()) {
+        fd.append("visitor_email", extractedVisitorInfo.email || supportEmail.trim().toLowerCase());
+      }
+      if (extractedVisitorInfo.name) {
+        fd.append("visitor_name", extractedVisitorInfo.name);
+      }
       fd.append("file", file, filename);
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/media`, { method: "POST", headers: widgetTokenHeader, body: fd });
       const body = await res.json();
@@ -3268,15 +3335,21 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                         )}
                         <div className={`space-y-1 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col ${hasBooking ? "w-full min-w-0" : ""}`}>
                           {msg.role === "assistant" && showSenderTag && (
-                            <span className="text-[10px] text-neutral-400 font-medium px-1 flex items-center gap-1">
+                            <span className="text-[10px] font-medium px-1 flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
                               {(msg.sender === "human" || (liveAgent && !msg.sender)) ? (
                                 <>
-                                  <User className="size-2.5 text-blue-500" />
-                                  <span>{msg.sender_name || activeAgentName || "Support Agent"}</span>
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                                    <User className="size-2.5" />
+                                    Human Agent
+                                  </span>
+                                  <span>{msg.sender_name || activeAgentName || "Support"}</span>
                                 </>
                               ) : (
                                 <>
-                                  <Bot className="size-2.5" />
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-neutral-200/80 dark:bg-neutral-700/80 text-neutral-700 dark:text-neutral-200 flex items-center gap-1">
+                                    <Bot className="size-2.5 text-[#f97316]" />
+                                    AI
+                                  </span>
                                   <span>{botName}</span>
                                 </>
                               )}
@@ -3414,70 +3487,6 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                       <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.2s]" />
                       <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.4s]" />
                     </div>
-                  </motion.div>
-                )}
-
-                {/* Inline Lead Capture Card */}
-                {leadCaptureEnabled && !leadFormSubmitted && !extractedVisitorInfo.email && !activeNodeId && messages.filter((m) => m.role === "user").length >= 1 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-3 my-2 rounded-2xl border border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-neutral-850 shadow-xs space-y-2 max-w-[92%]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="size-6 rounded-full flex items-center justify-center text-white text-[11px] shrink-0" style={{ backgroundColor: primaryColor }}>
-                        <Mail className="size-3" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Stay connected with our team</p>
-                        <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Leave your email so we can follow up with your questions.</p>
-                      </div>
-                    </div>
-                    <form
-                      onSubmit={async (e) => {
-                        e.preventDefault();
-                        const em = inlineEmailInput.trim().toLowerCase();
-                        if (!em || submittingLead) return;
-                        setSubmittingLead(true);
-                        try {
-                          await fetch(`${BACKEND_URL}/api/widget/contact`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-                            body: JSON.stringify({
-                              bot_id: botId,
-                              session_id: sessionId,
-                              email: em,
-                              name: extractedVisitorInfo.name || undefined,
-                            }),
-                          });
-                          setLeadFormSubmitted(true);
-                          setCapturedLeadData((prev) => ({ ...prev, email: em }));
-                          showToast("Thank you! Contact details saved.", "success");
-                        } catch {
-                          setLeadFormSubmitted(true);
-                        } finally {
-                          setSubmittingLead(false);
-                        }
-                      }}
-                      className="flex gap-1.5 pt-0.5"
-                    >
-                      <input
-                        type="email"
-                        required
-                        value={inlineEmailInput}
-                        onChange={(e) => setInlineEmailInput(e.target.value)}
-                        placeholder="Your email address..."
-                        className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-xs text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      <button
-                        type="submit"
-                        disabled={submittingLead}
-                        className="px-3 py-1.5 rounded-xl text-xs font-medium text-white shadow-2xs hover:opacity-90 transition-opacity cursor-pointer shrink-0 disabled:opacity-50"
-                        style={{ backgroundColor: primaryColor }}
-                      >
-                        {submittingLead ? <Loader2 className="size-3 animate-spin" /> : "Save"}
-                      </button>
-                    </form>
                   </motion.div>
                 )}
 
@@ -3761,6 +3770,61 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       {/* Composer (Messages tab active chat only) */}
       {!voiceModeActive && tab === "messages" && chatView === "chat" && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
+          {leadCaptureEnabled && !showOfflineForm && !emailCaptureDismissed && (
+            <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/70 px-2.5 py-1.5">
+              <Mail className="size-4 shrink-0 text-neutral-400" aria-hidden="true" />
+              <label className="sr-only" htmlFor="chatty-support-email">Email for follow-up</label>
+              <input
+                id="chatty-support-email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={supportEmail}
+                onChange={(e) => { setSupportEmail(e.target.value); setSupportEmailSaved(false); setSupportEmailError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void saveSupportEmail(); } }}
+                placeholder="Your email, so we can follow up"
+                className="min-w-0 flex-1 bg-transparent text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none"
+                aria-describedby={supportEmailError ? "chatty-support-email-error" : undefined}
+              />
+              <button
+                type="button"
+                onClick={() => void saveSupportEmail()}
+                disabled={supportEmailSaving || !supportEmail.trim()}
+                className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                style={{ background: supportEmailSaved ? "#dcfce7" : primaryColor, color: supportEmailSaved ? "#166534" : onPrimary }}
+              >
+                {supportEmailSaving ? "Saving…" : supportEmailSaved ? "Saved" : "Save"}
+              </button>
+              <button
+                type="button"
+                aria-label="Hide email follow-up field"
+                title="Hide email field"
+                onClick={() => {
+                  setEmailCaptureDismissed(true);
+                  try { localStorage.setItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`, "1"); } catch {}
+                }}
+                className="grid size-6 shrink-0 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          )}
+          {leadCaptureEnabled && !showOfflineForm && !emailCaptureDismissed && (
+            <label className="mb-2 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={(e) => {
+                  const next = e.target.checked;
+                  setMarketingConsent(next);
+                  try { localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, next ? "1" : "0"); } catch {}
+                }}
+                className="mt-0.5 size-3.5 shrink-0 accent-current"
+              />
+              <span>Email me product updates and offers. You can unsubscribe anytime.</span>
+            </label>
+          )}
+          {supportEmailError && <p id="chatty-support-email-error" className="mb-1.5 px-1 text-[11px] text-red-600 dark:text-red-400" role="alert">{supportEmailError}</p>}
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
             {emojiOpen && (
