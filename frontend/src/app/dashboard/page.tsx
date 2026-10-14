@@ -19,6 +19,7 @@ import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard"
 import { InboxPanel } from "@/components/inbox-panel";
 import { CampaignsUI } from "@/components/campaigns-ui";
 import { KBManager } from "@/components/kb-manager";
+import { GenerateClaimModal } from "@/components/dashboard/GenerateClaimModal";
 import { COUNTRIES, getTimezones, tzOffsetLabel, detectTimezone, detectCountryCode } from "@/lib/locale-data";
 import { createClient } from "@/lib/supabase/client";
 import { BACKEND_URL, fetchBackend } from "@/lib/backend-client";
@@ -47,6 +48,7 @@ import { getOnColor, primaryColorCssVars, generateColorScheme, buildColorSchemeC
 import { normalizeWidgetStyle, LAUNCHER_STYLES } from "@/lib/widget-style";
 import {
   Home,
+  Share2,
   Sliders,
   Database,
   MessageSquare,
@@ -195,6 +197,8 @@ export default function Dashboard() {
   // Custom Toast, Confirm & Dialog States
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [createBotModalOpen, setCreateBotModalOpen] = useState(false);
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [copiedClaimBanner, setCopiedClaimBanner] = useState(false);
   const [newBotNameInput, setNewBotNameInput] = useState("");
   const [newBotWebsiteInput, setNewBotWebsiteInput] = useState("");
   const [confirmModal, setConfirmModal] = useState<{
@@ -3997,7 +4001,14 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
                           setBotDropdownOpen(false);
                         }}
                       >
-                        <span className="truncate pr-2">{bot.name || "Chatbot"}</span>
+                        <div className="flex items-center gap-1.5 truncate pr-2">
+                          <span className="truncate">{bot.name || "Chatbot"}</span>
+                          {bot.claim_status === "unclaimed" && (
+                            <span className="text-[8px] uppercase tracking-wider font-mono px-1 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 shrink-0">
+                              Demo
+                            </span>
+                          )}
+                        </div>
                         {userBots.length > 1 && (
                           <button
                             type="button"
@@ -4059,6 +4070,23 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
                         </button>
                       );
                     })()}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBotDropdownOpen(false);
+                        setClaimModalOpen(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors text-left cursor-pointer border-t border-neutral-100 dark:border-neutral-850"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Share2 className="size-3.5" />
+                        Generate Claimable Link
+                      </span>
+                      <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-blue-100/70 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                        Outreach
+                      </span>
+                    </button>
                   </div>
                 </>
               )}
@@ -4306,6 +4334,52 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
         {/* Tab Contents (Center Aligned Layout) */}
         <div ref={contentScrollRef} className="dashboard-content flex-1 overflow-y-auto">
+          {(() => {
+            const currentBotData = userBots.find((b) => b.id === botId);
+            if (currentBotData?.claim_status === "unclaimed" && currentBotData?.claim_token) {
+              const claimUrl = `${(typeof window !== "undefined" ? window.location.origin : "https://chatty.personaliai.com")}/claim/${currentBotData.claim_token}`;
+              return (
+                <div className="mx-6 mt-4 p-3.5 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-start sm:items-center gap-2.5">
+                    <Sparkles className="size-4 text-blue-500 shrink-0 mt-0.5 sm:mt-0" />
+                    <div>
+                      <p className="font-semibold text-neutral-900 dark:text-neutral-100">
+                        Outreach Demo Assistant for {currentBotData.demo_target_name || currentBotData.name}
+                      </p>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                        Unclaimed • Prospects test without signup • Ready to send
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(claimUrl);
+                        setCopiedClaimBanner(true);
+                        setTimeout(() => setCopiedClaimBanner(false), 2000);
+                        showToast("Claim link copied to clipboard!", "info");
+                      }}
+                      className="px-2.5 py-1.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-lg text-xs font-medium hover:bg-neutral-50 dark:hover:bg-neutral-750 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedClaimBanner ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                      {copiedClaimBanner ? "Copied Link!" : "Copy Claim Link"}
+                    </button>
+                    <a
+                      href={claimUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg text-xs font-semibold hover:opacity-90 flex items-center gap-1.5"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      Test Sandbox
+                    </a>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
           
           {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (
@@ -5143,6 +5217,18 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           </div>
         </div>
       )}
+
+      {/* Generate Claimable Link Modal */}
+      <GenerateClaimModal
+        isOpen={claimModalOpen}
+        onClose={() => setClaimModalOpen(false)}
+        fetchWithFallback={fetchWithFallback}
+        onBotCreated={(newDemoBot) => {
+          setUserBots((prev) => [newDemoBot, ...prev]);
+          switchActiveBot(newDemoBot.id);
+        }}
+        showToast={showToast}
+      />
 
       {/* Create Bot Modal */}
       {createBotModalOpen && (

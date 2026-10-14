@@ -83,6 +83,14 @@ export interface Bot {
   google_calendar_color?: string | null;
   google_drive_folder_id?: string | null;
   google_drive_folder_name?: string | null;
+  claim_token?: string | null;
+  claim_status?: string | null;
+  claimed_at?: string | null;
+  claimed_by_email?: string | null;
+  demo_target_name?: string | null;
+  demo_target_url?: string | null;
+  demo_expires_at?: string | null;
+  suggested_prompts?: string[] | null;
   [key: string]: unknown;
 }
 
