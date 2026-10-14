@@ -59,7 +59,7 @@ export interface KnowledgeTabProps {
   googleConnected: boolean;
   microsoftConnected: boolean;
   handleConnectCloud: (provider: "google" | "microsoft") => void | Promise<void>;
-  handleDisconnectCloud: (provider: "google" | "microsoft") => void | Promise<void>;
+  handleDisconnectCloud: (provider: "google" | "microsoft", targetBotId?: string) => void | Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleInputChange: (setter: (val: any) => void, val: any) => void;
   calendarSchedulingEnabled: boolean;
@@ -337,7 +337,7 @@ export function KnowledgeTab({
                   label="Google"
                   iconSrc="/logos/google.png"
                   connected={googleConnected}
-                  onDisconnect={() => handleDisconnectCloud("google")}
+                  onDisconnect={() => handleDisconnectCloud("google", botId || undefined)}
                   services={[
                     { label: "Google Drive", iconSrc: "/logos/google-drive.png", onClick: () => googleConnected ? setKbSourceTab("drive") : handleConnectCloud("google") },
                     { label: "Google Calendar", iconSrc: "/logos/google-calendar.png", onClick: () => handleCalendarSyncChange("google") },
@@ -347,7 +347,7 @@ export function KnowledgeTab({
                   label="Microsoft"
                   iconSrc="/logos/microsoft.png"
                   connected={microsoftConnected}
-                  onDisconnect={() => handleDisconnectCloud("microsoft")}
+                  onDisconnect={() => handleDisconnectCloud("microsoft", botId || undefined)}
                   services={[
                     { label: "OneDrive", iconSrc: "/logos/onedrive.png", onClick: () => microsoftConnected ? setKbSourceTab("onedrive") : handleConnectCloud("microsoft") },
                     { label: "Outlook Calendar", iconSrc: "/logos/outlook-calendar.png", onClick: () => handleCalendarSyncChange("outlook") },
