@@ -28,6 +28,40 @@ export const ROLE_DEFAULT_TABS: Record<ChattyTeamRole, ChattyTeamTab[]> = {
 export const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ROLE_DEFAULT_TABS.admin;
 export const DEFAULT_AGENT_TABS: ChattyTeamTab[] = ROLE_DEFAULT_TABS.agent;
 
+export const INTELLIGENT_RELATED_TABS: Record<ChattyTeamTab, readonly ChattyTeamTab[]> = {
+  inbox: ["meetings"],
+  meetings: ["inbox"],
+  settings: ["team", "integrations"],
+  team: ["meetings"],
+  sources: ["design"],
+  design: ["sources"],
+  integrations: [],
+  billing: [],
+  byok: [],
+  webhooks: [],
+};
+
+/**
+ * Given the currently selected tabs and a tab being toggled on/off,
+ * intelligently includes related tabs when turning on, while strictly
+ * preserving full user freedom when turning off.
+ */
+export function toggleTabIntelligently(
+  currentTabs: ChattyTeamTab[],
+  tab: ChattyTeamTab,
+  checked: boolean,
+  grantableTabs: readonly ChattyTeamTab[]
+): ChattyTeamTab[] {
+  if (!checked) {
+    // Unchecking strictly removes only this tab (user has 100% full uncheck control)
+    return currentTabs.filter((t) => t !== tab);
+  }
+  // When checking, intelligently add this tab + any natural companions that are grantable
+  const related = (INTELLIGENT_RELATED_TABS[tab] || []).filter((r) => grantableTabs.includes(r));
+  const newSet = new Set([...currentTabs, tab, ...related]);
+  return Array.from(newSet).filter((t) => grantableTabs.includes(t));
+}
+
 export const ROLE_INFO: Record<
   ChattyTeamRole,
   { label: string; title: string; description: string; badgeClasses: string }

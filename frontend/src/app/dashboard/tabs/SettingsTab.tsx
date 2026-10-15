@@ -24,6 +24,9 @@ import {
   CalendarCheck,
   CalendarX,
   Link,
+  History,
+  Filter,
+  FileText,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
@@ -39,10 +42,11 @@ import {
   ROLE_DEFAULT_TABS,
   ROLE_INFO,
   TAB_LABELS,
+  toggleTabIntelligently,
   type ChattyTeamTab,
   type ChattyTeamRole,
 } from "../dashboard-permissions";
-import type { TeamMember } from "../dashboard-types";
+import type { TeamMember, AdminAuditLog } from "../dashboard-types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export interface SettingsTabProps {
@@ -58,6 +62,10 @@ export interface SettingsTabProps {
   setInviteTabs: React.Dispatch<React.SetStateAction<ChattyTeamTab[]>>;
   invitingTeam: boolean;
   inviteTeamMember: () => Promise<void> | void;
+  adminAuditLogs?: AdminAuditLog[];
+  loadingAdminData?: boolean;
+  loadAdminData?: (id: string) => Promise<void>;
+  formatDateTime?: (dt: string) => string;
   teamMembers: TeamMember[];
   teamOwner?: TeamMember | null;
   editingMemberId: string | null;
@@ -200,6 +208,10 @@ export function SettingsTab({
   setInviteTabs,
   invitingTeam,
   inviteTeamMember,
+  adminAuditLogs = [],
+  loadingAdminData = false,
+  loadAdminData,
+  formatDateTime,
   teamMembers,
   teamOwner,
   editingMemberId,
@@ -583,6 +595,19 @@ export function SettingsTab({
     }
   };
 
+  const [auditFilter, setAuditFilter] = React.useState<"all" | "roles" | "calendars" | "removals">("all");
+
+  const teamAuditLogs = React.useMemo(() => {
+    return adminAuditLogs.filter((a) => {
+      const act = a.action || "";
+      if (!act.startsWith("team_")) return false;
+      if (auditFilter === "roles") return act === "team_member_invited" || act === "team_member_updated";
+      if (auditFilter === "calendars") return act === "team_member_calendar_updated";
+      if (auditFilter === "removals") return act === "team_member_removed" || act === "team_synced_from_bot";
+      return true;
+    });
+  }, [adminAuditLogs, auditFilter]);
+
   React.useEffect(() => {
     loadCalendars();
   }, [loadCalendars]);
@@ -784,15 +809,16 @@ export function SettingsTab({
                         className="w-full sm:flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                       />
                       <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <div className="flex-1 sm:w-36 sm:flex-initial">
+                        <div className="flex-1 sm:w-40 sm:flex-initial">
                           <ModernSelect
+                            align="right"
                             value={inviteRole}
                             options={[
-                              { value: "admin", label: "Admin", hint: "Full operational access" },
-                              { value: "agent", label: "Agent", hint: "Support agent (inbox & meetings)" },
-                              { value: "editor", label: "Editor", hint: "Knowledge & widget styling" },
-                              { value: "billing_manager", label: "Billing Manager", hint: "Invoices & subscriptions" },
-                              { value: "viewer", label: "Viewer", hint: "Read-only conversations & logs" },
+                              { value: "admin", label: "Admin", hint: "Full operational access (settings, team, knowledge, integrations)" },
+                              { value: "agent", label: "Agent", hint: "Support agent (inbox chats & calendar meetings)" },
+                              { value: "editor", label: "Editor", hint: "Content editor (knowledge training & widget styling)" },
+                              { value: "billing_manager", label: "Billing Manager", hint: "Financial invoices & plan subscriptions" },
+                              { value: "viewer", label: "Viewer", hint: "Read-only conversations and meeting schedules" },
                             ]}
                             onChange={(v) => {
                               const role = v as ChattyTeamRole;
@@ -808,15 +834,25 @@ export function SettingsTab({
                         </button>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                      {grantableTabs.map((tab) => (
-                        <TeamTabCheckbox
-                          key={tab}
-                          checked={inviteTabs.includes(tab)}
-                          onChange={(checked) => setInviteTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
-                          label={TAB_LABELS[tab]}
-                        />
-                      ))}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
+                          Accessible Dashboard Tabs
+                        </span>
+                        <span className="text-[10px] text-neutral-400">
+                          Intelligently links companion tabs (e.g. Inbox + Meetings)
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                        {grantableTabs.map((tab) => (
+                          <TeamTabCheckbox
+                            key={tab}
+                            checked={inviteTabs.includes(tab)}
+                            onChange={(checked) => setInviteTabs((p) => toggleTabIntelligently(p, tab, checked, grantableTabs))}
+                            label={TAB_LABELS[tab] || tab}
+                          />
+                        ))}
+                      </div>
                     </div>
 
                     {/* PINNED ACCOUNT OWNER CARD */}
@@ -1105,6 +1141,131 @@ export function SettingsTab({
                         })}
                       </div>
                     )}
+                    {/* TEAM COLLABORATION & ACTIVITY AUDIT TRAIL TABLE */}
+                    <div className="pt-4 border-t border-neutral-200 dark:border-neutral-800 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-2">
+                          <History className="size-4 text-[#f97316]" />
+                          <div>
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">
+                              Team Activity & Audit Trail
+                            </h4>
+                            <p className="text-[10px] text-neutral-400">
+                              Immutable ledger of team invitations, role changes, permission edits, and calendar connections
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-center">
+                          {loadAdminData && botId && (
+                            <button
+                              type="button"
+                              onClick={() => loadAdminData(botId)}
+                              disabled={loadingAdminData}
+                              className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg px-2.5 py-1.5 cursor-pointer flex items-center gap-1.5 transition text-neutral-700 dark:text-neutral-300"
+                            >
+                              <RefreshCw className={`size-3 ${loadingAdminData ? "animate-spin" : ""}`} />
+                              Refresh Log
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Filter Pills */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {(
+                          [
+                            { id: "all", label: "All Team Events" },
+                            { id: "roles", label: "Roles & Permissions" },
+                            { id: "calendars", label: "Calendar Connections" },
+                            { id: "removals", label: "Invites & Removals" },
+                          ] as const
+                        ).map((tab) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setAuditFilter(tab.id)}
+                            className={`px-2.5 py-1 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer ${
+                              auditFilter === tab.id
+                                ? "bg-[#f97316] text-white shadow-xs"
+                                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-200"
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Responsive Table */}
+                      <div className="overflow-x-auto bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl">
+                        <table className="w-full border-collapse text-left text-xs">
+                          <thead className="bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 font-semibold text-neutral-600 dark:text-neutral-400 text-[11px]">
+                            <tr>
+                              <th className="px-3.5 py-2.5">Action</th>
+                              <th className="px-3.5 py-2.5">Event Details</th>
+                              <th className="px-3.5 py-2.5">Performed By</th>
+                              <th className="px-3.5 py-2.5 whitespace-nowrap">Timestamp</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-100 dark:divide-neutral-850 text-neutral-700 dark:text-neutral-300 text-[11px]">
+                            {teamAuditLogs.map((log) => {
+                              const act = log.action || "";
+                              let badgeColor = "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
+                              let label = act.replace(/^team_/, "").replace(/_/g, " ");
+
+                              if (act === "team_member_invited") {
+                                badgeColor = "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-800";
+                                label = "Member Invited";
+                              } else if (act === "team_member_updated") {
+                                badgeColor = "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300/60 dark:border-purple-800";
+                                label = "Role / Permissions";
+                              } else if (act === "team_member_calendar_updated") {
+                                badgeColor = "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300/60 dark:border-blue-800";
+                                label = "Calendar Linked";
+                              } else if (act === "team_member_removed") {
+                                badgeColor = "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-300/60 dark:border-rose-800";
+                                label = "Member Removed";
+                              } else if (act === "team_synced_from_bot") {
+                                badgeColor = "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800";
+                                label = "Team Synced";
+                              }
+
+                              return (
+                                <tr key={log.id} className="hover:bg-neutral-50/60 dark:hover:bg-neutral-900/60 transition-colors">
+                                  <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${badgeColor}`}>
+                                      {label}
+                                    </span>
+                                  </td>
+                                  <td className="px-3.5 py-2.5 max-w-sm text-neutral-800 dark:text-neutral-200 leading-normal">
+                                    {log.details || "—"}
+                                  </td>
+                                  <td className="px-3.5 py-2.5 font-mono text-[10px] text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
+                                    {log.performed_by || "system"}
+                                  </td>
+                                  <td className="px-3.5 py-2.5 text-neutral-400 dark:text-neutral-500 whitespace-nowrap text-[10px]">
+                                    {log.created_at && formatDateTime ? formatDateTime(log.created_at) : log.created_at || "—"}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+
+                            {teamAuditLogs.length === 0 && (
+                              <tr>
+                                <td colSpan={4} className="px-4 py-8 text-center text-neutral-400 dark:text-neutral-500 space-y-1">
+                                  <FileText className="size-6 mx-auto text-neutral-300 dark:text-neutral-700" />
+                                  <div className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                                    No team audit events found
+                                  </div>
+                                  <p className="text-[10px] text-neutral-400">
+                                    Member invitations, permission changes, and calendar updates will automatically appear here.
+                                  </p>
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                   );
                 })()}

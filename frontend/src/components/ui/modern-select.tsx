@@ -23,6 +23,8 @@ interface ModernSelectProps {
   size?: "sm" | "md";
   id?: string;
   "aria-label"?: string;
+  popupWidth?: string;
+  popupClassName?: string;
 }
 
 /**
@@ -42,6 +44,8 @@ export function ModernSelect({
   size = "md",
   id,
   "aria-label": ariaLabel,
+  popupWidth,
+  popupClassName = "",
 }: ModernSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -181,7 +185,7 @@ export function ModernSelect({
             openUpwards ? "bottom-full mb-1.5" : "top-full mt-1.5"
           } ${
             align === "right" ? "right-0" : "left-0"
-          } w-full min-w-[200px] max-w-[340px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-hidden`}
+          } ${popupWidth || "w-full min-w-[280px] sm:min-w-[320px] max-w-[420px]"} bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-hidden ${popupClassName}`}
         >
           {searchable && (
             <div className="p-2 border-b border-neutral-100 dark:border-neutral-850">
@@ -227,18 +231,26 @@ export function ModernSelect({
                   disabled={o.disabled}
                   onMouseEnter={() => !o.disabled && setActive(i)}
                   onClick={() => !o.disabled && choose(o.value)}
-                  className={`w-full flex items-center justify-between gap-3 px-3 py-2 text-left text-xs transition-colors ${
+                  className={`w-full flex items-start justify-between gap-3 px-3.5 py-2.5 text-left text-xs transition-colors ${
                     o.disabled ? "opacity-45 cursor-not-allowed" : "cursor-pointer"
-                  } ${i === active && !o.disabled ? "bg-neutral-100 dark:bg-neutral-800" : ""} ${
-                    isSel ? "text-[#f97316] font-semibold" : "text-neutral-700 dark:text-neutral-300"
+                  } ${i === active && !o.disabled ? "bg-neutral-100/80 dark:bg-neutral-800/80" : ""} ${
+                    isSel ? "bg-[#f97316]/5 dark:bg-[#f97316]/10" : ""
                   }`}
                 >
-                  <span className="flex min-w-0 items-center gap-2">
-                    {o.icon}
-                    <span className="min-w-0 whitespace-normal break-words font-medium">{o.label}</span>
-                    {o.hint && <span className="text-[10px] text-neutral-400 ml-1">({o.hint})</span>}
-                  </span>
-                  {isSel && <Check className="size-3.5 text-[#f97316] shrink-0" />}
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      {o.icon}
+                      <span className={`font-semibold text-xs whitespace-nowrap ${isSel ? "text-[#f97316]" : "text-neutral-800 dark:text-neutral-200"}`}>
+                        {o.label}
+                      </span>
+                    </div>
+                    {o.hint && (
+                      <span className="text-[11px] text-neutral-400 dark:text-neutral-500 leading-snug mt-0.5 whitespace-normal break-words">
+                        {o.hint}
+                      </span>
+                    )}
+                  </div>
+                  {isSel && <Check className="size-3.5 text-[#f97316] shrink-0 mt-0.5" />}
                 </button>
               );
             })}

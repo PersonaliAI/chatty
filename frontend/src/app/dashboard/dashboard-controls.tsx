@@ -6,7 +6,14 @@ import Image from "next/image";
 import { Check, ChevronDown } from "lucide-react";
 
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
-import { TAB_LABELS, ROLE_DEFAULT_TABS, ROLE_INFO, type ChattyTeamTab, type ChattyTeamRole } from "./dashboard-permissions";
+import {
+  TAB_LABELS,
+  ROLE_DEFAULT_TABS,
+  ROLE_INFO,
+  toggleTabIntelligently,
+  type ChattyTeamTab,
+  type ChattyTeamRole,
+} from "./dashboard-permissions";
 
 export function CloudProviderMenu({
   label, iconSrc, connected, services, onDisconnect,
@@ -210,7 +217,7 @@ export function MemberPermissionEditor({
             <TeamTabCheckbox
               key={tab}
               checked={draftTabs.includes(tab)}
-              onChange={(checked) => setDraftTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
+              onChange={(checked) => setDraftTabs((p) => toggleTabIntelligently(p, tab, checked, grantableTabs))}
               label={TAB_LABELS[tab] || tab}
             />
           ))}
