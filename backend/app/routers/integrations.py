@@ -320,10 +320,17 @@ def _decode_state(state: str) -> tuple[Optional[str], str, str, str]:
         return None, CHATTY_FRONTEND_URL, "/dashboard/integrations", "primary"
 
 
-# Pro/Executive can connect this many EXTRA Google accounts on top of their
-# primary one (real version of the old "up to 3 connected accounts" claim -
-# see kin_connected_accounts migration).
-MAX_EXTRA_GOOGLE_ACCOUNTS: dict[str, int] = {"pro": 2, "executive": 2}
+# Pro/Executive/Chatty plans can connect extra Google accounts on top of their
+# primary workspace one.
+MAX_EXTRA_GOOGLE_ACCOUNTS: dict[str, int] = {
+    "free": 5,
+    "basic": 5,
+    "pro": 10,
+    "executive": 25,
+    "chatty_hobby": 5,
+    "chatty_standard": 10,
+    "chatty_business": 25,
+}
 
 
 @router.post("/api/integrations/google/start")
@@ -331,17 +338,13 @@ async def google_start(
     request: Request,
     redirect_path: Optional[str] = None,
     mode: str = "primary",
+    bot_id: Optional[str] = None,
     user: dict[str, Any] = Depends(require_user)
 ):
     if not os.environ.get("GOOGLE_CLIENT_ID"):
         raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID not configured")
     if mode == "add":
-        cap = MAX_EXTRA_GOOGLE_ACCOUNTS.get(plan_for(user), 0)
-        if cap <= 0:
-            raise HTTPException(
-                status_code=403,
-                detail="Connecting extra Google accounts is a Pro+ feature. Upgrade at /dashboard/billing.",
-            )
+        cap = MAX_EXTRA_GOOGLE_ACCOUNTS.get(plan_for(user), 5)
         existing = await run_db(lambda: (
             supabase.table("kin_connected_accounts")
             .select("id", count="exact", head=True)
@@ -357,7 +360,8 @@ async def google_start(
     is_chatty = "chatty" in origin or "localhost:3001" in origin
     if not redirect_path:
         redirect_path = "/dashboard" if is_chatty else "/dashboard/integrations"
-    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path, mode=mode)
+    extra_claims = {"bot_id": bot_id} if bot_id else None
+    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path, mode=mode, extra_claims=extra_claims)
     # g.auth_url already sets prompt=consent, so Google always reissues a
     # refresh token here - needed so "add another account" doesn't end up
     # depending on a token minted for a different connection.
@@ -371,6 +375,7 @@ async def google_start(
 @router.get("/auth/google/callback")
 async def google_callback(code: str, state: str):
     auth_user_id, frontend, redirect_path, mode = _decode_state(state)
+    target_bot_id = _decode_state_claim(state, "bot_id")
     if not auth_user_id:
         return RedirectResponse(f"{frontend}{redirect_path}?google=error")
 
@@ -401,7 +406,7 @@ async def google_callback(code: str, state: str):
         if not user_res.data:
             return RedirectResponse(f"{frontend}{redirect_path}?google=error")
         owner = user_res.data[0]
-        cap = MAX_EXTRA_GOOGLE_ACCOUNTS.get(plan_for(owner), 0)
+        cap = MAX_EXTRA_GOOGLE_ACCOUNTS.get(plan_for(owner), 5)
         existing = await run_db(lambda: (
             supabase.table("kin_connected_accounts")
             .select("id", count="exact", head=True)
@@ -410,7 +415,7 @@ async def google_callback(code: str, state: str):
         ))
         if cap <= 0 or (existing.count or 0) >= cap:
             return RedirectResponse(f"{frontend}{redirect_path}?google=error")
-        await run_db(lambda: supabase.table("kin_connected_accounts").insert({
+        inserted = await run_db(lambda: supabase.table("kin_connected_accounts").insert({
             "user_id": owner["id"],
             "google_access_token": encrypt_secret(access),
             "google_refresh_token": encrypt_secret(refresh),
@@ -420,6 +425,20 @@ async def google_callback(code: str, state: str):
             "google_scopes": scope,
             "google_email": profile.get("email"),
         }).execute())
+        new_acc_id = inserted.data[0]["id"] if (inserted.data and len(inserted.data) > 0) else None
+        if target_bot_id and new_acc_id:
+            try:
+                await run_db(lambda: supabase.table("chatty_bots").update({
+                    "google_connected_account_id": new_acc_id,
+                    "google_calendar_id": "primary",
+                    "google_calendar_name": "Primary Calendar",
+                    "sync_google_calendar": True,
+                    "calendar_scheduling_enabled": True,
+                    "meeting_provider": "google_meet",
+                }).eq("id", target_bot_id).execute())
+                return RedirectResponse(f"{frontend}{redirect_path}?google=connected_for_bot&bot_id={target_bot_id}")
+            except Exception:
+                logger.warning("Failed to auto-bind bot to new google account", exc_info=True)
         return RedirectResponse(f"{frontend}{redirect_path}?google=added")
 
     update: dict[str, Any] = {
@@ -434,6 +453,19 @@ async def google_callback(code: str, state: str):
         update["google_refresh_token"] = encrypt_secret(refresh)
 
     await run_db(lambda: supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute())
+    if target_bot_id:
+        try:
+            await run_db(lambda: supabase.table("chatty_bots").update({
+                "google_connected_account_id": None,
+                "google_calendar_id": "primary",
+                "google_calendar_name": "Primary Calendar",
+                "sync_google_calendar": True,
+                "calendar_scheduling_enabled": True,
+                "meeting_provider": "google_meet",
+            }).eq("id", target_bot_id).execute())
+            return RedirectResponse(f"{frontend}{redirect_path}?google=ok&bot_id={target_bot_id}")
+        except Exception:
+            logger.warning("Failed to auto-bind bot to primary google account", exc_info=True)
     return RedirectResponse(f"{frontend}{redirect_path}?google=ok")
 
 

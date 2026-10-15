@@ -58,7 +58,7 @@ export interface KnowledgeTabProps {
   saveOnboardingStep: (step: number, completed: boolean, extraData?: Record<string, any>) => Promise<void> | void;
   googleConnected: boolean;
   microsoftConnected: boolean;
-  handleConnectCloud: (provider: "google" | "microsoft") => void | Promise<void>;
+  handleConnectCloud: (provider: "google" | "microsoft", mode?: "primary" | "add", targetBotId?: string) => void | Promise<void>;
   handleDisconnectCloud: (provider: "google" | "microsoft", targetBotId?: string) => void | Promise<void>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleInputChange: (setter: (val: any) => void, val: any) => void;

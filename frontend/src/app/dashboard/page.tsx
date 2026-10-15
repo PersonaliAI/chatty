@@ -1713,6 +1713,36 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Handle post-OAuth redirect toast (e.g. ?google=ok or ?google=connected_for_bot)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const googleParam = params.get("google");
+    const msParam = params.get("microsoft");
+    if (googleParam) {
+      if (googleParam === "connected_for_bot" || googleParam === "added") {
+        showToast("Dedicated Google account connected for this bot!", "success");
+      } else if (googleParam === "ok") {
+        showToast("Google Workspace connected successfully!", "success");
+      } else if (googleParam === "error") {
+        showToast("Google connection failed or was cancelled.", "error");
+      }
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("google");
+      cleanUrl.searchParams.delete("bot_id");
+      window.history.replaceState({}, "", cleanUrl.toString());
+    } else if (msParam) {
+      if (msParam === "ok") {
+        showToast("Microsoft 365 connected successfully!", "success");
+      } else if (msParam === "error") {
+        showToast("Microsoft 365 connection failed or was cancelled.", "error");
+      }
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("microsoft");
+      window.history.replaceState({}, "", cleanUrl.toString());
+    }
+  }, []);
+
   // Create a new chatbot configuration
   async function handleCreateBot(name: string, websiteUrl?: string) {
     if (!user) return;
@@ -2967,10 +2997,19 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   };
 
   // Handle Cloud Connector Triggers
-  const handleConnectCloud = async (provider: "google" | "microsoft") => {
+  const handleConnectCloud = async (
+    provider: "google" | "microsoft",
+    mode: "primary" | "add" = "primary",
+    targetBotId?: string
+  ) => {
     setConnectingProvider(provider);
     try {
-      const res = await fetchWithFallback(`/api/integrations/${provider}/start?redirect_path=/dashboard`, {
+      const qs = new URLSearchParams({ redirect_path: "/dashboard" });
+      if (mode === "add") qs.set("mode", "add");
+      const effBotId = targetBotId || botId;
+      if (effBotId) qs.set("bot_id", effBotId);
+
+      const res = await fetchWithFallback(`/api/integrations/${provider}/start?${qs.toString()}`, {
         method: "POST"
       });
       if (res.ok) {
@@ -2979,9 +3018,13 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           window.location.href = body.url; // Redirect to OAuth
           return;
         }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.detail || `Failed to initiate ${provider} connection`, "error");
       }
     } catch (err) {
       console.error(`Error connecting to ${provider}:`, err);
+      showToast(`Error connecting to ${provider}`, "error");
     }
     setConnectingProvider(null);
   };
