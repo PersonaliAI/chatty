@@ -533,133 +533,135 @@ export function SettingsTab({
   }, [loadCalendars]);
 
   return (
-            <div className="max-w-4xl mx-auto w-full py-6 px-4 flex justify-center">
-              <div className="w-full max-w-2xl p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-8">
+    <div className="max-w-4xl mx-auto w-full py-4 sm:py-6 px-3 sm:px-4 flex justify-center">
+      <div className="w-full max-w-2xl p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-6 sm:space-y-8">
 
-                {/* SECTION: YOUR PROFILE & PHOTO */}
-                <div id="settings-profile-section" className="space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
-                    <div className="flex items-center gap-2">
-                      <User className="size-4 text-[#f97316]" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Bot Agent Profile & Photo</h3>
-                    </div>
-                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">
-                      Bot Isolated
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-neutral-400 -mt-2">
-                    Manage the agent identity, display name, and photo for this specific bot. Changes here will not affect your other bots unless you choose to share.
-                  </p>
+        {/* SECTION: YOUR PROFILE & PHOTO */}
+        <div id="settings-profile-section" className="space-y-4">
+          <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+            <div className="flex items-center gap-2">
+              <User className="size-4 text-[#f97316]" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 dark:text-neutral-200">Bot Agent Profile & Photo</h3>
+            </div>
+            <span className="text-[9px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">
+              Bot Isolated
+            </span>
+          </div>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 -mt-1 leading-relaxed">
+            Manage the agent identity, display name, and photo for this specific bot. Changes here will not affect your other bots unless you choose to share.
+          </p>
 
-                  {/* Profile Source Dropdown */}
-                  {otherBots.length > 0 && (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-3 bg-neutral-100/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60">
-                      <div>
-                        <span className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">Profile Source</span>
-                        <p className="text-[10px] text-neutral-400">Use custom details or copy from another bot</p>
-                      </div>
-                      <div className="w-full sm:w-64">
-                        <ModernSelect
-                          value={profileSource}
-                          options={[
-                            { value: "custom", label: "Custom (This bot only)" },
-                            { value: "default", label: "Workspace default" },
-                            ...otherBots.map((b) => ({ value: b.id, label: `Use from ${b.name}` })),
-                          ]}
-                          onChange={(v) => handleProfileSourceChange(v)}
-                        />
-                      </div>
-                    </div>
-                  )}
+          {/* Profile Source Dropdown */}
+          {otherBots.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 p-3 sm:p-3.5 bg-neutral-100/60 dark:bg-neutral-950/60 rounded-xl border border-neutral-200/60 dark:border-neutral-800/60">
+              <div>
+                <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Profile Source</span>
+                <p className="text-[11px] text-neutral-400 mt-0.5">Use custom details or copy from another bot</p>
+              </div>
+              <div className="w-full sm:w-64">
+                <ModernSelect
+                  value={profileSource}
+                  options={[
+                    { value: "custom", label: "Custom (This bot only)" },
+                    { value: "default", label: "Workspace default" },
+                    ...otherBots.map((b) => ({ value: b.id, label: `Use from ${b.name}` })),
+                  ]}
+                  onChange={(v) => handleProfileSourceChange(v)}
+                />
+              </div>
+            </div>
+          )}
 
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/50">
-                    <div className="relative group shrink-0">
-                      <div className="size-16 rounded-full overflow-hidden border-2 border-white dark:border-neutral-800 shadow-sm bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center font-bold text-lg text-neutral-700 dark:text-neutral-200 select-none">
-                        {(uploadingAvatar || savingProfile) ? (
-                          <Loader2 className="size-6 text-[#f97316] animate-spin" />
-                        ) : profileAvatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={profileAvatarUrl} alt={profileName || "User"} className="size-full object-cover" />
-                        ) : (
-                          <span>{(profileName?.[0] || user?.email?.[0] || "U").toUpperCase()}</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => profileFileInputRef.current?.click()}
-                        disabled={uploadingAvatar}
-                        title="Change profile photo"
-                        className="absolute bottom-0 right-0 p-1.5 rounded-full bg-[#f97316] text-white shadow hover:opacity-90 cursor-pointer disabled:opacity-50 transition-opacity"
-                      >
-                        {uploadingAvatar ? <Loader2 className="size-3 animate-spin" /> : <Camera className="size-3" />}
-                      </button>
-                      <input
-                        ref={profileFileInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/gif"
-                        onChange={handleAvatarFileChange}
-                        className="hidden"
-                      />
-                    </div>
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-3.5 sm:p-4 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-950/50">
+            <div className="relative group shrink-0">
+              <div className="size-16 rounded-full overflow-hidden border-2 border-white dark:border-neutral-800 shadow-sm bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center font-bold text-lg text-neutral-700 dark:text-neutral-200 select-none">
+                {(uploadingAvatar || savingProfile) ? (
+                  <Loader2 className="size-6 text-[#f97316] animate-spin" />
+                ) : profileAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={profileAvatarUrl} alt={profileName || "User"} className="size-full object-cover" />
+                ) : (
+                  <span>{(profileName?.[0] || user?.email?.[0] || "U").toUpperCase()}</span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => profileFileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                title="Change profile photo"
+                className="absolute bottom-0 right-0 p-1.5 rounded-full bg-[#f97316] text-white shadow hover:opacity-90 cursor-pointer disabled:opacity-50 transition-opacity"
+              >
+                {uploadingAvatar ? <Loader2 className="size-3 animate-spin" /> : <Camera className="size-3" />}
+              </button>
+              <input
+                ref={profileFileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={handleAvatarFileChange}
+                className="hidden"
+              />
+            </div>
 
-                    <div className="flex-1 min-w-0 space-y-3 w-full">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Display Name</label>
-                          <input
-                            type="text"
-                            value={profileName}
-                            onChange={(e) => setProfileName(e.target.value)}
-                            placeholder={user?.email ? user.email.split("@")[0] : "Your Name"}
-                            className="w-full text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">Role / Title</label>
-                          <input
-                            type="text"
-                            value={profileRoleTitle}
-                            onChange={(e) => setProfileRoleTitle(e.target.value)}
-                            placeholder="e.g. Support Specialist"
-                            className="w-full text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => profileFileInputRef.current?.click()}
-                          disabled={uploadingAvatar}
-                          className="px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        >
-                          {uploadingAvatar ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />}
-                          {profileAvatarUrl ? "Upload New Photo" : "Upload Photo"}
-                        </button>
-                        {profileAvatarUrl && (
-                          <button
-                            type="button"
-                            onClick={handleRemovePhoto}
-                            disabled={savingProfile}
-                            className="px-2.5 py-1.5 text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash2 className="size-3" />
-                            Remove
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={handleSaveProfile}
-                          disabled={savingProfile}
-                          className="ml-auto px-4 py-1.5 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center gap-1.5 cursor-pointer"
-                        >
-                          {savingProfile ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                          Save Changes
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+            <div className="flex-1 min-w-0 space-y-3 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Display Name</label>
+                  <input
+                    type="text"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder={user?.email ? user.email.split("@")[0] : "Your Name"}
+                    className="w-full text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                  />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Role / Title</label>
+                  <input
+                    type="text"
+                    value={profileRoleTitle}
+                    onChange={(e) => setProfileRoleTitle(e.target.value)}
+                    placeholder="e.g. Support Specialist"
+                    className="w-full text-xs bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-2 border-t border-neutral-200/50 dark:border-neutral-800/50">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => profileFileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="px-3 py-2 sm:py-1.5 text-xs sm:text-[11px] font-semibold rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-700 dark:text-neutral-200 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {uploadingAvatar ? <Loader2 className="size-3.5 sm:size-3 animate-spin" /> : <Upload className="size-3.5 sm:size-3" />}
+                    {profileAvatarUrl ? "Upload New Photo" : "Upload Photo"}
+                  </button>
+                  {profileAvatarUrl && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      disabled={savingProfile}
+                      className="px-2.5 py-2 sm:py-1.5 text-xs sm:text-[11px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="size-3.5 sm:size-3" />
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="w-full sm:w-auto px-4 py-2 sm:py-1.5 text-xs sm:text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  {savingProfile ? <Loader2 className="size-3.5 sm:size-3 animate-spin" /> : <Check className="size-3.5 sm:size-3" />}
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
                 {/* SECTION 0: TEAM */}
                 {canAccessTab("team") && (() => {
@@ -715,19 +717,19 @@ export function SettingsTab({
                         </div>
                       </div>
                     )}
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-2">
                       <input
                         type="text" value={inviteName} onChange={(e) => setInviteName(e.target.value)}
                         placeholder="Full name"
-                        className="sm:w-40 shrink-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        className="w-full sm:w-40 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                       />
                       <input
                         type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)}
                         placeholder="teammate@company.com"
-                        className="flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                        className="w-full sm:flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                       />
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div className="w-28 shrink-0">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <div className="flex-1 sm:w-28 sm:flex-initial">
                           <ModernSelect
                             value={inviteRole}
                             options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
@@ -740,7 +742,7 @@ export function SettingsTab({
                           />
                         </div>
                         <button onClick={inviteTeamMember} disabled={invitingTeam || !inviteEmail.includes("@") || !inviteName.trim()}
-                          className="flex-1 sm:flex-initial px-3.5 py-2 text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap">
+                          className="flex-1 sm:flex-initial px-4 py-2 text-xs sm:text-[11px] font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity whitespace-nowrap cursor-pointer">
                           {invitingTeam ? "Inviting…" : "Invite"}
                         </button>
                       </div>
@@ -845,7 +847,7 @@ export function SettingsTab({
 
                   {/* Model Selector */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">AI Foundation Model</label>
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">AI Foundation Model</label>
                     <ModernSelect
                       value={selectedModel}
                       onChange={(v) => handleInputChange(setSelectedModel, v)}
@@ -856,12 +858,12 @@ export function SettingsTab({
                         { value: "mistral", label: "Mistral Large", hint: "Requires your OpenRouter key below" },
                       ]}
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">Selected model handles logic & responses inside your widget.</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">Selected model handles logic & responses inside your widget.</p>
                   </div>
 
                   {/* Knowledge Source */}
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Knowledge Source</label>
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Knowledge Source</label>
                     <ModernSelect
                       value={answerMode}
                       onChange={(v) => handleInputChange(setAnswerMode, v as "strict" | "hybrid" | "web")}
@@ -871,7 +873,7 @@ export function SettingsTab({
                         { value: "web", label: "Knowledge base + web search", hint: "Looks up live info on the web when needed" },
                       ]}
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">
                       {answerMode === "strict" && "Only answers from your trained knowledge - best for accuracy and avoiding made-up info."}
                       {answerMode === "hybrid" && "Answers from your knowledge first, then the model's own general knowledge if needed."}
                       {answerMode === "web" && "Adds a live web-search tool so the bot can pull current information beyond your knowledge base."}
@@ -889,14 +891,14 @@ export function SettingsTab({
                     return (
                       <div className="p-3.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Bring Your Own Key (BYOK)</span>
+                          <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Bring Your Own Key (BYOK)</span>
                           {byokConfigured && byokProvider === expected?.provider && (
                             <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
                               <Check className="size-2.5" /> Configured
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-neutral-400 leading-relaxed">
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-relaxed">
                           This model runs on your own {expected?.label.replace(" API key", "")} key - Chatty doesn&apos;t supply one. Note: lead capture and meeting booking tools currently only work on Gemini; BYOK models still answer from your knowledge base.
                         </p>
                         <input
@@ -904,20 +906,20 @@ export function SettingsTab({
                           value={byokApiKeyInput}
                           onChange={(e) => setByokApiKeyInput(e.target.value)}
                           placeholder={byokConfigured ? "•••••••••••••••• (saved - enter a new key to replace)" : expected?.placeholder}
-                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                         />
                         <input
                           type="text"
                           value={byokModel}
                           onChange={(e) => setByokModel(e.target.value)}
                           placeholder="Model override (optional, e.g. gpt-4o-mini)"
-                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                          className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                         />
                         <div className="flex gap-2">
                           <button
                             onClick={() => { setByokProvider(expected!.provider); handleSaveByok(false); }}
                             disabled={savingByok || !byokApiKeyInput.trim()}
-                            className="px-3 py-1.5 bg-[#f97316] text-white rounded-lg text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
+                            className="px-3 py-2 sm:py-1.5 bg-[#f97316] text-white rounded-lg text-xs sm:text-[11px] font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40"
                           >
                             {savingByok ? "Saving…" : "Save key"}
                           </button>
@@ -925,7 +927,7 @@ export function SettingsTab({
                             <button
                               onClick={() => handleSaveByok(true)}
                               disabled={savingByok}
-                              className="px-3 py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-[11px] font-semibold cursor-pointer disabled:opacity-40"
+                              className="px-3 py-2 sm:py-1.5 text-neutral-500 hover:text-red-500 rounded-lg text-xs sm:text-[11px] font-semibold cursor-pointer disabled:opacity-40"
                             >
                               Remove key
                             </button>
@@ -937,12 +939,12 @@ export function SettingsTab({
 
                   {/* System Instructions / Guardrails */}
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold uppercase tracking-wider text-neutral-400">System Instructions / Guardrails</label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">System Instructions / Guardrails</label>
                       <button
                         onClick={generateInstructions}
                         disabled={isGeneratingInstructions}
-                        className="flex items-center gap-1 text-[10px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="flex items-center gap-1 text-[11px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         title="Auto-generate from trained knowledge"
                       >
                         {isGeneratingInstructions
@@ -955,21 +957,21 @@ export function SettingsTab({
                       rows={4}
                       value={systemInstructions}
                       onChange={(e) => handleInputChange(setSystemInstructions, e.target.value)}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Configures behavior limitations and answers guidelines.</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 leading-normal">Configures behavior limitations and answers guidelines.</p>
                   </div>
 
                   {/* Toggles */}
-                  <div className="space-y-4 pt-1">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Knowledge Base Strict Mode</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Only answer questions using verified trained memory sources.</p>
+                  <div className="space-y-1 pt-1 divide-y divide-neutral-100/70 dark:divide-neutral-800/70">
+                    <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">Knowledge Base Strict Mode</span>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 leading-normal">Only answer questions using verified trained memory sources.</p>
                       </div>
                       <button
                         onClick={() => handleInputChange(setStrictMode, !strictMode)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                           strictMode ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                         }`}
                       >
@@ -977,14 +979,14 @@ export function SettingsTab({
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Email Lead Alerts</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Receive instant email updates when visitors submit contact info.</p>
+                    <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">Email Lead Alerts</span>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 leading-normal">Receive instant email updates when visitors submit contact info.</p>
                       </div>
                       <button
                         onClick={() => handleInputChange(setEmailNotify, !emailNotify)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                           emailNotify ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                         }`}
                       >
@@ -992,14 +994,14 @@ export function SettingsTab({
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Remove &quot;Powered by Chatty&quot; Branding</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Hide the Chatty footer mark in the widget (white-label).</p>
+                    <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">Remove &quot;Powered by Chatty&quot; Branding</span>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 leading-normal">Hide the Chatty footer mark in the widget (white-label).</p>
                       </div>
                       <button
                         onClick={() => handleInputChange(setHideBranding, !hideBranding)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                           hideBranding ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                         }`}
                       >
@@ -1007,14 +1009,14 @@ export function SettingsTab({
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Show AI / Human Tag</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Label each reply in the widget as &quot;AI&quot; or &quot;Human agent&quot;.</p>
+                    <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">Show AI / Human Tag</span>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 leading-normal">Label each reply in the widget as &quot;AI&quot; or &quot;Human agent&quot;.</p>
                       </div>
                       <button
                         onClick={() => handleInputChange(setShowSenderTag, !showSenderTag)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                           showSenderTag ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                         }`}
                       >
@@ -1022,14 +1024,14 @@ export function SettingsTab({
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Post-Chat Rating Prompt</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Ask visitors to rate the conversation when they close the widget.</p>
+                    <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">Post-Chat Rating Prompt</span>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 leading-normal">Ask visitors to rate the conversation when they close the widget.</p>
                       </div>
                       <button
                         onClick={() => handleInputChange(setCsatEnabled, !csatEnabled)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                           csatEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                         }`}
                       >
@@ -1037,10 +1039,10 @@ export function SettingsTab({
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold">Inline Lead Capture Form</span>
-                        <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Show email/contact collection prompt inside chat messages for visitors.</p>
+                    <div className="flex items-start sm:items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">Inline Lead Capture Form</span>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 leading-normal">Show email/contact collection prompt inside chat messages for visitors.</p>
                       </div>
                       <button
                         onClick={() => {
@@ -1048,7 +1050,7 @@ export function SettingsTab({
                             handleInputChange(setLeadCaptureEnabled, !leadCaptureEnabled);
                           }
                         }}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                           leadCaptureEnabled ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                         }`}
                       >
@@ -1068,7 +1070,7 @@ export function SettingsTab({
                     <button
                       onClick={generateInstructions}
                       disabled={isGeneratingInstructions}
-                      className="flex items-center gap-1 text-[10px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="flex items-center gap-1 text-[11px] font-semibold text-[#f97316] hover:text-[#ea6b0e] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       title="Auto-generate from trained knowledge (same generator as System Instructions above)"
                     >
                       {isGeneratingInstructions
@@ -1079,36 +1081,36 @@ export function SettingsTab({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Off-Topic Refusal</label>
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Off-Topic Refusal</label>
                     <textarea
                       rows={2}
                       value={guardrailTopics}
                       onChange={(e) => handleInputChange(setGuardrailTopics, e.target.value)}
                       placeholder="e.g. politics, medical advice, legal advice, competitor products"
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Comma-separated topics the assistant should always decline to discuss. Leave empty to allow any on-topic discussion.</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 leading-normal">Comma-separated topics the assistant should always decline to discuss. Leave empty to allow any on-topic discussion.</p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom Refusal Message</label>
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Custom Refusal Message</label>
                     <input
                       type="text"
                       value={guardrailRefusalMessage}
                       onChange={(e) => handleInputChange(setGuardrailRefusalMessage, e.target.value)}
                       placeholder="Sorry, I can't help with that - but I'm happy to answer questions about our product!"
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                     />
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold">Block Profanity & Abuse</span>
-                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500">Refuse to engage with abusive or profane visitor messages.</p>
+                  <div className="flex items-start sm:items-center justify-between gap-3 py-2.5 border-t border-neutral-100/70 dark:border-neutral-800/70">
+                    <div className="min-w-0 flex-1 pr-2">
+                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">Block Profanity & Abuse</span>
+                      <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 leading-normal">Refuse to engage with abusive or profane visitor messages.</p>
                     </div>
                     <button
                       onClick={() => handleInputChange(setGuardrailBlockProfanity, !guardrailBlockProfanity)}
-                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                      className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                         guardrailBlockProfanity ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                       }`}
                     >
@@ -1117,7 +1119,7 @@ export function SettingsTab({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Response Language</label>
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Response Language</label>
                     <ModernSelect
                       value={responseLanguage}
                       onChange={(v) => handleInputChange(setResponseLanguage, v)}
@@ -1219,33 +1221,33 @@ export function SettingsTab({
                         { value: "ht",    label: "Haitian Creole" },
                       ]}
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1.5">By default the assistant replies in whatever language the visitor writes in. Force a single language here if you need consistent transcripts.</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">By default the assistant replies in whatever language the visitor writes in. Force a single language here if you need consistent transcripts.</p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom CSS</label>
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Custom CSS</label>
                     <textarea
                       rows={4}
                       value={customCss}
                       onChange={(e) => handleInputChange(setCustomCss, e.target.value)}
                       placeholder=".chat-input-bar { border-radius: 4px; }"
                       spellCheck={false}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Injected into the widget iframe. Advanced - invalid CSS is ignored by the browser, won&apos;t break the widget.</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 leading-normal">Injected into the widget iframe. Advanced - invalid CSS is ignored by the browser, won&apos;t break the widget.</p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-400 mb-2">Custom JavaScript</label>
+                    <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Custom JavaScript</label>
                     <textarea
                       rows={4}
                       value={customJs}
                       onChange={(e) => handleInputChange(setCustomJs, e.target.value)}
                       placeholder="console.log('Chatty widget loaded');"
                       spellCheck={false}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 text-[11px] font-mono text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700 resize-none leading-relaxed"
                     />
-                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">Runs once inside the widget iframe after it loads. Advanced - a script error here only affects the widget, not your site.</p>
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1 leading-normal">Runs once inside the widget iframe after it loads. Advanced - a script error here only affects the widget, not your site.</p>
                   </div>
                 </div>
 
@@ -1532,13 +1534,13 @@ export function SettingsTab({
                     >
                       {/* Meeting Provider */}
                       <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Meeting Provider</label>
+                        <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Meeting Provider</label>
                         <ModernSelect
                           value={meetingProvider}
                           options={providerOptions}
                           onChange={handleMeetingProviderChange}
                         />
-                        <p className="text-[9px] text-neutral-400 mt-1">
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">
                           {meetingProvider === "google_meet"
                             ? "Real Meet links are generated automatically on the connected Google Calendar."
                             : meetingProvider === "zoom"
@@ -1550,8 +1552,8 @@ export function SettingsTab({
                       {/* Calendar Connection & Data Isolation */}
                       {meetingProvider === "google_meet" && (
                         <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
                               Calendar Connection & Data Isolation
                             </label>
                             <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium">
@@ -1628,7 +1630,7 @@ export function SettingsTab({
                               }
                             }}
                           />
-                          <p className="text-[9px] text-neutral-400 mt-1">
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">
                             New bots never share calendar slots or events by default. Pick an exclusive account, workspace default, or sync with another bot.
                           </p>
                         </div>
@@ -1637,15 +1639,15 @@ export function SettingsTab({
                       {/* Target Calendar (Multi-calendar isolation) */}
                       {meetingProvider === "google_meet" && googleConnected && (
                         <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase">Target Calendar</label>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">Target Calendar</label>
                             <button
                               type="button"
                               onClick={loadCalendars}
                               disabled={loadingCalendars}
-                              className="text-[10px] text-[#f97316] hover:underline flex items-center gap-1 cursor-pointer"
+                              className="text-xs text-[#f97316] hover:underline flex items-center gap-1 cursor-pointer"
                             >
-                              <RefreshCw className={`size-2.5 ${loadingCalendars ? "animate-spin" : ""}`} />
+                              <RefreshCw className={`size-3 ${loadingCalendars ? "animate-spin" : ""}`} />
                               Refresh
                             </button>
                           </div>
@@ -1665,7 +1667,7 @@ export function SettingsTab({
                               handleInputChange(setGoogleCalendarName, matched?.summary || "");
                             }}
                           />
-                          <p className="text-[9px] text-neutral-400 mt-1">
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">
                             Appointments and availability checks for this bot will be strictly scoped to this calendar.
                           </p>
                         </div>
@@ -1674,7 +1676,7 @@ export function SettingsTab({
                       {/* Google Calendar Event Color */}
                       {meetingProvider === "google_meet" && googleConnected && (
                         <div>
-                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">
+                          <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">
                             Google Calendar Event Colors
                           </label>
                           <ModernSelect
@@ -1699,7 +1701,7 @@ export function SettingsTab({
                               }
                             }}
                           />
-                          <p className="text-[9px] text-neutral-400 mt-1">
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">
                             {googleCalendarColor === "auto_multiple" || !googleCalendarColor
                               ? "Chatty uses multiple distinct colors across your Google Calendar so different bookings and topics are easily distinguishable."
                               : "New appointments created by this bot will be tagged with this Google Calendar color chip."}
@@ -1710,7 +1712,7 @@ export function SettingsTab({
                       {/* Dedicated Zoom Meeting Link / PMI */}
                       {meetingProvider === "zoom" && (
                         <div>
-                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">
+                          <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">
                             Dedicated Zoom Meeting Link or PMI (Optional)
                           </label>
                           <input
@@ -1722,9 +1724,9 @@ export function SettingsTab({
                               }
                             }}
                             placeholder="https://zoom.us/j/1234567890 or your personal meeting room"
-                            className="w-full text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]"
+                            className="w-full text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2.5 sm:py-2 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#f97316]"
                           />
-                          <p className="text-[9px] text-neutral-400 mt-1">
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1.5 leading-normal">
                             When configured, this bot uses this dedicated Zoom link for booked appointments so calls don&apos;t mix across bots.
                           </p>
                         </div>
@@ -1732,7 +1734,7 @@ export function SettingsTab({
 
                       {/* Duration Selector */}
                       <div>
-                        <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Allowed Time Duration</label>
+                        <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Allowed Time Duration</label>
                         <ModernSelect
                           value={String(schedulingDuration)}
                           options={[15, 30, 45, 60].map((m) => ({ value: String(m), label: `${m} Minutes` }))}
@@ -1741,9 +1743,9 @@ export function SettingsTab({
                       </div>
 
                       {/* Country + Timezone (auto-detected, searchable) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-3">
                         <div>
-                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("country")}</label>
+                          <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">{t("country")}</label>
                           <ModernSelect
                             value={botCountry}
                             options={countryOptions}
@@ -1753,7 +1755,7 @@ export function SettingsTab({
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">{t("timezone")}</label>
+                          <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">{t("timezone")}</label>
                           <ModernSelect
                             value={botTimezone}
                             options={timezoneOptions}
@@ -1765,15 +1767,15 @@ export function SettingsTab({
                       </div>
 
                       {/* ── Booking Rules ── */}
-                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-3">
-                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-neutral-450 flex items-center gap-1.5">
+                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-850 space-y-3.5">
+                        <h5 className="text-xs font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
                           <Calendar className="size-3.5 text-[#f97316]" /> Booking Rules
                         </h5>
 
                         {/* Business hours */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-3">
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Open From</label>
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Open From</label>
                             <ModernSelect
                               value={String(businessHoursStart)}
                               options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
@@ -1781,7 +1783,7 @@ export function SettingsTab({
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Open Until</label>
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Open Until</label>
                             <ModernSelect
                               value={String(businessHoursEnd)}
                               options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: `${(h % 12) || 12}:00 ${h < 12 ? "AM" : "PM"}` }))}
@@ -1792,7 +1794,7 @@ export function SettingsTab({
 
                         {/* Working days */}
                         <div>
-                          <label className="block text-[10px] font-semibold text-neutral-505 uppercase mb-1">Working Days</label>
+                          <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Working Days</label>
                           <div className="flex flex-wrap gap-1.5">
                             {[
                               { id: "mon", label: "Mon" }, { id: "tue", label: "Tue" }, { id: "wed", label: "Wed" },
@@ -1803,7 +1805,7 @@ export function SettingsTab({
                                 <button
                                   key={d.id}
                                   onClick={() => handleInputChange(setWorkingDays, on ? workingDays.filter((x) => x !== d.id) : [...workingDays, d.id])}
-                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors cursor-pointer ${
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
                                     on ? "border-[#f97316] bg-[#f97316]/10 text-[#f97316]" : "border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                                   }`}
                                 >
@@ -1815,9 +1817,9 @@ export function SettingsTab({
                         </div>
 
                         {/* Buffer + advance notice */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-3">
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Buffer Between Meetings</label>
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Buffer Between Meetings</label>
                             <ModernSelect
                               value={String(bufferMinutes)}
                               options={[0, 5, 10, 15, 30].map((m) => ({ value: String(m), label: m === 0 ? "No buffer" : `${m} min` }))}
@@ -1825,7 +1827,7 @@ export function SettingsTab({
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Minimum Advance Notice</label>
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Minimum Advance Notice</label>
                             <ModernSelect
                               value={String(advanceNoticeHours)}
                               options={[0, 1, 2, 4, 12, 24, 48].map((h) => ({ value: String(h), label: h === 0 ? "None" : `${h} hours` }))}
@@ -1835,9 +1837,9 @@ export function SettingsTab({
                         </div>
 
                         {/* Daily + weekly booking quotas */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-3">
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Meetings Per Day</label>
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Max Meetings Per Day</label>
                             <ModernSelect
                               value={String(maxDailyMeetings)}
                               options={[
@@ -1854,7 +1856,7 @@ export function SettingsTab({
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-semibold text-neutral-500 uppercase mb-1">Max Meetings Per Week</label>
+                            <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1.5">Max Meetings Per Week</label>
                             <ModernSelect
                               value={String(maxWeeklyMeetings)}
                               options={[
@@ -1881,26 +1883,26 @@ export function SettingsTab({
                               Optional Defenses
                             </span>
                           </div>
-                          <p className="text-[10px] text-neutral-400 dark:text-neutral-500 leading-normal">
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-normal">
                             Prevent bots and malicious actors from flooding your calendar or reserving fake appointments.
                           </p>
 
                           <div className="space-y-2.5">
                             {/* Defense 1: Email OTP Verification */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
-                                <div className="flex items-center gap-1.5">
+                            <div className="flex items-start sm:items-center justify-between p-3 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50 gap-3">
+                              <div className="space-y-0.5 flex-1 min-w-0 pr-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Email OTP Verification</span>
                                   <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 font-medium">Strongest</span>
                                 </div>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-normal">
                                   Sends a 6-digit one-time passcode to the attendee&apos;s email before confirming the booking.
                                 </p>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleInputChange(setBookingEmailVerification, !bookingEmailVerification)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                                   bookingEmailVerification ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                                 }`}
                               >
@@ -1909,17 +1911,17 @@ export function SettingsTab({
                             </div>
 
                             {/* Defense 2: Block Disposable Email Providers */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
+                            <div className="flex items-start sm:items-center justify-between p-3 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50 gap-3">
+                              <div className="space-y-0.5 flex-1 min-w-0 pr-2">
                                 <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Block Disposable Emails</span>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-normal">
                                   Rejects throwaway / burner inbox domains (e.g. mailinator, tempmail, guerrillamail).
                                 </p>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleInputChange(setBookingBlockDisposableEmails, !bookingBlockDisposableEmails)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                                   bookingBlockDisposableEmails ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                                 }`}
                               >
@@ -1928,17 +1930,17 @@ export function SettingsTab({
                             </div>
 
                             {/* Defense 3: Limit 1 Active Booking Per Email */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
+                            <div className="flex items-start sm:items-center justify-between p-3 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50 gap-3">
+                              <div className="space-y-0.5 flex-1 min-w-0 pr-2">
                                 <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Limit 1 Active Booking Per Email</span>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-normal">
                                   Prevents a single email address from hoarding multiple concurrent future bookings.
                                 </p>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleInputChange(setBookingLimitOneActive, !bookingLimitOneActive)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                                   bookingLimitOneActive ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                                 }`}
                               >
@@ -1947,20 +1949,20 @@ export function SettingsTab({
                             </div>
 
                             {/* Defense 4: Require Business / Work Email */}
-                            <div className="flex items-center justify-between p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50">
-                              <div className="space-y-0.5 pr-2">
-                                <div className="flex items-center gap-1.5">
+                            <div className="flex items-start sm:items-center justify-between p-3 rounded-xl border border-neutral-100 dark:border-neutral-850 bg-neutral-50/50 dark:bg-neutral-900/50 gap-3">
+                              <div className="space-y-0.5 flex-1 min-w-0 pr-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">Require Business Email</span>
                                   <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-medium">B2B</span>
                                 </div>
-                                <p className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-normal">
                                   Rejects consumer inboxes (@gmail, @yahoo, @outlook, etc.) and requires a corporate domain.
                                 </p>
                               </div>
                               <button
                                 type="button"
                                 onClick={() => handleInputChange(setBookingRequireBusinessEmail, !bookingRequireBusinessEmail)}
-                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 ${
+                                className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer shrink-0 mt-0.5 sm:mt-0 ${
                                   bookingRequireBusinessEmail ? "bg-[#f97316]" : "bg-neutral-200 dark:bg-neutral-800"
                                 }`}
                               >
