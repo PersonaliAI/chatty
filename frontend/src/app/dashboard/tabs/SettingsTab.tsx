@@ -18,6 +18,12 @@ import {
   Upload,
   Trash2,
   Copy,
+  Crown,
+  ShieldCheck,
+  Video,
+  CalendarCheck,
+  CalendarX,
+  Link,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
@@ -30,8 +36,11 @@ import {
   DEFAULT_ADMIN_TABS,
   DEFAULT_AGENT_TABS,
   OWNER_ONLY_TABS,
+  ROLE_DEFAULT_TABS,
+  ROLE_INFO,
   TAB_LABELS,
   type ChattyTeamTab,
+  type ChattyTeamRole,
 } from "../dashboard-permissions";
 import type { TeamMember } from "../dashboard-types";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -43,20 +52,21 @@ export interface SettingsTabProps {
   setInviteName: (n: string) => void;
   inviteEmail: string;
   setInviteEmail: (e: string) => void;
-  inviteRole: "agent" | "admin";
-  setInviteRole: (r: "agent" | "admin") => void;
+  inviteRole: ChattyTeamRole;
+  setInviteRole: (r: ChattyTeamRole) => void;
   inviteTabs: ChattyTeamTab[];
   setInviteTabs: React.Dispatch<React.SetStateAction<ChattyTeamTab[]>>;
   invitingTeam: boolean;
   inviteTeamMember: () => Promise<void> | void;
   teamMembers: TeamMember[];
+  teamOwner?: TeamMember | null;
   editingMemberId: string | null;
   setEditingMemberId: (id: string | null) => void;
   editingAvailabilityId: string | null;
   setEditingAvailabilityId: (id: string | null) => void;
   toggleMemberBookable: (id: string, bookable: boolean) => Promise<void> | void;
   toggleMemberCalendarPreference: (id: string, bookOnOwnCalendar: boolean) => Promise<void> | void;
-  updateTeamMember: (id: string, role: "agent" | "admin", permissions: ChattyTeamTab[]) => Promise<void> | void;
+  updateTeamMember: (id: string, role: string, permissions: ChattyTeamTab[]) => Promise<void> | void;
   removeTeamMember: (id: string) => Promise<void> | void;
   // AI Engine
   selectedModel: string;
@@ -191,6 +201,7 @@ export function SettingsTab({
   invitingTeam,
   inviteTeamMember,
   teamMembers,
+  teamOwner,
   editingMemberId,
   setEditingMemberId,
   editingAvailabilityId,
@@ -527,6 +538,51 @@ export function SettingsTab({
     }
   };
 
+  const [editingCalendarId, setEditingCalendarId] = React.useState<string | null>(null);
+  const [memberGoogleEmail, setMemberGoogleEmail] = React.useState<Record<string, string>>({});
+  const [memberMicrosoftEmail, setMemberMicrosoftEmail] = React.useState<Record<string, string>>({});
+  const [memberZoomLink, setMemberZoomLink] = React.useState<Record<string, string>>({});
+  const [savingMemberCalendar, setSavingMemberCalendar] = React.useState<string | null>(null);
+
+  const handleSaveMemberCalendar = async (memberId: string) => {
+    if (!botId || !fetchWithFallback) return;
+    setSavingMemberCalendar(memberId);
+    try {
+      const gEmail = (memberGoogleEmail[memberId] ?? "").trim();
+      const msEmail = (memberMicrosoftEmail[memberId] ?? "").trim();
+      const zoom = (memberZoomLink[memberId] ?? "").trim();
+      const res = await fetchWithFallback(`/api/team/${memberId}/calendar-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          google_email: gEmail,
+          microsoft_email: msEmail,
+          zoom_meeting_link: zoom,
+        }),
+      });
+      if (res.ok) {
+        showToast("Personal calendar connections updated.", "success");
+        setEditingCalendarId(null);
+        const m = teamMembers.find((x) => x.id === memberId);
+        if (m) {
+          m.google_email = gEmail || null;
+          m.google_connected = !!gEmail;
+          m.microsoft_email = msEmail || null;
+          m.microsoft_connected = !!msEmail;
+          m.zoom_meeting_link = zoom || null;
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || "Couldn't update calendar settings.", "error");
+      }
+    } catch {
+      showToast("Couldn't update calendar settings.", "error");
+    } finally {
+      setSavingMemberCalendar(null);
+    }
+  };
+
   React.useEffect(() => {
     loadCalendars();
   }, [loadCalendars]);
@@ -728,15 +784,21 @@ export function SettingsTab({
                         className="w-full sm:flex-1 min-w-0 text-xs bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2.5 sm:py-2 focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
                       />
                       <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <div className="flex-1 sm:w-28 sm:flex-initial">
+                        <div className="flex-1 sm:w-36 sm:flex-initial">
                           <ModernSelect
                             value={inviteRole}
-                            options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
+                            options={[
+                              { value: "admin", label: "Admin", hint: "Full operational access" },
+                              { value: "agent", label: "Agent", hint: "Support agent (inbox & meetings)" },
+                              { value: "editor", label: "Editor", hint: "Knowledge & widget styling" },
+                              { value: "billing_manager", label: "Billing Manager", hint: "Invoices & subscriptions" },
+                              { value: "viewer", label: "Viewer", hint: "Read-only conversations & logs" },
+                            ]}
                             onChange={(v) => {
-                              const role = v as "agent" | "admin";
+                              const role = v as ChattyTeamRole;
                               setInviteRole(role);
-                              setInviteTabs((role === "admin" ? DEFAULT_ADMIN_TABS : DEFAULT_AGENT_TABS)
-                                .filter((t) => grantableTabs.includes(t)) as ChattyTeamTab[]);
+                              const defaults = ROLE_DEFAULT_TABS[role] || DEFAULT_AGENT_TABS;
+                              setInviteTabs(defaults.filter((t) => grantableTabs.includes(t)) as ChattyTeamTab[]);
                             }}
                           />
                         </div>
@@ -756,19 +818,81 @@ export function SettingsTab({
                         />
                       ))}
                     </div>
+
+                    {/* PINNED ACCOUNT OWNER CARD */}
+                    {teamOwner && (
+                      <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 dark:border-amber-500/25 space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative size-8 rounded-full overflow-hidden bg-amber-500/20 border border-amber-500/40 shrink-0 flex items-center justify-center text-xs font-bold text-amber-700 dark:text-amber-300 select-none">
+                              {teamOwner.avatar_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={teamOwner.avatar_url} alt={teamOwner.name || teamOwner.email} className="size-full object-cover" />
+                              ) : (
+                                (teamOwner.name || teamOwner.email || "O").charAt(0).toUpperCase()
+                              )}
+                              <span className="absolute -bottom-0.5 -right-0.5 size-3.5 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                                <Crown className="size-2.5" />
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 truncate">
+                                  {teamOwner.name || teamOwner.email}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                                  <ShieldCheck className="size-2.5" /> Account Owner
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 truncate">
+                                {teamOwner.email}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-center shrink-0">
+                            <span
+                              className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md ${
+                                teamOwner.google_connected
+                                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                  : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700"
+                              }`}
+                            >
+                              <CalendarCheck className="size-2.5" />
+                              Google: {teamOwner.google_connected ? "Synced" : "Disconnected"}
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md ${
+                                teamOwner.microsoft_connected
+                                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                  : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-700"
+                              }`}
+                            >
+                              <CalendarCheck className="size-2.5" />
+                              Microsoft: {teamOwner.microsoft_connected ? "Synced" : "Disconnected"}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-amber-800/80 dark:text-amber-300/80 leading-normal">
+                          Primary account creator with full unrestricted ownership across all bot settings, integrations, billing, and team seats. Protected from removal or demotion.
+                        </p>
+                      </div>
+                    )}
+
                     {teamMembers.length > 0 && (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {teamMembers.map((m) => {
                           const memberTabs = (m.permissions || []) as ChattyTeamTab[];
                           const isEditing = editingMemberId === m.id;
                           const isEditingAvailability = editingAvailabilityId === m.id;
+                          const isEditingCalendar = editingCalendarId === m.id;
                           const isSelf = !!user?.email && user.email.toLowerCase() === m.email.toLowerCase();
                           const canManageAvailability = canAccessTab("team") || isSelf;
+                          const roleInfo = ROLE_INFO[m.role as ChattyTeamRole] || ROLE_INFO.agent;
                           return (
-                            <div key={m.id} className="px-3 py-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-850 space-y-2">
-                              <div className="flex items-center justify-between">
+                            <div key={m.id} className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/70 dark:border-neutral-850 space-y-2.5">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="size-6 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 shrink-0 flex items-center justify-center text-[10px] font-bold text-neutral-600 dark:text-neutral-300 select-none">
+                                  <div className="size-7 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 shrink-0 flex items-center justify-center text-[11px] font-bold text-neutral-600 dark:text-neutral-300 select-none">
                                     {m.avatar_url ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={m.avatar_url} alt={m.name || m.email} className="size-full object-cover" />
@@ -776,27 +900,104 @@ export function SettingsTab({
                                       (m.name || m.email || "A").charAt(0).toUpperCase()
                                     )}
                                   </div>
-                                  <span className="text-xs text-neutral-700 dark:text-neutral-200 truncate">{m.name || m.email}</span>
-                                  {m.name && <span className="text-[10px] text-neutral-400 truncate">{m.email}</span>}
-                                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500">{m.role}</span>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">{m.name || m.email}</span>
+                                      <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${roleInfo.badgeClasses}`}>
+                                        {roleInfo.label}
+                                      </span>
+                                    </div>
+                                    {m.name && <div className="text-[10px] text-neutral-400 truncate">{m.email}</div>}
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center gap-2.5 self-start sm:self-center shrink-0">
                                   {canManageAvailability && (
-                                    <button onClick={() => setEditingAvailabilityId(isEditingAvailability ? null : m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors">
-                                      {isEditingAvailability ? "Close" : "Availability"}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (editingCalendarId === m.id) {
+                                          setEditingCalendarId(null);
+                                        } else {
+                                          setMemberGoogleEmail((p) => ({ ...p, [m.id]: p[m.id] ?? (m.google_email || "") }));
+                                          setMemberMicrosoftEmail((p) => ({ ...p, [m.id]: p[m.id] ?? (m.microsoft_email || "") }));
+                                          setMemberZoomLink((p) => ({ ...p, [m.id]: p[m.id] ?? (m.zoom_meeting_link || "") }));
+                                          setEditingCalendarId(m.id);
+                                        }
+                                      }}
+                                      className={`text-[10px] font-medium px-2 py-1 rounded-md transition-colors cursor-pointer ${
+                                        isEditingCalendar
+                                          ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200"
+                                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                                      }`}
+                                    >
+                                      {isEditingCalendar ? "Close Calendar" : "Calendar & Video"}
                                     </button>
                                   )}
-                                  <button onClick={() => setEditingMemberId(isEditing ? null : m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors">
-                                    {isEditing ? "Close" : "Manage"}
-                                  </button>
-                                  <button onClick={() => removeTeamMember(m.id)} className="text-[10px] font-medium text-neutral-400 hover:text-red-500 transition-colors">Remove</button>
+                                  {canManageAvailability && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingAvailabilityId(isEditingAvailability ? null : m.id)}
+                                      className="text-[10px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                                    >
+                                      {isEditingAvailability ? "Close Availability" : "Availability"}
+                                    </button>
+                                  )}
+                                  {canAccessTab("team") && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingMemberId(isEditing ? null : m.id)}
+                                      className="text-[10px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                                    >
+                                      {isEditing ? "Close Permissions" : "Permissions"}
+                                    </button>
+                                  )}
+                                  {canAccessTab("team") && !m.is_owner && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeTeamMember(m.id)}
+                                      className="text-[10px] font-medium text-neutral-400 hover:text-red-500 transition-colors cursor-pointer"
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
                                 </div>
                               </div>
+
+                              {/* Calendar connection status badges */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {m.google_connected ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                    <Check className="size-2.5" /> Google ({m.google_email || "Linked"})
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-1.5 py-0.5 rounded border border-neutral-200/50 dark:border-neutral-800">
+                                    Google Calendar: Off
+                                  </span>
+                                )}
+                                {m.microsoft_connected ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                    <Check className="size-2.5" /> MS ({m.microsoft_email || "Linked"})
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-1.5 py-0.5 rounded border border-neutral-200/50 dark:border-neutral-800">
+                                    MS Calendar: Off
+                                  </span>
+                                )}
+                                {m.zoom_meeting_link && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                                    <Video className="size-2.5" /> Zoom Linked
+                                  </span>
+                                )}
+                              </div>
+
                               {!isEditing && memberTabs.length > 0 && (
-                                <p className="text-[10px] text-neutral-400 truncate">{memberTabs.map((t) => TAB_LABELS[t] || t).join(", ")}</p>
+                                <p className="text-[10px] text-neutral-400 truncate">
+                                  <span className="font-medium text-neutral-500">Accessible:</span> {memberTabs.map((t) => TAB_LABELS[t] || t).join(", ")}
+                                </p>
                               )}
+
                               {canAccessTab("team") && (
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 pt-1 border-t border-neutral-100 dark:border-neutral-850">
                                   <TeamTabCheckbox
                                     checked={!!m.bookable}
                                     onChange={(checked) => toggleMemberBookable(m.id, checked)}
@@ -807,21 +1008,92 @@ export function SettingsTab({
                                       <TeamTabCheckbox
                                         checked={m.book_on_own_calendar !== false}
                                         onChange={(checked) => toggleMemberCalendarPreference(m.id, checked)}
-                                        label={m.book_on_own_calendar !== false ? "Books on their own calendar" : "Books on your (admin) calendar instead"}
+                                        label={m.book_on_own_calendar !== false ? "Books on their personal calendar" : "Books on your bot owner calendar instead"}
                                       />
                                     </div>
                                   )}
                                 </div>
                               )}
+
+                              {/* PERSONAL CALENDAR & VIDEO EDITOR */}
+                              {isEditingCalendar && (
+                                <div className="p-3 bg-neutral-100/70 dark:bg-neutral-900/80 rounded-lg border border-neutral-200/70 dark:border-neutral-800 space-y-2.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">
+                                      Personal Calendar & Video Connections
+                                    </span>
+                                    <span className="text-[10px] text-neutral-400">
+                                      Individual credentials for round-robin
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="block text-[10px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                                        Personal Google Calendar Email
+                                      </label>
+                                      <input
+                                        type="email"
+                                        placeholder="employee@gmail.com"
+                                        value={memberGoogleEmail[m.id] ?? (m.google_email || "")}
+                                        onChange={(e) => setMemberGoogleEmail((p) => ({ ...p, [m.id]: e.target.value }))}
+                                        className="w-full text-xs bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#f97316]"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                                        Personal Microsoft Outlook Email
+                                      </label>
+                                      <input
+                                        type="email"
+                                        placeholder="employee@outlook.com"
+                                        value={memberMicrosoftEmail[m.id] ?? (m.microsoft_email || "")}
+                                        onChange={(e) => setMemberMicrosoftEmail((p) => ({ ...p, [m.id]: e.target.value }))}
+                                        className="w-full text-xs bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#f97316]"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                                      Personal Zoom Meeting Room URL
+                                    </label>
+                                    <input
+                                      type="url"
+                                      placeholder="https://zoom.us/j/123456789"
+                                      value={memberZoomLink[m.id] ?? (m.zoom_meeting_link || "")}
+                                      onChange={(e) => setMemberZoomLink((p) => ({ ...p, [m.id]: e.target.value }))}
+                                      className="w-full text-xs bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#f97316]"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveMemberCalendar(m.id)}
+                                      disabled={savingMemberCalendar === m.id}
+                                      className="px-3 py-1 text-xs font-semibold bg-[#f97316] text-white rounded-md hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
+                                    >
+                                      {savingMemberCalendar === m.id ? "Saving…" : "Save Calendar & Video"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingCalendarId(null)}
+                                      className="px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
                               {isEditing && (
                                 <MemberPermissionEditor
-                                  role={m.role === "admin" ? "admin" : "agent"}
+                                  role={m.role}
                                   permissions={memberTabs}
                                   grantableTabs={grantableTabs}
                                   onSave={(role, permissions) => updateTeamMember(m.id, role, permissions)}
                                   onCancel={() => setEditingMemberId(null)}
                                 />
                               )}
+
                               {isEditingAvailability && botId && (
                                 <MemberAvailabilityEditor
                                   memberId={m.id} botId={botId}

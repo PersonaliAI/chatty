@@ -18,7 +18,6 @@ export interface TeamMemberLike {
   name?: string;
   role?: string;
   phone?: string;
-  [key: string]: unknown;
 }
 
 interface MeetingsTabProps {

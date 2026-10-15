@@ -28,6 +28,9 @@ class TeamUpdateRequest(BaseModel):
     # calendar instead (for a member who hasn't/can't connect their own) -
     # they're still who the meeting is *assigned to* for fairness/notifications.
     book_on_own_calendar: Optional[bool] = None
+    zoom_meeting_link: Optional[str] = None
+    google_email: Optional[str] = None
+    microsoft_email: Optional[str] = None
 
 
 class AvailabilityRule(BaseModel):

@@ -10,7 +10,10 @@ from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
 from app.core.permissions import (
+    ALL_TABS,
     OWNER_ONLY_TABS,
+    VALID_ROLES,
+    ROLE_PERMISSIONS,
     default_permissions_for_role,
     get_bot_role_and_permissions,
     verify_bot_permission,
@@ -56,7 +59,61 @@ async def list_team(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     await verify_bot_permission(bot_id, user, "team")
     rows = (await run_db(lambda: supabase.table("chatty_team_members").select("*").eq(
         "bot_id", bot_id).order("created_at", desc=False).execute())).data or []
-    return {"members": rows}
+
+    # Check calendar connection status for each member in users table
+    emails = [m["email"].strip().lower() for m in rows if m.get("email")]
+    user_calendars: dict[str, Any] = {}
+    if emails:
+        try:
+            u_res = await run_db(lambda: supabase.table("users").select(
+                "email, google_email, google_access_token, microsoft_email, microsoft_access_token"
+            ).in_("email", emails).execute())
+            for u in (u_res.data or []):
+                em = (u.get("email") or "").strip().lower()
+                user_calendars[em] = {
+                    "google_connected": bool(u.get("google_access_token")),
+                    "google_email": u.get("google_email"),
+                    "microsoft_connected": bool(u.get("microsoft_access_token")),
+                    "microsoft_email": u.get("microsoft_email"),
+                }
+        except Exception:
+            logger.warning("Failed to lookup member calendar status from users table", exc_info=True)
+
+    for m in rows:
+        em = (m.get("email") or "").strip().lower()
+        cal = user_calendars.get(em, {})
+        m["google_connected"] = bool(m.get("google_calendar_connected") or cal.get("google_connected"))
+        m["google_email"] = m.get("google_email") or cal.get("google_email")
+        m["microsoft_connected"] = bool(m.get("microsoft_calendar_connected") or cal.get("microsoft_connected"))
+        m["microsoft_email"] = m.get("microsoft_email") or cal.get("microsoft_email")
+
+    # Fetch the bot owner
+    owner_info = None
+    try:
+        b_res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id, name").eq("id", bot_id).limit(1).execute())
+        if b_res.data:
+            owner_id = b_res.data[0].get("user_id")
+            o_res = await run_db(lambda: supabase.table("users").select(
+                "id, auth_user_id, email, name, full_name, google_email, google_access_token, microsoft_email, microsoft_access_token"
+            ).or_(f"id.eq.{owner_id},auth_user_id.eq.{owner_id}").limit(1).execute())
+            if o_res.data:
+                o_user = o_res.data[0]
+                owner_info = {
+                    "id": o_user.get("id") or owner_id,
+                    "email": o_user.get("email") or "owner@workspace.com",
+                    "name": o_user.get("name") or o_user.get("full_name") or "Account Owner",
+                    "role": "owner",
+                    "permissions": list(ALL_TABS),
+                    "is_owner": True,
+                    "google_connected": bool(o_user.get("google_access_token")),
+                    "google_email": o_user.get("google_email"),
+                    "microsoft_connected": bool(o_user.get("microsoft_access_token")),
+                    "microsoft_email": o_user.get("microsoft_email"),
+                }
+    except Exception:
+        logger.warning("Failed to load bot owner info", exc_info=True)
+
+    return {"members": rows, "owner": owner_info}
 
 
 @router.get("/api/team/me")
@@ -76,20 +133,33 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
     name = (req.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="A name is required")
-    role = req.role if req.role in ("admin", "agent") else "agent"
+    raw_role = req.role if req.role in VALID_ROLES else "agent"
+    if raw_role == "owner" and caller_role != "owner":
+        raise HTTPException(status_code=403, detail="Only the owner can assign the owner role")
+    role = raw_role
     permissions = _sanitize_permissions(req.permissions, role, caller_role)
+    payload = {
+        "bot_id": req.bot_id, "email": email, "name": name,
+        "phone": (req.phone or "").strip() or None,
+        "role": role, "permissions": permissions,
+    }
     try:
         await run_db(lambda: supabase.table("chatty_team_members").upsert(
-            {
-                "bot_id": req.bot_id, "email": email, "name": name,
-                "phone": (req.phone or "").strip() or None,
-                "role": role, "permissions": permissions,
-            },
+            payload,
             on_conflict="bot_id,email",
         ).execute())
-    except Exception:
-        logger.exception("team invite failed")
-        raise HTTPException(status_code=500, detail="Could not add member")
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if "role" in err_msg and role not in ("admin", "agent"):
+            logger.warning("DB check constraint on role rejected %s; falling back to agent with customized permissions", role)
+            payload["role"] = "admin" if role in ("editor", "billing_manager") else "agent"
+            await run_db(lambda: supabase.table("chatty_team_members").upsert(
+                payload,
+                on_conflict="bot_id,email",
+            ).execute())
+        else:
+            logger.exception("team invite failed")
+            raise HTTPException(status_code=500, detail="Could not add member")
 
     await _write_team_audit_log(
         req.bot_id,
@@ -119,13 +189,16 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
 @router.patch("/api/team/{member_id}")
 async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, Any] = Depends(require_user)):
     caller_role = await verify_bot_permission(req.bot_id, user, "team")
-    existing = await run_db(lambda: supabase.table("chatty_team_members").select("role").eq(
+    existing = await run_db(lambda: supabase.table("chatty_team_members").select("role, email").eq(
         "id", member_id).eq("bot_id", req.bot_id).limit(1).execute())
     existing_role = existing.data[0].get("role") if existing.data else None
     if not existing_role:
         raise HTTPException(status_code=404, detail="Member not found")
 
-    role = req.role if req.role in ("admin", "agent") else existing_role
+    target_role = req.role if req.role in VALID_ROLES else existing_role
+    if target_role == "owner" and caller_role != "owner":
+        raise HTTPException(status_code=403, detail="Only the owner can assign the owner role")
+    role = target_role
     update: dict[str, Any] = {"role": role}
     if req.permissions is not None:
         update["permissions"] = _sanitize_permissions(req.permissions, role, caller_role)
@@ -140,13 +213,32 @@ async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, An
         update["bookable"] = req.bookable
     if req.book_on_own_calendar is not None:
         update["book_on_own_calendar"] = req.book_on_own_calendar
+    if req.zoom_meeting_link is not None:
+        update["zoom_meeting_link"] = req.zoom_meeting_link.strip() or None
+    if req.google_email is not None:
+        update["google_email"] = req.google_email.strip().lower() or None
+        update["google_calendar_connected"] = bool(update["google_email"])
+    if req.microsoft_email is not None:
+        update["microsoft_email"] = req.microsoft_email.strip().lower() or None
+        update["microsoft_calendar_connected"] = bool(update["microsoft_email"])
 
-    await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
-        "id", member_id).eq("bot_id", req.bot_id).execute())
+    try:
+        await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
+            "id", member_id).eq("bot_id", req.bot_id).execute())
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if "role" in err_msg and role not in ("admin", "agent"):
+            logger.warning("DB constraint rejected %s; falling back to agent role", role)
+            update["role"] = "admin" if role in ("editor", "billing_manager") else "agent"
+            await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
+                "id", member_id).eq("bot_id", req.bot_id).execute())
+        else:
+            raise
+
     await _write_team_audit_log(
         req.bot_id,
         "team_member_updated",
-        f"Updated team member {member_id}: {', '.join(sorted(update.keys()))}",
+        f"Updated team member {existing.data[0].get('email') or member_id}: {', '.join(sorted(update.keys()))}",
         user,
     )
     return {"ok": True, **update}
@@ -157,11 +249,63 @@ async def remove_team(member_id: str, bot_id: str, user: dict[str, Any] = Depend
     await verify_bot_permission(bot_id, user, "team")
     existing = await run_db(lambda: supabase.table("chatty_team_members").select("email").eq(
         "id", member_id).eq("bot_id", bot_id).limit(1).execute())
+    if not existing.data:
+        return {"ok": True}
+    member_email = existing.data[0].get("email")
+
+    # Ensure not removing bot owner
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("user_id").eq("id", bot_id).limit(1).execute())
+    if bot_res.data:
+        owner_id = bot_res.data[0].get("user_id")
+        u_res = await run_db(lambda: supabase.table("users").select("email").or_(f"id.eq.{owner_id},auth_user_id.eq.{owner_id}").limit(1).execute())
+        if u_res.data and u_res.data[0].get("email", "").lower() == (member_email or "").lower():
+            raise HTTPException(status_code=400, detail="Cannot remove the bot owner from the team")
+
     await run_db(lambda: supabase.table("chatty_team_members").delete().eq(
         "id", member_id).eq("bot_id", bot_id).execute())
-    removed_email = existing.data[0].get("email") if existing.data else member_id
-    await _write_team_audit_log(bot_id, "team_member_removed", f"Removed team member {removed_email}", user)
+    await _write_team_audit_log(bot_id, "team_member_removed", f"Removed team member {member_email}", user)
     return {"ok": True}
+
+
+@router.post("/api/team/{member_id}/calendar-link")
+async def link_member_calendar(
+    member_id: str,
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Allows an employee (or an admin/owner with 'team' permission) to link a
+    personal Google email, Microsoft email, or Zoom meeting room for that member."""
+    bot_id = body.get("bot_id")
+    if not bot_id:
+        raise HTTPException(status_code=400, detail="bot_id is required")
+    member = await _authorize_availability_access(member_id, bot_id, user)
+
+    update: dict[str, Any] = {}
+    if "google_email" in body:
+        update["google_email"] = (body["google_email"] or "").strip().lower() or None
+        update["google_calendar_connected"] = bool(update["google_email"])
+    if "microsoft_email" in body:
+        update["microsoft_email"] = (body["microsoft_email"] or "").strip().lower() or None
+        update["microsoft_calendar_connected"] = bool(update["microsoft_email"])
+    if "zoom_meeting_link" in body:
+        update["zoom_meeting_link"] = (body["zoom_meeting_link"] or "").strip() or None
+
+    if not update:
+        raise HTTPException(status_code=400, detail="No calendar fields provided")
+
+    try:
+        await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
+            "id", member_id).eq("bot_id", bot_id).execute())
+    except Exception:
+        logger.warning("Failed to update calendar fields on chatty_team_members", exc_info=True)
+
+    await _write_team_audit_log(
+        bot_id,
+        "team_member_calendar_updated",
+        f"Updated calendar connection for {member['email']}: {', '.join(update.keys())}",
+        user,
+    )
+    return {"ok": True, "member_id": member_id, **update}
 
 
 async def _authorize_availability_access(member_id: str, bot_id: str, user: dict[str, Any]) -> dict[str, Any]:

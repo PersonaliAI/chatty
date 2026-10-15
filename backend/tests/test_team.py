@@ -329,3 +329,84 @@ def test_set_availability_writes_audit_log(monkeypatch):
     assert audit_payloads
     assert audit_payloads[0]["action"] == "team_availability_updated"
     assert audit_payloads[0]["performed_by"] == "jane@example.com"
+
+
+# ---------------------------------------------------------------------------
+# Standardized roles, Owner protection & Calendar linking tests
+# ---------------------------------------------------------------------------
+
+
+def test_invite_team_with_editor_role(monkeypatch):
+    _patch_owner(monkeypatch)
+    upsert_calls = []
+
+    class RecordingQuery(_FakeQuery):
+        def upsert(self, payload, **kwargs):
+            upsert_calls.append(payload)
+            return self
+
+    class RecordingSupabase(FakeSupabase):
+        def table(self, name):
+            return RecordingQuery(self._results)
+
+    fake = RecordingSupabase()
+    fake.queue(None)
+    fake.queue([{"name": "Acme Bot"}])
+    monkeypatch.setattr(team, "supabase", fake)
+    monkeypatch.setattr(team.notify, "build_team_invite_email_html", lambda **_: "<html/>")
+    monkeypatch.setattr(team.notify, "deliver_email", AsyncMock(return_value="sent"))
+
+    req = TeamInviteRequest(bot_id="bot-1", email="editor@example.com", name="Ed Editor", role="editor")
+    result = asyncio.run(team.invite_team(req, OWNER))
+
+    assert result["role"] == "editor"
+    assert "sources" in result["permissions"]
+    assert "design" in result["permissions"]
+    assert upsert_calls[0]["role"] == "editor"
+
+
+def test_non_owner_cannot_assign_owner_role(monkeypatch):
+    monkeypatch.setattr(team, "verify_bot_permission", AsyncMock(return_value="admin"))
+    fake = FakeSupabase()
+    monkeypatch.setattr(team, "supabase", fake)
+
+    admin_caller = {"auth_user_id": "admin-1", "email": "admin@example.com"}
+    req = TeamInviteRequest(bot_id="bot-1", email="newowner@example.com", name="New Owner", role="owner")
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(team.invite_team(req, admin_caller))
+    assert exc.value.status_code == 403
+
+
+def test_cannot_remove_bot_owner(monkeypatch):
+    _patch_owner(monkeypatch)
+    fake = FakeSupabase()
+    fake.queue([{"email": "owner@example.com"}])  # member lookup
+    fake.queue([{"user_id": "owner-1"}])           # bot lookup
+    fake.queue([{"email": "owner@example.com"}])  # user lookup by owner-1
+    monkeypatch.setattr(team, "supabase", fake)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(team.remove_team("member-owner", "bot-1", OWNER))
+    assert exc.value.status_code == 400
+    assert "cannot remove the bot owner" in exc.value.detail.lower()
+
+
+def test_link_member_calendar(monkeypatch):
+    fake = FakeSupabase()
+    fake.queue([{"id": "m1", "email": "agent@example.com", "bot_id": "bot-1"}]) # member lookup
+    fake.queue(None) # update
+    monkeypatch.setattr(team, "supabase", fake)
+
+    agent_caller = {"auth_user_id": "u-agent", "email": "agent@example.com"}
+    body = {
+        "bot_id": "bot-1",
+        "google_email": "agent.work@gmail.com",
+        "zoom_meeting_link": "https://zoom.us/my/agentroom",
+    }
+    result = asyncio.run(team.link_member_calendar("m1", body, agent_caller))
+
+    assert result["ok"] is True
+    assert result["google_email"] == "agent.work@gmail.com"
+    assert result["google_calendar_connected"] is True
+    assert result["zoom_meeting_link"] == "https://zoom.us/my/agentroom"
+

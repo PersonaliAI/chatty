@@ -5,8 +5,8 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Check, ChevronDown } from "lucide-react";
 
-import { ModernSelect } from "@/components/ui/modern-select";
-import { TAB_LABELS, type ChattyTeamTab } from "./dashboard-permissions";
+import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
+import { TAB_LABELS, ROLE_DEFAULT_TABS, ROLE_INFO, type ChattyTeamTab, type ChattyTeamRole } from "./dashboard-permissions";
 
 export function CloudProviderMenu({
   label, iconSrc, connected, services, onDisconnect,
@@ -158,36 +158,78 @@ export function TimePicker({ minutes, onChange }: { minutes: number; onChange: (
 export function MemberPermissionEditor({
   role, permissions, grantableTabs, onSave, onCancel,
 }: {
-  role: "agent" | "admin";
+  role: string;
   permissions: ChattyTeamTab[];
   grantableTabs: readonly ChattyTeamTab[];
-  onSave: (role: "agent" | "admin", permissions: ChattyTeamTab[]) => void;
+  onSave: (role: string, permissions: ChattyTeamTab[]) => void;
   onCancel: () => void;
 }) {
-  const [draftRole, setDraftRole] = useState(role);
+  const [draftRole, setDraftRole] = useState<ChattyTeamRole>(
+    (role as ChattyTeamRole) in ROLE_DEFAULT_TABS ? (role as ChattyTeamRole) : "agent"
+  );
   const [draftTabs, setDraftTabs] = useState<ChattyTeamTab[]>(permissions);
+
+  const handleRoleChange = (newRole: ChattyTeamRole) => {
+    setDraftRole(newRole);
+    const defaults = ROLE_DEFAULT_TABS[newRole] || [];
+    setDraftTabs([...defaults]);
+  };
+
+  const roleOptions: ModernSelectOption[] = [
+    { value: "admin", label: "Admin", hint: "Full operational access (settings, roster, knowledge, integrations)" },
+    { value: "agent", label: "Agent", hint: "Support agent (inbox, visitor chat takeover, meetings)" },
+    { value: "editor", label: "Editor", hint: "Content editor (knowledge base training, customizer styling)" },
+    { value: "billing_manager", label: "Billing Manager", hint: "Finance & subscriptions" },
+    { value: "viewer", label: "Viewer", hint: "Read-only conversations and meeting schedules" },
+  ];
+
   return (
-    <div className="space-y-2 pt-1">
-      <div className="w-28">
-        <ModernSelect
-          value={draftRole}
-          options={[{ value: "agent", label: "Agent" }, { value: "admin", label: "Admin" }]}
-          onChange={(v) => setDraftRole(v as "agent" | "admin")}
-        />
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-        {grantableTabs.map((tab) => (
-          <TeamTabCheckbox
-            key={tab}
-            checked={draftTabs.includes(tab)}
-            onChange={(checked) => setDraftTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
-            label={TAB_LABELS[tab]}
+    <div className="space-y-3 pt-2 pb-1 border-t border-neutral-100 dark:border-neutral-800">
+      <div>
+        <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+          Role
+        </label>
+        <div className="w-56">
+          <ModernSelect
+            value={draftRole}
+            options={roleOptions}
+            onChange={(v) => handleRoleChange(v as ChattyTeamRole)}
           />
-        ))}
+        </div>
+        <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+          {ROLE_INFO[draftRole]?.description || "Configure role and permissions."}
+        </p>
       </div>
-      <div className="flex items-center gap-2">
-        <button onClick={() => onSave(draftRole, draftTabs)} className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 transition-opacity">Save</button>
-        <button onClick={onCancel} className="px-2.5 py-1 text-[10px] font-medium rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors">Cancel</button>
+
+      <div>
+        <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1.5">
+          Accessible Dashboard Tabs
+        </label>
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+          {grantableTabs.map((tab) => (
+            <TeamTabCheckbox
+              key={tab}
+              checked={draftTabs.includes(tab)}
+              onChange={(checked) => setDraftTabs((p) => checked ? [...p, tab] : p.filter((t) => t !== tab))}
+              label={TAB_LABELS[tab] || tab}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          onClick={() => onSave(draftRole, draftTabs)}
+          className="px-3 py-1 text-xs font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 transition-opacity"
+        >
+          Save Changes
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-1 text-xs font-medium rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

@@ -233,5 +233,11 @@ export interface TeamMember {
   bookable?: boolean;
   book_on_own_calendar?: boolean;
   avatar_url?: string | null;
+  google_connected?: boolean;
+  google_email?: string | null;
+  microsoft_connected?: boolean;
+  microsoft_email?: string | null;
+  zoom_meeting_link?: string | null;
+  is_owner?: boolean;
 }
 

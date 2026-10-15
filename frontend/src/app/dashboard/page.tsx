@@ -38,8 +38,11 @@ import {
   DEFAULT_AGENT_TABS,
   NAV_TAB_PERMISSION,
   OWNER_ONLY_TABS,
+  ROLE_DEFAULT_TABS,
+  ROLE_INFO,
   TAB_LABELS,
   type ChattyTeamTab,
+  type ChattyTeamRole,
 } from "./dashboard-permissions";
 import { extractColorsFromUrl } from "./dashboard-utils";
 import { KnowledgeProgressBar, type KnowledgeProgress } from "./knowledge-progress-bar";
@@ -131,6 +134,7 @@ import {
   type Webhook,
   type Source,
   type SourceRecord,
+  type TeamMember,
   type ErrorDetails,
   type QuickReply,
   type KnowledgeMessage,
@@ -307,11 +311,12 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
   const [userBots, setUserBots] = useState<Bot[]>([]);
-  const [teamMembers, setTeamMembers] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; permissions?: string[]; bookable?: boolean; book_on_own_calendar?: boolean; avatar_url?: string | null }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamOwner, setTeamOwner] = useState<TeamMember | null>(null);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"agent" | "admin">("agent");
-  const [inviteTabs, setInviteTabs] = useState<ChattyTeamTab[]>(DEFAULT_AGENT_TABS);
+  const [inviteRole, setInviteRole] = useState<ChattyTeamRole>("agent");
+  const [inviteTabs, setInviteTabs] = useState<ChattyTeamTab[]>(ROLE_DEFAULT_TABS.agent);
   const [invitingTeam, setInvitingTeam] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editingAvailabilityId, setEditingAvailabilityId] = useState<string | null>(null);
@@ -2079,7 +2084,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     if (!botId) return;
     try {
       const res = await fetchWithFallback(`/api/team?bot_id=${botId}`);
-      if (res.ok) { const d = await res.json(); setTeamMembers(d.members || []); }
+      if (res.ok) {
+        const d = await res.json();
+        setTeamMembers(d.members || []);
+        if (d.owner) setTeamOwner(d.owner);
+      }
     } catch { setTeamMembers([]); }
   }
 
@@ -2117,7 +2126,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     } catch { /* optimistic */ }
   }
 
-  async function updateTeamMember(id: string, role: "agent" | "admin", permissions: ChattyTeamTab[]) {
+  async function updateTeamMember(id: string, role: string, permissions: ChattyTeamTab[]) {
     if (!botId) return;
     try {
       const res = await fetchWithFallback(`/api/team/${id}`, {
@@ -2127,8 +2136,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       if (res.ok) {
         setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, role, permissions } : m)));
         setEditingMemberId(null);
+        showToast("Role and permissions updated.", "success");
       } else {
-        showToast("Couldn't update permissions. Try again.", "error");
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.detail || "Couldn't update permissions. Try again.", "error");
       }
     } catch { showToast("Couldn't update permissions. Try again.", "error"); }
   }
@@ -4909,6 +4920,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               invitingTeam={invitingTeam}
               inviteTeamMember={inviteTeamMember}
               teamMembers={teamMembers}
+              teamOwner={teamOwner}
               editingMemberId={editingMemberId}
               setEditingMemberId={setEditingMemberId}
               editingAvailabilityId={editingAvailabilityId}

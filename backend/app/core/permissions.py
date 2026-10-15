@@ -9,14 +9,26 @@ from fastapi import HTTPException
 from app.core.clients import supabase
 from app.core.db import run_db
 
-ALL_TABS = ("inbox", "sources", "design", "settings", "team", "meetings", "billing", "byok", "webhooks")
+ALL_TABS = ("inbox", "sources", "design", "settings", "team", "meetings", "integrations", "billing", "byok", "webhooks")
 OWNER_ONLY_TABS = frozenset({"billing", "byok", "webhooks"})
-DEFAULT_ADMIN_PERMISSIONS = ["inbox", "sources", "design", "settings", "team", "meetings"]
-DEFAULT_AGENT_PERMISSIONS = ["inbox"]
+
+VALID_ROLES = ("owner", "admin", "agent", "editor", "billing_manager", "viewer")
+
+ROLE_PERMISSIONS: dict[str, list[str]] = {
+    "owner": list(ALL_TABS),
+    "admin": ["inbox", "sources", "design", "settings", "team", "meetings", "integrations"],
+    "agent": ["inbox", "meetings"],
+    "editor": ["sources", "design", "inbox"],
+    "billing_manager": ["billing"],
+    "viewer": ["inbox", "meetings"],
+}
+
+DEFAULT_ADMIN_PERMISSIONS = ROLE_PERMISSIONS["admin"]
+DEFAULT_AGENT_PERMISSIONS = ROLE_PERMISSIONS["agent"]
 
 
 def default_permissions_for_role(role: str) -> list[str]:
-    return list(DEFAULT_ADMIN_PERMISSIONS if role == "admin" else DEFAULT_AGENT_PERMISSIONS)
+    return list(ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["agent"]))
 
 
 async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tuple[str, list[str]]:
