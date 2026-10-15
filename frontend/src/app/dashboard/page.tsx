@@ -2496,12 +2496,41 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setSyncGoogleDrive(false);
               setGoogleConnectedAccountId("");
               setGoogleCalendarId("primary");
+              setCalendarSchedulingEnabled(false);
+              if (targetBotId) {
+                setUserBots((prev) =>
+                  prev.map((b) =>
+                    b.id === targetBotId
+                      ? {
+                          ...b,
+                          sync_google_calendar: false,
+                          sync_google_drive: false,
+                          calendar_scheduling_enabled: false,
+                        }
+                      : b
+                  )
+                );
+              }
             } else if (provider === "microsoft") {
               if (!targetBotId) {
                 setMicrosoftConnected(false);
                 setMicrosoftEmail(null);
               }
               setSyncOutlookCalendar(false);
+              setCalendarSchedulingEnabled(false);
+              if (targetBotId) {
+                setUserBots((prev) =>
+                  prev.map((b) =>
+                    b.id === targetBotId
+                      ? {
+                          ...b,
+                          sync_outlook_calendar: false,
+                          calendar_scheduling_enabled: false,
+                        }
+                      : b
+                  )
+                );
+              }
             } else if (provider === "zoom") {
               setCustomMeetingLink("");
               setMeetingProvider("google_meet");
