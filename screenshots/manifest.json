@@ -1,0 +1,222 @@
+[
+  {
+    "id": "real-01-overview",
+    "title": "Executive Overview & Live Telemetry",
+    "navItem": "Overview",
+    "filename": "real-01-overview.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-01-overview.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-02-workspace",
+    "title": "Chatbot Workspace & Active Instances",
+    "navItem": "Workspace",
+    "filename": "real-02-workspace.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-02-workspace.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-03-customizer",
+    "title": "Live Widget Customizer & Style Studio",
+    "navItem": "Customizer",
+    "filename": "real-03-customizer.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-03-customizer.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-04-knowledge-base",
+    "title": "Knowledge Base & Vector Documents",
+    "navItem": "Knowledge Base",
+    "filename": "real-04-knowledge-base.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-04-knowledge-base.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-05-playground",
+    "title": "Interactive AI Playground Simulator",
+    "navItem": "Playground",
+    "filename": "real-05-playground.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-05-playground.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-06-inbox",
+    "title": "Omnichannel Live Helpdesk & SLA Inbox",
+    "navItem": "Inbox",
+    "filename": "real-06-inbox.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-06-inbox.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-07-campaigns",
+    "title": "Proactive Announcements & Pop-Ups",
+    "navItem": "Campaigns",
+    "filename": "real-07-campaigns.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-07-campaigns.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-08-flow-builder",
+    "title": "Visual Conversation Flow Architect",
+    "navItem": "Flow Builder",
+    "filename": "real-08-flow-builder.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-08-flow-builder.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-09-leads",
+    "title": "Visitor Leads & CRM Telemetry",
+    "navItem": "Leads",
+    "filename": "real-09-leads.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-09-leads.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-10-feedback",
+    "title": "Customer CSAT & Feedback Scores",
+    "navItem": "Feedback",
+    "filename": "real-10-feedback.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-10-feedback.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-11-map",
+    "title": "Visitor Geolocation & Regional Map",
+    "navItem": "Map",
+    "filename": "real-11-map.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-11-map.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-12-meetings",
+    "title": "Google Calendar & Meeting Scheduler",
+    "navItem": "Meetings",
+    "filename": "real-12-meetings.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-12-meetings.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-13-mailbox",
+    "title": "Inbound Email & Helpdesk Mailbox",
+    "navItem": "Mailbox",
+    "filename": "real-13-mailbox.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-13-mailbox.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-14-notifications",
+    "title": "Team Alert Policies & Notifications",
+    "navItem": "Notifications",
+    "filename": "real-14-notifications.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-14-notifications.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-15-audit-log",
+    "title": "Security Audit Trail & Actor History",
+    "navItem": "Audit Log",
+    "filename": "real-15-audit-log.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-15-audit-log.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-16-analytics",
+    "title": "Resolution Rates & Deflection Telemetry",
+    "navItem": "Analytics",
+    "filename": "real-16-analytics.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-16-analytics.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-17-embed-integrate",
+    "title": "Embed Code Generator & CMS Connectors",
+    "navItem": "Embed & Integrate",
+    "filename": "real-17-embed-integrate.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-17-embed-integrate.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-18-voice-agent",
+    "title": "LiveKit WebRTC Voice Studio",
+    "navItem": "Voice agent",
+    "filename": "real-18-voice-agent.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-18-voice-agent.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-19-mcp",
+    "title": "Model Context Protocol (MCP) Server Hub",
+    "navItem": "MCP",
+    "filename": "real-19-mcp.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-19-mcp.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-20-developer-api",
+    "title": "Developer API Keys & Multi-SDK Docs",
+    "navItem": "Developer API",
+    "filename": "real-20-developer-api.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-20-developer-api.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-21-billing",
+    "title": "Subscription Billing & Quota Ledger",
+    "navItem": "Billing",
+    "filename": "real-21-billing.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-21-billing.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  },
+  {
+    "id": "real-22-agent-settings",
+    "title": "Model Guardrails & BYOK Settings",
+    "navItem": "Agent Settings",
+    "filename": "real-22-agent-settings.png",
+    "path": "D:\\Documents\\_personaliai\\chatty\\screenshots\\real-22-agent-settings.png",
+    "resolution": "3840x2160 (4K Retina)",
+    "account": "katdamayantha@gmail.com",
+    "url": "https://chatty.personaliai.com/dashboard"
+  }
+]
