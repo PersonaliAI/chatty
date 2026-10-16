@@ -216,7 +216,7 @@ export function ModernSelect({
               </div>
             </div>
           )}
-          <div id={listId} role="listbox" aria-label={ariaLabel || placeholder} className="max-h-60 overflow-y-auto py-1 scrollbar-thin">
+          <div id={listId} role="listbox" aria-label={ariaLabel || placeholder} className="max-h-60 overflow-y-auto py-1 chatty-custom-scrollbar [scrollbar-width:thin] [scrollbar-color:rgba(156,163,175,0.4)_transparent] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-neutral-300 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-700 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-neutral-400 dark:hover:[&::-webkit-scrollbar-thumb]:bg-neutral-600">
             {filtered.length === 0 && (
               <div className="px-3 py-4 text-center text-[11px] text-neutral-400">No matches</div>
             )}
@@ -240,7 +240,7 @@ export function ModernSelect({
                   <div className="flex flex-col min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       {o.icon}
-                      <span className={`font-semibold text-xs whitespace-nowrap ${isSel ? "text-[#f97316]" : "text-neutral-800 dark:text-neutral-200"}`}>
+                      <span className={`font-semibold text-xs leading-snug break-words ${isSel ? "text-[#f97316]" : "text-neutral-800 dark:text-neutral-200"}`}>
                         {o.label}
                       </span>
                     </div>

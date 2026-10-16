@@ -27,6 +27,7 @@ from typing import Any, Optional
 import pytz
 
 from app.core.db import run_db
+from app.core.team_ooo import is_out_of_office
 from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
 
@@ -92,7 +93,7 @@ async def fetch_busy_intervals(
     intervals: list[tuple[datetime, datetime]] = []
     if use_ms_calendar:
         events = await ms.list_outlook_events(
-            supabase, user, time_min=time_min, time_max=time_max, limit=250,
+            supabase, user, time_min=time_min, time_max=time_max, limit=250, table=table,
         )
         for ev in events:
             if ev.get("is_all_day"):
@@ -512,14 +513,23 @@ async def get_bookable_members(
             "table": owner_table,
         })
     try:
-        res = await run_db(lambda: supabase.table("chatty_team_members").select("email, name, book_on_own_calendar").eq(
-            "bot_id", bot_id).eq("bookable", True).execute())
+        try:
+            res = await run_db(lambda: supabase.table("chatty_team_members").select(
+                "email, name, book_on_own_calendar, ooo_start, ooo_end").eq(
+                "bot_id", bot_id).eq("bookable", True).execute())
+        except Exception:
+            # OOO columns not migrated yet - behave exactly as before.
+            res = await run_db(lambda: supabase.table("chatty_team_members").select(
+                "email, name, book_on_own_calendar").eq(
+                "bot_id", bot_id).eq("bookable", True).execute())
         rows = res.data or []
     except Exception:
         rows = []
     for row in rows:
         email = (row.get("email") or "").strip().lower()
         if not email or email == owner_email:
+            continue
+        if is_out_of_office(row):
             continue
         book_on_own = row.get("book_on_own_calendar")
         book_on_own = True if book_on_own is None else bool(book_on_own)
@@ -538,17 +548,29 @@ async def get_bookable_members(
                 })
             continue
 
-        try:
-            u_res = await run_db(lambda email=email: supabase.table("users").select("*").ilike(
-                "email", email).limit(1).execute())
-        except Exception:
+        # Check if teammate has their own calendar tokens directly on chatty_team_members row:
+        member_table = "users"
+        member_user = None
+        has_direct_token = bool(row.get("microsoft_access_token")) if use_ms_calendar else bool(row.get("google_access_token"))
+        if has_direct_token:
+            member_user = row
+            member_table = "chatty_team_members"
+        else:
+            try:
+                u_res = await run_db(lambda email=email: supabase.table("users").select("*").ilike(
+                    "email", email).limit(1).execute())
+                if u_res.data:
+                    u_cand = u_res.data[0]
+                    has_tok = bool(u_cand.get("microsoft_access_token")) if use_ms_calendar else bool(u_cand.get("google_access_token"))
+                    if has_tok:
+                        member_user = u_cand
+                        member_table = "users"
+            except Exception:
+                pass
+
+        if not member_user:
             continue
-        if not u_res.data:
-            continue
-        member_user = u_res.data[0]
-        has_token = bool(member_user.get("microsoft_access_token")) if use_ms_calendar else bool(member_user.get("google_access_token"))
-        if not has_token:
-            continue
+
         member_tz_str = member_user.get("timezone") or owner_tz_str
         try:
             pytz.timezone(member_tz_str)
@@ -561,6 +583,7 @@ async def get_bookable_members(
             "use_ms_calendar": use_ms_calendar,
             "schedule_timezone": member_tz_str,
             "book_on_own_calendar": True,
+            "table": member_table,
         })
     return members
 

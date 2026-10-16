@@ -5,7 +5,7 @@ export const supabase = createBrowserClient(
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder",
 );
 
-export const chattyApiUrl = (process.env.NEXT_PUBLIC_CHATTY_API_URL ?? "https://api.chatty.personaliai.com").replace(/\/$/, "");
+export const chattyApiUrl = (process.env.NEXT_PUBLIC_BACKEND_URL ?? process.env.NEXT_PUBLIC_CHATTY_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
 export async function chattyRequest(path: string, options: RequestInit = {}) {
   const { data } = await supabase.auth.getSession();

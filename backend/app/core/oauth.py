@@ -170,6 +170,10 @@ async def resolve_principal(authorization: Optional[str], request: Any = None) -
         raise HTTPException(status_code=401, detail="Invalid API key")
     if key_row.get("revoked"):
         raise HTTPException(status_code=401, detail="API key revoked")
+    if request is not None:
+        from app.core import security as _sec
+        _sec.check_ip_allowlist(key_row, request)
+        await _sec.check_ip_rate(request)
     return {
         "auth_type": "api_key",
         "user_id": key_row["user_id"],
@@ -210,12 +214,9 @@ async def require_bot_access(principal: dict[str, Any], bot_id: str) -> dict[str
       user can own several bots.
     """
     if principal.get("auth_type") == "api_key":
-        if principal.get("bot_id") and principal["bot_id"] != bot_id:
-            res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
-            bot = res.data[0] if res.data else None
-            if not bot or (principal.get("user_id") and bot.get("user_id") != principal["user_id"]):
-                raise HTTPException(status_code=403, detail="This API key is not authorized for this bot")
-            return bot
+        if principal.get("bot_id"):
+            if principal["bot_id"] != bot_id:
+                raise HTTPException(status_code=403, detail="This API key is only authorized for its assigned bot")
 
     res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     bot = res.data[0] if res.data else None
@@ -223,4 +224,7 @@ async def require_bot_access(principal: dict[str, Any], bot_id: str) -> dict[str
         raise HTTPException(status_code=404, detail="Bot not found")
     if principal["auth_type"] == "oauth" and bot.get("user_id") != principal["user_id"]:
         raise HTTPException(status_code=404, detail="Bot not found")
+    if principal.get("auth_type") == "api_key" and not principal.get("bot_id"):
+        if not principal.get("user_id") or bot.get("user_id") != principal["user_id"]:
+            raise HTTPException(status_code=403, detail="This API key is not authorized for this bot")
     return bot

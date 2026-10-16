@@ -410,3 +410,32 @@ def test_link_member_calendar(monkeypatch):
     assert result["google_calendar_connected"] is True
     assert result["zoom_meeting_link"] == "https://zoom.us/my/agentroom"
 
+
+def test_disconnect_member_calendar(monkeypatch):
+    fake = FakeSupabase()
+    fake.queue([{"id": "m1", "email": "agent@example.com", "bot_id": "bot-1"}])
+    fake.queue(None)
+    monkeypatch.setattr(team, "supabase", fake)
+
+    agent_caller = {"auth_user_id": "u-agent", "email": "agent@example.com"}
+    result = asyncio.run(team.disconnect_member_calendar("m1", {"bot_id": "bot-1", "provider": "google"}, agent_caller))
+    assert result["ok"] is True
+    assert result["provider"] == "google"
+
+
+def test_calendar_only_scopes():
+    from plugins import google_integrations as g
+    from plugins import microsoft_integrations as ms
+
+    # Teammate Google Calendar must strictly exclude drive
+    assert "https://www.googleapis.com/auth/calendar" in g.GOOGLE_CALENDAR_ONLY_SCOPES
+    assert "https://www.googleapis.com/auth/calendar.events" in g.GOOGLE_CALENDAR_ONLY_SCOPES
+    assert "https://www.googleapis.com/auth/drive" not in g.GOOGLE_CALENDAR_ONLY_SCOPES
+
+    # Teammate Microsoft Calendar must strictly exclude Mail, OneDrive files, Contacts, Tasks
+    assert "Calendars.ReadWrite" in ms.MICROSOFT_CALENDAR_ONLY_SCOPES
+    assert "Mail.ReadWrite" not in ms.MICROSOFT_CALENDAR_ONLY_SCOPES
+    assert "Mail.Send" not in ms.MICROSOFT_CALENDAR_ONLY_SCOPES
+    assert "Files.ReadWrite" not in ms.MICROSOFT_CALENDAR_ONLY_SCOPES
+    assert "Contacts.ReadWrite" not in ms.MICROSOFT_CALENDAR_ONLY_SCOPES
+    assert "Tasks.ReadWrite" not in ms.MICROSOFT_CALENDAR_ONLY_SCOPES

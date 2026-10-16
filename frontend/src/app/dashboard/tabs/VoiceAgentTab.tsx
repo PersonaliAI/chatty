@@ -767,7 +767,7 @@ export function VoiceAgentTab({
   return (
     <div className="min-h-full bg-gradient-to-b from-cyan-50/50 via-white to-white p-3 dark:from-cyan-950/10 dark:via-neutral-950 dark:to-neutral-950 sm:p-4 lg:p-5">
       <div className="mx-auto grid max-w-[1440px] gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <main className="grid min-w-0 gap-5">
+        <div className="grid min-w-0 gap-5">
           <section className="relative overflow-hidden rounded-[22px] border border-neutral-200/80 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 sm:p-5">
             <div className="pointer-events-none absolute -right-20 -top-24 size-80 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
             <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1065,9 +1065,9 @@ export function VoiceAgentTab({
             </div>
           </Card>
           <section className="rounded-[26px] border border-violet-200/80 bg-white p-5 shadow-sm dark:border-violet-900/60 dark:bg-neutral-950 sm:p-6 space-y-4">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-start gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
                   <AudioWaveform className="size-5" />
                 </div>
                 <div>
@@ -1081,7 +1081,7 @@ export function VoiceAgentTab({
                 <button
                   type="button"
                   onClick={() => onNavigateTab("integrations")}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 px-3.5 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40 cursor-pointer"
+                  className="inline-flex shrink-0 whitespace-nowrap self-start sm:self-auto items-center gap-1.5 rounded-full border border-violet-200 px-3.5 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40 cursor-pointer"
                 >
                   All integration options →
                 </button>
@@ -1116,7 +1116,7 @@ export function VoiceAgentTab({
               </div>
             </div>
           </section>
-        </main>
+        </div>
         <aside className="min-h-[520px] xl:sticky xl:top-4 xl:self-start">
           <VoiceAgentPanel
             botId={botId}

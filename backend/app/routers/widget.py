@@ -49,7 +49,7 @@ class _BookingTextParser(HTMLParser):
 import pytz
 import httpx
 
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Body, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.core.clients import supabase
@@ -2787,3 +2787,46 @@ async def widget_booking_active(
             logger.exception("Failed looking up active meeting by session")
 
     return {"has_active": False, "meeting": None}
+
+
+@router.post("/api/widget/flow/webhook")
+async def execute_widget_flow_webhook(body: dict[str, Any] = Body(...)):
+    """Execute a webhook node from an active Flow Builder session inside the widget."""
+    bot_id = body.get("bot_id")
+    url = str(body.get("url") or "").strip()
+    method = str(body.get("method") or "POST").upper()
+    variables = body.get("variables") or {}
+
+    if not url:
+        raise HTTPException(status_code=400, detail="url is required")
+    if method not in ("GET", "POST", "PUT", "PATCH"):
+        raise HTTPException(status_code=400, detail="Invalid HTTP method")
+
+    from app.core.ssrf import assert_safe_url_async
+    await assert_safe_url_async(url)
+
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
+            if method == "GET":
+                resp = await client.get(url, params=variables)
+            else:
+                resp = await client.request(method, url, json=variables)
+
+            try:
+                data = resp.json()
+            except Exception:
+                data = resp.text[:2000]
+
+            return {
+                "ok": resp.is_success,
+                "status_code": resp.status_code,
+                "data": data,
+            }
+    except Exception as exc:
+        logger.warning("Flow Builder webhook node error: %s", exc)
+        return {
+            "ok": False,
+            "status_code": 502,
+            "error": "Failed to contact webhook destination",
+        }

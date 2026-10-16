@@ -120,6 +120,7 @@ import {
   Cpu,
   Shield,
   DollarSign,
+  Building2,
   type LucideIcon
 } from "lucide-react";
 
@@ -153,6 +154,7 @@ import { AdminAffiliatesTab } from "./tabs/AdminAffiliatesTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { MeetingsTab } from "./tabs/MeetingsTab";
 import { HomeTab } from "./tabs/HomeTab";
+import { WorkspaceTab } from "./tabs/WorkspaceTab";
 import { PlaygroundTab } from "./tabs/PlaygroundTab";
 import { CustomizerTab } from "./tabs/CustomizerTab";
 import { KnowledgeTab } from "./tabs/KnowledgeTab";
@@ -531,6 +533,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     if (activeTab === "inbox") {
       setSidebarOpen(false);
       setSidebarCollapsed(true);
+    } else {
+      if (typeof window !== "undefined") {
+        setSidebarCollapsed(window.localStorage.getItem("chatty_dashboard_sidebar_collapsed") === "1");
+      }
     }
   }, [activeTab]);
 
@@ -698,6 +704,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   };
 
   const exportLeadsCSV = () => {
+    if (myRole && myRole !== "owner" && myRole !== "admin") {
+      showToast("CSV export requires Admin or Owner role.", "error");
+      return;
+    }
     const headers = [...leadFields, "captured_at"];
     const csvRows = [];
     csvRows.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(","));
@@ -1602,6 +1612,14 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setMaxDailyMeetings(selected.max_daily_meetings ?? 0);
       setMaxWeeklyMeetings(selected.max_weekly_meetings ?? 0);
       setAllowedDomains(selected.allowed_domains || []);
+      setNotificationEmails(String(selected.notification_emails || ""));
+      setWhatsappEnabled(Boolean(selected.whatsapp_enabled));
+      setWhatsappPhoneNumberId(String(selected.whatsapp_phone_number_id || ""));
+      setWhatsappWabaId(String(selected.whatsapp_waba_id || ""));
+      setWhatsappAccessToken(String(selected.whatsapp_access_token || ""));
+      setWhatsappVerifyToken(String(selected.whatsapp_verify_token || ""));
+      setWhatsappAppSecret(String(selected.whatsapp_app_secret || ""));
+      setWhatsappQuickReplies(Array.isArray(selected.whatsapp_quick_replies) ? selected.whatsapp_quick_replies : []);
       setOnboardingStep(selected.onboarding_step || 0);
       setOnboardingCompleted(selected.onboarding_completed || false);
       setLeadFields(selected.lead_fields || ["name", "email", "phone"]);
@@ -1962,6 +1980,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   // unused <link> isn't worth cleaning up for.
   useEffect(() => {
     if (!fontFamily) return;
+    if (!/^[a-zA-Z0-9 \-]+$/.test(fontFamily)) return;
     const id = `chatty-google-font-${fontFamily.replace(/[^a-zA-Z0-9]/g, "-")}`;
     if (document.getElementById(id)) return;
     const link = document.createElement("link");
@@ -2120,10 +2139,21 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   }
 
   async function removeTeamMember(id: string) {
+    const snapshot = teamMembers;
     setTeamMembers((p) => p.filter((m) => m.id !== id));
     try {
-      await fetchWithFallback(`/api/team/${id}?bot_id=${botId}`, { method: "DELETE" });
-    } catch { /* optimistic */ }
+      const res = await fetchWithFallback(`/api/team/${id}?bot_id=${botId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setTeamMembers(snapshot);
+        showToast(err.detail || "Couldn't remove team member.", "error");
+      } else {
+        showToast("Team member removed.", "success");
+      }
+    } catch {
+      setTeamMembers(snapshot);
+      showToast("Couldn't remove team member.", "error");
+    }
   }
 
   async function updateTeamMember(id: string, role: string, permissions: ChattyTeamTab[]) {
@@ -2134,9 +2164,17 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         body: JSON.stringify({ bot_id: botId, role, permissions }),
       });
       if (res.ok) {
-        setTeamMembers((p) => p.map((m) => (m.id === id ? { ...m, role, permissions } : m)));
+        const saved = await res.json().catch(() => ({}));
+        setTeamMembers((p) => p.map((m) => (m.id === id
+          ? { ...m, role: saved.role || role, permissions: saved.permissions || permissions }
+          : m)));
         setEditingMemberId(null);
-        showToast("Role and permissions updated.", "success");
+        if (saved.role_fallback) {
+          showToast(`Permissions saved, but the "${role}" role needs the latest database migration - it is stored as "${saved.role}" for now.`, "info");
+        } else {
+          showToast("Role and permissions saved.", "success");
+        }
+        void loadTeam();
       } else {
         const errData = await res.json().catch(() => ({}));
         showToast(errData.detail || "Couldn't update permissions. Try again.", "error");
@@ -2935,6 +2973,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (botId) formData.append("bot_id", botId);
 
       const res = await fetchWithFallback("/api/documents/upload", {
         method: "POST",
@@ -3216,75 +3255,25 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     }
 
     try {
-      let crawledContent = `This source represents the crawled contents of ${urlName}.`;
-      try {
-        const jinaUrl = `https://r.jina.ai/${urlName}`;
-        const response = await fetch(jinaUrl);
-        if (response.ok) {
-          const text = await response.text();
-          if (text && text.trim().length > 100) {
-            crawledContent = text;
-          }
-        }
-      } catch (crawlErr) {
-        console.warn("Real-time client-side crawl failed, using fallback placeholder:", crawlErr);
-      }
-
       if (user && botId) {
-        // Query to check if duplicate exists in database
-        const { data: existingSrc } = await supabase
-          .from("chatty_sources")
-          .select("id")
-          .eq("bot_id", botId)
-          .eq("type", "url")
-          .eq("name", urlName)
-          .maybeSingle();
-
-        let dbSrc;
-        if (existingSrc) {
-          const { data: updated, error } = await supabase
+        const res = await fetchWithFallback("/api/crawl/pages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bot_id: botId, urls: [urlName] }),
+        });
+        if (res.ok) {
+          const { data: updatedSources } = await supabase
             .from("chatty_sources")
-            .update({
-              content: crawledContent,
-              status: "training",
-              char_count: crawledContent.length
-            })
-            .eq("id", existingSrc.id)
-            .select()
-            .single();
-          if (error) throw error;
-          dbSrc = updated;
-        } else {
-          const { data: inserted, error } = await supabase
-            .from("chatty_sources")
-            .insert({
-              bot_id: botId,
-              type: "url",
-              name: urlName,
-              content: crawledContent,
-              status: "training",
-              char_count: crawledContent.length
-            })
-            .select()
-            .single();
-          if (error) throw error;
-          dbSrc = inserted;
-        }
-
-        setTimeout(async () => {
-          await supabase
-            .from("chatty_sources")
-            .update({ status: "trained" })
-            .eq("id", dbSrc.id);
-
-          setSources((prev) =>
-            prev.map((s) => (s.id === newId || s.id === dbSrc.id ? { ...s, id: dbSrc.id, content: crawledContent, status: "trained", charCount: crawledContent.length } : s))
-          );
+            .select("*")
+            .eq("bot_id", botId);
+          if (updatedSources) setSources(updatedSources as unknown as Source[]);
           completeKnowledgeProgress(
             "Page Crawled & Indexed",
-            `Successfully trained on ${urlName} (${crawledContent.length.toLocaleString()} characters).`
+            `Successfully trained and indexed ${urlName}.`
           );
-        }, 1500);
+        } else {
+          errorKnowledgeProgress("Crawl Failed", `Server crawler could not process ${urlName}.`);
+        }
       } else {
         completeKnowledgeProgress("Page Crawled", `Trained on ${urlName}.`);
       }
@@ -3337,7 +3326,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
             type: "text",
             name: docTitle,
             content: docContent,
-            status: "training",
+            status: "trained",
             char_count: docContent.length
           })
           .select()
@@ -3345,20 +3334,13 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
         if (error) throw error;
 
-        setTimeout(async () => {
-          await supabase
-            .from("chatty_sources")
-            .update({ status: "trained" })
-            .eq("id", dbSrc.id);
-
-          setSources((prev) =>
-            prev.map((s) => (s.id === newId ? { ...s, id: dbSrc.id, status: "trained" } : s))
-          );
-          completeKnowledgeProgress(
-            "Knowledge Added",
-            `"${docTitle}" is trained and ready (${docContent.length.toLocaleString()} characters).`
-          );
-        }, 2000);
+        setSources((prev) =>
+          prev.map((s) => (s.id === newId ? { ...s, id: dbSrc.id, status: "trained" } : s))
+        );
+        completeKnowledgeProgress(
+          "Knowledge Added",
+          `"${docTitle}" is trained and ready (${docContent.length.toLocaleString()} characters).`
+        );
       } else {
         completeKnowledgeProgress("Knowledge Added", `"${docTitle}" added to knowledge base.`);
       }
@@ -3840,21 +3822,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setLiveThinkingSteps(prev => [...prev, `[guardrail_checks] Evaluated safety guardrails (strict_mode = ${strictMode ? "ON" : "OFF"})`]);
     }, 1300);
 
-    if (user && botId && !SELF_HOST_MODE) {
-      try {
-        await supabase.from("chatty_conversations").insert({
-          bot_id: botId,
-          session_id: "playground_session",
-          role: "user",
-          content: userText
-        });
-        setTimeout(() => {
-          loadAnalyticsData(botId, leads.length);
-        }, 200);
-      } catch (err) {
-        console.error("Error logging user message:", err);
-      }
-    }
+    // User message is persisted by POST /api/widget/chat - avoid duplicate insert
 
     setTimeout(async () => {
       let responseContent = "";
@@ -4218,6 +4186,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           <nav className="p-4 space-y-1 flex-1 overflow-y-auto scrollbar-none">
             {[
               { id: "home", label: t("overview"), icon: Home },
+              { id: "workspace", label: "Workspace", icon: Building2 },
               { id: "customizer", label: t("customizer"), icon: Sliders },
               { id: "knowledge", label: t("knowledge_base"), icon: Database },
               { id: "playground", label: t("playground"), icon: MessageSquare, badge: true },
@@ -4355,7 +4324,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       {/* Main Panel */}
       <main data-dashboard className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {activeTab === "flow_builder" && botId ? (
-          <FlowManager botId={botId} embedded />
+          <FlowManager botId={botId} embedded onOpenSidebar={() => setSidebarOpen(true)} />
         ) : (
           <>
         {/* Header bar */}
@@ -4513,6 +4482,45 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               csatScore={csatScore}
               busiestHour={busiestHour}
               csatFeedback={csatFeedback}
+            />
+          )}
+
+          {/* TAB: WORKSPACE SETTINGS */}
+          {activeTab === "workspace" && (
+            <WorkspaceTab
+              myRole={myRole}
+              botId={botId}
+              allBots={userBots.map((b) => ({ id: b.id, name: b.name }))}
+              user={user}
+              teamMembers={teamMembers}
+              teamOwner={teamOwner}
+              googleConnected={googleConnected}
+              googleEmail={googleEmail}
+              microsoftConnected={microsoftConnected}
+              microsoftEmail={microsoftEmail}
+              zoomConfigured={zoomConfigured}
+              connectingProvider={connectingProvider}
+              handleConnectCloud={handleConnectCloud}
+              handleDisconnectCloud={handleDisconnectCloud}
+              inviteName={inviteName}
+              setInviteName={setInviteName}
+              inviteEmail={inviteEmail}
+              setInviteEmail={setInviteEmail}
+              inviteRole={inviteRole}
+              setInviteRole={setInviteRole}
+              inviteTabs={inviteTabs}
+              setInviteTabs={setInviteTabs}
+              invitingTeam={invitingTeam}
+              inviteTeamMember={inviteTeamMember}
+              updateTeamMember={updateTeamMember}
+              removeTeamMember={removeTeamMember}
+              reloadTeam={loadTeam}
+              adminAuditLogs={adminAuditLogs}
+              loadingAdminData={loadingAdminData}
+              loadAdminData={loadAdminData}
+              formatDateTime={formatDateTime}
+              showToast={showToast}
+              fetchWithFallback={fetchWithFallback}
             />
           )}
 
@@ -4740,6 +4748,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               refreshLeads={refreshLeads}
               refreshingLeads={refreshingLeads}
               exportLeadsCSV={exportLeadsCSV}
+              canExportLeads={!myRole || myRole === "owner" || myRole === "admin"}
               loadingLists={loadingLists}
               leadFields={leadFields}
               editingLeadId={editingLeadId}
@@ -4933,6 +4942,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               toggleMemberCalendarPreference={toggleMemberCalendarPreference}
               updateTeamMember={updateTeamMember}
               removeTeamMember={removeTeamMember}
+              reloadTeam={loadTeam}
               selectedModel={selectedModel}
               setSelectedModel={setSelectedModel}
               byokConfigured={byokConfigured}
@@ -5045,6 +5055,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           {activeTab === "meetings" && (
             <MeetingsTab
               myRole={myRole}
+              allBots={userBots.map((b) => ({ id: b.id, name: b.name }))}
               adminMeetings={adminMeetings}
               meetingMemberFilter={meetingMemberFilter}
               setMeetingMemberFilter={setMeetingMemberFilter}

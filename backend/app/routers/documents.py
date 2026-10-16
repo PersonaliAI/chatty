@@ -8,7 +8,8 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Header, HTTPException, UploadFile
+from app.core.permissions import verify_bot_permission
 
 from app.core.clients import genai_client, supabase
 from app.core.config import FUNCTION_SECRET
@@ -234,6 +235,7 @@ async def documents_index_files(
 @router.post("/api/documents/upload")
 async def documents_upload(
     file: UploadFile = File(...),
+    bot_id: Optional[str] = Form(None),
     user: dict[str, Any] = Depends(require_user),
 ):
     """Index a file uploaded directly through web chat (PDF/DOCX/TXT/MD).
@@ -241,6 +243,8 @@ async def documents_upload(
     Returns the indexed document row with chunk_count. Use this from the
     chat composer's paperclip button - no Drive/OneDrive connection needed.
     """
+    if bot_id:
+        await verify_bot_permission(bot_id, user, "training")
     data = await read_upload_capped(
         file, MAX_UPLOAD_BYTES, detail=f"file too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)"
     )
@@ -259,6 +263,20 @@ async def documents_upload(
     except Exception as exc:  # noqa: BLE001
         logger.exception("upload indexing failed")
         raise HTTPException(status_code=500, detail="indexing failed") from exc
+
+    if bot_id and result.get("status") in {"ready", "indexed", "completed"}:
+        try:
+            await run_db(lambda: supabase.table("chatty_sources").insert({
+                "bot_id": bot_id,
+                "type": "file",
+                "name": file.filename or "Uploaded document",
+                "content": f"Document ID: {result.get('id')}; File: {file.filename}",
+                "status": "trained",
+                "char_count": len(data),
+            }).execute())
+        except Exception:
+            logger.warning("Failed to link uploaded document to chatty_sources")
+
     return {
         "status": result.get("status"),
         "file_name": result.get("file_name"),

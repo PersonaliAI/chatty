@@ -117,15 +117,14 @@ async def create_bot(principal: dict[str, Any], body: BotCreateRequest) -> dict[
 
 async def list_bots(principal: dict[str, Any]) -> list[dict[str, Any]]:
     if principal.get("auth_type") == "api_key":
-        if principal.get("user_id"):
-            res = await run_db(lambda: supabase.table("chatty_bots").select(_BOT_LIST_COLUMNS).eq(
-                "user_id", principal["user_id"]).order("created_at", desc=True).execute())
-            if res.data:
-                return res.data
         if principal.get("bot_id"):
             res_bot = await run_db(lambda: supabase.table("chatty_bots").select(_BOT_LIST_COLUMNS).eq(
                 "id", principal["bot_id"]).execute())
             return res_bot.data or []
+        if principal.get("user_id"):
+            res = await run_db(lambda: supabase.table("chatty_bots").select(_BOT_LIST_COLUMNS).eq(
+                "user_id", principal["user_id"]).order("created_at", desc=True).execute())
+            return res.data or []
         return []
     if principal.get("auth_type") != "oauth":
         raise HTTPException(

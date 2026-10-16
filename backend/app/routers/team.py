@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import logging
 from typing import Any
 
@@ -18,7 +19,8 @@ from app.core.permissions import (
     get_bot_role_and_permissions,
     verify_bot_permission,
 )
-from app.schemas.team import AvailabilityRulesRequest, TeamInviteRequest, TeamUpdateRequest
+from app.core.team_ooo import is_out_of_office, validate_ooo_window
+from app.schemas.team import AvailabilityRulesRequest, OutOfOfficeRequest, TeamInviteRequest, TeamUpdateRequest
 from plugins import notifications as notify
 
 logger = logging.getLogger("chatty")
@@ -86,6 +88,7 @@ async def list_team(bot_id: str, user: dict[str, Any] = Depends(require_user)):
         m["google_email"] = m.get("google_email") or cal.get("google_email")
         m["microsoft_connected"] = bool(m.get("microsoft_calendar_connected") or cal.get("microsoft_connected"))
         m["microsoft_email"] = m.get("microsoft_email") or cal.get("microsoft_email")
+        m["ooo_active"] = is_out_of_office(m)
 
     # Fetch the bot owner
     owner_info = None
@@ -189,9 +192,10 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
 @router.patch("/api/team/{member_id}")
 async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, Any] = Depends(require_user)):
     caller_role = await verify_bot_permission(req.bot_id, user, "team")
-    existing = await run_db(lambda: supabase.table("chatty_team_members").select("role, email").eq(
+    existing = await run_db(lambda: supabase.table("chatty_team_members").select("role, email, permissions").eq(
         "id", member_id).eq("bot_id", req.bot_id).limit(1).execute())
     existing_role = existing.data[0].get("role") if existing.data else None
+    old_permissions = list(existing.data[0].get("permissions") or []) if existing.data else []
     if not existing_role:
         raise HTTPException(status_code=404, detail="Member not found")
 
@@ -222,6 +226,7 @@ async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, An
         update["microsoft_email"] = req.microsoft_email.strip().lower() or None
         update["microsoft_calendar_connected"] = bool(update["microsoft_email"])
 
+    role_fallback = False
     try:
         await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
             "id", member_id).eq("bot_id", req.bot_id).execute())
@@ -230,18 +235,34 @@ async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, An
         if "role" in err_msg and role not in ("admin", "agent"):
             logger.warning("DB constraint rejected %s; falling back to agent role", role)
             update["role"] = "admin" if role in ("editor", "billing_manager") else "agent"
+            role_fallback = True
             await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
                 "id", member_id).eq("bot_id", req.bot_id).execute())
         else:
             raise
 
+    changes: list[str] = []
+    if update["role"] != existing_role:
+        changes.append(f"role {existing_role} -> {update['role']}")
+    if "permissions" in update:
+        added = sorted(set(update["permissions"]) - set(old_permissions))
+        removed = sorted(set(old_permissions) - set(update["permissions"]))
+        if added:
+            changes.append("granted " + ", ".join(added))
+        if removed:
+            changes.append("revoked " + ", ".join(removed))
+    other = sorted(k for k in update if k not in ("role", "permissions"))
+    if other:
+        changes.append("fields " + ", ".join(other))
+    summary = "; ".join(changes) if changes else "no effective changes"
+
     await _write_team_audit_log(
         req.bot_id,
         "team_member_updated",
-        f"Updated team member {existing.data[0].get('email') or member_id}: {', '.join(sorted(update.keys()))}",
+        f"Updated team member {existing.data[0].get('email') or member_id}: {summary}",
         user,
     )
-    return {"ok": True, **update}
+    return {"ok": True, **update, "role_requested": role, "role_fallback": role_fallback}
 
 
 @router.delete("/api/team/{member_id}")
@@ -306,6 +327,55 @@ async def link_member_calendar(
         user,
     )
     return {"ok": True, "member_id": member_id, **update}
+
+@router.post("/api/team/{member_id}/calendar-disconnect")
+async def disconnect_member_calendar(
+    member_id: str,
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Allows disconnecting a teammate's personal Google or Microsoft calendar."""
+    provider = (body.get("provider") or "").strip().lower()
+    bot_id = body.get("bot_id")
+    if not bot_id:
+        raise HTTPException(status_code=400, detail="bot_id is required")
+    member = await _authorize_availability_access(member_id, bot_id, user)
+
+    update: dict[str, Any] = {}
+    if provider == "google":
+        update = {
+            "google_calendar_connected": False,
+            "google_email": None,
+            "google_access_token": None,
+            "google_refresh_token": None,
+            "google_token_expiry": None,
+        }
+    elif provider == "microsoft":
+        update = {
+            "microsoft_calendar_connected": False,
+            "microsoft_email": None,
+            "microsoft_access_token": None,
+            "microsoft_refresh_token": None,
+            "microsoft_token_expiry": None,
+        }
+    else:
+        raise HTTPException(status_code=400, detail="provider must be google or microsoft")
+
+    try:
+        await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
+            "id", member_id).eq("bot_id", bot_id).execute())
+    except Exception:
+        clean = {k: v for k, v in update.items() if not k.endswith(("_token", "_token_expiry"))}
+        await run_db(lambda: supabase.table("chatty_team_members").update(clean).eq(
+            "id", member_id).eq("bot_id", bot_id).execute())
+
+    await _write_team_audit_log(
+        bot_id,
+        "team_member_calendar_updated",
+        f"Disconnected personal {provider.capitalize()} Calendar for {member.get('email')}",
+        user,
+    )
+    return {"ok": True, "provider": provider, "member_id": member_id}
 
 
 async def _authorize_availability_access(member_id: str, bot_id: str, user: dict[str, Any]) -> dict[str, Any]:
@@ -427,3 +497,65 @@ async def unlink_shared_team(
         "team_source_bot_id": None
     }).eq("id", bot_id).execute())
     return {"ok": True}
+
+
+@router.put("/api/team/{member_id}/ooo")
+async def set_out_of_office(
+    member_id: str,
+    req: OutOfOfficeRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Set or clear a member's out-of-office window.
+
+    A member may set their own; anyone with the 'team' permission may set
+    anyone's. While away the member is skipped by round-robin booking and
+    (optionally) their chats are covered by `ooo_backup_email`.
+    """
+    member = await _authorize_availability_access(member_id, req.bot_id, user)
+
+    if req.clear:
+        update: dict[str, Any] = {
+            "ooo_start": None, "ooo_end": None, "ooo_backup_email": None, "ooo_reason": None,
+        }
+        detail = f"Cleared out-of-office for {member['email']}"
+    else:
+        start = (req.ooo_start or "").strip() or datetime.now(timezone.utc).isoformat()
+        end = (req.ooo_end or "").strip() or None
+        try:
+            validate_ooo_window(start, end)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        backup = (req.ooo_backup_email or "").strip().lower() or None
+        if backup:
+            if backup == (member.get("email") or "").strip().lower():
+                raise HTTPException(status_code=400, detail="A member cannot be their own backup")
+            roster = (await run_db(lambda: supabase.table("chatty_team_members").select(
+                "email, ooo_start, ooo_end").eq("bot_id", req.bot_id).execute())).data or []
+            by_email = {(r.get("email") or "").strip().lower(): r for r in roster}
+            if backup not in by_email:
+                raise HTTPException(status_code=400, detail="Backup must be a member of this bot's team")
+            if is_out_of_office(by_email[backup]):
+                raise HTTPException(status_code=400, detail="The selected backup is also out of office")
+
+        reason = (req.ooo_reason or "").strip()[:200] or None
+        update = {
+            "ooo_start": start, "ooo_end": end, "ooo_backup_email": backup, "ooo_reason": reason,
+        }
+        window = f"{start[:16]} -> {end[:16] if end else 'until cleared'}"
+        detail = f"Out-of-office set for {member['email']} ({window})"
+        if backup:
+            detail += f"; covered by {backup}"
+
+    try:
+        await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
+            "id", member_id).eq("bot_id", req.bot_id).execute())
+    except Exception:
+        logger.warning("Failed to save out-of-office (migration pending?)", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Out-of-office needs the latest database migration (20261015170000_team_collaboration_v2).",
+        )
+
+    await _write_team_audit_log(req.bot_id, "team_member_ooo_updated", detail, user)
+    return {"ok": True, "member_id": member_id, **update, "ooo_active": is_out_of_office(update)}

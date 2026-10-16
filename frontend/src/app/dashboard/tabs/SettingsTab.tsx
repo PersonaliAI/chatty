@@ -31,6 +31,7 @@ import {
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
   MemberAvailabilityEditor,
+  MemberOooEditor,
   MemberPermissionEditor,
   TeamTabCheckbox,
 } from "../dashboard-controls";
@@ -76,6 +77,7 @@ export interface SettingsTabProps {
   toggleMemberCalendarPreference: (id: string, bookOnOwnCalendar: boolean) => Promise<void> | void;
   updateTeamMember: (id: string, role: string, permissions: ChattyTeamTab[]) => Promise<void> | void;
   removeTeamMember: (id: string) => Promise<void> | void;
+  reloadTeam?: () => Promise<void> | void;
   // AI Engine
   selectedModel: string;
   setSelectedModel: (m: string) => void;
@@ -222,6 +224,7 @@ export function SettingsTab({
   toggleMemberCalendarPreference,
   updateTeamMember,
   removeTeamMember,
+  reloadTeam,
   selectedModel,
   setSelectedModel,
   byokConfigured,
@@ -551,6 +554,7 @@ export function SettingsTab({
   };
 
   const [editingCalendarId, setEditingCalendarId] = React.useState<string | null>(null);
+  const [editingOooId, setEditingOooId] = React.useState<string | null>(null);
   const [memberGoogleEmail, setMemberGoogleEmail] = React.useState<Record<string, string>>({});
   const [memberMicrosoftEmail, setMemberMicrosoftEmail] = React.useState<Record<string, string>>({});
   const [memberZoomLink, setMemberZoomLink] = React.useState<Record<string, string>>({});
@@ -576,14 +580,7 @@ export function SettingsTab({
       if (res.ok) {
         showToast("Personal calendar connections updated.", "success");
         setEditingCalendarId(null);
-        const m = teamMembers.find((x) => x.id === memberId);
-        if (m) {
-          m.google_email = gEmail || null;
-          m.google_connected = !!gEmail;
-          m.microsoft_email = msEmail || null;
-          m.microsoft_connected = !!msEmail;
-          m.zoom_meeting_link = zoom || null;
-        }
+        void reloadTeam?.();
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.detail || "Couldn't update calendar settings.", "error");
@@ -592,6 +589,59 @@ export function SettingsTab({
       showToast("Couldn't update calendar settings.", "error");
     } finally {
       setSavingMemberCalendar(null);
+    }
+  };
+
+  const handleConnectTeammateCalendar = async (memberId: string, provider: "google" | "microsoft") => {
+    if (!fetchWithFallback) return;
+    try {
+      const res = await fetchWithFallback(`/api/integrations/${provider}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          scope_type: "calendar",
+          member_id: memberId,
+          redirect_path: "/dashboard?tab=settings",
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+      }
+      showToast(`Could not start ${provider === "google" ? "Google" : "Outlook"} calendar authorization.`, "error");
+    } catch {
+      showToast(`Error connecting ${provider === "google" ? "Google" : "Outlook"} calendar.`, "error");
+    }
+  };
+
+  const handleDisconnectTeammateCalendar = async (memberId: string, provider: "google" | "microsoft") => {
+    if (!botId || !fetchWithFallback) return;
+    try {
+      const res = await fetchWithFallback(`/api/team/${memberId}/calendar-disconnect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          provider,
+        }),
+      });
+      if (res.ok) {
+        showToast(`${provider === "google" ? "Google" : "Outlook"} calendar disconnected.`, "success");
+        if (provider === "google") {
+          setMemberGoogleEmail((p) => ({ ...p, [memberId]: "" }));
+        } else {
+          setMemberMicrosoftEmail((p) => ({ ...p, [memberId]: "" }));
+        }
+        void reloadTeam?.();
+      } else {
+        showToast(`Failed to disconnect ${provider} calendar.`, "error");
+      }
+    } catch {
+      showToast(`Error disconnecting ${provider} calendar.`, "error");
     }
   };
 
@@ -917,7 +967,9 @@ export function SettingsTab({
                     {teamMembers.length > 0 && (
                       <div className="space-y-2">
                         {teamMembers.map((m) => {
-                          const memberTabs = (m.permissions || []) as ChattyTeamTab[];
+                          const memberTabs = ((m.permissions && m.permissions.length > 0
+                            ? m.permissions
+                            : ROLE_DEFAULT_TABS[m.role as ChattyTeamRole] || [])) as ChattyTeamTab[];
                           const isEditing = editingMemberId === m.id;
                           const isEditingAvailability = editingAvailabilityId === m.id;
                           const isEditingCalendar = editingCalendarId === m.id;
@@ -946,7 +998,7 @@ export function SettingsTab({
                                     {m.name && <div className="text-[10px] text-neutral-400 truncate">{m.email}</div>}
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2.5 self-start sm:self-center shrink-0">
+                                <div className="flex items-center gap-2.5 flex-wrap self-start sm:self-center shrink-0">
                                   {canManageAvailability && (
                                     <button
                                       type="button"
@@ -976,6 +1028,21 @@ export function SettingsTab({
                                       className="text-[10px] font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
                                     >
                                       {isEditingAvailability ? "Close Availability" : "Availability"}
+                                    </button>
+                                  )}
+                                  {canManageAvailability && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingOooId(editingOooId === m.id ? null : m.id)}
+                                      className={`text-[10px] font-medium px-2 py-1 rounded-md transition-colors cursor-pointer ${
+                                        editingOooId === m.id
+                                          ? "bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 font-semibold"
+                                          : m.ooo_active
+                                          ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold border border-amber-200 dark:border-amber-800/60"
+                                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                                      }`}
+                                    >
+                                      {editingOooId === m.id ? "Close Out-of-Office" : m.ooo_active ? "🌴 Out of Office" : "Out of Office"}
                                     </button>
                                   )}
                                   {canAccessTab("team") && (
@@ -1019,6 +1086,11 @@ export function SettingsTab({
                                     MS Calendar: Off
                                   </span>
                                 )}
+                                {m.ooo_active && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                    🌴 Out of Office {m.ooo_backup_email ? `(Covered by ${m.ooo_backup_email})` : ""}
+                                  </span>
+                                )}
                                 {m.zoom_meeting_link && (
                                   <span className="inline-flex items-center gap-1 text-[9px] text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
                                     <Video className="size-2.5" /> Zoom Linked
@@ -1051,82 +1123,187 @@ export function SettingsTab({
                                 </div>
                               )}
 
-                              {/* PERSONAL CALENDAR & VIDEO EDITOR */}
+                              {/* PERSONAL CALENDAR & VIDEO EDITOR (Tier 3 Calendar-Only) */}
                               {isEditingCalendar && (
-                                <div className="p-3 bg-neutral-100/70 dark:bg-neutral-900/80 rounded-lg border border-neutral-200/70 dark:border-neutral-800 space-y-2.5">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">
-                                      Personal Calendar & Video Connections
-                                    </span>
-                                    <span className="text-[10px] text-neutral-400">
-                                      Individual credentials for round-robin
+                                <div className="p-3.5 bg-neutral-100/70 dark:bg-neutral-900/80 rounded-xl border border-neutral-200/70 dark:border-neutral-800 space-y-3">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <Calendar className="size-3.5 text-[#f97316]" />
+                                        <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">
+                                          Personal Calendar &amp; Video Room (Tier 3)
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                        Teammate schedule connection for appointments and round-robin booking.
+                                      </p>
+                                    </div>
+                                    <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1 self-start sm:self-auto">
+                                      <ShieldCheck className="size-2.5" /> Calendar-Only Scopes
                                     </span>
                                   </div>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <div>
-                                      <label className="block text-[10px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                                        Personal Google Calendar Email
-                                      </label>
-                                      <input
-                                        type="email"
-                                        placeholder="employee@gmail.com"
-                                        value={memberGoogleEmail[m.id] ?? (m.google_email || "")}
-                                        onChange={(e) => setMemberGoogleEmail((p) => ({ ...p, [m.id]: e.target.value }))}
-                                        className="w-full text-xs bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#f97316]"
-                                      />
+
+                                  {/* Privacy Guarantee Banner */}
+                                  <div className="p-2.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 text-[10px] text-blue-900 dark:text-blue-200 flex items-start gap-2">
+                                    <ShieldCheck className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                                    <span>
+                                      <strong>Strict Privacy:</strong> Teammates only grant calendar availability. Antigravity/Chatty never accesses personal emails, messages, Google Drive, OneDrive, or contacts. Company files and AI knowledge are strictly isolated to Workspace accounts.
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                                    {/* Google Calendar Card */}
+                                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                                          <CalendarCheck className="size-3.5 text-red-500" /> Google Calendar
+                                        </span>
+                                        {m.google_connected && (
+                                          <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                                            Connected
+                                          </span>
+                                        )}
+                                      </div>
+                                      {m.google_connected ? (
+                                        <div className="space-y-2">
+                                          <p className="text-[11px] text-neutral-600 dark:text-neutral-300 font-medium truncate">
+                                            {m.google_email || "Google Calendar Active"}
+                                          </p>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDisconnectTeammateCalendar(m.id, "google")}
+                                            className="px-2.5 py-1 text-[10px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded border border-red-200 dark:border-red-900 transition-colors cursor-pointer"
+                                          >
+                                            Disconnect
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleConnectTeammateCalendar(m.id, "google")}
+                                            className="w-full px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                          >
+                                            <Calendar className="size-3" /> Connect Google
+                                          </button>
+                                          <div className="pt-1">
+                                            <label className="block text-[9px] text-neutral-400 mb-0.5">Or set email manually</label>
+                                            <input
+                                              type="email"
+                                              placeholder="agent@company.com"
+                                              value={memberGoogleEmail[m.id] ?? (m.google_email || "")}
+                                              onChange={(e) => setMemberGoogleEmail((p) => ({ ...p, [m.id]: e.target.value }))}
+                                              className="w-full text-xs bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md px-2 py-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                    <div>
-                                      <label className="block text-[10px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                                        Personal Microsoft Outlook Email
-                                      </label>
-                                      <input
-                                        type="email"
-                                        placeholder="employee@outlook.com"
-                                        value={memberMicrosoftEmail[m.id] ?? (m.microsoft_email || "")}
-                                        onChange={(e) => setMemberMicrosoftEmail((p) => ({ ...p, [m.id]: e.target.value }))}
-                                        className="w-full text-xs bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#f97316]"
-                                      />
+
+                                    {/* Microsoft Outlook Card */}
+                                    <div className="p-3 rounded-lg bg-white dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                                          <CalendarCheck className="size-3.5 text-blue-500" /> Outlook Calendar
+                                        </span>
+                                        {m.microsoft_connected && (
+                                          <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                                            Connected
+                                          </span>
+                                        )}
+                                      </div>
+                                      {m.microsoft_connected ? (
+                                        <div className="space-y-2">
+                                          <p className="text-[11px] text-neutral-600 dark:text-neutral-300 font-medium truncate">
+                                            {m.microsoft_email || "Outlook Calendar Active"}
+                                          </p>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDisconnectTeammateCalendar(m.id, "microsoft")}
+                                            className="px-2.5 py-1 text-[10px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded border border-red-200 dark:border-red-900 transition-colors cursor-pointer"
+                                          >
+                                            Disconnect
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleConnectTeammateCalendar(m.id, "microsoft")}
+                                            className="w-full px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                                          >
+                                            <Calendar className="size-3" /> Connect Outlook
+                                          </button>
+                                          <div className="pt-1">
+                                            <label className="block text-[9px] text-neutral-400 mb-0.5">Or set email manually</label>
+                                            <input
+                                              type="email"
+                                              placeholder="agent@outlook.com"
+                                              value={memberMicrosoftEmail[m.id] ?? (m.microsoft_email || "")}
+                                              onChange={(e) => setMemberMicrosoftEmail((p) => ({ ...p, [m.id]: e.target.value }))}
+                                              className="w-full text-xs bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-md px-2 py-1"
+                                            />
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
-                                  <div>
-                                    <label className="block text-[10px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-                                      Personal Zoom Meeting Room URL
+
+                                  {/* Personal Zoom Room */}
+                                  <div className="p-3 rounded-lg bg-white dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 space-y-1.5">
+                                    <label className="block text-[11px] font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                                      <Video className="size-3.5 text-blue-500" /> Personal Zoom Meeting Room (PMI Link)
                                     </label>
-                                    <input
-                                      type="url"
-                                      placeholder="https://zoom.us/j/123456789"
-                                      value={memberZoomLink[m.id] ?? (m.zoom_meeting_link || "")}
-                                      onChange={(e) => setMemberZoomLink((p) => ({ ...p, [m.id]: e.target.value }))}
-                                      className="w-full text-xs bg-white dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#f97316]"
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-2 pt-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveMemberCalendar(m.id)}
-                                      disabled={savingMemberCalendar === m.id}
-                                      className="px-3 py-1 text-xs font-semibold bg-[#f97316] text-white rounded-md hover:opacity-90 disabled:opacity-50 transition cursor-pointer"
-                                    >
-                                      {savingMemberCalendar === m.id ? "Saving…" : "Save Calendar & Video"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setEditingCalendarId(null)}
-                                      className="px-2.5 py-1 text-xs font-medium text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition cursor-pointer"
-                                    >
-                                      Cancel
-                                    </button>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                      <input
+                                        type="url"
+                                        placeholder="https://zoom.us/j/123456789"
+                                        value={memberZoomLink[m.id] ?? (m.zoom_meeting_link || "")}
+                                        onChange={(e) => setMemberZoomLink((p) => ({ ...p, [m.id]: e.target.value }))}
+                                        className="flex-1 text-xs bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#f97316]"
+                                      />
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditingCalendarId(null)}
+                                          className="px-2.5 py-1 text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                                        >
+                                          Done
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={savingMemberCalendar === m.id}
+                                          onClick={() => handleSaveMemberCalendar(m.id)}
+                                          className="px-3 py-1.5 text-xs font-semibold text-white bg-[#f97316] hover:opacity-90 rounded-lg shadow-sm transition-opacity cursor-pointer whitespace-nowrap"
+                                        >
+                                          {savingMemberCalendar === m.id ? "Saving…" : "Save Zoom & Emails"}
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
                               )}
-
+                              
                               {isEditing && (
                                 <MemberPermissionEditor
+                                  key={`${m.id}:${m.role}:${memberTabs.join(",")}`}
                                   role={m.role}
                                   permissions={memberTabs}
                                   grantableTabs={grantableTabs}
                                   onSave={(role, permissions) => updateTeamMember(m.id, role, permissions)}
                                   onCancel={() => setEditingMemberId(null)}
+                                />
+                              )}
+
+                              {editingOooId === m.id && botId && (
+                                <MemberOooEditor
+                                  key={`ooo-${m.id}-${m.ooo_active}`}
+                                  member={m}
+                                  botId={botId}
+                                  allMembers={teamMembers}
+                                  showToast={showToast}
+                                  fetchWithFallback={fetchWithFallback}
+                                  onSaved={() => void reloadTeam?.()}
                                 />
                               )}
 
@@ -1761,7 +1938,7 @@ export function SettingsTab({
                                     className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
                                     title="Disconnect Google sync for this bot only"
                                   >
-                                    Disconnect this bot
+                                    Disconnect
                                   </button>
                                   {isDedicatedAccount ? (
                                     googleConnected && (
@@ -1777,7 +1954,7 @@ export function SettingsTab({
                                         className="px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-850 rounded-lg text-xs font-medium cursor-pointer transition-colors text-neutral-700 dark:text-neutral-200"
                                         title="Switch this bot to use the shared workspace account"
                                       >
-                                        Use Workspace Account
+                                        Use Workspace Default
                                       </button>
                                     )
                                   ) : (
@@ -1789,7 +1966,7 @@ export function SettingsTab({
                                       title="Connect a separate Google account specifically for this bot"
                                     >
                                       {connectingProvider === "google" && <Loader2 className="size-3 animate-spin" />}
-                                      + Connect Bot Account
+                                      + Connect Dedicated
                                     </button>
                                   )}
                                 </>
@@ -1803,7 +1980,7 @@ export function SettingsTab({
                                     title="Connect a new Google account specifically for this bot"
                                   >
                                     {connectingProvider === "google" && <Loader2 className="size-3 animate-spin" />}
-                                    Connect New Account for this Bot
+                                    + Connect Dedicated
                                   </button>
                                   {googleConnected && (
                                     <button
@@ -1818,7 +1995,7 @@ export function SettingsTab({
                                       className="px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-850 rounded-lg text-xs font-medium cursor-pointer transition-colors text-neutral-700 dark:text-neutral-200"
                                       title="Enable Google Calendar booking for this bot using workspace account"
                                     >
-                                      Use Workspace Account
+                                      Use Workspace Default
                                     </button>
                                   )}
                                 </>
@@ -1865,7 +2042,7 @@ export function SettingsTab({
                                       Dedicated: {a.label || a.email}
                                     </option>
                                   ))}
-                                <option value="connect_new">+ Connect New Account for this Bot...</option>
+                                <option value="connect_new">+ Connect Dedicated Account...</option>
                               </select>
                             </div>
                           )}
@@ -1882,7 +2059,7 @@ export function SettingsTab({
                                 className="text-red-500 hover:text-red-650 hover:underline cursor-pointer"
                                 title="Disconnect Google OAuth account across all bots in your workspace"
                               >
-                                Unlink from workspace (all bots)
+                                Unlink Workspace
                               </button>
                             </div>
                           )}
@@ -1942,7 +2119,7 @@ export function SettingsTab({
                                   className="px-3 py-1.5 bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
                                   title="Turn off Microsoft Outlook/Teams sync for this bot only"
                                 >
-                                  Disconnect this bot
+                                  Disconnect
                                 </button>
                               ) : (
                                 <button
@@ -1956,7 +2133,7 @@ export function SettingsTab({
                                   className="px-3 py-1.5 bg-[#f97316] text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-opacity"
                                   title="Enable Microsoft Teams & Outlook Calendar for this bot"
                                 >
-                                  Enable for this bot
+                                  Use Workspace Default
                                 </button>
                               )}
                             </div>
@@ -1974,7 +2151,7 @@ export function SettingsTab({
                                 className="text-red-500 hover:text-red-650 hover:underline cursor-pointer"
                                 title="Disconnect Microsoft OAuth account across all bots in your workspace"
                               >
-                                Unlink from workspace (all bots)
+                                Unlink Workspace
                               </button>
                             </div>
                           )}

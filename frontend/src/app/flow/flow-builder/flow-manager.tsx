@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { ArrowRight, CheckCircle2, ExternalLink, Loader2, MoreHorizontal, Plus, RefreshCw, Trash2, Webhook, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, ExternalLink, Loader2, Menu, MoreHorizontal, Plus, RefreshCw, Trash2, Webhook, XCircle } from "lucide-react";
 import { chattyRequest } from "./lib";
 import { flowTemplates } from "./templates";
 
@@ -20,7 +20,7 @@ type FlowSummary = {
   published_at?: string | null;
 };
 
-type Props = { botId: string; embedded?: boolean };
+type Props = { botId: string; embedded?: boolean; onOpenSidebar?: () => void };
 
 const outboundPlatforms = [
   { name: "n8n", description: "Send Chatty events to an n8n Webhook trigger.", tone: "#ff6d5a" },
@@ -35,7 +35,7 @@ function formatUpdated(value?: string) {
   return `Updated ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)}`;
 }
 
-export function FlowManager({ botId, embedded = false }: Props) {
+export function FlowManager({ botId, embedded = false, onOpenSidebar }: Props) {
   const [flows, setFlows] = useState<FlowSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,9 +94,24 @@ export function FlowManager({ botId, embedded = false }: Props) {
   const managerUrl = "/dashboard?tab=flow_builder";
   const editorUrl = (extra = "") => `/flow/builder?bot_id=${encodeURIComponent(botId)}${extra}`;
 
-  return <main className={`flow-manager-shell${embedded ? " flow-manager-embedded" : ""}`}>
+  const RootTag = embedded ? "div" : "main";
+
+  return <RootTag className={`flow-manager-shell${embedded ? " flow-manager-embedded" : ""}`}>
     <header className="flow-manager-topbar">
-      <a className="flow-manager-brand" href={managerUrl}><span className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></span><span><strong>Chatty Flows</strong><small>Automation workspace</small></span></a>
+      <div className="flex items-center gap-2 min-w-0">
+        {embedded && onOpenSidebar && (
+          <button
+            type="button"
+            aria-label="Open dashboard sidebar"
+            title="Open dashboard sidebar"
+            className="md:hidden p-1 text-neutral-500 hover:text-neutral-950 dark:text-neutral-400 dark:hover:text-white mr-1"
+            onClick={onOpenSidebar}
+          >
+            <Menu className="size-5" />
+          </button>
+        )}
+        <a className="flow-manager-brand" href={managerUrl}><span className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></span><span><strong>Chatty Flows</strong><small>Automation workspace</small></span></a>
+      </div>
       <div className="flow-manager-top-actions"><button type="button" className="manager-secondary" onClick={() => void loadFlows()} disabled={loading}>{loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />} Refresh</button><a className="manager-primary" href={editorUrl("&new=1")}><Plus size={16} /> New workflow</a></div>
     </header>
 
@@ -113,5 +128,5 @@ export function FlowManager({ botId, embedded = false }: Props) {
 
       <section className="flow-manager-section template-section"><div className="section-heading"><div><h2>Start from a Chatty template</h2><p>Templates add real Chatty nodes to a new canvas. You must review and save them.</p></div></div><div className="manager-template-grid">{flowTemplates.slice(0, 3).map((template) => <a className="manager-template-card" key={template.id} href={editorUrl(`&new=1&template=${encodeURIComponent(template.id)}`)}><span style={{ color: template.color }}>{template.icon === "spark" ? "✦" : "+"}</span><div><h3>{template.title}</h3><p>{template.description}</p></div><ArrowRight size={15} /></a>)}</div></section>
     </div>
-  </main>;
+  </RootTag>;
 }

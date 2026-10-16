@@ -61,6 +61,7 @@ def _slugify(text: str) -> str:
 
 # Bridged helpers still living in main.py (shared across many route groups).
 from main import _verify_bot_access, _verify_bot_owner
+from app.core.permissions import verify_bot_permission
 
 logger = logging.getLogger("chatty")
 
@@ -760,6 +761,13 @@ _AUTOMATION_RULES: dict[str, list[dict[str, Any]]] = {}
 async def list_automation_rules(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """List configured ticket automation rules for a bot."""
     await _verify_inbox_access(bot_id, user)
+    if bot_id not in _AUTOMATION_RULES:
+        try:
+            b_res = await run_db(lambda: supabase.table("chatty_bots").select("automation_rules").eq("id", bot_id).limit(1).execute())
+            if b_res.data and b_res.data[0].get("automation_rules"):
+                _AUTOMATION_RULES[bot_id] = b_res.data[0]["automation_rules"]
+        except Exception:
+            pass
     rules = _AUTOMATION_RULES.get(bot_id, [])
     return {"rules": rules}
 
@@ -783,6 +791,10 @@ async def create_automation_rule(req: AutomationRuleCreateRequest, user: dict[st
     if req.bot_id not in _AUTOMATION_RULES:
         _AUTOMATION_RULES[req.bot_id] = []
     _AUTOMATION_RULES[req.bot_id].append(rule)
+    try:
+        await run_db(lambda: supabase.table("chatty_bots").update({"automation_rules": _AUTOMATION_RULES[req.bot_id]}).eq("id", req.bot_id).execute())
+    except Exception:
+        pass
     await _write_admin_audit_log(req.bot_id, "automation_rule_created", f"Created rule {req.name}", user)
     return {"success": True, "rule": rule}
 
@@ -793,6 +805,10 @@ async def delete_automation_rule(rule_id: str, bot_id: str, user: dict[str, Any]
     await _verify_inbox_access(bot_id, user)
     if bot_id in _AUTOMATION_RULES:
         _AUTOMATION_RULES[bot_id] = [r for r in _AUTOMATION_RULES[bot_id] if r.get("id") != rule_id]
+    try:
+        await run_db(lambda: supabase.table("chatty_bots").update({"automation_rules": _AUTOMATION_RULES[bot_id]}).eq("id", bot_id).execute())
+    except Exception:
+        pass
     await _write_admin_audit_log(bot_id, "automation_rule_deleted", f"Deleted rule {rule_id}", user)
     return {"success": True}
 
@@ -860,6 +876,39 @@ async def admin_get_meetings(
     # Owner/admin see every meeting for the bot; an agent sees only meetings
     # assigned to them (Phase 2's round-robin assignment) - matches the
     # dashboard's per-role calendar view (no member selector for agents).
+    caller_email = (user.get("email") or "").strip().lower()
+    owner_id = user.get("auth_user_id") or user.get("id")
+
+    if bot_id in ("all", "workspace"):
+        owned_res = await run_db(lambda: supabase.table("chatty_bots").select("id, name").eq("user_id", owner_id).execute())
+        team_res = await run_db(lambda: supabase.table("chatty_team_members").select("bot_id, role").eq("email", caller_email).execute())
+        bot_map = {b["id"]: b.get("name") or "Assistant" for b in (owned_res.data or [])}
+        team_bot_ids = [t["bot_id"] for t in (team_res.data or []) if t.get("bot_id")]
+        if team_bot_ids:
+            extra_res = await run_db(lambda: supabase.table("chatty_bots").select("id, name").in_("id", team_bot_ids).execute())
+            for eb in (extra_res.data or []):
+                bot_map[eb["id"]] = eb.get("name") or "Assistant"
+
+        accessible_ids = list(bot_map.keys())
+        if not accessible_ids:
+            return {"meetings": []}
+
+        is_admin_or_owner = bool(owned_res.data) or any(t.get("role") in ("admin", "owner") for t in (team_res.data or []))
+        try:
+            if is_admin_or_owner:
+                res = await run_db(lambda: supabase.table("chatty_meetings").select("*").in_(
+                    "bot_id", accessible_ids).order("start_time", desc=True).limit(500).execute())
+            else:
+                res = await run_db(lambda: supabase.table("chatty_meetings").select("*").in_(
+                    "bot_id", accessible_ids).eq("assigned_to_email", caller_email).order("start_time", desc=True).limit(500).execute())
+            meetings = res.data or []
+            for m in meetings:
+                m["bot_name"] = bot_map.get(m.get("bot_id")) or "Assistant"
+            return {"meetings": meetings}
+        except Exception as e:
+            logger.exception("Failed to fetch workspace meetings")
+            raise HTTPException(status_code=500, detail="Failed to fetch meetings") from e
+
     role = await verify_bot_permission(bot_id, user, "meetings")
 
     try:
@@ -870,7 +919,12 @@ async def admin_get_meetings(
         else:
             res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq(
                 "bot_id", bot_id).order("start_time", desc=True).execute())
-        return {"meetings": res.data or []}
+        b_res = await run_db(lambda: supabase.table("chatty_bots").select("name").eq("id", bot_id).limit(1).execute())
+        b_name = (b_res.data[0].get("name") if b_res.data else None) or "Assistant"
+        meetings = res.data or []
+        for m in meetings:
+            m["bot_name"] = b_name
+        return {"meetings": meetings}
     except Exception as e:
         logger.exception("Failed to fetch meetings")
         raise HTTPException(status_code=500, detail="Failed to fetch meetings") from e
@@ -1073,7 +1127,7 @@ async def admin_get_kb_categories(bot_id: str, user: dict[str, Any] = Depends(re
 @router.post("/api/admin/kb/categories")
 async def admin_create_kb_category(req: CategoryCreateRequest, user: dict[str, Any] = Depends(require_user)):
     """Create a new knowledge base category."""
-    await _verify_bot_access(req.bot_id, user)
+    await verify_bot_permission(req.bot_id, user, "help")
     slug = _slugify(req.slug or req.name)
 
     # Ensure unique slug
@@ -1108,7 +1162,7 @@ async def admin_update_kb_category(cat_id: str, req: CategoryUpdateRequest, user
     if not cat_res.data:
         raise HTTPException(status_code=404, detail="Category not found")
     cat = cat_res.data[0]
-    await _verify_bot_access(cat["bot_id"], user)
+    await verify_bot_permission(cat["bot_id"], user, "help")
 
     updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
     if req.name is not None:
@@ -1132,7 +1186,7 @@ async def admin_delete_kb_category(cat_id: str, user: dict[str, Any] = Depends(r
     cat_res = await run_db(lambda: supabase.table("chatty_kb_categories").select("id, bot_id").eq("id", cat_id).execute())
     if not cat_res.data:
         raise HTTPException(status_code=404, detail="Category not found")
-    await _verify_bot_access(cat_res.data[0]["bot_id"], user)
+    await verify_bot_permission(cat_res.data[0]["bot_id"], user, "help")
 
     await run_db(lambda: supabase.table("chatty_kb_categories").delete().eq("id", cat_id).execute())
     return {"success": True}
@@ -1182,7 +1236,7 @@ async def admin_get_kb_article(article_id: str, user: dict[str, Any] = Depends(r
 @router.post("/api/admin/kb/articles")
 async def admin_create_kb_article(req: ArticleCreateRequest, user: dict[str, Any] = Depends(require_user)):
     """Create a new knowledge base article, automatically syncing to chatty_sources for AI RAG memory."""
-    await _verify_bot_access(req.bot_id, user)
+    await verify_bot_permission(req.bot_id, user, "help")
     slug = _slugify(req.slug or req.title)
 
     # Check slug collision for this bot
@@ -1246,7 +1300,7 @@ async def admin_update_kb_article(article_id: str, req: ArticleUpdateRequest, us
         raise HTTPException(status_code=404, detail="Article not found")
     article = art_res.data[0]
     bot_id = article["bot_id"]
-    await _verify_bot_access(bot_id, user)
+    await verify_bot_permission(bot_id, user, "help")
 
     updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
     if req.title is not None:
@@ -1314,7 +1368,7 @@ async def admin_delete_kb_article(article_id: str, user: dict[str, Any] = Depend
     if not art_res.data:
         raise HTTPException(status_code=404, detail="Article not found")
     article = art_res.data[0]
-    await _verify_bot_access(article["bot_id"], user)
+    await verify_bot_permission(article["bot_id"], user, "help")
 
     source_id = article.get("source_id")
     if source_id:
@@ -1690,7 +1744,7 @@ async def admin_get_routing_settings(bot_id: str, user: dict[str, Any] = Depends
 @router.patch("/api/admin/routing/settings")
 async def admin_update_routing_settings(req: RoutingSettingsUpdateRequest, user: dict[str, Any] = Depends(require_user)):
     """Update bot omnichannel routing configuration."""
-    await _verify_bot_access(req.bot_id, user)
+    await verify_bot_permission(req.bot_id, user, "team")
     now_iso = datetime.now(timezone.utc).isoformat()
 
     updates: dict[str, Any] = {"updated_at": now_iso}

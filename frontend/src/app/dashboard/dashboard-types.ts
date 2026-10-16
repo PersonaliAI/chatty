@@ -96,15 +96,19 @@ export interface Bot {
 
 export interface AdminMeeting {
   id: string;
+  bot_id?: string;
+  bot_name?: string;
   title?: string;
   attendee_name?: string;
   attendee_email?: string;
+  attendee_phone?: string;
   start_time: string;
   end_time?: string;
   status: string;
   provider?: string;
   meeting_link?: string;
   assigned_to_email?: string;
+  assigned_to_name?: string;
   description?: string;
 }
 
@@ -239,5 +243,10 @@ export interface TeamMember {
   microsoft_email?: string | null;
   zoom_meeting_link?: string | null;
   is_owner?: boolean;
+  ooo_active?: boolean;
+  ooo_start?: string | null;
+  ooo_end?: string | null;
+  ooo_backup_email?: string | null;
+  ooo_reason?: string | null;
 }
 

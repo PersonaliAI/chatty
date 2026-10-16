@@ -586,7 +586,7 @@ export function AffiliatePortalClient() {
   // Render: Authenticated - Onboarding View (!isAffiliate)
   // -------------------------------------------------------------------------
   if (!isAffiliate) {
-    const defaultReferralLink = `https://chatty.personaliai.com?ref=${codeCandidate || "yourcode"}`;
+    const defaultReferralLink = typeof window !== "undefined" ? `${window.location.origin}?ref=${codeCandidate || "yourcode"}` : `https://chatty.personaliai.com?ref=${codeCandidate || "yourcode"}`;
 
     return (
       <div className="min-h-screen bg-[#faf8f5] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans">
@@ -760,7 +760,7 @@ export function AffiliatePortalClient() {
   // -------------------------------------------------------------------------
   // Render: Authenticated - Full Partner Dashboard (isAffiliate)
   // -------------------------------------------------------------------------
-  const referralLink = profile?.referral_url || `https://chatty.personaliai.com?ref=${profile?.referral_code}`;
+  const referralLink = profile?.referral_url || (typeof window !== "undefined" ? `${window.location.origin}?ref=${profile?.referral_code || ""}` : `https://chatty.personaliai.com?ref=${profile?.referral_code || ""}`);
 
   return (
     <div className="min-h-screen bg-[#faf8f5] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans">

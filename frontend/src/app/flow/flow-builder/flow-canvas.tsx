@@ -278,6 +278,7 @@ function FlowCanvasInner(props: Props) {
         <Background color="#d6dee9" gap={20} size={1} />
         <Controls showInteractive={false} position="bottom-right" />
         {canvasNodes.length > 0 && <MiniMap
+          className="hidden sm:block"
           pannable
           zoomable
           position="bottom-left"

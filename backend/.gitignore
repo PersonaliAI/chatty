@@ -35,3 +35,9 @@ voice_agent_cli/*.env
 voice_agent_cli/*.json
 voice_agent_cli/*.key
 frontend/
+
+# Secrets & Keys
+*key*.json
+gcp-key.json
+*.pem
+credentials*.json

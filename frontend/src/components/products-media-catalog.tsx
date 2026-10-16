@@ -794,7 +794,7 @@ export function ProductsMediaCatalog({
 
               {/* Mode Switcher Tabs */}
               <div className="max-w-full overflow-x-auto rounded-xl border border-neutral-200/60 bg-neutral-100 p-1 dark:border-neutral-700/60 dark:bg-neutral-800/60">
-                <div className="flex min-w-[30rem] items-center gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setAuthMode("oauth")}
@@ -974,7 +974,7 @@ export function ProductsMediaCatalog({
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-neutral-900 dark:text-white">
+                        <h4 className="text-sm font-bold text-neutral-900 dark:text-white truncate max-w-[200px] sm:max-w-xs">
                           {wcStatus.store_url?.replace(/^https?:\/\//, "")}
                         </h4>
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
@@ -987,7 +987,7 @@ export function ProductsMediaCatalog({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
                       onClick={handleTriggerSync}

@@ -60,6 +60,7 @@ from app.services.widget_session_service import (
 )
 
 from app.core import security as _sec
+from app.core.ssrf import assert_safe_url_async, UnsafeURLError
 from app.core.app_factory import create_app
 from app.core.clients import genai_client, supabase
 from app.core.db import run_db
@@ -73,7 +74,7 @@ from app.core.config import (
     MODEL_NAME,
     SUPABASE_URL,
 )
-from app.core.deps import require_user
+from app.core.deps import get_monthly_token_usage, require_user
 from app.schemas.widget import WidgetChatResponse  # shared with /api/v1/chat (public_api, not yet split)
 
 logging.basicConfig(level=logging.INFO)
@@ -493,6 +494,11 @@ async def _widget_rate_limit_or_429(bot: dict, bot_id: str, ip: str, token: Opti
 async def _fetch_url_content(u: str) -> str:
     """Fetch readable text content for a URL via the Jina reader, with retry/backoff
     on rate limits. Returns "" on failure. Shared by manual crawl and scheduled re-crawl."""
+    try:
+        await assert_safe_url_async(u)
+    except Exception as exc:
+        logger.warning("SSRF check blocked URL fetch %s: %s", u, exc)
+        return ""
     content = ""
     # One Jina key covers Reader (crawl) + Search (web_search). When set, it
     # lifts the anonymous rate limits that otherwise cause 429 backoff.

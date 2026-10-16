@@ -246,7 +246,7 @@ export default function FlowBuilderPage() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  }, [selectedId]);
 
   async function saveDraft(publish = false) {
     if (busyAction) return;
@@ -276,9 +276,9 @@ export default function FlowBuilderPage() {
 
   async function runTest() {
     if (busyAction) return;
+    if (!botId) { setTestError("Open this builder from a Chatty bot to run a tenant-authorized test."); return; }
     setBusyAction("test");
     setRunning(true); setTestError(null); setTestTrace([]);
-    if (!botId) { setTestError("Open this builder from a Chatty bot to run a tenant-authorized test."); setBusyAction(null); return; }
     try {
       const response = await chattyRequest("/api/flow-builder/test", { method: "POST", body: JSON.stringify({ bot_id: botId, flow_id: flowId, flow_data: persistedGraph(graphRef.current) }) });
       const body = await response.json() as { detail?: string; trace?: FlowRunTrace[] };

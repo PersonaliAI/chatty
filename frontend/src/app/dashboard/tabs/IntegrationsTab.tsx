@@ -1225,7 +1225,7 @@ export function IntegrationsTab({
       </div>
 
       {/* Security: Allowed Domains */}
-      <div id="integration-domains" className="order-4 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+      <div id="integration-domains" className="scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
         <h3 className="text-sm font-bold flex items-center gap-2">
           <ShieldAlert className="size-4 text-[#f97316]" /> Allowed Domains
         </h3>

@@ -386,6 +386,28 @@ async def delete_dashboard_campaign(
     return {"deleted": True, "campaign_id": campaign_id}
 
 
+SENSITIVE_BOT_COLUMNS = {
+    "byok_api_key_encrypted",
+    "byok_keys",
+    "whatsapp_access_token",
+    "whatsapp_app_secret",
+    "whatsapp_verify_token",
+    "voice_stt_byok_key_encrypted",
+    "voice_llm_byok_key_encrypted",
+    "voice_tts_byok_key_encrypted",
+    "visitor_identity_secret_encrypted",
+}
+
+
+def _sanitize_bot_dict(bot: dict[str, Any], role: str = "owner") -> dict[str, Any]:
+    sanitized = {k: v for k, v in bot.items() if k not in SENSITIVE_BOT_COLUMNS}
+    sanitized["has_byok"] = bool(bot.get("byok_api_key_encrypted") or bot.get("byok_keys"))
+    sanitized["whatsapp_configured"] = bool(bot.get("whatsapp_access_token"))
+    if role != "owner":
+        sanitized.pop("claim_token", None)
+    return sanitized
+
+
 def _dashboard_bot_columns() -> str:
     """Return the dashboard-safe bot projection."""
     return "*"
@@ -393,17 +415,30 @@ def _dashboard_bot_columns() -> str:
 
 @router.get("/api/bots")
 async def list_dashboard_bots(user: dict[str, Any] = Depends(require_user)):
-    """List bots visible to the dashboard's authenticated user.
+    """List bots visible to the dashboard's authenticated user (owned + team member)."""
+    user_id = user["auth_user_id"]
+    user_email = (user.get("email") or "").strip().lower()
 
-    This endpoint is intentionally separate from `/api/v1/bots`: the latter
-    is the public OAuth API and must keep its OAuth scopes/response contract.
-    Dashboard authentication is the browser's OIDC/Supabase session instead.
-    """
+    # 1. Owned bots
+    owned_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("user_id", user_id).order("updated_at", desc=True).execute())
+    owned_bots = owned_res.data or []
 
-    result = await run_db(lambda: supabase.table("chatty_bots").select(_dashboard_bot_columns()).order(
-        "updated_at", desc=True
-    ).execute())
-    return result.data or []
+    # 2. Team member bots
+    member_bots: list[dict[str, Any]] = []
+    if user_email:
+        team_res = await run_db(lambda: supabase.table("chatty_team_members").select("bot_id, role").ilike("email", user_email).execute())
+        team_rows = team_res.data or []
+        team_bot_ids = [r["bot_id"] for r in team_rows if r.get("bot_id") and r["bot_id"] not in {b["id"] for b in owned_bots}]
+        if team_bot_ids:
+            tb_res = await run_db(lambda: supabase.table("chatty_bots").select("*").in_("id", team_bot_ids).execute())
+            member_bots = tb_res.data or []
+
+    results = []
+    for b in owned_bots:
+        results.append(_sanitize_bot_dict(b, role="owner"))
+    for b in member_bots:
+        results.append(_sanitize_bot_dict(b, role="member"))
+    return results
 
 
 @router.post("/api/bots", status_code=201)
@@ -492,38 +527,53 @@ async def update_dashboard_bot(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Update dashboard configuration using a strict column allow-list."""
-    # Match the dashboard's team-access model: owners and members explicitly
-    # authorized for either the design or settings surface may edit widget
-    # configuration; read-only/agent members may not.
     role, permissions = await get_bot_role_and_permissions(bot_id, user)
     if role != "owner" and not ({"design", "settings"} & set(permissions)):
         raise HTTPException(status_code=403, detail="You don't have access to widget settings for this bot")
     updates = {key: value for key, value in body.items() if key in _DASHBOARD_BOT_UPDATE_FIELDS}
     if not updates:
         raise HTTPException(status_code=400, detail="No supported fields to update")
+
+    # Whitelabel plan enforcement
+    if "hide_branding" in updates and updates["hide_branding"]:
+        from app.core.config import WHITELABEL_PLANS
+        from main import normalize_plan_id
+        if normalize_plan_id(user.get("subscription_plan")) not in WHITELABEL_PLANS:
+            raise HTTPException(status_code=403, detail="White-labeling requires an Agency or Enterprise plan")
+
+    # Linked bot authorization
+    if updates.get("team_source_bot_id"):
+        await get_bot_role_and_permissions(updates["team_source_bot_id"], user)
+    if updates.get("calendar_source_bot_id"):
+        await get_bot_role_and_permissions(updates["calendar_source_bot_id"], user)
+
+    # SSRF check for webhook_url
+    if updates.get("webhook_url"):
+        await assert_safe_url_async(updates["webhook_url"])
+
     result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq(
         "id", bot_id
-    ).eq("user_id", user["auth_user_id"]).execute())
+    ).execute())
     updated = result.data[0] if result.data else None
     if not updated:
         raise HTTPException(status_code=404, detail="Bot not found")
-    return updated
+    return _sanitize_bot_dict(updated, role=role)
 
 
 @router.get("/api/bots/{bot_id}")
 async def get_dashboard_bot(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return one complete dashboard bot configuration after access checks."""
-    await get_bot_role_and_permissions(bot_id, user)
+    role, permissions = await get_bot_role_and_permissions(bot_id, user)
     result = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
     if not result.data:
         raise HTTPException(status_code=404, detail="Bot not found")
-    return result.data[0]
+    return _sanitize_bot_dict(result.data[0], role=role)
 
 
 @router.get("/api/bots/{bot_id}/leads")
 async def list_dashboard_leads(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Return lead rows for the dashboard's owner/team-accessible bot."""
-    await get_bot_role_and_permissions(bot_id, user)
+    await verify_bot_permission(bot_id, user, "leads")
     result = await run_db(lambda: supabase.table("chatty_leads").select("*").eq(
         "bot_id", bot_id
     ).order("created_at", desc=True).execute())
@@ -532,10 +582,16 @@ async def list_dashboard_leads(bot_id: str, user: dict[str, Any] = Depends(requi
 
 @router.get("/api/bots/{bot_id}/dashboard-analytics")
 async def dashboard_analytics(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Return the small, aggregate dataset used by the dashboard home tab."""
+    """Return the aggregate dataset used by the dashboard home tab."""
     await get_bot_role_and_permissions(bot_id, user)
-    raise HTTPException(status_code=404, detail="Use managed dashboard data path")
-
+    convs = await run_db(lambda: supabase.table("chatty_conversations").select("id", count="exact").eq("bot_id", bot_id).execute())
+    leads = await run_db(lambda: supabase.table("chatty_leads").select("id", count="exact").eq("bot_id", bot_id).execute())
+    sources = await run_db(lambda: supabase.table("chatty_sources").select("id", count="exact").eq("bot_id", bot_id).execute())
+    return {
+        "conversations": convs.count if convs.count is not None else len(convs.data or []),
+        "leads": leads.count if leads.count is not None else len(leads.data or []),
+        "sources": sources.count if sources.count is not None else len(sources.data or []),
+    }
 
 
 @router.patch("/api/bots/{bot_id}/leads/{lead_id}")
@@ -545,8 +601,10 @@ async def update_dashboard_lead(
     body: dict[str, Any] = Body(...),
     user: dict[str, Any] = Depends(require_user),
 ):
-    await get_bot_role_and_permissions(bot_id, user)
-    result = await run_db(lambda: supabase.table("chatty_leads").update(body).eq(
+    await verify_bot_permission(bot_id, user, "leads")
+    allowed_fields = {"name", "email", "phone", "company", "notes", "status", "custom_fields"}
+    lead_updates = {k: v for k, v in body.items() if k in allowed_fields}
+    result = await run_db(lambda: supabase.table("chatty_leads").update(lead_updates).eq(
         "id", lead_id
     ).eq("bot_id", bot_id).execute())
     if not result.data:
@@ -556,7 +614,7 @@ async def update_dashboard_lead(
 
 @router.delete("/api/bots/{bot_id}/leads/{lead_id}")
 async def delete_dashboard_lead(bot_id: str, lead_id: str, user: dict[str, Any] = Depends(require_user)):
-    await get_bot_role_and_permissions(bot_id, user)
+    await verify_bot_permission(bot_id, user, "leads")
     result = await run_db(lambda: supabase.table("chatty_leads").delete().eq(
         "id", lead_id
     ).eq("bot_id", bot_id).execute())
@@ -630,7 +688,7 @@ async def create_bot_source(
     body: dict[str, Any] = Body(...),
     user: dict[str, Any] = Depends(require_user),
 ):
-    await get_bot_role_and_permissions(bot_id, user)
+    await verify_bot_permission(bot_id, user, "training")
     source = {
         "bot_id": bot_id,
         "type": str(body.get("type") or "text"),
@@ -741,6 +799,7 @@ async def get_user_profile(
 
     # Check for bot-specific agent profile if bot_id is provided
     if bot_id:
+        await get_bot_role_and_permissions(bot_id, user)
         try:
             bot_res = await run_db(lambda: supabase.table("chatty_bots").select(
                 "agent_display_name, agent_avatar_url, agent_role_title"
@@ -805,6 +864,7 @@ async def update_user_profile(
 
     # If bot_id is specified, isolate changes to that bot only!
     if target_bot_id:
+        await get_bot_role_and_permissions(target_bot_id, user)
         bot_updates: dict[str, Any] = {}
         if display_name:
             bot_updates["agent_display_name"] = display_name
@@ -878,6 +938,8 @@ async def upload_user_avatar(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Upload user profile photo. Scoped to bot_id if supplied."""
+    if bot_id:
+        await get_bot_role_and_permissions(bot_id, user)
     user_id = user["auth_user_id"]
     email = user.get("email") or ""
     data = await read_upload_capped(file, 10 * 1024 * 1024, detail="Photo must be under 10MB")

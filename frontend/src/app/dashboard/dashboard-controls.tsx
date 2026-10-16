@@ -367,3 +367,192 @@ export function SectionPropertyDropdown({ value, options, onChange }: { value: s
     </div>
   );
 }
+
+export function MemberOooEditor({
+  member,
+  botId,
+  allMembers,
+  showToast,
+  fetchWithFallback,
+  onSaved,
+}: {
+  member: {
+    id: string;
+    email: string;
+    name?: string;
+    ooo_active?: boolean;
+    ooo_start?: string | null;
+    ooo_end?: string | null;
+    ooo_backup_email?: string | null;
+    ooo_reason?: string | null;
+  };
+  botId: string;
+  allMembers: { id: string; email: string; name?: string; ooo_active?: boolean }[];
+  showToast: (msg: string, kind: "success" | "error" | "info") => void;
+  fetchWithFallback: (path: string, options?: RequestInit) => Promise<Response>;
+  onSaved: () => void;
+}) {
+  const [isAway, setIsAway] = useState(!!member.ooo_active || !!member.ooo_start);
+  const [startDate, setStartDate] = useState(() => {
+    if (member.ooo_start) {
+      try {
+        return new Date(member.ooo_start).toISOString().slice(0, 10);
+      } catch {
+        /* ignore */
+      }
+    }
+    return new Date().toISOString().slice(0, 10);
+  });
+  const [endDate, setEndDate] = useState(() => {
+    if (member.ooo_end) {
+      try {
+        return new Date(member.ooo_end).toISOString().slice(0, 10);
+      } catch {
+        /* ignore */
+      }
+    }
+    return "";
+  });
+  const [backupEmail, setBackupEmail] = useState(member.ooo_backup_email || "");
+  const [reason, setReason] = useState(member.ooo_reason || "");
+  const [saving, setSaving] = useState(false);
+
+  const backupOptions: ModernSelectOption[] = [
+    { value: "", label: "No backup (skip in round-robin meetings)" },
+    ...allMembers
+      .filter((m) => m.email.toLowerCase() !== member.email.toLowerCase() && !m.ooo_active)
+      .map((m) => ({
+        value: m.email,
+        label: m.name ? `${m.name} (${m.email})` : m.email,
+      })),
+  ];
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const payload = isAway
+        ? {
+            bot_id: botId,
+            clear: false,
+            ooo_start: startDate ? new Date(startDate).toISOString() : new Date().toISOString(),
+            ooo_end: endDate ? new Date(endDate).toISOString() : null,
+            ooo_backup_email: backupEmail.trim() || null,
+            ooo_reason: reason.trim() || null,
+          }
+        : {
+            bot_id: botId,
+            clear: true,
+          };
+
+      const res = await fetchWithFallback(`/api/team/${member.id}/ooo`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.detail || "Couldn't update out-of-office status.", "error");
+      } else {
+        showToast(isAway ? "Out-of-office window set." : "Out-of-office cleared.", "success");
+        onSaved();
+      }
+    } catch {
+      showToast("Network error updating out-of-office.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 pt-2 pb-1 border-t border-neutral-200/70 dark:border-neutral-800/80">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+          Out-of-Office & Vacation Delegation
+        </p>
+        <span className="text-[10px] text-neutral-400">
+          Auto-skips round-robin & routes to backup
+        </span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <TeamTabCheckbox
+          checked={isAway}
+          onChange={(checked) => setIsAway(checked)}
+          label="Mark as Out of Office / Away"
+        />
+      </div>
+
+      {isAway && (
+        <div className="space-y-2.5 p-2.5 rounded-lg bg-white/70 dark:bg-neutral-900/60 border border-neutral-200/80 dark:border-neutral-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 mb-1">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#f97316]/50"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 mb-1">
+                End Date (Optional)
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                placeholder="Until cleared"
+                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#f97316]/50"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 mb-1">
+              Backup Colleague (Optional)
+            </label>
+            <ModernSelect
+              size="sm"
+              value={backupEmail}
+              options={backupOptions}
+              onChange={(val) => setBackupEmail(val)}
+              placeholder="Select a teammate to cover..."
+            />
+            <p className="text-[10px] text-neutral-400 mt-1">
+              Colleague will cover booked appointments and customer inquiries during this period.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-semibold text-neutral-600 dark:text-neutral-400 mb-1">
+              Reason / Status Note (Optional)
+            </label>
+            <input
+              type="text"
+              value={reason}
+              maxLength={120}
+              placeholder="e.g., Annual leave, Conference, Parental leave"
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#f97316]/50"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 pt-0.5">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 disabled:opacity-40 transition-opacity cursor-pointer shadow-sm"
+        >
+          {saving ? "Saving…" : isAway ? "Save Out-of-Office" : "Clear Out-of-Office"}
+        </button>
+      </div>
+    </div>
+  );
+}

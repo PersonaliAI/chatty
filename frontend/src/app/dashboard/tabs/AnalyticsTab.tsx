@@ -641,10 +641,37 @@ function StorageProgressBar({ plan, botId, backendUrl, authToken }: { plan: stri
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // In the future, this should fetch from an actual endpoint, e.g. /api/bots/{botId}/media-items/storage
-    // For now, we mock the usage to 0 or fetch total count and multiply by an average size if we want to be clever.
-    setLoading(false);
-    setUsedBytes(12.4 * 1024 * 1024); // Mock 12.4 MB for visual purposes as requested
+    if (!botId) return;
+    let cancelled = false;
+    async function fetchStorage() {
+      try {
+        setLoading(true);
+        const headers: Record<string, string> = {};
+        if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+        const res = await fetch(`${backendUrl}/api/bots/${botId}/media-items`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const items = Array.isArray(data) ? data : data.items || [];
+          const total = items.reduce((acc: number, item: any) => acc + (Number(item.size_bytes || item.size) || 0), 0);
+          if (!cancelled) setUsedBytes(total > 0 ? total : 0);
+        } else {
+          // Fallback to knowledge sources content calculation
+          const sRes = await fetch(`${backendUrl}/api/widget/kb-sources?bot_id=${encodeURIComponent(botId)}`);
+          if (sRes.ok) {
+            const sData = await sRes.json();
+            const sources = sData.sources || [];
+            const approxBytes = sources.reduce((acc: number, s: any) => acc + (s.content ? s.content.length : 0), 0);
+            if (!cancelled) setUsedBytes(approxBytes);
+          }
+        }
+      } catch {
+        if (!cancelled) setUsedBytes(0);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    fetchStorage();
+    return () => { cancelled = true; };
   }, [botId, backendUrl, authToken]);
 
   const getStorageLimit = (p: string) => {
@@ -718,7 +745,7 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
   const abortRef = useRef<AbortController | null>(null);
 
   const fetchAll = useCallback(async (from: string, to: string) => {
-    if (!botId || !authToken) return;
+    if (!botId || (!authToken && process.env.NEXT_PUBLIC_SELF_HOSTED !== "true")) return;
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
@@ -726,7 +753,8 @@ export function AnalyticsTab({ botId, backendUrl, authToken, plan = "free" }: An
     setLoading(true);
     setError(null);
 
-    const headers = { Authorization: `Bearer ${authToken}` };
+    const headers: Record<string, string> = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
     const base = `${backendUrl}/api/admin/analytics`;
     const qs = `bot_id=${botId}&from=${from}&to=${to}`;
 

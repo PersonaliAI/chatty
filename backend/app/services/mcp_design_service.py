@@ -92,10 +92,13 @@ async def analyze_widget_design(principal: dict[str, Any], bot_id: str) -> dict[
 
 
 async def preview_widget_html(principal: dict[str, Any], bot_id: str, test_theme: str = "light") -> str:
+    import html as _html
+    import re as _re
     bot = await _oauth.require_bot_access(principal, bot_id)
-    name = bot.get("name", "Chatty Assistant")
-    primary_color = bot.get("primary_color", "#f97316")
-    welcome_msg = bot.get("welcome_message", "Hello! How can I help you today?")
+    name = _html.escape(str(bot.get("name") or "Chatty Assistant"))
+    welcome_msg = _html.escape(str(bot.get("welcome_message") or "Hello! How can I help you today?"))
+    raw_color = str(bot.get("primary_color") or "#f97316").strip()
+    primary_color = raw_color if _re.match(r"^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$", raw_color) else "#f97316"
     is_dark = test_theme.lower() == "dark"
 
     bg_body = "#09090b" if is_dark else "#f8fafc"

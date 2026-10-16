@@ -412,6 +412,18 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
   );
 }
 
+function sanitizeArticleHtml(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "")
+    .replace(/\s*on[a-z]+\s*=\s*(['"][^'"]*['"]|[^\s>]+)/gi, "")
+    .replace(/(href|src)\s*=\s*(['"]\s*(?:javascript|data|vbscript):[^'"]*['"])/gi, '$1="#"');
+}
+
 interface EmbedClientProps {
   botId: string;
   originToken: string | null;
@@ -929,13 +941,13 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           } catch {}
         } else if (perm === "denied") {
           setPushGranted(false);
-          alert("Notification permission was blocked. Please allow notifications in your browser location bar.");
+          showToast("Notification permission was blocked. Please allow notifications in your browser location bar.", "error");
         }
       } catch (err) {
         console.warn("Notification request delegated to parent window", err);
       }
     } else {
-      alert("Browser push notifications are not supported on this browser.");
+      showToast("Browser push notifications are not supported on this browser.", "error");
     }
   };
 
@@ -3455,7 +3467,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                           {msg.role === "assistant" && (
                             <div className="flex items-center gap-2 px-1 text-[10px] text-neutral-400">
                               <span className="tabular-nums">{formatTimeAgo(msg.created_at)}</span>
-                              <div className="flex items-center gap-1 opacity-0 hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:opacity-100 focus-within:opacity-100 transition-opacity">
                                 <button type="button" onClick={() => rateMessage(i, "up")} className={`p-0.5 rounded hover:text-green-500 cursor-pointer ${msg.feedback === "up" ? "text-green-500 font-bold" : ""}`}>
                                   <ThumbsUp className="size-2.5" />
                                 </button>
@@ -3588,7 +3600,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                             {activeArticle.content?.trim().startsWith("<") ? (
                               <div
                                 className="article-html-body space-y-2"
-                                dangerouslySetInnerHTML={{ __html: activeArticle.content }}
+                                dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(activeArticle.content) }}
                               />
                             ) : (
                               <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
@@ -3834,7 +3846,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
                 transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
                 ref={emojiPanelRef}
-                className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(64vh,440px)] min-h-[280px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
+                className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(48vh,340px)] min-h-[220px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
               >
                 <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
                   <span className="text-[11px] font-bold tracking-wide text-neutral-500 dark:text-neutral-400 uppercase">Pick an emoji</span>
@@ -3960,7 +3972,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                         if (pf.preview) URL.revokeObjectURL(pf.preview);
                         setPendingFiles(prev => prev.filter((_, i) => i !== idx));
                       }}
-                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity shadow"
                     >
                       ×
                     </button>

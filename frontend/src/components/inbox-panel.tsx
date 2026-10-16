@@ -1831,7 +1831,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
 
         {/* Right: Unassigned Queue & Auto-Assign Action */}
-        <div data-inbox-queue className="flex items-center gap-2">
+        <div data-inbox-queue className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-600 dark:text-rose-400 text-xs font-semibold">
             <Radio className="size-3 animate-ping shrink-0" />
             <span>Queue:</span>
@@ -2056,7 +2056,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       <button
                         onClick={(e) => deleteSession(s.session_id, e)}
                         aria-label="Delete ticket"
-                        className="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-red-500 transition-opacity p-0.5 cursor-pointer ml-1"
+                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 text-neutral-400 hover:text-red-500 transition-opacity p-0.5 cursor-pointer ml-1"
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -2540,7 +2540,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                           <button
                             onClick={() => deleteNote(n.id)}
                             title="Delete note"
-                            className="absolute bottom-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-neutral-400 hover:text-red-500 cursor-pointer"
+                            className="absolute bottom-2.5 right-2.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity text-neutral-400 hover:text-red-500 cursor-pointer"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
@@ -2767,7 +2767,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 )}
 
                 {mentionQuery !== null && mentionAssignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).length > 0 && (
-                  <div role="listbox" aria-label="Mention teammate" className="absolute bottom-[84px] left-3 z-30 max-h-40 w-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
+                  <div role="listbox" aria-label="Mention teammate" className="absolute bottom-[84px] left-3 z-30 max-h-40 w-64 overflow-y-auto chatty-custom-scrollbar [scrollbar-width:thin] rounded-xl border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
                     <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Mention teammate</p>
                     {mentionAssignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).map((assignee) => (
                       <button key={assignee.email} type="button" role="option" aria-selected="false" onClick={() => insertMention(assignee)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800">
@@ -2903,7 +2903,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     <span className="text-[10px] font-mono font-semibold" style={{ color }}>/{c.shortcut}</span>
                     <p className="text-[10px] text-neutral-500 truncate">{c.text}</p>
                   </div>
-                  <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                     <button onClick={() => { setEditingCanned(c); setCannedDraftShortcut(c.shortcut); setCannedDraftText(c.text); }} className="p-1 text-neutral-400 hover:text-neutral-600 cursor-pointer"><Pencil className="size-3" /></button>
                     <button onClick={() => deleteCanned(c.id)} className="p-1 text-neutral-400 hover:text-red-500 cursor-pointer"><Trash2 className="size-3" /></button>
                   </div>
@@ -3086,7 +3086,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       {/* ── Automation Rules Dialog ── */}
       {rulesModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Automation Rules" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Automation Rules" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-[#f97316]/10 text-[#f97316]">

@@ -83,6 +83,15 @@ CHATTY_SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
+# Personal / Teammate calendar connection: Calendar only, strictly NO Drive or Gmail
+GOOGLE_CALENDAR_ONLY_SCOPES = [
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/calendar.events",
+]
+
 DRIVE_UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3/files"
 
 

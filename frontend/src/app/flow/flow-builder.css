@@ -450,10 +450,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 }
 @media (max-width: 900px) {
   .builder-shell { min-height: 540px; }
-  .topbar { height: 58px; padding: 0 14px; }
+  .topbar { height: auto; min-height: 52px; flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
   .brand { min-width: auto; }
-  .crumb { display: none; }
-  .top-actions .secondary { display: none; }
+  .crumb { display: flex; flex-wrap: wrap; gap: 4px; }
+  .top-actions .secondary { display: inline-flex; }
+  .canvas-area { padding-bottom: 54px; }
   .palette, .inspector { display: none; }
   .palette.mobile-open, .inspector.mobile-open { position: fixed; top: 58px; bottom: 54px; display: block; z-index: 8; width: min(340px, 92vw); min-width: 0; box-shadow: var(--shadow-panel); }
   .palette.mobile-open { left: 0; }

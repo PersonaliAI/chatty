@@ -962,7 +962,7 @@ export const VOICE_AGENT_PANEL_CSS = `
     left: 50% !important;
     transform: translateX(-50%) !important;
     min-width: 230px !important;
-    max-width: min(24rem, calc(100vw - 2rem)) !important;
+    max-width: min(24rem, calc(100vw - 32px)) !important;
     max-height: min(16rem, calc(100dvh - 8rem)) !important;
     overflow-x: hidden !important;
     overflow-y: auto !important;
@@ -1061,6 +1061,29 @@ export const VOICE_AGENT_PANEL_CSS = `
   .chatty-voice-consent-actions button { border: 0; border-radius: 7px; padding: 7px 9px; color: #4c5961; background: var(--voice-soft); font-size: 11px; cursor: pointer; }
   .chatty-voice-consent-actions button:last-child { color: #fff; background: #1f2933; }
   .chatty-voice-panel:fullscreen { min-height: 100dvh; border-radius: 0; }
+  .dark .chatty-voice-panel,
+  .chatty-voice-panel.dark {
+    --voice-ink: #f3f4f6;
+    --voice-muted: #9ca3af;
+    --voice-soft: #1e293b;
+    --voice-border: #334155;
+    --voice-accent: #f97316;
+    background: #0f172a !important;
+    color: var(--voice-ink) !important;
+  }
+  .dark .chatty-voice-header,
+  .dark .chatty-livekit-controls .lk-device-menu,
+  .dark .chatty-voice-language-menu,
+  .dark .chatty-voice-consent,
+  .dark .chatty-voice-consent > div {
+    background: #0f172a !important;
+    color: var(--voice-ink) !important;
+  }
+  .dark .chatty-voice-language {
+    background: #1e293b !important;
+    color: var(--voice-ink) !important;
+  }
+
   @keyframes chatty-voice-spin { to { transform: rotate(360deg); } }
   @media (max-width: 420px) { .chatty-voice-header { padding-inline: 10px; } .chatty-voice-content { gap: 10px; padding: 10px; } .chatty-voice-stage-wrap { min-height: 145px; } .chatty-voice-stage { min-height: 145px; padding: 14px 10px; } .chatty-voice-secure { display: none; } .chatty-voice-footer-actions { gap: 6px; } }
   @media (prefers-reduced-motion: reduce) { .chatty-voice-spinner { animation: none; } }

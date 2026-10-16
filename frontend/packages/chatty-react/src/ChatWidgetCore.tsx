@@ -3736,7 +3736,7 @@ function IdentifiedChatWidget({
                         if (pf.preview) URL.revokeObjectURL(pf.preview);
                         setPendingFiles(prev => prev.filter((_, i) => i !== idx));
                       }}
-                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity shadow"
+                      className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity shadow"
                     >
                       ×
                     </button>

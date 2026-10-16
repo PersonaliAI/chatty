@@ -19,6 +19,8 @@ export interface MeetingsCalendarMeeting {
   end_time?: string;
   status: string;
   assigned_to_email?: string;
+  assigned_to_name?: string;
+  bot_name?: string;
 }
 
 /** Calendar-grid view of booked meetings, color-coded by meeting status
@@ -68,6 +70,8 @@ export function MeetingsCalendar({
           status: m.status,
           statusLabel: statusStyle.label,
           assigned_to_email: m.assigned_to_email,
+          assigned_to_name: m.assigned_to_name,
+          bot_name: m.bot_name,
         },
       };
     });
@@ -199,11 +203,13 @@ export function MeetingsCalendar({
             const timeStr = eventInfo.timeText;
             const title = eventInfo.event.title;
             const assignedEmail = eventInfo.event.extendedProps.assigned_to_email;
+            const assignedName = eventInfo.event.extendedProps.assigned_to_name;
+            const botName = eventInfo.event.extendedProps.bot_name;
 
             return (
               <div
                 className="w-full flex items-center gap-1.5 px-1 py-0.5 overflow-hidden text-ellipsis whitespace-nowrap"
-                title={`${title}${timeStr ? ` (${timeStr})` : ""} - ${statusLabel}${assignedEmail ? ` [Assigned: ${assignedEmail}]` : ""}`}
+                title={`${title}${timeStr ? ` (${timeStr})` : ""} - ${statusLabel}${assignedName || assignedEmail ? ` [Host: ${assignedName || assignedEmail}]` : ""}${botName ? ` [Bot: ${botName}]` : ""}`}
               >
                 {timeStr && (
                   <span className="font-semibold text-[10px] tracking-tight shrink-0 text-white/90">

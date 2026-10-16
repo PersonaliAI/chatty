@@ -200,6 +200,20 @@ interface KBManagerProps {
   initialSubTab?: KBSubTab;
 }
 
+function sanitizeArticleHtml(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+    .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, "")
+    .replace(/\son\w+\s*=\s*[^>\s]+/gi, "")
+    .replace(/href\s*=\s*(['"])\s*(?:javascript|data|vbscript):.*?\1/gi, 'href="#"')
+    .replace(/src\s*=\s*(['"])\s*(?:javascript|data|vbscript):.*?\1/gi, 'src=""');
+}
+
 export function KBManager({
   botId,
   fetchBackend,
@@ -617,8 +631,8 @@ export function KBManager({
 
           {/* Action Toolbar */}
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-1 min-w-0 sm:min-w-[260px]">
-              <div className="relative flex-1">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 min-w-0">
+              <div className="relative flex-1 min-w-[180px] basis-full sm:basis-auto">
                 <Search className="size-3.5 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -630,7 +644,7 @@ export function KBManager({
               </div>
 
               {/* Category Filter */}
-              <div className="w-44 shrink-0">
+              <div className="w-[calc(50%-4px)] sm:w-44 shrink-0">
                 <ModernSelect
                   value={categoryFilter}
                   options={[
@@ -644,7 +658,7 @@ export function KBManager({
               </div>
 
               {/* Status Filter */}
-              <div className="w-36 shrink-0">
+              <div className="w-[calc(50%-4px)] sm:w-36 shrink-0">
                 <ModernSelect
                   value={statusFilter}
                   options={[
@@ -988,7 +1002,7 @@ export function KBManager({
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in">
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-4">
+            <div className="p-4 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <BookOpen className="size-4 text-[#f97316]" />
                 <h3 className="text-xs font-bold text-neutral-900 dark:text-white">
@@ -1234,9 +1248,13 @@ export function KBManager({
                 {editorTab === "preview" && (
                   <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white dark:bg-neutral-900 p-6 max-h-[460px] overflow-y-auto">
                     <article className="prose dark:prose-invert prose-xs text-neutral-700 dark:text-neutral-300 max-w-none leading-relaxed space-y-3">
-                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbPreviewMarkdownComponents}>
-                        {editorContent || "*No content written yet.*"}
-                      </ReactMarkdown>
+                      {/<[a-z][\s\S]*>/i.test(editorContent) ? (
+                        <div dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(editorContent || "") }} />
+                      ) : (
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbPreviewMarkdownComponents}>
+                          {editorContent || "*No content written yet.*"}
+                        </ReactMarkdown>
+                      )}
                     </article>
                   </div>
                 )}

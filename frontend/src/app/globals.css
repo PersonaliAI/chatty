@@ -1055,23 +1055,47 @@ body {
 }
 
 /* Sleek, modern scrollbars for booking UI and widget containers */
-.chatty-custom-scrollbar {
+.chatty-custom-scrollbar,
+.scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
 }
-.chatty-custom-scrollbar::-webkit-scrollbar {
+.chatty-custom-scrollbar::-webkit-scrollbar,
+.scrollbar-thin::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
-.chatty-custom-scrollbar::-webkit-scrollbar-track {
+.chatty-custom-scrollbar::-webkit-scrollbar-button,
+.scrollbar-thin::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+.chatty-custom-scrollbar::-webkit-scrollbar-track,
+.scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
 }
-.chatty-custom-scrollbar::-webkit-scrollbar-thumb {
+.chatty-custom-scrollbar::-webkit-scrollbar-thumb,
+.scrollbar-thin::-webkit-scrollbar-thumb {
   background: rgba(156, 163, 175, 0.4);
   border-radius: 9999px;
 }
-.chatty-custom-scrollbar::-webkit-scrollbar-thumb:hover {
+.chatty-custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: rgba(156, 163, 175, 0.7);
+}
+
+.dark .chatty-custom-scrollbar,
+.dark .scrollbar-thin {
+  scrollbar-color: rgba(115, 115, 115, 0.45) transparent;
+}
+.dark .chatty-custom-scrollbar::-webkit-scrollbar-thumb,
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(115, 115, 115, 0.45);
+}
+.dark .chatty-custom-scrollbar::-webkit-scrollbar-thumb:hover,
+.dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(163, 163, 163, 0.7);
 }
 
 

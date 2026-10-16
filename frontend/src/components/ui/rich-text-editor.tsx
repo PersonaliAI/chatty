@@ -176,7 +176,13 @@ export function RichTextEditor({
       return;
     }
 
-    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+    const trimmed = url.trim();
+    if (!/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(trimmed)) {
+      window.alert("Invalid URL. Links must start with http://, https://, mailto:, or tel:.");
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange("link").setLink({ href: trimmed }).run();
   };
 
   // Button style matching Tiptap's sleek dark/light Simple Editor template

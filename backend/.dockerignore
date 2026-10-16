@@ -4,9 +4,14 @@ __pycache__
 *.pyd
 .db
 .sqlite3
-.env
+.env*
+!.env.example
 .git
 .gitignore
 node_modules/
 frontend/
 load_testing/
+*key*.json
+gcp-key.json
+*.pem
+credentials*.json

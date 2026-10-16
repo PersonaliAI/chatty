@@ -915,7 +915,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
               />
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <ModernSelect
                 value={statusFilter}
                 options={[
@@ -1063,7 +1063,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                       </div>
                     )}
 
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex items-center gap-2 pt-1 flex-wrap">
                       <button
                         type="button"
                         onClick={() => editRule(rule)}
@@ -1466,7 +1466,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                     {idx + 1}
                   </span>
                   <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <ModernSelect
                         value={step.channel}
                         onChange={(value) => updateSequenceStep(idx, { channel: value })}
@@ -1483,7 +1483,7 @@ export function CampaignsUI({ botId, color = "#f97316", fetchBackend }: Props) {
                         max={10080}
                         value={step.after_minutes}
                         onChange={(e) => updateSequenceStep(idx, { after_minutes: Number(e.target.value) || 0 })}
-                        className="w-18 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-xs font-semibold"
+                        className="w-20 bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg px-2 py-1 text-xs font-semibold"
                       />
                       <span className="text-xs text-neutral-400">minutes</span>
                     </div>

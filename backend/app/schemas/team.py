@@ -33,6 +33,15 @@ class TeamUpdateRequest(BaseModel):
     microsoft_email: Optional[str] = None
 
 
+class OutOfOfficeRequest(BaseModel):
+    bot_id: str
+    ooo_start: Optional[str] = None  # ISO-8601; omitted = away from now
+    ooo_end: Optional[str] = None    # ISO-8601; omitted = until cleared
+    ooo_backup_email: Optional[str] = None
+    ooo_reason: Optional[str] = None
+    clear: bool = False
+
+
 class AvailabilityRule(BaseModel):
     day_of_week: int  # 0=Mon .. 6=Sun, matches availability_engine._DAY_NUM
     start_minute: int

@@ -17,6 +17,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 
+from app.core import ssrf
 from app.core.clients import supabase
 from app.core.db import run_db
 from app.core.deps import require_user
@@ -105,7 +106,10 @@ async def update_email_settings(req: EmailSettingsUpdateRequest, user: dict[str,
     if req.email_support_address is not None:
         upd["email_support_address"] = req.email_support_address.strip()
     if req.slack_escalation_webhook_url is not None:
-        upd["slack_escalation_webhook_url"] = req.slack_escalation_webhook_url.strip()
+        url = req.slack_escalation_webhook_url.strip()
+        if url:
+            await ssrf.assert_safe_url_async(url)
+        upd["slack_escalation_webhook_url"] = url
 
     if upd:
         await run_db(lambda: supabase.table("chatty_bots").update(upd).eq("id", req.bot_id).execute())
@@ -113,11 +117,20 @@ async def update_email_settings(req: EmailSettingsUpdateRequest, user: dict[str,
     return {"success": True, "settings": upd}
 
 
+def _clean_postgrest_val(val: str) -> str:
+    return re.sub(r"[,\(\)\:\%\"\'\*\s]", "", val)
+
+
 @router.post("/api/webhooks/inbound-email")
 @router.post("/webhook/email-inbound")
 async def receive_inbound_email(request: Request, background_tasks: BackgroundTasks):
     """Universal Inbound Email Webhook.
     Converts incoming customer support emails into threaded Helpdesk tickets."""
+    webhook_secret = os.environ.get("INBOUND_EMAIL_WEBHOOK_SECRET", "").strip()
+    if webhook_secret:
+        auth_header = request.headers.get("x-webhook-secret") or request.headers.get("authorization", "").replace("Bearer ", "").strip()
+        if auth_header != webhook_secret:
+            raise HTTPException(status_code=401, detail="Invalid webhook secret")
     try:
         content_type = request.headers.get("content-type", "")
         if "application/json" in content_type:
@@ -203,51 +216,46 @@ async def receive_inbound_email(request: Request, background_tasks: BackgroundTa
                     bot_id = res_b.data[0]["id"]
                     break
 
-    # Fallback to single bot in database if only one exists
-    if not bot_id and not matched_session_id_from_to:
-        res_any = await run_db(lambda: supabase.table("chatty_bots").select("id").limit(1).execute())
-        if res_any.data:
-            bot_id = res_any.data[0]["id"]
-
     # 3. Thread & Session Matching
     existing_session = None
 
     # A. Direct match from recipient ticket alias
     if matched_session_id_from_to:
-        res_s = await run_db(lambda: supabase.table("chatty_sessions")
-            .select("*")
-            .or_(f"session_id.eq.{matched_session_id_from_to},session_id.ilike.{matched_session_id_from_to}%")
-            .limit(1)
-            .execute())
-        if res_s.data:
-            existing_session = res_s.data[0]
-            bot_id = existing_session["bot_id"]
+        safe_sid = _clean_postgrest_val(matched_session_id_from_to)
+        if safe_sid:
+            q_s = supabase.table("chatty_sessions").select("*").or_(f"session_id.eq.{safe_sid},session_id.ilike.{safe_sid}%")
+            if bot_id:
+                q_s = q_s.eq("bot_id", bot_id)
+            res_s = await run_db(lambda: q_s.limit(1).execute())
+            if res_s.data:
+                existing_session = res_s.data[0]
+                bot_id = existing_session["bot_id"]
 
     # B. Match [Ticket #<session_id>] in subject line
     if not existing_session:
         m_sub = TICKET_SUBJECT_RE.search(subject)
         if m_sub:
-            short_id = m_sub.group(1)
-            res_s = await run_db(lambda: supabase.table("chatty_sessions")
-                .select("*")
-                .or_(f"session_id.eq.{short_id},session_id.ilike.{short_id}%")
-                .limit(1)
-                .execute())
-            if res_s.data:
-                existing_session = res_s.data[0]
-                bot_id = existing_session["bot_id"]
+            short_id = _clean_postgrest_val(m_sub.group(1))
+            if short_id:
+                q_s = supabase.table("chatty_sessions").select("*").or_(f"session_id.eq.{short_id},session_id.ilike.{short_id}%")
+                if bot_id:
+                    q_s = q_s.eq("bot_id", bot_id)
+                res_s = await run_db(lambda: q_s.limit(1).execute())
+                if res_s.data:
+                    existing_session = res_s.data[0]
+                    bot_id = existing_session["bot_id"]
 
     # C. Match In-Reply-To or References message id
     if not existing_session and in_reply_to:
-        clean_in_reply = in_reply_to.strip().strip("<>")
-        res_s = await run_db(lambda: supabase.table("chatty_sessions")
-            .select("*")
-            .or_(f"last_inbound_message_id.ilike.%{clean_in_reply}%,email_thread_id.ilike.%{clean_in_reply}%")
-            .limit(1)
-            .execute())
-        if res_s.data:
-            existing_session = res_s.data[0]
-            bot_id = existing_session["bot_id"]
+        clean_in_reply = _clean_postgrest_val(in_reply_to.strip().strip("<>"))
+        if clean_in_reply:
+            q_s = supabase.table("chatty_sessions").select("*").or_(f"last_inbound_message_id.ilike.%{clean_in_reply}%,email_thread_id.ilike.%{clean_in_reply}%")
+            if bot_id:
+                q_s = q_s.eq("bot_id", bot_id)
+            res_s = await run_db(lambda: q_s.limit(1).execute())
+            if res_s.data:
+                existing_session = res_s.data[0]
+                bot_id = existing_session["bot_id"]
 
     if not bot_id:
         logger.warning("Could not match inbound email to any bot")

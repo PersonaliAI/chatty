@@ -94,6 +94,13 @@ async def _claim_woocommerce_webhook(bot_id: str, delivery_id: str) -> bool:
         raise HTTPException(status_code=503, detail="Webhook idempotency store unavailable") from exc
 
 
+def _get_signing_secret() -> bytes:
+    key = FUNCTION_SECRET or os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("CHATTY_JWT_SECRET") or os.environ.get("SECRET_KEY")
+    if not key:
+        raise HTTPException(status_code=500, detail="Server signing secret not configured")
+    return key.encode("utf-8")
+
+
 def _generate_auth_state(bot_id: str, store_url: str) -> str:
     """Generate an HMAC-signed state token containing bot_id, store_url, and timestamp."""
     payload = {
@@ -103,7 +110,7 @@ def _generate_auth_state(bot_id: str, store_url: str) -> str:
     }
     raw_json = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     payload_b64 = base64.urlsafe_b64encode(raw_json).decode("utf-8").rstrip("=")
-    secret = (FUNCTION_SECRET or "chatty-wc-secret-key").encode("utf-8")
+    secret = _get_signing_secret()
     sig = base64.urlsafe_b64encode(
         hmac.new(secret, payload_b64.encode("utf-8"), hashlib.sha256).digest()
     ).decode("utf-8").rstrip("=")[:16]
@@ -118,7 +125,10 @@ def _verify_auth_state(state: str, max_age_seconds: int = 3600) -> tuple[Optiona
     if len(parts) != 2:
         return None, None
     payload_b64, sig = parts
-    secret = (FUNCTION_SECRET or "chatty-wc-secret-key").encode("utf-8")
+    try:
+        secret = _get_signing_secret()
+    except HTTPException:
+        return None, None
     expected_sig = base64.urlsafe_b64encode(
         hmac.new(secret, payload_b64.encode("utf-8"), hashlib.sha256).digest()
     ).decode("utf-8").rstrip("=")[:16]

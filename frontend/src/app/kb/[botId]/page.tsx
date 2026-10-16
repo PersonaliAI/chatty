@@ -93,8 +93,46 @@ interface LegacySource {
   type: string;
 }
 
+function getHeadingSlug(children: any): string {
+  const text = typeof children === "string" 
+    ? children 
+    : Array.isArray(children) 
+      ? children.map((c) => (typeof c === "string" ? c : c?.props?.children || "")).join("")
+      : String(children || "");
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-");
+}
+
+function sanitizeArticleHtml(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+    .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, "")
+    .replace(/\son\w+\s*=\s*[^>\s]+/gi, "")
+    .replace(/href\s*=\s*(['"])\s*(?:javascript|data|vbscript):.*?\1/gi, 'href="#"')
+    .replace(/src\s*=\s*(['"])\s*(?:javascript|data|vbscript):.*?\1/gi, 'src=""');
+}
+
 const kbMarkdownComponents = {
   a: SafeMarkdownLink,
+  h1: ({ children, ...rest }: any) => {
+    const id = getHeadingSlug(children);
+    return <h1 id={id} className="text-2xl font-bold mt-6 mb-3 scroll-mt-20" {...rest}>{children}</h1>;
+  },
+  h2: ({ children, ...rest }: any) => {
+    const id = getHeadingSlug(children);
+    return <h2 id={id} className="text-xl font-bold mt-5 mb-2 scroll-mt-20" {...rest}>{children}</h2>;
+  },
+  h3: ({ children, ...rest }: any) => {
+    const id = getHeadingSlug(children);
+    return <h3 id={id} className="text-lg font-semibold mt-4 mb-2 scroll-mt-20" {...rest}>{children}</h3>;
+  },
   table: ({ children }: any) => (
     <div className="w-full my-4 overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-xs">
       <table className="w-full border-collapse text-left text-xs sm:text-sm">{children}</table>
@@ -215,6 +253,7 @@ export default function KnowledgeBasePortal() {
   const [loading, setLoading] = useState(true);
   const [feedbackSubmitted, setFeedbackSubmitted] = useState<boolean | null>(null);
   const [feedbackComment, setFeedbackComment] = useState("");
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   // In-page Assistant Slide-over Navigation Drawer
@@ -311,6 +350,12 @@ export default function KnowledgeBasePortal() {
         setSelectedCategory(data.category || null);
         setFeedbackSubmitted(null);
         setFeedbackComment("");
+        setShowFeedbackForm(false);
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.set("article", slug);
+          window.history.replaceState(null, "", url.toString());
+        }
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } catch (err) {
@@ -322,6 +367,12 @@ export default function KnowledgeBasePortal() {
   const loadCategory = async (cat: Category) => {
     setSelectedCategory(cat);
     setSelectedArticle(null);
+    setShowFeedbackForm(false);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("article");
+      window.history.replaceState(null, "", url.toString());
+    }
     try {
       const res = await fetch(
         `${BACKEND_URL}/api/widget/kb/categories/${encodeURIComponent(cat.slug)}?bot_id=${encodeURIComponent(String(botId))}`
@@ -395,6 +446,7 @@ export default function KnowledgeBasePortal() {
         }),
       });
       setFeedbackSubmitted(isHelpful);
+      setShowFeedbackForm(false);
     } catch (err) {
       console.error("Failed to submit feedback:", err);
     } finally {
@@ -405,7 +457,13 @@ export default function KnowledgeBasePortal() {
   // Copy article link to clipboard
   const handleCopyLink = () => {
     if (typeof window === "undefined") return;
-    navigator.clipboard.writeText(window.location.href);
+    let url = window.location.href;
+    if (selectedArticle?.slug) {
+      const u = new URL(url);
+      u.searchParams.set("article", selectedArticle.slug);
+      url = u.toString();
+    }
+    navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };
@@ -415,6 +473,12 @@ export default function KnowledgeBasePortal() {
     setSelectedArticle(null);
     setSelectedCategory(null);
     setSearchQuery("");
+    setShowFeedbackForm(false);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("article");
+      window.history.replaceState(null, "", url.toString());
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -696,9 +760,13 @@ export default function KnowledgeBasePortal() {
 
                 {/* Rich Markdown Article Body */}
                 <article className="prose dark:prose-invert prose-neutral max-w-none text-xs sm:text-sm leading-relaxed space-y-4">
-                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbMarkdownComponents}>
-                    {selectedArticle.content}
-                  </ReactMarkdown>
+                  {/<[a-z][\s\S]*>/i.test(selectedArticle.content) ? (
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(selectedArticle.content) }} />
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbMarkdownComponents}>
+                      {selectedArticle.content}
+                    </ReactMarkdown>
+                  )}
                 </article>
 
                 {/* CSAT Feedback Widget */}
@@ -720,7 +788,7 @@ export default function KnowledgeBasePortal() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleFeedback(false)}
+                          onClick={() => setShowFeedbackForm(true)}
                           disabled={submittingFeedback}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:bg-white dark:hover:bg-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
                         >
@@ -735,7 +803,7 @@ export default function KnowledgeBasePortal() {
                     )}
                   </div>
 
-                  {feedbackSubmitted === false && (
+                  {feedbackSubmitted === null && showFeedbackForm && (
                     <div className="space-y-2 pt-2 animate-in fade-in">
                       <p className="text-[11px] text-neutral-400">
                         How can we improve this article? (Optional)
@@ -750,9 +818,10 @@ export default function KnowledgeBasePortal() {
                       <button
                         type="button"
                         onClick={() => handleFeedback(false)}
-                        className="px-3 py-1 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg text-xs font-semibold"
+                        disabled={submittingFeedback}
+                        className="px-3 py-1 bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50"
                       >
-                        Send Feedback
+                        {submittingFeedback ? "Sending..." : "Send Feedback"}
                       </button>
                     </div>
                   )}

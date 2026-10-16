@@ -52,7 +52,7 @@ def verify_supabase_jwt(authorization: Optional[str] = Header(None)) -> dict[str
     raise HTTPException(status_code=401, detail=detail)
 
 
-def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
+def get_user_by_auth_id(auth_user_id: str, email: Optional[str] = None) -> dict[str, Any]:
     res = (
         supabase.table("users")
         .select("*")
@@ -61,9 +61,20 @@ def get_user_by_auth_id(auth_user_id: str) -> dict[str, Any]:
         .execute()
     )
     if not res.data:
-        ins = supabase.table("users").insert({"auth_user_id": auth_user_id}).execute()
+        insert_data: dict[str, Any] = {"auth_user_id": auth_user_id}
+        if email:
+            insert_data["email"] = email.lower().strip()
+        ins = supabase.table("users").insert(insert_data).execute()
         return ins.data[0]
-    return res.data[0]
+    user = res.data[0]
+    if email and not user.get("email"):
+        clean_email = email.lower().strip()
+        try:
+            supabase.table("users").update({"email": clean_email}).eq("id", user["id"]).execute()
+            user["email"] = clean_email
+        except Exception:
+            pass
+    return user
 
 
 def verify_bearer_jwt(authorization: Optional[str] = Header(None)) -> dict[str, Any]:
@@ -71,4 +82,9 @@ def verify_bearer_jwt(authorization: Optional[str] = Header(None)) -> dict[str, 
 
 
 def require_user(claims: dict[str, Any] = Depends(verify_bearer_jwt)) -> dict[str, Any]:
-    return get_user_by_auth_id(claims["sub"])
+    return get_user_by_auth_id(claims["sub"], email=claims.get("email"))
+
+
+def get_monthly_token_usage(user_id: str) -> dict[str, Any]:
+    """Return monthly token usage for a user. Defaults to 0 if not tracked."""
+    return {"total_tokens": 0}

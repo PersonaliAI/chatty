@@ -51,6 +51,14 @@ SCOPES = [
     "Tasks.ReadWrite",
 ]
 
+# Teammate personal calendar connection: strictly Calendars.ReadWrite ONLY!
+# Strictly NO Mail.ReadWrite, Mail.Send, Files.ReadWrite (OneDrive), Contacts, or Tasks.
+MICROSOFT_CALENDAR_ONLY_SCOPES = [
+    "offline_access",
+    "User.Read",
+    "Calendars.ReadWrite",
+]
+
 
 class MicrosoftNotConnected(Exception):
     pass
@@ -61,14 +69,14 @@ class MicrosoftNotConnected(Exception):
 # ---------------------------------------------------------------------------
 
 
-def auth_url(state: str) -> str:
+def auth_url(state: str, scopes: Optional[list[str]] = None) -> str:
     if not os.environ.get("MICROSOFT_CLIENT_ID"):
         raise RuntimeError("MICROSOFT_CLIENT_ID not configured")
     params = {
         "client_id": os.environ["MICROSOFT_CLIENT_ID"],
         "redirect_uri": os.environ["MICROSOFT_REDIRECT_URI"],
         "response_type": "code",
-        "scope": " ".join(SCOPES),
+        "scope": " ".join(scopes or SCOPES),
         "response_mode": "query",
         "state": state,
         "prompt": "consent",
@@ -120,7 +128,7 @@ async def me(access_token: str) -> dict[str, Any]:
 
 
 async def _valid_access_token(
-    supabase, user: dict[str, Any]
+    supabase, user: dict[str, Any], table: str = "users"
 ) -> Optional[str]:
     token_enc = user.get("microsoft_access_token")
     refresh_enc = user.get("microsoft_refresh_token")
@@ -148,7 +156,7 @@ async def _valid_access_token(
     user["microsoft_access_token"] = new_token
     user["microsoft_refresh_token"] = new_refresh
     user["microsoft_token_expiry"] = new_exp.isoformat()
-    await run_db(lambda: supabase.table("users").update(
+    await run_db(lambda: supabase.table(table).update(
         {
             "microsoft_access_token": encrypt_secret(new_token),
             "microsoft_refresh_token": encrypt_secret(new_refresh),
@@ -171,8 +179,9 @@ async def _api(
     timeout: float = 30,
     return_raw: bool = False,
     headers: Optional[dict[str, str]] = None,
+    table: str = "users",
 ) -> Any:
-    token = await _valid_access_token(supabase, user)
+    token = await _valid_access_token(supabase, user, table=table)
     if not token:
         raise MicrosoftNotConnected("Microsoft account not connected")
     req_headers: dict[str, str] = {"Authorization": f"Bearer {token}"}
@@ -941,6 +950,7 @@ async def list_outlook_events(
     time_min: Optional[datetime] = None,
     time_max: Optional[datetime] = None,
     limit: int = 25,
+    table: str = "users",
 ) -> list[dict[str, Any]]:
     if calendar_id:
         base = f"{GRAPH_BASE}/me/calendars/{calendar_id}/events"
@@ -956,7 +966,7 @@ async def list_outlook_events(
         )
         params["startDateTime"] = time_min.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         params["endDateTime"] = time_max.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-    res = await _api(supabase, user, "GET", base, params=params)
+    res = await _api(supabase, user, "GET", base, params=params, table=table)
     return [_format_outlook_event(e) for e in res.get("value", [])]
 
 

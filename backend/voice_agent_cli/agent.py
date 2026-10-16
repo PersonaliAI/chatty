@@ -79,7 +79,7 @@ and only state current catalog facts returned by that tool. If the visitor sent 
 through the room's media channel, use that pending image in search_catalog.
 When recommending or answering about catalog products or available items, always provide the product picture
 so the visitor sees it visually in their on-screen transcript: append a markdown image ![Product Title](image_url)
-or append [PRODUCT_CARD:{"id": "...", "title": "...", "price": "...", "currency": "...", "url": "...", "image_url": "...", "in_stock": true}].
+or append [PRODUCT_CARD:{{"id": "...", "title": "...", "price": "...", "currency": "...", "url": "...", "image_url": "...", "in_stock": true}}].
 LiveKit TTS automatically strips markdown syntax and card markers from speech audio, so speak your answer
 smoothly and naturally without reading URLs or bracketed tokens aloud.
 

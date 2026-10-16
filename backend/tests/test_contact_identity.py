@@ -47,13 +47,14 @@ def test_signed_identity_accepts_only_server_asserted_profile():
 
 @pytest.mark.parametrize("changes", [
     {"aud": "chatty:other-bot"}, {"iss": "evil"}, {"exp": 1}, {"sub": ""},
-    {"exp": int(time.time()) + 10000}, {"iat": int(time.time()) + 100},
+    {"exp": lambda: int(time.time()) + 10000}, {"iat": lambda: int(time.time()) + 100},
     {"profile": {"custom_attributes": {"role": "admin"}}},
     {"profile": {"identity_verified": True}}, {"profile": {"custom_attributes": {"nested": {"secret": "x"}}}},
 ])
 def test_signed_identity_denies_bad_claims(changes):
+    resolved = {k: (v() if callable(v) else v) for k, v in changes.items()}
     with pytest.raises(HTTPException) as error:
-        identity.verify_identity(signed(**changes), SECRET, BOT)
+        identity.verify_identity(signed(**resolved), SECRET, BOT)
     assert error.value.status_code == 401
 
 

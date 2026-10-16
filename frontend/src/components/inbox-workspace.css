@@ -75,14 +75,60 @@
   .inbox-shell[data-navigation-collapsed=false] .inbox-navigation:hover .inbox-nav-content, .inbox-shell[data-navigation-collapsed=false] .inbox-navigation:focus-within .inbox-nav-content { display: block; position: absolute; z-index: 30; width: 180px; background: var(--inbox-panel); border: 1px solid var(--inbox-line); border-radius: 8px; }
 }
 @container inbox (max-width: 900px) {
-  .inbox-shell .inbox-workspace, .inbox-shell[data-details-open=true] .inbox-workspace, .inbox-shell[data-navigation-collapsed=true] .inbox-workspace, .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace { grid-template-columns: minmax(0,1fr); position: relative; }
-  .inbox-navigation { display: none; }
+  .inbox-shell .inbox-workspace,
+  .inbox-shell[data-details-open=true] .inbox-workspace,
+  .inbox-shell[data-navigation-collapsed=true] .inbox-workspace,
+  .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
+    position: relative;
+  }
+  .inbox-shell .inbox-navigation {
+    display: block;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--inbox-line);
+  }
+  .inbox-shell .inbox-navigation .inbox-pane-title {
+    display: none;
+  }
+  .inbox-shell .inbox-nav-content {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px 9px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .inbox-shell .inbox-nav-content::-webkit-scrollbar { display: none; }
+  .inbox-shell .inbox-nav-content h3 {
+    display: none;
+  }
+  .inbox-shell .inbox-nav-content > button {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 36px;
+    padding: 8px 11px;
+    gap: 7px;
+    white-space: nowrap;
+    border: 1px solid var(--inbox-line);
+    border-radius: 999px;
+    font-size: 12px;
+  }
+  .inbox-shell .inbox-nav-content > button[aria-pressed=true] {
+    border-color: #f97316;
+    background: #f9731614;
+  }
   .inbox-conversation { display: none; border: 0; }
   .inbox-shell[data-conversation-open=true] .inbox-conversation { display: flex; }
   .inbox-shell[data-conversation-open=true] .inbox-queue { display: none; }
   .inbox-back { display: flex; }
   .inbox-conversation-tools { justify-content: flex-start; }
-  .inbox-contact-pane { position: absolute; inset: 44px 0 0 auto; width: min(330px,100%); z-index: 40; border-left: 1px solid var(--inbox-line); box-shadow: -12px 0 24px #0002; }
+  .inbox-contact-pane { position: absolute; inset: 0 0 0 auto; width: min(330px,100%); z-index: 40; border-left: 1px solid var(--inbox-line); box-shadow: -12px 0 24px #0002; }
   .inbox-shell[data-details-open=true] .inbox-contact-pane { display: block; }
   .inbox-conversation-tools > button, .inbox-conversation-tools > div { flex-shrink: 0; }
 }

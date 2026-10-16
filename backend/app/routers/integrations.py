@@ -339,8 +339,13 @@ async def google_start(
     redirect_path: Optional[str] = None,
     mode: str = "primary",
     bot_id: Optional[str] = None,
+    scope_type: Optional[str] = None,
+    member_id: Optional[str] = None,
     user: dict[str, Any] = Depends(require_user)
 ):
+    if bot_id:
+        from app.core.permissions import verify_bot_permission
+        await verify_bot_permission(bot_id, user, "calendar")
     if not os.environ.get("GOOGLE_CLIENT_ID"):
         raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID not configured")
     if mode == "add":
@@ -360,15 +365,21 @@ async def google_start(
     is_chatty = "chatty" in origin or "localhost:3001" in origin
     if not redirect_path:
         redirect_path = "/dashboard" if is_chatty else "/dashboard/integrations"
-    extra_claims = {"bot_id": bot_id} if bot_id else None
-    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path, mode=mode, extra_claims=extra_claims)
-    # g.auth_url already sets prompt=consent, so Google always reissues a
-    # refresh token here - needed so "add another account" doesn't end up
-    # depending on a token minted for a different connection.
-    # Chatty only uses Calendar/Meet/Drive - asking for Kin's full bundle
-    # (Gmail, Tasks, Contacts, Docs, Sheets, Slides) put unrelated
-    # permissions on Chatty customers' consent screens for no reason.
-    scopes = g.CHATTY_SCOPES if is_chatty else None
+    extra_claims: dict[str, Any] = {{}}
+    if bot_id:
+        extra_claims["bot_id"] = bot_id
+    if scope_type:
+        extra_claims["scope_type"] = scope_type
+    if member_id:
+        extra_claims["member_id"] = member_id
+    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path, mode=mode, extra_claims=extra_claims or None)
+    # Calendar-only scope for teammates: strictly NO Drive or Gmail permissions
+    if scope_type == "calendar":
+        scopes = g.GOOGLE_CALENDAR_ONLY_SCOPES
+    elif is_chatty:
+        scopes = g.CHATTY_SCOPES
+    else:
+        scopes = None
     return {"url": g.auth_url(state, scopes=scopes)}
 
 
@@ -395,6 +406,40 @@ async def google_callback(code: str, state: str):
         profile = await g.userinfo(access)
     except httpx.HTTPError:
         pass
+
+    target_member_id = _decode_state_claim(state, "member_id")
+    if target_member_id:
+        member_email = profile.get("email")
+        member_update: dict[str, Any] = {
+            "google_email": member_email,
+            "google_calendar_connected": True,
+            "google_access_token": encrypt_secret(access),
+            "google_token_expiry": (
+                datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
+            ).isoformat(),
+        }
+        if refresh:
+            member_update["google_refresh_token"] = encrypt_secret(refresh)
+        try:
+            await run_db(lambda: supabase.table("chatty_team_members").update(member_update).eq("id", target_member_id).execute())
+        except Exception:
+            logger.warning("Failed to store google calendar tokens on chatty_team_members, falling back to email", exc_info=True)
+            await run_db(lambda: supabase.table("chatty_team_members").update({
+                "google_email": member_email,
+                "google_calendar_connected": True,
+            }).eq("id", target_member_id).execute())
+        if target_bot_id:
+            try:
+                from app.routers.team import _write_team_audit_log
+                await _write_team_audit_log(
+                    target_bot_id,
+                    "team_member_calendar_updated",
+                    f"Connected personal Google Calendar (Calendar-only) for {member_email or target_member_id}",
+                    {"auth_user_id": auth_user_id, "id": auth_user_id, "email": member_email or "teammate"}
+                )
+            except Exception:
+                pass
+        return RedirectResponse(f"{frontend}{redirect_path}?calendar_connected=google&member_id={target_member_id}")
 
     if mode == "add":
         if not refresh:
@@ -428,15 +473,17 @@ async def google_callback(code: str, state: str):
         new_acc_id = inserted.data[0]["id"] if (inserted.data and len(inserted.data) > 0) else None
         if target_bot_id and new_acc_id:
             try:
-                await run_db(lambda: supabase.table("chatty_bots").update({
-                    "google_connected_account_id": new_acc_id,
-                    "google_calendar_id": "primary",
-                    "google_calendar_name": "Primary Calendar",
-                    "sync_google_calendar": True,
-                    "calendar_scheduling_enabled": True,
-                    "meeting_provider": "google_meet",
-                }).eq("id", target_bot_id).execute())
-                return RedirectResponse(f"{frontend}{redirect_path}?google=connected_for_bot&bot_id={target_bot_id}")
+                bot_check = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", target_bot_id).eq("user_id", auth_user_id).limit(1).execute())
+                if bot_check.data:
+                    await run_db(lambda: supabase.table("chatty_bots").update({
+                        "google_connected_account_id": new_acc_id,
+                        "google_calendar_id": "primary",
+                        "google_calendar_name": "Primary Calendar",
+                        "sync_google_calendar": True,
+                        "calendar_scheduling_enabled": True,
+                        "meeting_provider": "google_meet",
+                    }).eq("id", target_bot_id).execute())
+                    return RedirectResponse(f"{frontend}{redirect_path}?google=connected_for_bot&bot_id={target_bot_id}")
             except Exception:
                 logger.warning("Failed to auto-bind bot to new google account", exc_info=True)
         return RedirectResponse(f"{frontend}{redirect_path}?google=added")
@@ -455,15 +502,17 @@ async def google_callback(code: str, state: str):
     await run_db(lambda: supabase.table("users").update(update).eq("auth_user_id", auth_user_id).execute())
     if target_bot_id:
         try:
-            await run_db(lambda: supabase.table("chatty_bots").update({
-                "google_connected_account_id": None,
-                "google_calendar_id": "primary",
-                "google_calendar_name": "Primary Calendar",
-                "sync_google_calendar": True,
-                "calendar_scheduling_enabled": True,
-                "meeting_provider": "google_meet",
-            }).eq("id", target_bot_id).execute())
-            return RedirectResponse(f"{frontend}{redirect_path}?google=ok&bot_id={target_bot_id}")
+            bot_check = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", target_bot_id).eq("user_id", auth_user_id).limit(1).execute())
+            if bot_check.data:
+                await run_db(lambda: supabase.table("chatty_bots").update({
+                    "google_connected_account_id": None,
+                    "google_calendar_id": "primary",
+                    "google_calendar_name": "Primary Calendar",
+                    "sync_google_calendar": True,
+                    "calendar_scheduling_enabled": True,
+                    "meeting_provider": "google_meet",
+                }).eq("id", target_bot_id).execute())
+                return RedirectResponse(f"{frontend}{redirect_path}?google=ok&bot_id={target_bot_id}")
         except Exception:
             logger.warning("Failed to auto-bind bot to primary google account", exc_info=True)
     return RedirectResponse(f"{frontend}{redirect_path}?google=ok")
@@ -481,6 +530,8 @@ async def google_disconnect(
 
     # If specifically disconnecting only a single bot's calendar/drive without disconnecting the account
     if target_bot_id and scope == "bot":
+        from app.core.permissions import verify_bot_permission
+        await verify_bot_permission(target_bot_id, user, "calendar")
         await run_db(lambda: supabase.table("chatty_bots").update({
             "google_connected_account_id": None,
             "google_calendar_id": None,
@@ -740,15 +791,29 @@ async def sync_calendar_from_bot(
 async def microsoft_start(
     request: Request,
     redirect_path: Optional[str] = None,
+    bot_id: Optional[str] = None,
+    scope_type: Optional[str] = None,
+    member_id: Optional[str] = None,
     user: dict[str, Any] = Depends(require_user)
 ):
+    if bot_id:
+        from app.core.permissions import verify_bot_permission
+        await verify_bot_permission(bot_id, user, "calendar")
     if not os.environ.get("MICROSOFT_CLIENT_ID"):
         raise HTTPException(status_code=500, detail="MICROSOFT_CLIENT_ID not configured")
     origin = request.headers.get("origin", "")
     if not redirect_path:
         redirect_path = "/dashboard" if "chatty" in origin or "localhost:3001" in origin else "/dashboard/integrations"
-    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path)
-    return {"url": ms.auth_url(state)}
+    extra_claims: dict[str, Any] = {{}}
+    if bot_id:
+        extra_claims["bot_id"] = bot_id
+    if scope_type:
+        extra_claims["scope_type"] = scope_type
+    if member_id:
+        extra_claims["member_id"] = member_id
+    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=redirect_path, extra_claims=extra_claims or None)
+    scopes = ms.MICROSOFT_CALENDAR_ONLY_SCOPES if scope_type == "calendar" else None
+    return {"url": ms.auth_url(state, scopes=scopes)}
 
 
 @router.get("/auth/microsoft/callback")
@@ -772,6 +837,40 @@ async def microsoft_callback(code: str, state: str):
         profile = await ms.me(access)
     except httpx.HTTPError:
         pass
+
+    target_member_id = _decode_state_claim(state, "member_id")
+    if target_member_id:
+        member_email = profile.get("mail") or profile.get("userPrincipalName")
+        member_update: dict[str, Any] = {
+            "microsoft_email": member_email,
+            "microsoft_calendar_connected": True,
+            "microsoft_access_token": encrypt_secret(access),
+            "microsoft_token_expiry": (
+                datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
+            ).isoformat(),
+        }
+        if refresh:
+            member_update["microsoft_refresh_token"] = encrypt_secret(refresh)
+        try:
+            await run_db(lambda: supabase.table("chatty_team_members").update(member_update).eq("id", target_member_id).execute())
+        except Exception:
+            logger.warning("Failed to store microsoft calendar tokens on chatty_team_members, falling back to email", exc_info=True)
+            await run_db(lambda: supabase.table("chatty_team_members").update({
+                "microsoft_email": member_email,
+                "microsoft_calendar_connected": True,
+            }).eq("id", target_member_id).execute())
+        if target_bot_id:
+            try:
+                from app.routers.team import _write_team_audit_log
+                await _write_team_audit_log(
+                    target_bot_id,
+                    "team_member_calendar_updated",
+                    f"Connected personal Microsoft Calendar (Calendar-only) for {member_email or target_member_id}",
+                    {"auth_user_id": auth_user_id, "id": auth_user_id, "email": member_email or "teammate"}
+                )
+            except Exception:
+                pass
+        return RedirectResponse(f"{frontend}{redirect_path}?calendar_connected=microsoft&member_id={target_member_id}")
 
     update: dict[str, Any] = {
         "microsoft_access_token": encrypt_secret(access),
@@ -798,6 +897,8 @@ async def microsoft_disconnect(
     auth_user_id = user.get("auth_user_id") or user.get("id")
 
     if target_bot_id and scope == "bot":
+        from app.core.permissions import verify_bot_permission
+        await verify_bot_permission(target_bot_id, user, "calendar")
         await run_db(lambda: supabase.table("chatty_bots").update({
             "sync_outlook_calendar": False,
             "calendar_scheduling_enabled": False,
@@ -835,6 +936,8 @@ async def zoom_disconnect(
 ):
     target_bot_id = (body.bot_id if body else None) or bot_id
     if target_bot_id:
+        from app.core.permissions import verify_bot_permission
+        await verify_bot_permission(target_bot_id, user, "calendar")
         await run_db(lambda: supabase.table("chatty_bots").update({
             "custom_meeting_link": None,
             "meeting_provider": "google_meet",

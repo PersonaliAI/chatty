@@ -439,16 +439,34 @@ export function DeveloperTab({
 
   // --- Try-It runner ---
   const runTryIt = async (ep: EndpointDef) => {
-    const key = tryItKey || firstActive?.key_prefix || "";
-    if (!key) return;
+    const key = tryItKey || (newApiKey ? newApiKey : "");
     const epKey = ep.path;
+    if (!key) {
+      setTryItResponse(prev => ({
+        ...prev,
+        [epKey]: {
+          loading: false,
+          data: { error: "Please enter your full API key (or create a new key above) to test this endpoint." },
+          status: 401,
+        },
+      }));
+      return;
+    }
     setTryItResponse(prev => ({ ...prev, [epKey]: { loading: true, data: null, status: null } }));
     try {
       const isPost = ep.method === "POST";
+      let requestPayload = ep.requestBody;
+      if (isPost && tryItBody[epKey]) {
+        try {
+          requestPayload = JSON.parse(tryItBody[epKey]);
+        } catch {
+          requestPayload = ep.requestBody;
+        }
+      }
       const res = await fetch(`${BACKEND_URL}${ep.path.replace("{session_id}", "test-session").replace("{source_id}", "test-source-id").replace("{webhook_id}", "test-webhook-id")}`, {
         method: ep.method,
         headers: { Authorization: `Bearer ${key}`, ...(isPost ? { "Content-Type": "application/json" } : {}) },
-        ...(isPost && ep.requestBody ? { body: JSON.stringify(ep.requestBody) } : {}),
+        ...(isPost && requestPayload ? { body: JSON.stringify(requestPayload) } : {}),
       });
       const data = await res.json().catch(() => null);
       setTryItResponse(prev => ({ ...prev, [epKey]: { loading: false, data, status: res.status } }));
@@ -659,7 +677,7 @@ export function DeveloperTab({
             <input
               value={tryItKey}
               onChange={e => setTryItKey(e.target.value)}
-              placeholder={firstActive ? `${firstActive.key_prefix}•••• (auto-filled from active key)` : "Paste your API key for Try-It"}
+              placeholder={firstActive ? "Paste your API key (sk_...) for Try-It" : "Paste your API key for Try-It"}
               className="w-full text-xs bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 font-mono focus:outline-none focus:border-[#f97316] pr-10"
             />
           </div>
@@ -695,13 +713,16 @@ export function DeveloperTab({
 
                         {ep.requestBody && (
                           <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 mb-1.5">Request Body</p>
-                            <div className="relative group">
-                              <pre className="bg-neutral-950 text-neutral-200 rounded-xl p-3 text-[11px] font-mono overflow-x-auto">{JSON.stringify(ep.requestBody, null, 2)}</pre>
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <CopyButton text={JSON.stringify(ep.requestBody, null, 2)} size="xs" />
-                              </div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400">Request Body (Editable JSON)</p>
+                              <CopyButton text={tryItBody[epKey] ?? JSON.stringify(ep.requestBody, null, 2)} size="xs" />
                             </div>
+                            <textarea
+                              rows={4}
+                              value={tryItBody[epKey] ?? JSON.stringify(ep.requestBody, null, 2)}
+                              onChange={(e) => setTryItBody(prev => ({ ...prev, [epKey]: e.target.value }))}
+                              className="w-full bg-neutral-950 text-neutral-200 font-mono text-[11px] p-3 rounded-xl border border-neutral-800 focus:outline-none focus:border-[#f97316]"
+                            />
                           </div>
                         )}
 

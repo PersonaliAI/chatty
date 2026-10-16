@@ -11,6 +11,7 @@ interface LeadsTabProps {
   refreshLeads: () => void;
   refreshingLeads: boolean;
   exportLeadsCSV: () => void;
+  canExportLeads?: boolean;
   loadingLists: boolean;
   leadFields: string[];
   editingLeadId: string | null;
@@ -32,6 +33,7 @@ export function LeadsTab({
   refreshLeads,
   refreshingLeads,
   exportLeadsCSV,
+  canExportLeads = true,
   loadingLists,
   leadFields,
   editingLeadId,
@@ -74,8 +76,9 @@ export function LeadsTab({
           </button>
           <button
             onClick={exportLeadsCSV}
-            disabled={leads.length === 0}
-            className="text-[10px] font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg px-3 py-2 flex items-center gap-1.5 cursor-pointer hover:opacity-90 disabled:opacity-50 transition-opacity"
+            disabled={leads.length === 0 || !canExportLeads}
+            title={!canExportLeads ? "Export restricted to Admin and Owner" : "Export leads to CSV"}
+            className="text-[10px] font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 rounded-lg px-3 py-2 flex items-center gap-1.5 cursor-pointer hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
           >
             <FileSpreadsheet className="size-3.5" />
             Export CSV

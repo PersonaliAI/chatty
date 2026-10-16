@@ -33,7 +33,7 @@ async def _resolve_connection(supabase, bot_id: str, connection_id: str) -> dict
         if not user_id:
             return None
         columns = "google_access_token, google_refresh_token, google_email" if connection_id == "google-primary" else "microsoft_access_token, microsoft_refresh_token, microsoft_email"
-        user_result = await run_db(lambda: supabase.table("users").select(columns).eq("id", user_id).maybe_single().execute())
+        user_result = await run_db(lambda: supabase.table("users").select(columns).or_(f"id.eq.{user_id},auth_user_id.eq.{user_id}").maybe_single().execute())
         row = user_result.data or {}
         provider = "Google" if connection_id == "google-primary" else "Microsoft"
         access_key = "google_access_token" if connection_id == "google-primary" else "microsoft_access_token"
@@ -177,6 +177,23 @@ async def _execute_graph(
                         "content": reply,
                         "sender": "ai",
                     }).execute())
+        elif node.get("kind") == "logic":
+            field_path = str(config.get("field") or config.get("variable") or "").strip()
+            op = str(config.get("operator") or "equals").lower().strip()
+            expected = str(config.get("value") or "").strip()
+            actual = _template_value(field_path, inputs) if field_path else ""
+            if op in {"equals", "eq", "=="}:
+                matched = actual.lower() == expected.lower()
+            elif op in {"not_equals", "neq", "!="}:
+                matched = actual.lower() != expected.lower()
+            elif op in {"contains", "in"}:
+                matched = expected.lower() in actual.lower()
+            elif op in {"matches", "regex"}:
+                matched = bool(re.search(expected, actual, re.IGNORECASE)) if expected else False
+            else:
+                matched = True
+            status = "completed" if matched else "skipped"
+            trace_step["matched"] = matched
         elif node.get("kind") == "action":
             url = str(config.get("url") or "").strip()
             if not url:
@@ -207,12 +224,21 @@ async def _execute_graph(
                     "n8n_parameters": node.get("n8nParameters") if isinstance(node.get("n8nParameters"), dict) else {},
                     "config": config,
                 }
+                headers = {"Content-Type": "application/json"}
                 if connection:
-                    body["connection"] = connection
+                    creds = connection.get("credentials") if isinstance(connection.get("credentials"), dict) else {}
+                    token = creds.get("access_token") or creds.get("api_key") or creds.get("token")
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                    body["connection"] = {
+                        "provider": connection.get("provider"),
+                        "auth_type": connection.get("auth_type"),
+                        "metadata": connection.get("metadata") or {},
+                    }
                 for attempt in range(_MAX_ADAPTER_ATTEMPTS):
                     try:
                         async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
-                            response = await ssrf.request_async(client, str(config.get("method") or "POST").upper(), url, json=body)
+                            response = await ssrf.request_async(client, str(config.get("method") or "POST").upper(), url, json=body, headers=headers)
                         if response.status_code < 300:
                             status = "completed"
                             failed = None

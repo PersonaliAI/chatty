@@ -454,7 +454,7 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
 
 
 async def _prepare_product_embedding(
-    mapped: dict[str, Any], existing_metadata: Optional[dict[str, Any]] = None
+    mapped: dict[str, Any], existing_metadata: Optional[dict[str, Any]] = None, bot_id: Optional[str] = None
 ) -> tuple[dict[str, Any], list[float] | None, list[float] | None]:
     """Refresh text and gallery-image embeddings when product facts change."""
     embedding_kwargs = {
@@ -673,7 +673,7 @@ async def run_woocommerce_sync_task(bot_id: str) -> dict[str, Any]:
                         item_id = existing.data[0]["id"]
                         existing_metadata = existing.data[0].get("metadata") or {}
                         updated_metadata, embedding, image_embedding = await _prepare_product_embedding(
-                            mapped, existing_metadata
+                            mapped, existing_metadata, bot_id=bot_id
                         )
                         upd = {
                             "title": mapped["title"],
@@ -863,7 +863,7 @@ async def process_webhook_payload(
             item_id = existing.data[0]["id"]
             existing_metadata = existing.data[0].get("metadata") or {}
             updated_metadata, embedding, image_embedding = await _prepare_product_embedding(
-                mapped, existing_metadata
+                mapped, existing_metadata, bot_id=bot_id
             )
             upd = {
                 "title": mapped["title"],

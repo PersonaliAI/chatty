@@ -155,4 +155,5 @@ export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
   billing: "billing",
   admin_affiliates: null,
   settings: "settings",
+  workspace: "team",
 };

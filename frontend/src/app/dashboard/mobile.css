@@ -127,6 +127,11 @@
 
   [data-dashboard] .dashboard-action-bar > * {
     flex-shrink: 0;
+    max-width: 100%;
+  }
+
+  [data-dashboard] .dashboard-action-bar > span:not([class*="px-"]):not([class*="py-"]) {
+    align-self: center;
   }
 
   [data-dashboard] .dashboard-action-bar button {

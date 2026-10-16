@@ -19,6 +19,8 @@ import jwt
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header
 from pydantic import BaseModel, HttpUrl
 
+import asyncio
+from app.core.ssrf import assert_safe_url_async
 from app.core.clients import supabase
 from app.core.config import FRONTEND_URL, FUNCTION_SECRET
 from app.core.db import run_db
@@ -57,6 +59,7 @@ async def _crawl_demo_target_site(bot_id: str, target_url: str):
     """Background task to fetch and index the demo startup's site so the claimable
     assistant is pre-trained with real answers when the prospect opens the link."""
     try:
+        await assert_safe_url_async(target_url)
         from main import _fetch_url_content
         content = await _fetch_url_content(target_url)
         if content and content.strip():
@@ -82,7 +85,7 @@ class ClaimResponse(BaseModel):
 @router.post("/api/claim/generate")
 async def generate_claimable_bot(
     req: GenerateClaimBotRequest,
-    background_tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     user: dict[str, Any] = Depends(require_user),
 ) -> dict[str, Any]:
     """Creates a pre-configured demo bot ready for cold outreach claiming."""
@@ -128,7 +131,11 @@ async def generate_claimable_bot(
     created = res.data[0]
     bot_id = created["id"]
     if req.target_url:
-        background_tasks.add_task(_crawl_demo_target_site, bot_id, req.target_url)
+        await assert_safe_url_async(req.target_url)
+        if isinstance(background_tasks, BackgroundTasks):
+            background_tasks.add_task(_crawl_demo_target_site, bot_id, req.target_url)
+        else:
+            asyncio.create_task(_crawl_demo_target_site(bot_id, req.target_url))
 
     base_frontend = (FRONTEND_URL or "https://chatty.personaliai.com").rstrip("/")
     claim_url = f"{base_frontend}/claim/{claim_token}"
@@ -277,11 +284,22 @@ async def claim_bot(
     if current_status == "declined":
         raise HTTPException(status_code=410, detail="This bot was declined and deleted.")
 
+    expires_at_str = bot.get("demo_expires_at")
+    if expires_at_str:
+        try:
+            exp = datetime.fromisoformat(str(expires_at_str).replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) > exp:
+                raise HTTPException(status_code=410, detail="This claim link has expired.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     new_user_id = user["auth_user_id"]
     user_email = user.get("email") or ""
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    # Atomically reassign bot ownership
+    # Atomically reassign bot ownership and clear claim_token
     update_res = await run_db(
         lambda: supabase.table("chatty_bots")
         .update(
@@ -290,9 +308,11 @@ async def claim_bot(
                 "claim_status": "claimed",
                 "claimed_at": now_iso,
                 "claimed_by_email": user_email,
+                "claim_token": None,
             }
         )
         .eq("id", bot_id)
+        .eq("claim_status", "unclaimed")
         .execute()
     )
 
@@ -347,8 +367,11 @@ async def decline_and_delete_demo_bot(claim_token: str) -> dict[str, Any]:
     bot = res.data[0]
     bot_id = bot["id"]
 
+    if bot.get("claim_status") == "claimed":
+        raise HTTPException(status_code=403, detail="Cannot discard an already claimed bot")
+
     # Delete the bot row; foreign keys cascade to sources, documents, vectors, sessions
-    await run_db(lambda: supabase.table("chatty_bots").delete().eq("id", bot_id).execute())
+    await run_db(lambda: supabase.table("chatty_bots").delete().eq("id", bot_id).eq("claim_status", "unclaimed").execute())
 
     logger.info("Demo bot %s permanently declined and deleted via claim token %s", bot_id, token)
 
