@@ -367,7 +367,7 @@ async def google_start(
     is_chatty = "chatty" in origin or "localhost:3001" in origin
     if not redirect_path:
         redirect_path = "/dashboard" if is_chatty else "/dashboard/integrations"
-    extra_claims: dict[str, Any] = {{}}
+    extra_claims: dict[str, Any] = {}
     if bot_id:
         extra_claims["bot_id"] = bot_id
     if scope_type:
@@ -832,7 +832,7 @@ async def microsoft_start(
     origin = request.headers.get("origin", "")
     if not redirect_path:
         redirect_path = "/dashboard" if "chatty" in origin or "localhost:3001" in origin else "/dashboard/integrations"
-    extra_claims: dict[str, Any] = {{}}
+    extra_claims: dict[str, Any] = {}
     if bot_id:
         extra_claims["bot_id"] = bot_id
     if scope_type:
