@@ -2112,8 +2112,12 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           // the sidebar link disappears but the content pane wouldn't
           // otherwise notice - bounce back to the always-visible Overview.
           const requiredTab = NAV_TAB_PERMISSION[activeTab];
-          if (requiredTab && role !== "owner" && !permissions.includes(requiredTab)) {
-            setActiveTab("home");
+          if (requiredTab && role !== "owner" && !checkUserHasTabPermission(requiredTab, role, permissions)) {
+            const firstPermitted = Object.keys(NAV_TAB_PERMISSION).find((tabKey) => {
+              const req = NAV_TAB_PERMISSION[tabKey];
+              return !req || checkUserHasTabPermission(req, role, permissions);
+            }) || "home";
+            setActiveTab(firstPermitted);
           }
         }
       } catch { /* keep the owner-level default on failure */ }
