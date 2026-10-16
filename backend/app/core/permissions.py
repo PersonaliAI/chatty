@@ -32,8 +32,9 @@ def default_permissions_for_role(role: str) -> list[str]:
 
 
 async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tuple[str, list[str]]:
+    auth_id = user.get("auth_user_id") or user.get("user_id") or user.get("id")
     owned = await run_db(lambda: supabase.table("chatty_bots").select("id").eq(
-        "id", bot_id).eq("user_id", user["auth_user_id"]).execute())
+        "id", bot_id).eq("user_id", auth_id).execute())
     if owned.data:
         return "owner", list(ALL_TABS)
 

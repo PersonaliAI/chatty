@@ -891,8 +891,11 @@ async def get_bot_performance_scorecard(bot_id: str, days: int = 30) -> dict:
     """Audit chatbot performance with an A-F letter grade across 5 core operational pillars: Conversion, Engagement & Deflection, Accuracy, Reliability, and Customer Satisfaction."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
+    user_dict = dict(principal)
+    if "auth_user_id" not in user_dict and "user_id" in user_dict:
+        user_dict["auth_user_id"] = user_dict["user_id"]
     from app.routers.analytics import analytics_scorecard
-    return await analytics_scorecard(bot_id=bot_id, days=days, user=principal)
+    return await analytics_scorecard(bot_id=bot_id, days=days, user=user_dict)
 
 
 # ===========================================================================

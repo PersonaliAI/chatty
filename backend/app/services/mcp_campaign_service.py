@@ -22,7 +22,7 @@ from app.services.campaign_analytics import aggregate_campaign_events
 
 async def create_campaign(principal: dict[str, Any], bot_id: str, body: CampaignCreateRequest) -> dict[str, Any]:
     await _oauth.require_bot_access(principal, bot_id)
-    row = {
+    base_row = {
         "bot_id": bot_id,
         "name": body.name,
         "type": body.campaign_type,
@@ -34,13 +34,22 @@ async def create_campaign(principal: dict[str, Any], bot_id: str, body: Campaign
         "start_date": body.start_date,
         "end_date": body.end_date,
         "is_active": body.is_active,
+    }
+    extended_row = {
+        **base_row,
         "audience_rules": body.audience_rules,
         "channels": body.channels,
         "sequence_steps": body.sequence_steps,
         "safety_config": body.safety_config or {"frequency_cap_hours": 24, "require_consent": True},
         "schedule_config": body.schedule_config or {"cadence": "once", "timezone": "UTC"},
     }
-    res = await run_db(lambda: supabase.table("chatty_campaigns").insert(row).execute())
+    try:
+        res = await run_db(lambda: supabase.table("chatty_campaigns").insert(extended_row).execute())
+    except Exception as exc:
+        if "PGRST204" in str(exc) or "column" in str(exc).lower():
+            res = await run_db(lambda: supabase.table("chatty_campaigns").insert(base_row).execute())
+        else:
+            raise
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create campaign")
     return res.data[0]
