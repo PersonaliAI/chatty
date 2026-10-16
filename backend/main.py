@@ -491,14 +491,45 @@ async def _widget_rate_limit_or_429(bot: dict, bot_id: str, ip: str, token: Opti
         raise HTTPException(status_code=429, detail="Too many messages. Please slow down.")
 
 
+async def _fetch_via_firecrawl(u: str) -> str:
+    """Scrape a URL to markdown via Firecrawl (JS-rendered). Returns "" when no
+    key is configured or on any failure so the caller can fall back to Jina."""
+    key = os.environ.get("FIRECRAWL_API_KEY", "").strip()
+    if not key:
+        return ""
+    base = os.environ.get("FIRECRAWL_API_URL", "https://api.firecrawl.dev").strip().rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            r = await client.post(
+                f"{base}/v1/scrape",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={"url": u, "formats": ["markdown"], "onlyMainContent": True},
+            )
+        if r.status_code >= 300:
+            logger.warning("Firecrawl returned %s for %s; falling back to Jina", r.status_code, u)
+            return ""
+        data = r.json()
+        markdown = ((data.get("data") or {}).get("markdown") or "").strip()
+        if not data.get("success", True) or not markdown:
+            return ""
+        return markdown
+    except Exception as exc:
+        logger.warning("Firecrawl failed for %s (%s); falling back to Jina", u, exc)
+        return ""
+
+
 async def _fetch_url_content(u: str) -> str:
-    """Fetch readable text content for a URL via the Jina reader, with retry/backoff
+    """Fetch readable text content for a URL. Tries Firecrawl first when
+    FIRECRAWL_API_KEY is set, then falls back to the Jina reader, with retry/backoff
     on rate limits. Returns "" on failure. Shared by manual crawl and scheduled re-crawl."""
     try:
         await assert_safe_url_async(u)
     except Exception as exc:
         logger.warning("SSRF check blocked URL fetch %s: %s", u, exc)
         return ""
+    fc_content = await _fetch_via_firecrawl(u)
+    if fc_content:
+        return fc_content[:200000]
     content = ""
     # One Jina key covers Reader (crawl) + Search (web_search). When set, it
     # lifts the anonymous rate limits that otherwise cause 429 backoff.
