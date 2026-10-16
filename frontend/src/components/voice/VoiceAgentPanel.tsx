@@ -17,7 +17,7 @@ import {
   type ReceivedMessage,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
-import { TokenSource, Room, AudioPresets, Track, type SendTextOptions, type TokenSourceResponseObject } from 'livekit-client';
+import { TokenSource, Track, type SendTextOptions, type TokenSourceResponseObject } from 'livekit-client';
 import { AlertCircle, CalendarPlus, Check, ChevronDown, ImagePlus, Maximize2, MessageCircle, Mic, MicOff, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from 'lucide-react';
 import { AgentChatTranscript } from '@/components/agents-ui/agent-chat-transcript';
 import { LiveKitAgentVisualizer } from '@/components/agents-ui/livekit-agent-visualizer';
@@ -383,12 +383,6 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
   const { state } = useAgent();
   const agentStateRef = useRef(state);
   const { audioTrack } = useVoiceAssistant();
-  const { localParticipant, microphoneTrack } = useLocalParticipant();
-  const userTrackRef = useMemo<TrackReferenceOrPlaceholder>(() => ({
-    participant: localParticipant,
-    source: Track.Source.Microphone,
-    publication: microphoneTrack,
-  }), [localParticipant, microphoneTrack]);
   const { messages } = useSessionMessages(session);
   const orderedMessages = useMemo(() => {
     return [...messages].sort((a, b) => {
