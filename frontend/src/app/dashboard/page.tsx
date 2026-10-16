@@ -4584,6 +4584,26 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           </div>
         </header>
 
+        {/* Trial Expired Dashboard Lock Banner */}
+        {isTrialExpired && (
+          <div className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm shrink-0 z-20">
+            <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold">
+              <Lock className="size-4 shrink-0 text-amber-200" />
+              <span>
+                <strong>Your 14-day free trial has expired.</strong> Assistant crawling, webhooks, and playground chatting are frozen in Read-Only mode.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTrialExpiredModal(true)}
+              className="px-3.5 py-1.5 rounded-xl bg-white text-orange-700 hover:bg-orange-50 font-bold text-xs shadow-sm transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+            >
+              <span>Choose a Plan to Reactivate</span>
+              <ArrowRight className="size-3" />
+            </button>
+          </div>
+        )}
+
         {/* Tab Contents (Center Aligned Layout) */}
         <div ref={contentScrollRef} className="dashboard-content flex-1 overflow-y-auto">
           {/* Claim Link Banner - only evaluate after session and active bot have settled */}
@@ -4644,7 +4664,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
                   createdAt={user?.created_at}
                   trialStartedAt={(user?.user_metadata as Record<string, unknown>)?.trial_started_at as string | undefined}
                   isSharedBot={isCurrentBotShared}
-                  onUpgradeClick={() => setActiveTab("billing")}
+                  onUpgradeClick={() => setShowTrialExpiredModal(true)}
                   variant="banner"
                   isLoading={loadingSession || !user || !botId || billingInfo === null}
                 />
@@ -4912,6 +4932,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setPlaygroundInput={setPlaygroundInput}
               handlePlaygroundSend={handlePlaygroundSend}
               sendButtonStyle={sendButtonStyle}
+              isTrialExpired={isTrialExpired}
+              onUpgradeClick={() => setShowTrialExpiredModal(true)}
             />
           )}
 
