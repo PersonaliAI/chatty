@@ -31,3 +31,12 @@ CREATE TABLE IF NOT EXISTS chatty_internal_notes (
 );
 CREATE INDEX IF NOT EXISTS idx_internal_notes_session ON chatty_internal_notes (bot_id, session_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_internal_notes_mentions ON chatty_internal_notes USING GIN (mentions);
+
+-- Row Level Security for internal notes
+ALTER TABLE chatty_internal_notes ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Team accesses internal notes for their bots" ON chatty_internal_notes;
+CREATE POLICY "Team accesses internal notes for their bots" ON chatty_internal_notes
+  FOR ALL TO authenticated
+  USING (chatty_has_bot_access(bot_id))
+  WITH CHECK (chatty_has_bot_access(bot_id));
