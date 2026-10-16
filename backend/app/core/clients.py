@@ -35,8 +35,8 @@ _supabase_http_client = httpx.Client(
 )
 
 supabase: Client = create_client(
-    SUPABASE_URL,
-    SUPABASE_SECRET_KEY,
+    SUPABASE_URL.strip(),
+    SUPABASE_SECRET_KEY.strip(),
     options=ClientOptions(httpx_client=_supabase_http_client),
 )
 
