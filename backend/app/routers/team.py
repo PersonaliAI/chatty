@@ -314,6 +314,19 @@ async def link_member_calendar(
     if not update:
         raise HTTPException(status_code=400, detail="No calendar fields provided")
 
+    if member.get("is_owner"):
+        u_up: dict[str, Any] = {}
+        if "google_email" in body:
+            u_up["google_email"] = (body["google_email"] or "").strip() or None
+        if "microsoft_email" in body:
+            u_up["microsoft_email"] = (body["microsoft_email"] or "").strip() or None
+        if u_up:
+            try:
+                await run_db(lambda: supabase.table("users").update(u_up).eq("auth_user_id", user["auth_user_id"]).execute())
+            except Exception:
+                pass
+        return {"ok": True, "member_id": member_id, **update}
+
     try:
         await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(
             "id", member_id).eq("bot_id", bot_id).execute())
@@ -340,6 +353,29 @@ async def disconnect_member_calendar(
     if not bot_id:
         raise HTTPException(status_code=400, detail="bot_id is required")
     member = await _authorize_availability_access(member_id, bot_id, user)
+
+    if member.get("is_owner"):
+        if provider == "google":
+            await run_db(lambda: supabase.table("users").update({
+                "google_email": None,
+                "google_access_token": None,
+                "google_refresh_token": None,
+                "google_token_expiry": None,
+            }).eq("auth_user_id", user["auth_user_id"]).execute())
+        elif provider == "microsoft":
+            await run_db(lambda: supabase.table("users").update({
+                "microsoft_email": None,
+                "microsoft_access_token": None,
+                "microsoft_refresh_token": None,
+                "microsoft_token_expiry": None,
+            }).eq("auth_user_id", user["auth_user_id"]).execute())
+        await _write_team_audit_log(
+            bot_id,
+            "team_member_calendar_updated",
+            f"Disconnected personal {provider.capitalize()} Calendar for account owner",
+            user,
+        )
+        return {"ok": True, "provider": provider, "member_id": member_id}
 
     update: dict[str, Any] = {}
     if provider == "google":
@@ -386,6 +422,18 @@ async def _authorize_availability_access(member_id: str, bot_id: str, user: dict
         "id", member_id).eq("bot_id", bot_id).limit(1).execute())
     member = existing.data[0] if existing.data else None
     if not member:
+        # Check if member_id is the bot owner
+        try:
+            b_res = await run_db(lambda: supabase.table("chatty_bots").select("id, user_id").eq("id", bot_id).limit(1).execute())
+            if b_res.data:
+                owner_id = b_res.data[0].get("user_id")
+                caller_auth = user.get("auth_user_id") or user.get("id")
+                if member_id in (str(owner_id), "owner", str(caller_auth)):
+                    role, _ = await get_bot_role_and_permissions(bot_id, user)
+                    if role == "owner":
+                        return {"id": member_id, "email": _actor_email(user), "is_owner": True}
+        except Exception:
+            pass
         raise HTTPException(status_code=404, detail="Member not found")
     caller_email = (user.get("email") or "").strip().lower()
     if caller_email and caller_email == (member.get("email") or "").strip().lower():

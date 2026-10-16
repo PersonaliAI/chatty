@@ -19,10 +19,13 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { fetchBackend } from "@/lib/backend-client";
 
-interface BillingInfo {
+export interface BillingInfo {
   plan?: string | null;
   status?: string | null;
   renewsAt?: string | null;
+  ownerEmail?: string | null;
+  ownerName?: string | null;
+  isSharedBot?: boolean;
 }
 
 interface BillingTabProps {
@@ -450,6 +453,22 @@ export function BillingTab({
           Manage your subscription tier, billing interval, and affiliate partner earnings.
         </p>
       </div>
+
+      {/* Shared Bot Owner Billing Banner */}
+      {billingInfo?.isSharedBot && (
+        <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-950 dark:text-blue-100 flex items-start gap-3">
+          <ShieldCheck className="size-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
+              Workspace Owner Managed Billing
+            </h4>
+            <p className="text-xs text-blue-800/90 dark:text-blue-200 leading-relaxed">
+              You are collaborating on a shared assistant owned by <strong>{billingInfo.ownerName || billingInfo.ownerEmail || "Workspace Owner"}</strong>.
+              All chatbot quotas, AI credits, whitelabel branding, and add-ons are covered by the owner&apos;s <strong>{(PLAN_LABELS[plan] || plan).toUpperCase()}</strong> plan. Teammates are never billed for shared bot usage.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Current Plan Overview Card */}
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-4">

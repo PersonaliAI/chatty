@@ -18,6 +18,7 @@ import {
   User,
   Users,
   Video,
+  Clock,
 } from "lucide-react";
 import type { TeamMember, AdminAuditLog } from "../dashboard-types";
 import {
@@ -642,52 +643,56 @@ export function WorkspaceTab({
                             setEditingCalendarId(m.id);
                           }
                         }}
-                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all cursor-pointer shadow-2xs ${
                           isEditingCalendar
-                            ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white"
+                            : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                         }`}
                       >
-                        {isEditingCalendar ? "Close" : "Calendar Links"}
+                        <Calendar className="size-3 text-[#f97316]" />
+                        <span>{isEditingCalendar ? "Close Calendar" : "Calendar"}</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setEditingAvailabilityId(isEditingAvailability ? null : m.id)}
-                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all cursor-pointer shadow-2xs ${
                           isEditingAvailability
-                            ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white"
+                            : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                         }`}
                       >
-                        {isEditingAvailability ? "Close" : "Working Hours"}
+                        <Clock className="size-3 text-blue-500" />
+                        <span>{isEditingAvailability ? "Close Hours" : "Working Hours"}</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setEditingOooId(isEditingOoo ? null : m.id)}
-                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all cursor-pointer shadow-2xs ${
                           isEditingOoo
-                            ? "bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300"
+                            ? "bg-amber-500 text-white border-amber-500"
                             : m.ooo_active
                             ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold border border-amber-200 dark:border-amber-800/60"
-                            : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                            : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                         }`}
                       >
-                        {isEditingOoo ? "Close" : m.ooo_active ? "🌴 Away" : "Vacation"}
+                        <span className="text-xs">🌴</span>
+                        <span>{isEditingOoo ? "Close Away" : m.ooo_active ? "Away" : "Vacation"}</span>
                       </button>
 
                       {isOwnerOrAdmin && (
                         <button
                           type="button"
                           onClick={() => setEditingMemberId(isEditing ? null : m.id)}
-                          className={`text-[10px] font-semibold px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                          className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all cursor-pointer shadow-2xs ${
                             isEditing
-                              ? "bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
-                              : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                              ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white"
+                              : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                           }`}
                         >
-                          {isEditing ? "Close" : "Permissions"}
+                          <ShieldCheck className="size-3 text-purple-500" />
+                          <span>{isEditing ? "Close Perms" : "Permissions"}</span>
                         </button>
                       )}
 
@@ -695,34 +700,74 @@ export function WorkspaceTab({
                         <button
                           type="button"
                           onClick={() => removeTeamMember(m.id)}
-                          className="text-[10px] font-semibold px-2 py-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-400 hover:text-red-600 hover:border-red-200 dark:hover:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all cursor-pointer shadow-2xs"
                           title="Remove teammate from workspace"
                         >
-                          Remove
+                          <Trash2 className="size-3" />
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* Status Badges */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {m.google_connected && (
-                      <span className="inline-flex items-center gap-1 text-[9px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 font-medium">
-                        <Check className="size-2.5" /> Google ({m.google_email || "Linked"})
-                      </span>
+                  {/* Status Badges with 1-click calendar connections */}
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                    {m.google_connected ? (
+                      <div className="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                        <Check className="size-3" />
+                        <span>Google ({m.google_email || "Linked"})</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDisconnectTeammateCalendar(m.id, "google")}
+                          className="text-neutral-400 hover:text-red-500 ml-1 font-bold cursor-pointer"
+                          title="Disconnect Google Calendar"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 text-[10px] text-neutral-500 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-md border border-neutral-200 dark:border-neutral-800">
+                        <span>Google Calendar: Off</span>
+                        <button
+                          type="button"
+                          onClick={() => handleConnectTeammateCalendar(m.id, "google")}
+                          className="text-[#f97316] hover:underline font-bold ml-0.5 cursor-pointer"
+                        >
+                          + Connect Google
+                        </button>
+                      </div>
                     )}
-                    {m.microsoft_connected && (
-                      <span className="inline-flex items-center gap-1 text-[9px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 font-medium">
-                        <Check className="size-2.5" /> MS ({m.microsoft_email || "Linked"})
-                      </span>
+                    {m.microsoft_connected ? (
+                      <div className="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                        <Check className="size-3" />
+                        <span>MS ({m.microsoft_email || "Linked"})</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDisconnectTeammateCalendar(m.id, "microsoft")}
+                          className="text-neutral-400 hover:text-red-500 ml-1 font-bold cursor-pointer"
+                          title="Disconnect Outlook Calendar"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 text-[10px] text-neutral-500 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-md border border-neutral-200 dark:border-neutral-800">
+                        <span>MS Calendar: Off</span>
+                        <button
+                          type="button"
+                          onClick={() => handleConnectTeammateCalendar(m.id, "microsoft")}
+                          className="text-blue-600 hover:underline font-bold ml-0.5 cursor-pointer"
+                        >
+                          + Connect Outlook
+                        </button>
+                      </div>
                     )}
                     {m.zoom_meeting_link && (
-                      <span className="inline-flex items-center gap-1 text-[9px] text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800 font-medium">
-                        <Video className="size-2.5" /> Zoom Linked
+                      <span className="inline-flex items-center gap-1 text-[10px] text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800 font-medium">
+                        <Video className="size-3" /> Zoom Linked
                       </span>
                     )}
                     {m.ooo_active && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
                         🌴 Out of Office {m.ooo_backup_email ? `(Backup: ${m.ooo_backup_email})` : ""}
                       </span>
                     )}
@@ -969,13 +1014,13 @@ export function WorkspaceTab({
               </div>
             ) : (
               <div className="overflow-x-auto [scrollbar-width:thin]">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[640px]">
                   <thead className="bg-neutral-50 dark:bg-neutral-950/50 border-b border-neutral-200 dark:border-neutral-800 text-[10px] uppercase font-bold text-neutral-400">
                     <tr>
-                      <th className="px-3.5 py-2.5">Timestamp</th>
-                      <th className="px-3.5 py-2.5">Action</th>
-                      <th className="px-3.5 py-2.5">Details</th>
-                      <th className="px-3.5 py-2.5">Actor</th>
+                      <th className="px-3.5 py-2.5 whitespace-nowrap w-36">Timestamp</th>
+                      <th className="px-3.5 py-2.5 whitespace-nowrap w-40">Action</th>
+                      <th className="px-3.5 py-2.5 min-w-[240px]">Details</th>
+                      <th className="px-3.5 py-2.5 whitespace-nowrap w-36">Actor</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-100 dark:divide-neutral-850">

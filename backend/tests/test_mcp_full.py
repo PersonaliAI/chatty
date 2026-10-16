@@ -468,3 +468,26 @@ def test_list_bots_with_api_key_principal():
         res = asyncio.run(bots_service.list_bots(principal))
         assert len(res) == 1
         assert res[0]["id"] == "bot-abc-123"
+
+
+def test_get_dashboard_screenshots_mcp_tool():
+    import json
+    from app.routers import mcp as mcp_router
+    principal = _mock_principal()
+    with patch("app.routers.mcp._current_principal", return_value=principal):
+        res = asyncio.run(mcp_router.get_dashboard_screenshots())
+        assert res["total"] == 22
+        assert res["account"] == "katdamayantha@gmail.com"
+        assert len(res["screenshots"]) == 22
+
+        # Test filtered by tab
+        voice_res = asyncio.run(mcp_router.get_dashboard_screenshots(tab="voice"))
+        assert voice_res["total"] >= 1
+        assert any("voice" in s["id"] for s in voice_res["screenshots"])
+
+        # Test resource catalog
+        catalog_str = asyncio.run(mcp_router.resource_dashboard_screenshots())
+        catalog = json.loads(catalog_str)
+        assert catalog["total"] == 22
+        assert catalog["account"] == "katdamayantha@gmail.com"
+

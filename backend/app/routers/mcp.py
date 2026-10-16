@@ -9,6 +9,7 @@ inspect.signature() at import time.
 
 import json
 import logging
+import os
 from typing import Any, Optional, List, Dict
 
 from mcp.server.auth.middleware.auth_context import get_access_token
@@ -1025,6 +1026,37 @@ async def generate_claimable_demo_bot(
     return await generate_claimable_bot(req, user=user_dict)
 
 
+@mcp.tool()
+async def get_dashboard_screenshots(tab: Optional[str] = None) -> dict:
+    """Retrieve genuine high-resolution 4K Retina (3840x2160) production screenshots and metadata for Chatty dashboard modules (Overview, Workspace, Customizer, Knowledge Base, Playground, Inbox, Campaigns, Flow Builder, Leads, Feedback, Map, Meetings, Mailbox, Notifications, Audit Log, Analytics, Embed & Integrate, Voice Agent, MCP, Developer API, Billing, Agent Settings) captured for account katdamayantha@gmail.com."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    manifest_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../screenshots/manifest.json"))
+    items = []
+    if os.path.exists(manifest_path):
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            items = json.load(f)
+    account = items[0].get("account", "katdamayantha@gmail.com") if items else "katdamayantha@gmail.com"
+    if tab:
+        filtered = [
+            x for x in items
+            if tab.lower() in x.get("id", "").lower()
+            or tab.lower() in x.get("navItem", "").lower()
+            or tab.lower() in x.get("title", "").lower()
+        ]
+        return {
+            "total": len(filtered),
+            "account": account,
+            "filter": tab,
+            "screenshots": filtered,
+        }
+    return {
+        "total": len(items),
+        "account": account,
+        "screenshots": items,
+    }
+
+
 # ===========================================================================
 # 12. MCP RESOURCES (Live Context Providers)
 # ===========================================================================
@@ -1089,6 +1121,39 @@ async def resource_bot_voice_config(bot_id: str) -> str:
     _oauth.check_principal_scope(principal, "read")
     config = await mcp_voice_service.get_voice_agent_config(principal, bot_id)
     return json.dumps(config, indent=2)
+
+
+# ===========================================================================
+@mcp.resource("chatty://dashboard/screenshots")
+async def resource_dashboard_screenshots() -> str:
+    """Catalog of high-resolution 4K Retina screenshots for all Chatty dashboard modules."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    manifest_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../screenshots/manifest.json"))
+    items = []
+    if os.path.exists(manifest_path):
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            items = json.load(f)
+    account = items[0].get("account", "katdamayantha@gmail.com") if items else "katdamayantha@gmail.com"
+    return json.dumps({"account": account, "total": len(items), "screenshots": items}, indent=2)
+
+
+@mcp.resource("chatty://dashboard/screenshots/{tab_id}")
+async def resource_dashboard_screenshot_tab(tab_id: str) -> str:
+    """High-resolution screenshot metadata for a specific Chatty dashboard module."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    manifest_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../screenshots/manifest.json"))
+    items = []
+    if os.path.exists(manifest_path):
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            items = json.load(f)
+    matched = [
+        x for x in items
+        if tab_id.lower() in x.get("id", "").lower()
+        or tab_id.lower() in x.get("navItem", "").lower()
+    ]
+    return json.dumps(matched[0] if matched else {"error": "Dashboard screenshot not found", "tab_id": tab_id}, indent=2)
 
 
 # ===========================================================================

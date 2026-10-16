@@ -149,7 +149,7 @@ import { NotificationsTab } from "./tabs/NotificationsTab";
 import { AuditLogTab } from "./tabs/AuditLogTab";
 import { McpTab } from "./tabs/McpTab";
 import { DeveloperTab } from "./tabs/DeveloperTab";
-import { BillingTab } from "./tabs/BillingTab";
+import { BillingTab, type BillingInfo } from "./tabs/BillingTab";
 import { AdminAffiliatesTab } from "./tabs/AdminAffiliatesTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { MeetingsTab } from "./tabs/MeetingsTab";
@@ -250,11 +250,7 @@ export default function Dashboard() {
   const [loadingSession, setLoadingSession] = useState(true);
 
   // Billing State
-  const [billingInfo, setBillingInfo] = useState<{
-    plan: string;
-    status: string | null;
-    renewsAt: string | null;
-  } | null>(null);
+  const [billingInfo, setBillingInfo] = useState<BillingInfo | null>(null);
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
   // Chatbot State
@@ -1453,6 +1449,44 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setWhatsappVerifyToken(String(activeBot.whatsapp_verify_token || ""));
         setWhatsappAppSecret(String(activeBot.whatsapp_app_secret || ""));
         setWhatsappQuickReplies(Array.isArray(activeBot.whatsapp_quick_replies) ? activeBot.whatsapp_quick_replies : []);
+
+        // When active bot belongs to another workspace owner (shared bot),
+        // resolve and manage the workspace owner's billing, quotas, and subscription tier
+        if (!SELF_HOST_MODE && activeBot.user_id && activeBot.user_id !== userId) {
+          supabase
+            .from("users")
+            .select("plan, subscription_status, subscription_renews_at, display_name, email")
+            .eq("auth_user_id", activeBot.user_id)
+            .maybeSingle()
+            .then(({ data: ownerData }) => {
+              if (ownerData) {
+                setBillingInfo({
+                  plan: (ownerData.plan as string) || "free",
+                  status: (ownerData.subscription_status as string) || null,
+                  renewsAt: (ownerData.subscription_renews_at as string) || null,
+                  ownerEmail: (ownerData.email as string) || null,
+                  ownerName: (ownerData.display_name as string) || null,
+                  isSharedBot: true,
+                });
+              }
+            });
+        } else if (!SELF_HOST_MODE && activeBot.user_id === userId) {
+          supabase
+            .from("users")
+            .select("plan, subscription_status, subscription_renews_at")
+            .eq("auth_user_id", userId)
+            .maybeSingle()
+            .then(({ data: myData }) => {
+              if (myData) {
+                setBillingInfo({
+                  plan: (myData.plan as string) || "free",
+                  status: (myData.subscription_status as string) || null,
+                  renewsAt: (myData.subscription_renews_at as string) || null,
+                  isSharedBot: false,
+                });
+              }
+            });
+        }
 
         if (!activeBot.onboarding_completed) {
           // Show the structured onboarding wizard for new bots
@@ -5075,6 +5109,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               handleRescheduleMeeting={handleRescheduleMeeting}
               reschedulingBusy={reschedulingBusy}
               handleUpdateMeetingStatus={handleUpdateMeetingStatus}
+              user={user}
+              fetchWithFallback={fetchWithFallback}
+              showToast={showToast}
+              reloadTeam={loadTeam}
             />
           )}
 

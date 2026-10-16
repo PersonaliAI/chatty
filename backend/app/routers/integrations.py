@@ -344,8 +344,10 @@ async def google_start(
     user: dict[str, Any] = Depends(require_user)
 ):
     if bot_id:
-        from app.core.permissions import verify_bot_permission
-        await verify_bot_permission(bot_id, user, "calendar")
+        from app.core.permissions import get_bot_role_and_permissions
+        role, perms = await get_bot_role_and_permissions(bot_id, user)
+        if role != "owner" and not ({"meetings", "integrations", "settings", "team"} & set(perms)):
+            raise HTTPException(status_code=403, detail="You don't have access to calendar integrations for this bot")
     if not os.environ.get("GOOGLE_CLIENT_ID"):
         raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID not configured")
     if mode == "add":
@@ -420,14 +422,38 @@ async def google_callback(code: str, state: str):
         }
         if refresh:
             member_update["google_refresh_token"] = encrypt_secret(refresh)
+        matched_member = False
         try:
-            await run_db(lambda: supabase.table("chatty_team_members").update(member_update).eq("id", target_member_id).execute())
+            up_res = await run_db(lambda: supabase.table("chatty_team_members").update(member_update).eq("id", target_member_id).execute())
+            if up_res and up_res.data:
+                matched_member = True
         except Exception:
             logger.warning("Failed to store google calendar tokens on chatty_team_members, falling back to email", exc_info=True)
-            await run_db(lambda: supabase.table("chatty_team_members").update({
-                "google_email": member_email,
-                "google_calendar_connected": True,
-            }).eq("id", target_member_id).execute())
+            try:
+                up_res = await run_db(lambda: supabase.table("chatty_team_members").update({
+                    "google_email": member_email,
+                    "google_calendar_connected": True,
+                }).eq("id", target_member_id).execute())
+                if up_res and up_res.data:
+                    matched_member = True
+            except Exception:
+                pass
+
+        if not matched_member:
+            try:
+                owner_update: dict[str, Any] = {
+                    "google_email": member_email,
+                    "google_access_token": encrypt_secret(access),
+                    "google_token_expiry": (
+                        datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
+                    ).isoformat(),
+                }
+                if refresh:
+                    owner_update["google_refresh_token"] = encrypt_secret(refresh)
+                await run_db(lambda: supabase.table("users").update(owner_update).eq("auth_user_id", auth_user_id).execute())
+            except Exception:
+                logger.warning("Failed to store google calendar tokens on users for owner", exc_info=True)
+
         if target_bot_id:
             try:
                 from app.routers.team import _write_team_audit_log
@@ -797,8 +823,10 @@ async def microsoft_start(
     user: dict[str, Any] = Depends(require_user)
 ):
     if bot_id:
-        from app.core.permissions import verify_bot_permission
-        await verify_bot_permission(bot_id, user, "calendar")
+        from app.core.permissions import get_bot_role_and_permissions
+        role, perms = await get_bot_role_and_permissions(bot_id, user)
+        if role != "owner" and not ({"meetings", "integrations", "settings", "team"} & set(perms)):
+            raise HTTPException(status_code=403, detail="You don't have access to calendar integrations for this bot")
     if not os.environ.get("MICROSOFT_CLIENT_ID"):
         raise HTTPException(status_code=500, detail="MICROSOFT_CLIENT_ID not configured")
     origin = request.headers.get("origin", "")
@@ -851,14 +879,38 @@ async def microsoft_callback(code: str, state: str):
         }
         if refresh:
             member_update["microsoft_refresh_token"] = encrypt_secret(refresh)
+        matched_member = False
         try:
-            await run_db(lambda: supabase.table("chatty_team_members").update(member_update).eq("id", target_member_id).execute())
+            up_res = await run_db(lambda: supabase.table("chatty_team_members").update(member_update).eq("id", target_member_id).execute())
+            if up_res and up_res.data:
+                matched_member = True
         except Exception:
             logger.warning("Failed to store microsoft calendar tokens on chatty_team_members, falling back to email", exc_info=True)
-            await run_db(lambda: supabase.table("chatty_team_members").update({
-                "microsoft_email": member_email,
-                "microsoft_calendar_connected": True,
-            }).eq("id", target_member_id).execute())
+            try:
+                up_res = await run_db(lambda: supabase.table("chatty_team_members").update({
+                    "microsoft_email": member_email,
+                    "microsoft_calendar_connected": True,
+                }).eq("id", target_member_id).execute())
+                if up_res and up_res.data:
+                    matched_member = True
+            except Exception:
+                pass
+
+        if not matched_member:
+            try:
+                owner_update: dict[str, Any] = {
+                    "microsoft_email": member_email,
+                    "microsoft_access_token": encrypt_secret(access),
+                    "microsoft_token_expiry": (
+                        datetime.now(tz=timezone.utc) + timedelta(seconds=expires_in)
+                    ).isoformat(),
+                }
+                if refresh:
+                    owner_update["microsoft_refresh_token"] = encrypt_secret(refresh)
+                await run_db(lambda: supabase.table("users").update(owner_update).eq("auth_user_id", auth_user_id).execute())
+            except Exception:
+                logger.warning("Failed to store microsoft calendar tokens on users for owner", exc_info=True)
+
         if target_bot_id:
             try:
                 from app.routers.team import _write_team_audit_log
