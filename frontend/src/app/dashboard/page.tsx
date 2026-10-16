@@ -828,7 +828,12 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     }
   };
 
-  const startKnowledgeProgress = (title: string, initialDetail: string, stages: string[] = []) => {
+  const startKnowledgeProgress = (
+    title: string,
+    initialDetail: string,
+    stages: string[] = [],
+    autoRamp: boolean = true,
+  ) => {
     clearKnowledgeProgressTimers();
     const id = `kp-${Date.now()}`;
     setKnowledgeProgress({
@@ -840,6 +845,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       stages,
       currentStageIndex: 0,
     });
+
+    if (!autoRamp) return;
 
     progressIntervalRef.current = setInterval(() => {
       setKnowledgeProgress((prev) => {
@@ -3551,15 +3558,17 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     const urlSources = sources.filter((s) => s.type === "url");
     if (urlSources.length === 0) return;
     setCrawlingAll(true);
+    const crawlStages = [
+      "Batching URLs for parallel processing...",
+      "Extracting fresh website contents...",
+      "Updating vector chunk index...",
+      "Finalizing knowledge synchronization..."
+    ];
     startKnowledgeProgress(
       `Re-crawling All ${urlSources.length} URLs`,
-      "Preparing full knowledge re-crawl...",
-      [
-        "Batching URLs for parallel processing...",
-        "Extracting fresh website contents...",
-        "Updating vector chunk index...",
-        "Finalizing knowledge synchronization..."
-      ]
+      `Preparing full knowledge re-crawl (0 of ${urlSources.length} URLs)...`,
+      crawlStages,
+      false
     );
     try {
       const urls = urlSources.slice(0, 100).map((s) => s.name);
@@ -3567,21 +3576,64 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       const batches = Array.from({ length: Math.ceil(urls.length / batchSize) }, (_, index) =>
         urls.slice(index * batchSize, (index + 1) * batchSize)
       );
+      const totalBatches = batches.length;
       const results: { url: string; ok: boolean; chars?: number; error?: string }[] = [];
-      for (let index = 0; index < batches.length; index += 1) {
-        const res = await fetchWithFallback("/api/crawl/pages", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bot_id: botId, urls: batches[index] }),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(body.detail || `Batch ${index + 1} failed`);
-        }
-        results.push(...(body.results || []));
+      for (let index = 0; index < totalBatches; index += 1) {
+        const batchUrls = batches[index];
+        const processedBefore = index * batchSize;
+        const startPercent = Math.round((index / totalBatches) * 88) + 8;
+        const targetPercent = Math.round(((index + 1) / totalBatches) * 88) + 8;
+        const stageIndex = Math.min(crawlStages.length - 1, Math.floor((index / totalBatches) * crawlStages.length));
+
         setKnowledgeProgress((prev) => prev ? {
           ...prev,
-          percent: Math.min(94, 10 + Math.round(((index + 1) / batches.length) * 84)),
-          detail: `Crawled ${Math.min((index + 1) * batchSize, urls.length)} of ${urls.length} URLs...`,
+          percent: Math.max(prev.percent, startPercent),
+          currentStageIndex: stageIndex,
+          detail: `Crawling batch ${index + 1} of ${totalBatches} (${processedBefore} of ${urls.length} URLs)...`,
+        } : prev);
+
+        let currentTrickle = startPercent;
+        const trickleTimer = setInterval(() => {
+          if (currentTrickle < targetPercent - 2) {
+            currentTrickle += 1;
+            setKnowledgeProgress((prev) => {
+              if (!prev || prev.status !== "active") return prev;
+              const nextPercent = Math.max(prev.percent, currentTrickle);
+              const curStage = Math.min(crawlStages.length - 1, Math.floor((nextPercent / 100) * crawlStages.length));
+              return {
+                ...prev,
+                percent: nextPercent,
+                currentStageIndex: curStage,
+              };
+            });
+          }
+        }, 350);
+
+        let res: Response;
+        let body: any;
+        try {
+          res = await fetchWithFallback("/api/crawl/pages", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bot_id: botId, urls: batchUrls }),
+          });
+          body = await res.json().catch(() => ({}));
+        } finally {
+          clearInterval(trickleTimer);
+        }
+
+        if (!res.ok) {
+          throw new Error(body?.detail || `Batch ${index + 1} failed`);
+        }
+        results.push(...(body?.results || []));
+
+        const processedAfter = Math.min((index + 1) * batchSize, urls.length);
+        const stageAfter = Math.min(crawlStages.length - 1, Math.floor(((index + 1) / totalBatches) * crawlStages.length));
+
+        setKnowledgeProgress((prev) => prev ? {
+          ...prev,
+          percent: Math.max(prev.percent, targetPercent),
+          currentStageIndex: stageAfter,
+          detail: `Crawled ${processedAfter} of ${urls.length} URLs...`,
         } : prev);
       }
       if (results.length) {
