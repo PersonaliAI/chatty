@@ -5,7 +5,7 @@ All DB calls are mocked via MagicMock chains without requiring a live Supabase c
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, mock_open
 import pytest
 
 from app.schemas.bots_api import (
@@ -474,7 +474,16 @@ def test_get_dashboard_screenshots_mcp_tool():
     import json
     from app.routers import mcp as mcp_router
     principal = _mock_principal()
-    with patch("app.routers.mcp._current_principal", return_value=principal):
+    mock_items = [
+        {"id": "overview", "navItem": "overview", "title": "Overview", "account": "katdamayantha@gmail.com"},
+        {"id": "voice", "navItem": "voice", "title": "Voice Agent", "account": "katdamayantha@gmail.com"},
+    ] + [
+        {"id": f"tab_{i}", "navItem": f"tab_{i}", "title": f"Tab {i}", "account": "katdamayantha@gmail.com"}
+        for i in range(20)
+    ]
+    with patch("app.routers.mcp._current_principal", return_value=principal), \
+         patch("os.path.exists", return_value=True), \
+         patch("builtins.open", mock_open(read_data=json.dumps(mock_items))):
         res = asyncio.run(mcp_router.get_dashboard_screenshots())
         assert res["total"] == 22
         assert res["account"] == "katdamayantha@gmail.com"
