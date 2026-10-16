@@ -9,22 +9,82 @@ from fastapi import HTTPException
 from app.core.clients import supabase
 from app.core.db import run_db
 
-ALL_TABS = ("inbox", "sources", "design", "settings", "team", "meetings", "integrations", "billing", "byok", "webhooks")
-OWNER_ONLY_TABS = frozenset({"billing", "byok", "webhooks"})
+ALL_TABS = (
+    "overview",
+    "workspace",
+    "customizer",
+    "knowledge",
+    "playground",
+    "inbox",
+    "campaigns",
+    "flow_builder",
+    "leads",
+    "feedback",
+    "map",
+    "meetings",
+    "mailbox",
+    "notifications",
+    "audit_log",
+    "analytics",
+    "integrations",
+    "voice",
+    "mcp",
+    "developer",
+    "billing",
+    "settings",
+    "team",
+    # Legacy aliases preserved for database backward compatibility
+    "sources",
+    "design",
+    "byok",
+    "webhooks",
+)
+OWNER_ONLY_TABS = frozenset({"billing", "byok"})
 
 VALID_ROLES = ("owner", "admin", "agent", "editor", "billing_manager", "viewer")
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
     "owner": list(ALL_TABS),
-    "admin": ["inbox", "sources", "design", "settings", "team", "meetings", "integrations"],
-    "agent": ["inbox", "meetings"],
-    "editor": ["sources", "design", "inbox"],
-    "billing_manager": ["billing"],
-    "viewer": ["inbox", "meetings"],
+    "admin": [
+        "overview", "workspace", "customizer", "knowledge", "playground",
+        "inbox", "campaigns", "flow_builder", "leads", "feedback", "map",
+        "meetings", "mailbox", "notifications", "audit_log", "analytics",
+        "integrations", "voice", "mcp", "developer", "settings", "team",
+        "sources", "design", "webhooks",
+    ],
+    "agent": [
+        "overview", "inbox", "playground", "meetings", "mailbox", "leads", "feedback",
+    ],
+    "editor": [
+        "overview", "customizer", "knowledge", "playground", "flow_builder",
+        "campaigns", "voice", "inbox", "sources", "design",
+    ],
+    "billing_manager": [
+        "overview", "billing", "analytics",
+    ],
+    "viewer": [
+        "overview", "leads", "feedback", "map", "analytics", "audit_log", "inbox",
+    ],
 }
 
 DEFAULT_ADMIN_PERMISSIONS = ROLE_PERMISSIONS["admin"]
 DEFAULT_AGENT_PERMISSIONS = ROLE_PERMISSIONS["agent"]
+
+TAB_EQUIVALENTS: dict[str, set[str]] = {
+    "sources": {"sources", "knowledge"},
+    "knowledge": {"sources", "knowledge"},
+    "design": {"design", "customizer", "flow_builder"},
+    "customizer": {"design", "customizer"},
+    "flow_builder": {"design", "flow_builder"},
+    "webhooks": {"webhooks", "developer", "mcp"},
+    "developer": {"webhooks", "developer"},
+    "mcp": {"webhooks", "mcp"},
+    "byok": {"byok", "settings"},
+    "settings": {"settings", "byok"},
+    "voice": {"voice", "settings"},
+    "calendar": {"meetings"},
+    "meetings": {"meetings", "calendar"},
+}
 
 
 def default_permissions_for_role(role: str) -> list[str]:
@@ -56,5 +116,8 @@ async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tup
 async def verify_bot_permission(bot_id: str, user: dict[str, Any], tab: str) -> str:
     role, permissions = await get_bot_role_and_permissions(bot_id, user)
     if role == "owner" or tab in permissions:
+        return role
+    equivalents = TAB_EQUIVALENTS.get(tab, set())
+    if any(eq in permissions for eq in equivalents):
         return role
     raise HTTPException(status_code=403, detail=f"You don't have access to '{tab}' for this bot")

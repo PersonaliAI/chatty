@@ -1,51 +1,134 @@
 export const CHATTY_TEAM_TABS = [
+  // Conversations & Support
   "inbox",
-  "sources",
-  "design",
+  "playground",
+  "meetings",
+  "mailbox",
+  // Intelligence & CRM
+  "overview",
+  "leads",
+  "feedback",
+  "analytics",
+  "map",
+  // Content & Studio
+  "knowledge",
+  "customizer",
+  "flow_builder",
+  "campaigns",
+  "voice",
+  // Operations & Controls
+  "workspace",
   "settings",
   "team",
-  "meetings",
+  "notifications",
+  "audit_log",
+  // Integrations & Developer
   "integrations",
+  "developer",
+  "mcp",
   "billing",
-  "byok",
-  "webhooks",
 ] as const;
 export type ChattyTeamTab = (typeof CHATTY_TEAM_TABS)[number];
 
-export const OWNER_ONLY_TABS = new Set<ChattyTeamTab>(["billing", "byok", "webhooks"]);
+export const OWNER_ONLY_TABS = new Set<ChattyTeamTab>(["billing"]);
 
 export type ChattyTeamRole = "owner" | "admin" | "agent" | "editor" | "billing_manager" | "viewer";
 
 export const ROLE_DEFAULT_TABS: Record<ChattyTeamRole, ChattyTeamTab[]> = {
-  owner: ["inbox", "sources", "design", "settings", "team", "meetings", "integrations", "billing", "byok", "webhooks"],
-  admin: ["inbox", "sources", "design", "settings", "team", "meetings", "integrations"],
-  agent: ["inbox", "meetings"],
-  editor: ["sources", "design", "inbox"],
-  billing_manager: ["billing"],
-  viewer: ["inbox", "meetings"],
+  owner: [...CHATTY_TEAM_TABS],
+  admin: [
+    "overview",
+    "workspace",
+    "customizer",
+    "knowledge",
+    "playground",
+    "inbox",
+    "campaigns",
+    "flow_builder",
+    "leads",
+    "feedback",
+    "map",
+    "meetings",
+    "mailbox",
+    "notifications",
+    "audit_log",
+    "analytics",
+    "integrations",
+    "voice",
+    "mcp",
+    "developer",
+    "settings",
+    "team",
+  ],
+  agent: [
+    "overview",
+    "inbox",
+    "playground",
+    "meetings",
+    "mailbox",
+    "leads",
+    "feedback",
+  ],
+  editor: [
+    "overview",
+    "customizer",
+    "knowledge",
+    "playground",
+    "flow_builder",
+    "campaigns",
+    "voice",
+    "inbox",
+  ],
+  billing_manager: [
+    "overview",
+    "billing",
+    "analytics",
+  ],
+  viewer: [
+    "overview",
+    "leads",
+    "feedback",
+    "map",
+    "analytics",
+    "audit_log",
+    "inbox",
+  ],
 };
 
 export const DEFAULT_ADMIN_TABS: ChattyTeamTab[] = ROLE_DEFAULT_TABS.admin;
 export const DEFAULT_AGENT_TABS: ChattyTeamTab[] = ROLE_DEFAULT_TABS.agent;
 
-export const INTELLIGENT_RELATED_TABS: Record<ChattyTeamTab, readonly ChattyTeamTab[]> = {
-  inbox: ["meetings"],
-  meetings: ["inbox"],
-  settings: ["team", "integrations"],
-  team: ["meetings"],
-  sources: ["design"],
-  design: ["sources"],
-  integrations: [],
-  billing: [],
-  byok: [],
-  webhooks: [],
+export const LEGACY_TAB_ALIASES: Record<string, string[]> = {
+  knowledge: ["sources"],
+  sources: ["knowledge"],
+  customizer: ["design"],
+  flow_builder: ["design"],
+  design: ["customizer", "flow_builder"],
+  developer: ["webhooks"],
+  mcp: ["webhooks"],
+  webhooks: ["developer", "mcp"],
+  settings: ["byok"],
+  byok: ["settings"],
+  calendar: ["meetings"],
 };
 
-/**
- * Given the currently selected tabs and a tab being toggled on/off,
- * intelligently includes related tabs when turning on, while strictly
- * preserving full user freedom when turning off.
- */
+export const INTELLIGENT_RELATED_TABS: Partial<Record<ChattyTeamTab, readonly ChattyTeamTab[]>> = {
+  inbox: ["meetings", "mailbox", "playground"],
+  meetings: ["inbox"],
+  mailbox: ["inbox"],
+  leads: ["feedback"],
+  feedback: ["leads"],
+  analytics: ["overview"],
+  knowledge: ["playground"],
+  customizer: ["playground"],
+  flow_builder: ["playground"],
+  voice: ["playground"],
+  developer: ["mcp", "integrations"],
+  mcp: ["developer"],
+  settings: ["team", "notifications"],
+  team: ["meetings"],
+};
+
 export function toggleTabIntelligently(
   currentTabs: ChattyTeamTab[],
   tab: ChattyTeamTab,
@@ -56,7 +139,7 @@ export function toggleTabIntelligently(
     // Unchecking strictly removes only this tab (user has 100% full uncheck control)
     return currentTabs.filter((t) => t !== tab);
   }
-  // When checking, intelligently add this tab + any natural companions that are grantable
+  // When checking, add this tab + any natural companions that are grantable
   const related = (INTELLIGENT_RELATED_TABS[tab] || []).filter((r) => grantableTabs.includes(r));
   const newSet = new Set([...currentTabs, tab, ...related]);
   return Array.from(newSet).filter((t) => grantableTabs.includes(t));
@@ -104,56 +187,148 @@ export const ROLE_INFO: Record<
   },
 };
 
-export const TAB_LABELS: Record<ChattyTeamTab, string> = {
-  inbox: "Inbox",
-  sources: "Knowledge",
-  design: "Customizer",
-  settings: "Settings",
-  team: "Team",
+export const TAB_LABELS: Record<ChattyTeamTab | string, string> = {
+  overview: "Overview",
+  workspace: "Workspace",
+  inbox: "Live Inbox",
+  playground: "Playground",
   meetings: "Meetings",
-  integrations: "Integrations",
-  billing: "Billing",
-  byok: "BYOK keys",
-  webhooks: "Webhooks",
+  mailbox: "Mailbox",
+  leads: "Leads CRM",
+  feedback: "Feedback & CSAT",
+  analytics: "Analytics",
+  map: "Visitor Map",
+  knowledge: "Knowledge Base",
+  customizer: "Customizer",
+  flow_builder: "Flow Builder",
+  campaigns: "Campaigns",
+  voice: "Voice Agent",
+  settings: "Agent Settings",
+  team: "Team Roster",
+  notifications: "Notifications",
+  audit_log: "Audit Log",
+  integrations: "Embed & Integrate",
+  developer: "Developer API",
+  mcp: "MCP Server",
+  billing: "Billing & Plans",
+  // Legacy aliases
+  sources: "Knowledge Base",
+  design: "Customizer & Flows",
+  byok: "BYOK Keys",
+  webhooks: "Developer & MCP",
 };
 
-export const TAB_DESCRIPTIONS: Record<ChattyTeamTab, string> = {
-  inbox: "Visitor chats, lead capture contacts & CSAT feedback",
-  sources: "Documents, URLs & trained Q&A knowledge sources",
+export const TAB_DESCRIPTIONS: Record<ChattyTeamTab | string, string> = {
+  overview: "Executive performance scorecard, deflection rate & live KPIs",
+  workspace: "Multi-bot management, model switching & active bot switcher",
+  inbox: "Omnichannel customer chat inbox, live visitor takeover & notes",
+  playground: "Interactive sandbox to test agent prompt grounding & citations",
+  meetings: "Appointment booking calendar, round-robin & video room sync",
+  mailbox: "Inbound email ticketing, Resend routing & thread management",
+  leads: "Captured visitor contact records, metadata & CSV data exports",
+  feedback: "Post-chat CSAT star ratings, sentiment analysis & friction tags",
+  analytics: "Deflection rate, conversation speeds & token consumption heatmaps",
+  map: "Real-time interactive Leaflet visitor geolocation telemetry",
+  knowledge: "RAG document uploads, website crawling & FAQ knowledge base",
+  customizer: "Widget styling, colors, logo, avatars & live theme preview",
+  flow_builder: "Visual decision-tree canvas with interactive branching logic",
+  campaigns: "Proactive trigger modals, announcements & exit-intent popups",
+  voice: "LiveKit WebRTC bidirectional voice agent studio & audio presets",
+  settings: "System prompts, safety guardrails, response parameters & BYOK",
+  team: "Teammate roster seats, role permissions & availability schedules",
+  notifications: "Team incident alert policies via Slack, SMS, and Email",
+  audit_log: "Immutable security compliance audit trail of all workspace actions",
+  integrations: "Widget embed script generators, allowed domains & bot accounts",
+  developer: "Scoped REST API keys and outbound event webhook endpoints",
+  mcp: "FastMCP Model Context Protocol tools & desktop client connections",
+  billing: "Subscription tiers, quota allocation & Stripe invoices (Owner only)",
+  // Legacy aliases
+  sources: "RAG documents, website crawling & FAQ knowledge base",
   design: "Widget appearance, avatar, greetings & theme styles",
-  settings: "AI engine parameters, guardrails & abuse defenses",
-  team: "Team members, roles, availability & personal calendars",
-  meetings: "Appointment scheduling, calendar slots & bookings",
-  integrations: "Bot-specific Google, Microsoft & Zoom accounts",
-  billing: "Subscription plans, quotas & payment invoices (Owner)",
-  byok: "Custom OpenAI / Anthropic / Mistral API keys (Owner)",
-  webhooks: "Developer API, webhooks & MCP server tokens (Owner)",
+  byok: "Custom OpenAI / Anthropic / Mistral API keys",
+  webhooks: "Developer API, webhooks & FastMCP server tokens",
 };
+
+export interface TabCategory {
+  id: string;
+  label: string;
+  description: string;
+  tabs: ChattyTeamTab[];
+}
+
+export const TAB_CATEGORIES: TabCategory[] = [
+  {
+    id: "conversations",
+    label: "Conversations & Support",
+    description: "Live chats, simulator sandbox, calendar appointments & email tickets",
+    tabs: ["inbox", "playground", "meetings", "mailbox"],
+  },
+  {
+    id: "intelligence",
+    label: "Intelligence & CRM",
+    description: "Executive KPIs, captured leads, customer sentiment & analytics",
+    tabs: ["overview", "leads", "feedback", "analytics", "map"],
+  },
+  {
+    id: "content",
+    label: "Content & Studio",
+    description: "Knowledge documents, widget styling, interactive flows & voice studio",
+    tabs: ["knowledge", "customizer", "flow_builder", "campaigns", "voice"],
+  },
+  {
+    id: "operations",
+    label: "Operations & Controls",
+    description: "Multi-bot switcher, guardrails, teammate availability & audit logs",
+    tabs: ["workspace", "settings", "team", "notifications", "audit_log"],
+  },
+  {
+    id: "developer",
+    label: "Integrations & Developer",
+    description: "Widget embed codes, FastMCP hub, API webhooks & billing tier",
+    tabs: ["integrations", "developer", "mcp", "billing"],
+  },
+];
 
 export const NAV_TAB_PERMISSION: Record<string, ChattyTeamTab | null> = {
-  home: null,
-  customizer: "design",
-  knowledge: "sources",
-  playground: null,
+  home: "overview",
+  workspace: "workspace",
+  customizer: "customizer",
+  knowledge: "knowledge",
+  playground: "playground",
   inbox: "inbox",
-  flows: null,
-  flow_builder: "design",
-  campaigns: "inbox",
+  flows: "flow_builder",
+  flow_builder: "flow_builder",
+  campaigns: "campaigns",
   automations: "settings",
-  leads: "inbox",
-  feedback: "inbox",
-  map: "inbox",
+  leads: "leads",
+  feedback: "feedback",
+  map: "map",
   meetings: "meetings",
-  mailbox: "inbox",
-  notifications: "settings",
-  audit_log: "settings",
-  analytics: "inbox",
+  mailbox: "mailbox",
+  notifications: "notifications",
+  audit_log: "audit_log",
+  analytics: "analytics",
   integrations: "integrations",
-  voice: "settings",
-  developer: "webhooks",
-  mcp: "webhooks",
+  voice: "voice",
+  developer: "developer",
+  mcp: "mcp",
   billing: "billing",
   admin_affiliates: null,
   settings: "settings",
-  workspace: "team",
 };
+
+export function checkUserHasTabPermission(
+  tab: string | null,
+  role: string | null,
+  permissions: string[]
+): boolean {
+  if (!tab) return true;
+  if (role === "owner") return true;
+  if (permissions.includes(tab)) return true;
+  const aliases = LEGACY_TAB_ALIASES[tab];
+  if (aliases && aliases.some((a) => permissions.includes(a))) {
+    return true;
+  }
+  return false;
+}
+

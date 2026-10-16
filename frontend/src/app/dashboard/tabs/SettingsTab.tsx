@@ -29,9 +29,11 @@ import {
   FileText,
   Clock,
   Building2,
+  Palmtree,
 } from "lucide-react";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
+  AccessibleTabsGrid,
   MemberAvailabilityEditor,
   MemberOooEditor,
   MemberPermissionEditor,
@@ -692,8 +694,8 @@ export function SettingsTab({
   }, [user, teamMembers, teamOwner, myRole, googleConnected, googleEmail, microsoftConnected, microsoftEmail]);
 
   return (
-    <div className="max-w-4xl mx-auto w-full py-4 sm:py-6 px-3 sm:px-4 flex justify-center">
-      <div className="w-full max-w-2xl p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-6 sm:space-y-8">
+    <div className="w-full max-w-5xl xl:max-w-6xl mx-auto py-4 sm:py-6 px-3 sm:px-6">
+      <div className="w-full p-4 sm:p-6 md:p-8 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl space-y-6 sm:space-y-8 shadow-xs">
 
         {/* SECTION: YOUR PROFILE & PHOTO */}
         <div id="settings-profile-section" className="space-y-4">
@@ -893,11 +895,11 @@ export function SettingsTab({
                             align="right"
                             value={inviteRole}
                             options={[
-                              { value: "admin", label: "Admin", hint: "Full operational access (settings, team, knowledge, integrations)" },
-                              { value: "agent", label: "Agent", hint: "Support agent (inbox chats & calendar meetings)" },
-                              { value: "editor", label: "Editor", hint: "Content editor (knowledge training & widget styling)" },
-                              { value: "billing_manager", label: "Billing Manager", hint: "Financial invoices & plan subscriptions" },
-                              { value: "viewer", label: "Viewer", hint: "Read-only conversations and meeting schedules" },
+                              { value: "admin", label: "Admin", hint: "Full operational access across all bot tabs (except billing)" },
+                              { value: "agent", label: "Agent", hint: "Support agent: live chats, simulator, meetings, leads & mailbox" },
+                              { value: "editor", label: "Editor", hint: "Content editor: knowledge training, customizer styling & flows" },
+                              { value: "billing_manager", label: "Billing Manager", hint: "Finance: plan subscriptions, quotas & invoices" },
+                              { value: "viewer", label: "Viewer", hint: "Read-only observer: customer sentiment, reports & audit log" },
                             ]}
                             onChange={(v) => {
                               const role = v as ChattyTeamRole;
@@ -913,26 +915,12 @@ export function SettingsTab({
                         </button>
                       </div>
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
-                          Accessible Dashboard Tabs
-                        </span>
-                        <span className="text-[10px] text-neutral-400">
-                          Intelligently links companion tabs (e.g. Inbox + Meetings)
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                        {grantableTabs.map((tab) => (
-                          <TeamTabCheckbox
-                            key={tab}
-                            checked={inviteTabs.includes(tab)}
-                            onChange={(checked) => setInviteTabs((p) => toggleTabIntelligently(p, tab, checked, grantableTabs))}
-                            label={TAB_LABELS[tab] || tab}
-                          />
-                        ))}
-                      </div>
-                    </div>
+                    <AccessibleTabsGrid
+                      selectedTabs={inviteTabs}
+                      onChange={setInviteTabs}
+                      grantableTabs={grantableTabs}
+                      role={inviteRole}
+                    />
 
                     {/* PINNED ACCOUNT OWNER CARD */}
                     {teamOwner && (
@@ -1006,10 +994,10 @@ export function SettingsTab({
                           const canManageAvailability = canAccessTab("team") || isSelf;
                           const roleInfo = ROLE_INFO[m.role as ChattyTeamRole] || ROLE_INFO.agent;
                           return (
-                            <div key={m.id} className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/70 dark:border-neutral-850 space-y-2.5">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="size-7 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 shrink-0 flex items-center justify-center text-[11px] font-bold text-neutral-600 dark:text-neutral-300 select-none">
+                            <div key={m.id} className="p-3.5 sm:p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-850 space-y-3">
+                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                  <div className="size-8 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 shrink-0 flex items-center justify-center text-xs font-bold text-neutral-600 dark:text-neutral-300 select-none border border-neutral-200 dark:border-neutral-700">
                                     {m.avatar_url ? (
                                       // eslint-disable-next-line @next/next/no-img-element
                                       <img src={m.avatar_url} alt={m.name || m.email} className="size-full object-cover" />
@@ -1017,17 +1005,24 @@ export function SettingsTab({
                                       (m.name || m.email || "A").charAt(0).toUpperCase()
                                     )}
                                   </div>
-                                  <div className="min-w-0">
+                                  <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">{m.name || m.email}</span>
+                                      <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">{m.name || m.email}</span>
                                       <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${roleInfo.badgeClasses}`}>
                                         {roleInfo.label}
                                       </span>
+                                      {isSelf && (
+                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                                          You
+                                        </span>
+                                      )}
                                     </div>
-                                    {m.name && <div className="text-[10px] text-neutral-400 truncate">{m.email}</div>}
+                                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 break-all select-all mt-0.5">
+                                      {m.email}
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-center shrink-0">
+                                <div className="flex items-center gap-1.5 flex-wrap self-start md:self-center shrink-0">
                                   {canManageAvailability && (
                                     <button
                                       type="button"
@@ -1046,9 +1041,10 @@ export function SettingsTab({
                                           ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white"
                                           : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                                       }`}
+                                      title={isEditingCalendar ? "Close Calendar" : "Personal Calendar & Zoom"}
                                     >
                                       <Calendar className="size-3 text-[#f97316]" />
-                                      <span>{isEditingCalendar ? "Close Calendar" : "Calendar"}</span>
+                                      <span className="hidden sm:inline">{isEditingCalendar ? "Close Cal" : "Calendar"}</span>
                                     </button>
                                   )}
                                   {canManageAvailability && (
@@ -1060,9 +1056,10 @@ export function SettingsTab({
                                           ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white"
                                           : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                                       }`}
+                                      title={isEditingAvailability ? "Close Hours" : "Working Hours"}
                                     >
                                       <Clock className="size-3 text-blue-500" />
-                                      <span>{isEditingAvailability ? "Close Hours" : "Hours"}</span>
+                                      <span className="hidden sm:inline">{isEditingAvailability ? "Close Hours" : "Hours"}</span>
                                     </button>
                                   )}
                                   {canManageAvailability && (
@@ -1076,9 +1073,10 @@ export function SettingsTab({
                                           ? "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800"
                                           : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                                       }`}
+                                      title={editingOooId === m.id ? "Close Out of Office" : m.ooo_active ? "On Leave" : "Out of Office / Vacation"}
                                     >
-                                      <span className="text-xs">🌴</span>
-                                      <span>{editingOooId === m.id ? "Close OOO" : m.ooo_active ? "On Leave" : "Out of Office"}</span>
+                                      <Palmtree className="size-3 text-amber-500" />
+                                      <span className="hidden sm:inline">{editingOooId === m.id ? "Close OOO" : m.ooo_active ? "On Leave" : "Out of Office"}</span>
                                     </button>
                                   )}
                                   {canAccessTab("team") && (
@@ -1090,26 +1088,28 @@ export function SettingsTab({
                                           ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white"
                                           : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                                       }`}
+                                      title={isEditing ? "Close Permissions" : "Edit Role & Dashboard Tabs"}
                                     >
                                       <ShieldCheck className="size-3 text-purple-500" />
-                                      <span>{isEditing ? "Close Perms" : "Permissions"}</span>
+                                      <span className="hidden sm:inline">{isEditing ? "Close Perms" : "Permissions"}</span>
                                     </button>
                                   )}
                                   {canAccessTab("team") && !m.is_owner && (
                                     <button
                                       type="button"
                                       onClick={() => removeTeamMember(m.id)}
-                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-400 hover:text-red-600 hover:border-red-200 dark:hover:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all cursor-pointer shadow-2xs"
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-neutral-400 hover:text-red-600 hover:border-red-200 dark:hover:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all cursor-pointer shadow-2xs"
                                       title="Remove team member"
                                     >
                                       <Trash2 className="size-3" />
+                                      <span className="hidden sm:inline">Remove</span>
                                     </button>
                                   )}
                                 </div>
                               </div>
 
                               {/* Calendar connection status badges with 1-click connect */}
-                              <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                              <div className="flex items-center gap-2 flex-wrap pt-1.5 border-t border-neutral-200/60 dark:border-neutral-850">
                                 {m.google_connected ? (
                                   <div className="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
                                     <Check className="size-3" />
@@ -1172,7 +1172,7 @@ export function SettingsTab({
 
                                 {m.ooo_active && (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                                    🌴 Out of Office {m.ooo_backup_email ? `(Covered by ${m.ooo_backup_email})` : ""}
+                                    <Palmtree className="size-3 text-amber-500" /> Out of Office {m.ooo_backup_email ? `(Covered by ${m.ooo_backup_email})` : ""}
                                   </span>
                                 )}
 
@@ -1185,9 +1185,14 @@ export function SettingsTab({
                               </div>
 
                               {!isEditing && memberTabs.length > 0 && (
-                                <p className="text-[10px] text-neutral-400 truncate">
-                                  <span className="font-medium text-neutral-500">Accessible:</span> {memberTabs.map((t) => TAB_LABELS[t] || t).join(", ")}
-                                </p>
+                                <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-neutral-500 pt-0.5">
+                                  <span className="font-semibold text-neutral-600 dark:text-neutral-400">Accessible ({memberTabs.length} tabs):</span>
+                                  {memberTabs.map((t) => (
+                                    <span key={t} className="px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-[9.5px] text-neutral-600 dark:text-neutral-400 font-medium">
+                                      {TAB_LABELS[t] || t}
+                                    </span>
+                                  ))}
+                                </div>
                               )}
 
                               {canAccessTab("team") && (
@@ -1969,8 +1974,8 @@ export function SettingsTab({
                             <CalendarCheck className="size-3.5 text-[#f97316]" />
                             Tier 3: Personal Teammate Calendars
                           </span>
-                          <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                            🔒 Strictly Calendar-Only
+                          <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1">
+                            <ShieldCheck className="size-2.5" /> Strictly Calendar-Only
                           </span>
                         </div>
                         <p className="text-[11px] text-amber-800/80 dark:text-amber-300/80 mt-1 leading-normal">

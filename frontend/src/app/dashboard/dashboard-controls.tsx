@@ -3,11 +3,43 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Check, ChevronDown } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Inbox,
+  MessageSquare,
+  Calendar,
+  Mail,
+  Home,
+  Users,
+  Star,
+  BarChart3,
+  MapPin,
+  Database,
+  Sliders,
+  Workflow,
+  Megaphone,
+  Headphones,
+  Building2,
+  Settings,
+  UserCheck,
+  Bell,
+  FileText,
+  Code2,
+  Puzzle,
+  Cpu,
+  CreditCard,
+  Sparkles,
+  RotateCcw,
+  CheckCheck,
+  X,
+} from "lucide-react";
 
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import {
   TAB_LABELS,
+  TAB_DESCRIPTIONS,
+  TAB_CATEGORIES,
   ROLE_DEFAULT_TABS,
   ROLE_INFO,
   toggleTabIntelligently,
@@ -162,6 +194,172 @@ export function TimePicker({ minutes, onChange }: { minutes: number; onChange: (
   );
 }
 
+export const TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  inbox: Inbox,
+  playground: MessageSquare,
+  meetings: Calendar,
+  mailbox: Mail,
+  overview: Home,
+  leads: Users,
+  feedback: Star,
+  analytics: BarChart3,
+  map: MapPin,
+  knowledge: Database,
+  customizer: Sliders,
+  flow_builder: Workflow,
+  campaigns: Megaphone,
+  voice: Headphones,
+  workspace: Building2,
+  settings: Settings,
+  team: UserCheck,
+  notifications: Bell,
+  audit_log: FileText,
+  integrations: Code2,
+  developer: Puzzle,
+  mcp: Cpu,
+  billing: CreditCard,
+  sources: Database,
+  design: Sliders,
+  byok: Settings,
+  webhooks: Puzzle,
+};
+
+export function AccessibleTabsGrid({
+  selectedTabs,
+  onChange,
+  grantableTabs,
+  role,
+}: {
+  selectedTabs: ChattyTeamTab[];
+  onChange: (tabs: ChattyTeamTab[]) => void;
+  grantableTabs: readonly ChattyTeamTab[];
+  role?: ChattyTeamRole;
+}) {
+  const handleToggle = (tab: ChattyTeamTab, checked: boolean) => {
+    onChange(toggleTabIntelligently(selectedTabs, tab, checked, grantableTabs));
+  };
+
+  const handleSelectRoleDefaults = () => {
+    if (!role) return;
+    const defaults = ROLE_DEFAULT_TABS[role] || [];
+    onChange(defaults.filter((t) => grantableTabs.includes(t)) as ChattyTeamTab[]);
+  };
+
+  const handleSelectAll = () => {
+    onChange([...grantableTabs]);
+  };
+
+  const handleClearAll = () => {
+    onChange([]);
+  };
+
+  const totalGrantable = grantableTabs.length;
+  const totalSelected = selectedTabs.filter((t) => grantableTabs.includes(t)).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-neutral-800 dark:text-neutral-200">
+            Accessible Dashboard Tabs
+          </span>
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+            {totalSelected} / {totalGrantable} granted
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {role && (
+            <button
+              type="button"
+              onClick={handleSelectRoleDefaults}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="size-2.5" />
+              Role Defaults
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSelectAll}
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
+          >
+            <CheckCheck className="size-2.5" />
+            Select All
+          </button>
+          <button
+            type="button"
+            onClick={handleClearAll}
+            className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+          >
+            <X className="size-2.5" />
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-3.5">
+        {TAB_CATEGORIES.map((category) => {
+          const categoryTabs = category.tabs.filter((t) => grantableTabs.includes(t));
+          if (categoryTabs.length === 0) return null;
+          return (
+            <div key={category.id} className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                  {category.label}
+                </span>
+                <span className="text-[9px] text-neutral-400 hidden sm:inline">
+                  {category.description}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {categoryTabs.map((tab) => {
+                  const isChecked = selectedTabs.includes(tab);
+                  const Icon = TAB_ICONS[tab] || Sparkles;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isChecked}
+                      onClick={() => handleToggle(tab, !isChecked)}
+                      className={`flex items-start gap-2 p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                        isChecked
+                          ? "bg-orange-50/60 dark:bg-orange-950/20 border-orange-200 dark:border-orange-850 shadow-2xs"
+                          : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700"
+                      }`}
+                    >
+                      <span
+                        className={`flex items-center justify-center size-4 mt-0.5 rounded-[4px] border shrink-0 transition-colors ${
+                          isChecked
+                            ? "bg-[#f97316] border-[#f97316]"
+                            : "bg-white dark:bg-neutral-850 border-neutral-300 dark:border-neutral-700"
+                        }`}
+                      >
+                        {isChecked && <Check className="size-3 text-white" strokeWidth={3} />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <Icon className={`size-3.5 shrink-0 ${isChecked ? "text-[#f97316]" : "text-neutral-400"}`} />
+                          <span className={`text-[11px] font-semibold truncate ${isChecked ? "text-neutral-900 dark:text-white" : "text-neutral-700 dark:text-neutral-300"}`}>
+                            {TAB_LABELS[tab] || tab}
+                          </span>
+                        </div>
+                        <p className="text-[9.5px] text-neutral-400 dark:text-neutral-500 line-clamp-1 mt-0.5 leading-snug">
+                          {TAB_DESCRIPTIONS[tab] || ""}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function MemberPermissionEditor({
   role, permissions, grantableTabs, onSave, onCancel,
 }: {
@@ -179,24 +377,24 @@ export function MemberPermissionEditor({
   const handleRoleChange = (newRole: ChattyTeamRole) => {
     setDraftRole(newRole);
     const defaults = ROLE_DEFAULT_TABS[newRole] || [];
-    setDraftTabs([...defaults]);
+    setDraftTabs([...defaults.filter((t) => grantableTabs.includes(t)) as ChattyTeamTab[]]);
   };
 
   const roleOptions: ModernSelectOption[] = [
-    { value: "admin", label: "Admin", hint: "Full operational access (settings, roster, knowledge, integrations)" },
-    { value: "agent", label: "Agent", hint: "Support agent (inbox, visitor chat takeover, meetings)" },
-    { value: "editor", label: "Editor", hint: "Content editor (knowledge base training, customizer styling)" },
-    { value: "billing_manager", label: "Billing Manager", hint: "Finance & subscriptions" },
-    { value: "viewer", label: "Viewer", hint: "Read-only conversations and meeting schedules" },
+    { value: "admin", label: "Admin", hint: "Full operational access across all bot tabs (except billing)" },
+    { value: "agent", label: "Agent", hint: "Support agent: live chats, simulator, meetings, leads & mailbox" },
+    { value: "editor", label: "Editor", hint: "Content editor: knowledge training, customizer styling & flows" },
+    { value: "billing_manager", label: "Billing Manager", hint: "Finance: plan subscriptions, quotas & invoices" },
+    { value: "viewer", label: "Viewer", hint: "Read-only observer: customer sentiment, reports & audit log" },
   ];
 
   return (
-    <div className="space-y-3 pt-2 pb-1 border-t border-neutral-100 dark:border-neutral-800">
+    <div className="space-y-4 pt-3 pb-2 border-t border-neutral-100 dark:border-neutral-800">
       <div>
-        <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
-          Role
+        <label className="block text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
+          Role &amp; Access Tier
         </label>
-        <div className="w-56">
+        <div className="w-64">
           <ModernSelect
             value={draftRole}
             options={roleOptions}
@@ -208,32 +406,23 @@ export function MemberPermissionEditor({
         </p>
       </div>
 
-      <div>
-        <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1.5">
-          Accessible Dashboard Tabs
-        </label>
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-          {grantableTabs.map((tab) => (
-            <TeamTabCheckbox
-              key={tab}
-              checked={draftTabs.includes(tab)}
-              onChange={(checked) => setDraftTabs((p) => toggleTabIntelligently(p, tab, checked, grantableTabs))}
-              label={TAB_LABELS[tab] || tab}
-            />
-          ))}
-        </div>
-      </div>
+      <AccessibleTabsGrid
+        selectedTabs={draftTabs}
+        onChange={setDraftTabs}
+        grantableTabs={grantableTabs}
+        role={draftRole}
+      />
 
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
         <button
           onClick={() => onSave(draftRole, draftTabs)}
-          className="px-3 py-1 text-xs font-semibold rounded-md bg-[#f97316] text-white hover:opacity-90 transition-opacity"
+          className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-[#f97316] text-white hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
         >
-          Save Changes
+          Save Permissions
         </button>
         <button
           onClick={onCancel}
-          className="px-3 py-1 text-xs font-medium rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+          className="px-3.5 py-1.5 text-xs font-medium rounded-lg text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
         >
           Cancel
         </button>

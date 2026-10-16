@@ -41,6 +41,7 @@ import {
   ROLE_DEFAULT_TABS,
   ROLE_INFO,
   TAB_LABELS,
+  checkUserHasTabPermission,
   type ChattyTeamTab,
   type ChattyTeamRole,
 } from "./dashboard-permissions";
@@ -2123,7 +2124,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   }, [botId]);
 
   function canAccessTab(tab: ChattyTeamTab | null): boolean {
-    return !tab || myRole === "owner" || myPermissions.includes(tab);
+    return checkUserHasTabPermission(tab, myRole, myPermissions);
   }
 
   const isPlatformAdmin = Boolean(

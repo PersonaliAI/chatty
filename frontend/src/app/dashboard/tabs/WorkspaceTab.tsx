@@ -19,9 +19,11 @@ import {
   Users,
   Video,
   Clock,
+  Palmtree,
 } from "lucide-react";
 import type { TeamMember, AdminAuditLog } from "../dashboard-types";
 import {
+  AccessibleTabsGrid,
   MemberAvailabilityEditor,
   MemberOooEditor,
   MemberPermissionEditor,
@@ -531,21 +533,14 @@ export function WorkspaceTab({
               />
             </div>
 
-            {/* Permissions Checkbox Grid for Invite */}
+            {/* Accessible Tabs & Features for this Invite */}
             <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
-              <span className="block text-[10px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
-                Accessible Tabs &amp; Features for this Invite
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {grantableTabs.map((t) => (
-                  <TeamTabCheckbox
-                    key={t}
-                    checked={inviteTabs.includes(t)}
-                    onChange={(checked) => setInviteTabs((prev) => toggleTabIntelligently(prev, t, checked, grantableTabs))}
-                    label={TAB_LABELS[t] || t}
-                  />
-                ))}
-              </div>
+              <AccessibleTabsGrid
+                selectedTabs={inviteTabs}
+                onChange={setInviteTabs}
+                grantableTabs={grantableTabs}
+                role={inviteRole}
+              />
             </div>
 
             <div className="flex justify-end pt-1">
@@ -677,7 +672,7 @@ export function WorkspaceTab({
                             : "bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-850"
                         }`}
                       >
-                        <span className="text-xs">🌴</span>
+                        <Palmtree className="size-3 text-amber-500" />
                         <span>{isEditingOoo ? "Close Away" : m.ooo_active ? "Away" : "Vacation"}</span>
                       </button>
 
@@ -768,7 +763,7 @@ export function WorkspaceTab({
                     )}
                     {m.ooo_active && (
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
-                        🌴 Out of Office {m.ooo_backup_email ? `(Backup: ${m.ooo_backup_email})` : ""}
+                        <Palmtree className="size-3 text-amber-500" /> Out of Office {m.ooo_backup_email ? `(Backup: ${m.ooo_backup_email})` : ""}
                       </span>
                     )}
                   </div>
