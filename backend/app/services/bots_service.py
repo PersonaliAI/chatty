@@ -15,7 +15,13 @@ from psycopg2.extras import Json, RealDictCursor
 from app.core import oauth as _oauth
 from app.core.clients import supabase
 from app.core.db import run_db
-from app.core.permissions import OWNER_ONLY_TABS, default_permissions_for_role, verify_bot_permission
+from app.core.permissions import (
+    ALL_TABS,
+    OWNER_ONLY_TABS,
+    VALID_ROLES,
+    default_permissions_for_role,
+    verify_bot_permission,
+)
 from plugins import color_scheme as color_scheme_mod
 from plugins import llm_providers
 from plugins import widget_brain
@@ -637,11 +643,18 @@ async def manage_team_members(principal: dict[str, Any], bot_id: str, action: st
         return {"action": "remove", "email": email, "bot_id": bot_id}
 
     # Same two rules as team.py's invite/update endpoints: role can only ever
-    # be "admin" or "agent" via this path (never "owner" - no self/other
+    # be a non-owner valid role via this path (never "owner" - no self/other
     # escalation to ownership), and a non-owner caller can never grant an
-    # owner-only tab (billing/byok/webhooks) to anyone, including themselves.
-    role = body.role if body.role in ("admin", "agent") else "agent"
-    permissions = default_permissions_for_role(role)
+    # owner-only tab (billing/byok) to anyone, including themselves.
+    allowed_roles = [r for r in VALID_ROLES if r != "owner"]
+    role = body.role if body.role in allowed_roles else "agent"
+
+    if body.permissions is not None:
+        valid_set = set(ALL_TABS)
+        permissions = [str(p).strip().lower() for p in body.permissions if str(p).strip().lower() in valid_set]
+    else:
+        permissions = default_permissions_for_role(role)
+
     if caller_role != "owner":
         permissions = [p for p in permissions if p not in OWNER_ONLY_TABS]
 

@@ -500,3 +500,59 @@ def test_get_dashboard_screenshots_mcp_tool():
         assert catalog["total"] == 22
         assert catalog["account"] == "katdamayantha@gmail.com"
 
+
+def test_mcp_manage_team_members_with_roles_and_custom_permissions():
+    from app.routers import mcp as mcp_router
+    principal = _mock_principal()
+
+    with patch("app.routers.mcp._current_principal", return_value=principal), \
+         patch("app.services.bots_service._oauth.require_bot_access", return_value=None), \
+         patch("app.services.bots_service._oauth.user_dict_for_principal", return_value={"auth_user_id": "u1", "email": "owner@chatty.com"}), \
+         patch("app.services.bots_service.verify_bot_permission", return_value="owner"), \
+         patch("app.services.bots_service.run_db", return_value=None), \
+         patch("app.services.bots_service._write_audit_log", return_value=None):
+
+        # 1. Invite editor role (should receive default editor tabs)
+        res = asyncio.run(mcp_router.manage_team_members(
+            bot_id="bot-123",
+            action="invite",
+            email="editor@example.com",
+            role="editor",
+        ))
+        assert res["email"] == "editor@example.com"
+        assert res["role"] == "editor"
+        assert "customizer" in res["permissions"]
+        assert "knowledge" in res["permissions"]
+        assert "billing" not in res["permissions"]
+
+        # 2. Invite with custom granular permissions
+        res_custom = asyncio.run(mcp_router.manage_team_members(
+            bot_id="bot-123",
+            action="invite",
+            email="agent@example.com",
+            role="agent",
+            permissions=["inbox", "meetings", "leads"],
+        ))
+        assert res_custom["permissions"] == ["inbox", "meetings", "leads"]
+
+    # 3. Caller is admin (non-owner): owner-only tabs (billing/byok) must be stripped
+    with patch("app.routers.mcp._current_principal", return_value=principal), \
+         patch("app.services.bots_service._oauth.require_bot_access", return_value=None), \
+         patch("app.services.bots_service._oauth.user_dict_for_principal", return_value={"auth_user_id": "admin-1", "email": "admin@chatty.com"}), \
+         patch("app.services.bots_service.verify_bot_permission", return_value="admin"), \
+         patch("app.services.bots_service.run_db", return_value=None), \
+         patch("app.services.bots_service._write_audit_log", return_value=None):
+
+        res_sanitized = asyncio.run(mcp_router.manage_team_members(
+            bot_id="bot-123",
+            action="invite",
+            email="colleague@example.com",
+            role="admin",
+            permissions=["inbox", "billing", "byok", "meetings"],
+        ))
+        assert "billing" not in res_sanitized["permissions"]
+        assert "byok" not in res_sanitized["permissions"]
+        assert "inbox" in res_sanitized["permissions"]
+        assert "meetings" in res_sanitized["permissions"]
+
+

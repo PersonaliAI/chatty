@@ -821,11 +821,17 @@ async def configure_byok(bot_id: str, provider: str, api_key: str) -> dict:
 
 
 @mcp.tool()
-async def manage_team_members(bot_id: str, action: str, email: str, role: str = "agent") -> dict:
-    """Invite, update, or remove team members for a chatbot."""
+async def manage_team_members(
+    bot_id: str,
+    action: str,
+    email: str,
+    role: str = "agent",
+    permissions: Optional[List[str]] = None,
+) -> dict:
+    """Invite, update, or remove team members for a chatbot, optionally setting custom tab permissions."""
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "admin")
-    body = TeamMemberRequest(email=email, role=role)
+    body = TeamMemberRequest(email=email, role=role, permissions=permissions)
     return await bots_service.manage_team_members(principal, bot_id, action, body)
 
 

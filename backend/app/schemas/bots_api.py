@@ -419,7 +419,8 @@ class BYOKConfigRequest(BaseModel):
 
 class TeamMemberRequest(BaseModel):
     email: str = Field(..., min_length=3)
-    role: str = Field("agent", description="admin or agent - an invite can never grant owner")
+    role: str = Field("agent", description="admin, agent, editor, billing_manager, or viewer - an invite can never grant owner")
+    permissions: Optional[list[str]] = Field(None, description="Optional custom list of dashboard tab permissions. If omitted, uses role defaults.")
 
 
 class NotificationsConfigRequest(BaseModel):
