@@ -92,14 +92,13 @@
   [data-dashboard] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), textarea) {
     min-width: 0;
     max-width: 100%;
-    /* Avoid Safari zooming the page when a compact field receives focus. */
-    font-size: 16px;
+    font-size: inherit;
   }
 
   /* Keep input placeholder / hint text clean, proportional and not bold */
   [data-dashboard] input::placeholder,
   [data-dashboard] textarea::placeholder {
-    font-size: 12px;
+    font-size: inherit;
     font-weight: 400;
     color: #9ca3af;
     opacity: 1;

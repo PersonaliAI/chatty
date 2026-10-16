@@ -23,9 +23,52 @@ router = APIRouter()
 
 
 def add_lead_column(column_name: str):
-    """Lead custom fields are stored dynamically in chatty_leads.custom_fields (JSONB).
-    DDL schema mutation is not performed at runtime."""
-    return
+    clean_name = re.sub(r'[^a-zA-Z0-9_]', '', column_name.lower().replace(" ", "_"))
+    if not clean_name:
+        return
+
+    # Check reserved words
+    if clean_name in ["id", "bot_id", "name", "email", "phone", "created_at", "company", "job_title", "country", "industry", "budget", "custom_fields"]:
+        return
+
+    # clean_name is already regex-restricted to [a-zA-Z0-9_] above, so f-string
+    # interpolation here couldn't actually be broken out of by any payload -
+    # but psycopg2.sql.Identifier() makes that provably true instead of just
+    # argued, and correctly quotes reserved-word-shaped names PostgreSQL
+    # would otherwise reject with a syntax error (e.g. a column literally
+    # named "select").
+    sql = pg_sql.SQL("ALTER TABLE chatty_leads ADD COLUMN IF NOT EXISTS {} TEXT;").format(
+        pg_sql.Identifier(clean_name)
+    )
+    # Direct-connection credentials read from environment (no hardcoded secrets).
+    project_ref = (SUPABASE_URL or "").split("//")[-1].split(".")[0]
+    host = os.environ.get("SUPABASE_DB_HOST", "aws-0-ap-southeast-2.pooler.supabase.com")
+    user = os.environ.get("SUPABASE_DB_USER", f"postgres.{project_ref}")
+    password = os.environ.get("SUPABASE_DB_PASSWORD", "")
+    dbname = os.environ.get("SUPABASE_DB_NAME", "postgres")
+    port = int(os.environ.get("SUPABASE_DB_PORT", "6543"))
+    if not password:
+        logger.error("SUPABASE_DB_PASSWORD not set; cannot add lead column")
+        return
+
+    try:
+        conn = psycopg2.connect(
+            host=host,
+            user=user,
+            password=password,
+            dbname=dbname,
+            port=port,
+            connect_timeout=5
+        )
+        cursor = conn.cursor()
+        cursor.execute(sql)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        logger.info("Successfully added dynamic lead column")
+    except Exception:
+        logger.exception("Failed to add dynamic lead column")
+
 
 
 @router.post("/api/onboarding/update")

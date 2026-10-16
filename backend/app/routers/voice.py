@@ -19,9 +19,18 @@ from app.core.deps import require_user
 from app.core.permissions import verify_bot_permission
 from app.schemas.voice import VoiceConfigUpdate, VoiceTokenRequest, VoiceResetRequest
 from app.services.contact_identity import guard_widget_session
-from main import _client_ip, _widget_rate_limit_or_429
 
 router = APIRouter()
+
+
+async def _widget_rate_limit_or_429(*args, **kwargs):
+    from main import _widget_rate_limit_or_429 as _limiter
+    return await _limiter(*args, **kwargs)
+
+
+def _client_ip(*args, **kwargs):
+    from main import _client_ip as _ip
+    return _ip(*args, **kwargs)
 
 _CONFIG_FIELDS = (
     "welcome_message, voice_enabled, voice_mode, voice_expression_enabled, voice_visualizer, voice_agent_name, "

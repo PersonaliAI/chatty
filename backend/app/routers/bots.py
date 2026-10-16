@@ -799,7 +799,12 @@ async def get_user_profile(
 
     # Check for bot-specific agent profile if bot_id is provided
     if bot_id:
-        await get_bot_role_and_permissions(bot_id, user)
+        try:
+            await get_bot_role_and_permissions(bot_id, user)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning("Could not verify bot permissions for profile: %s", e)
         try:
             bot_res = await run_db(lambda: supabase.table("chatty_bots").select(
                 "agent_display_name, agent_avatar_url, agent_role_title"

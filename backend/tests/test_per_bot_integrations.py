@@ -365,11 +365,13 @@ def test_bot_isolated_avatar_removal_does_not_fallback_to_user_avatar():
                 query.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[user_row])
             elif table_name == "chatty_bots":
                 query.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(data=[bot_row])
+                query.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[{"id": "bot-123"}])
             return query
 
         mock_sb.table.side_effect = mock_table
 
-        with patch("app.routers.bots.supabase", mock_sb):
+        with patch("app.routers.bots.supabase", mock_sb), \
+             patch("app.core.permissions.supabase", mock_sb):
             profile = await get_user_profile(bot_id="bot-123", user=user)
 
         assert profile["is_bot_custom"] is True
