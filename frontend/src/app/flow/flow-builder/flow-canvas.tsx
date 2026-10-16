@@ -282,7 +282,7 @@ function FlowCanvasInner(props: Props) {
           pannable
           zoomable
           position="bottom-left"
-          nodeColor={(node) => String((node.data as CanvasNodeData).color || "#cbd5e1")}
+          nodeColor={(node) => String((node?.data as CanvasNodeData | undefined)?.color || "#cbd5e1")}
           maskColor="rgba(247, 249, 252, 0.75)"
         />}
         <button type="button" className="n8n-fit-view" onClick={() => reactFlow.fitView({ padding: 0.35 })} aria-label="Fit workflow to view">

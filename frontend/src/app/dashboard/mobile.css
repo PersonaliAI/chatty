@@ -82,8 +82,8 @@
     overflow-wrap: anywhere;
   }
 
-  /* Prevent Chrome Android font boosting / synthetic bolding on text */
-  [data-dashboard] :where(p, span, label, div) {
+  /* Prevent Chrome Android font boosting / synthetic bolding on text and form controls */
+  [data-dashboard] :where(p, span, label, div, input, textarea, select, button) {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     max-height: 999999px;
@@ -92,7 +92,6 @@
   [data-dashboard] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), textarea) {
     min-width: 0;
     max-width: 100%;
-    font-size: inherit;
   }
 
   /* Keep input placeholder / hint text clean, proportional and not bold */

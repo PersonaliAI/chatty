@@ -20,6 +20,7 @@ import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
 import { parseRichContent } from "./rich-content";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
+import { dedupeAdjacentWelcomeMessages } from "./widget-history";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
 // of side-effect-imported here - a library bundling its own CSS import
 // requires the CONSUMER's bundler to understand raw CSS imports the exact
@@ -1534,10 +1535,10 @@ function IdentifiedChatWidget({
     let alive = true;
     void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
       .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
-      .then(body => { if (alive && body.messages?.length) setMessages(body.messages); })
+      .then(body => { if (alive && body.messages?.length) setMessages(dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg)); })
       .catch(() => {});
     return () => { alive = false; };
-  }, [botId, sessionId, fetch]);
+  }, [botId, sessionId, fetch, welcomeMsg]);
 
   // Query active scheduled meeting for the current session on load
   const fetchActiveMeeting = useCallback(async () => {
@@ -1784,18 +1785,21 @@ function IdentifiedChatWidget({
           setCustomCss(bot.custom_css || "");
           setCustomJs(bot.custom_js || "");
           setMessages((prev) =>
-            prev.length
-              ? prev
-              : [
-                  {
-                    role: "assistant",
-                    content: wMsg,
-                    sender: "ai",
-                    created_at: new Date().toISOString(),
-                    sender_name: isPreview ? (paramName || bot.name || "Fin") : (bot.name || "Fin"),
-                    sender_avatar: isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null),
-                  },
-                ]
+            dedupeAdjacentWelcomeMessages(
+              prev.length
+                ? prev
+                : [
+                    {
+                      role: "assistant",
+                      content: wMsg,
+                      sender: "ai",
+                      created_at: new Date().toISOString(),
+                      sender_name: isPreview ? (paramName || bot.name || "Fin") : (bot.name || "Fin"),
+                      sender_avatar: isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null),
+                    },
+                  ],
+              wMsg
+            )
           );
           if (onThemeLoaded) {
             onThemeLoaded({

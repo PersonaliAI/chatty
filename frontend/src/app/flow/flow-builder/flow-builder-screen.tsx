@@ -142,7 +142,7 @@ export default function FlowBuilderPage() {
     });
     return () => {
       active = false;
-      listener.subscription.unsubscribe();
+      listener?.subscription?.unsubscribe?.();
     };
   }, []);
 

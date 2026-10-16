@@ -1621,9 +1621,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     let alive = true;
     void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
       .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
-      .then(body => { if (alive && body.messages?.length) setMessages(body.messages); }).catch(() => {});
+      .then(body => { if (alive && body.messages?.length) setMessages(dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg)); }).catch(() => {});
     return () => { alive = false; };
-  }, [botId, sessionId, fetch]);
+  }, [botId, sessionId, fetch, welcomeMsg]);
   const switchConversation = (targetSessionId: string) => {
     setSessionId(targetSessionId);
     try {

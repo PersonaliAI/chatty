@@ -16,6 +16,13 @@ test("does not duplicate a persisted welcome message", () => {
   );
 });
 
+test("does not render inline welcome if first message is any assistant greeting", () => {
+  assert.equal(
+    shouldRenderInlineWelcome([{ role: "assistant", content: "Hello! I am Chatty, your AI assistant." }], "Hello! How can I help you today?"),
+    false,
+  );
+});
+
 test("keeps the placeholder when history starts with a real turn", () => {
   assert.equal(
     shouldRenderInlineWelcome([{ role: "user", content: "Hi" }], "Hello!"),
@@ -34,5 +41,15 @@ test("removes adjacent persisted welcome duplicates", () => {
     { role: "assistant", content: "Hello!" },
     { role: "user", content: "I need help" },
     { role: "assistant", content: "Hello!" },
+  ]);
+});
+
+test("collapses multiple consecutive assistant greetings at start to the current welcome", () => {
+  const messages = [
+    { role: "assistant", content: "Hello! I'm Chatty, your AI assistant. I can help you with creating, configuring, and integrating your AI chat widgets. How can I help you today?" },
+    { role: "assistant", content: "Hello! How can I help you today?" },
+  ];
+  assert.deepEqual(dedupeAdjacentWelcomeMessages(messages, "Hello! How can I help you today?"), [
+    { role: "assistant", content: "Hello! How can I help you today?" },
   ]);
 });

@@ -1,4 +1,5 @@
-import FlowBuilderScreen from "../flow-builder/flow-builder-screen";
+import { Suspense } from "react";
+import FlowBuilderClient from "./FlowBuilderClient";
 
 export const metadata = {
   title: "Chatty Flow Builder",
@@ -6,5 +7,9 @@ export const metadata = {
 };
 
 export default function FlowBuilderRoute() {
-  return <FlowBuilderScreen />;
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#f7f9fc" }} />}>
+      <FlowBuilderClient />
+    </Suspense>
+  );
 }
