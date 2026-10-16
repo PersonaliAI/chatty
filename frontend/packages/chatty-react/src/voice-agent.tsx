@@ -14,7 +14,7 @@ import {
   useVoiceAssistant,
   type ReceivedMessage,
 } from "@livekit/components-react";
-import { TokenSource, Room, AudioPresets, Track, type SendTextOptions, type TokenSourceResponseObject } from "livekit-client";
+import { TokenSource, Track, type SendTextOptions, type TokenSourceResponseObject } from "livekit-client";
 import { CalendarPlus, ImagePlus, MessageCircle, Mic, Phone, PhoneOff, RotateCcw, Send, ShieldCheck, X } from "lucide-react";
 
 import "@livekit/components-styles";
@@ -87,9 +87,19 @@ function Transcript({ messages }: { messages: ReceivedMessage[] }) {
   if (!messages.length) {
     return <p className="chatty-sdk-voice-empty">Start the voice agent to see real-time transcription here.</p>;
   }
+  const sorted = [...messages].sort((a, b) => {
+    const timeA = typeof a.timestamp === "number" ? a.timestamp : new Date(a.timestamp).getTime();
+    const timeB = typeof b.timestamp === "number" ? b.timestamp : new Date(b.timestamp).getTime();
+    if (!Number.isNaN(timeA) && !Number.isNaN(timeB) && timeA > 0 && timeB > 0) {
+      if (Math.abs(timeA - timeB) < 31536000000) {
+        return timeA - timeB;
+      }
+    }
+    return 0;
+  });
   return (
     <div className="chatty-sdk-voice-transcript" aria-live="polite" aria-label="Live voice transcript">
-      {[...messages].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).slice(-12).map((message) => (
+      {sorted.slice(-12).map((message) => (
         <p key={message.id} className={message.from?.isLocal ? "is-user" : "is-agent"}>
           {message.message}
         </p>
