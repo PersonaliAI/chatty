@@ -24,6 +24,7 @@ export interface TrialCountdownProps {
   onUpgradeClick?: () => void;
   variant?: "pill" | "banner";
   className?: string;
+  isLoading?: boolean;
 }
 
 export function TrialCountdown({
@@ -35,7 +36,14 @@ export function TrialCountdown({
   onUpgradeClick,
   variant = "pill",
   className = "",
+  isLoading = false,
 }: TrialCountdownProps) {
+  // Never render during initial bootstrap or before session/dates are resolved.
+  // Prevents flashing a trial banner that immediately vanishes once permissions/status settle.
+  if (isLoading || (!trialStartedAt && !createdAt)) {
+    return null;
+  }
+
   // CRITICAL REQUIREMENT: Not applicable in self-host mode or for shared chatbots
   if (SELF_HOST_MODE || isSharedBot) {
     return null;

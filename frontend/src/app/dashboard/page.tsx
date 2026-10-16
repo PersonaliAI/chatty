@@ -4402,6 +4402,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               isSharedBot={isCurrentBotShared}
               onUpgradeClick={() => setActiveTab("billing")}
               variant="pill"
+              isLoading={loadingSession || !user || !botId || billingInfo === null}
             />
 
             {/* Language Selector */}
@@ -4481,7 +4482,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
         {/* Tab Contents (Center Aligned Layout) */}
         <div ref={contentScrollRef} className="dashboard-content flex-1 overflow-y-auto">
-          {(() => {
+          {/* Claim Link Banner - only evaluate after session and active bot have settled */}
+          {!loadingSession && Boolean(botId) && (() => {
             const currentBotData = userBots.find((b) => b.id === botId);
             if (currentBotData?.claim_status === "unclaimed" && currentBotData?.claim_token) {
               const claimUrl = `${(typeof window !== "undefined" ? window.location.origin : "https://chatty.personaliai.com")}/claim/${currentBotData.claim_token}`;
@@ -4540,6 +4542,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
                   isSharedBot={isCurrentBotShared}
                   onUpgradeClick={() => setActiveTab("billing")}
                   variant="banner"
+                  isLoading={loadingSession || !user || !botId || billingInfo === null}
                 />
               </div>
               <HomeTab
