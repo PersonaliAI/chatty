@@ -1085,18 +1085,18 @@ export const VOICE_AGENT_PANEL_CSS = `
 
   /* Custom Microphone Control & Waves */
   .chatty-voice-mic-controls-wrap { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; width: auto; max-width: 100%; }
-  .chatty-voice-mic-group { display: inline-flex; align-items: stretch; height: 42px; border: 1px solid var(--voice-border); border-radius: 9999px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.06); transition: border-color .15s ease, background-color .15s ease; }
+  .chatty-voice-mic-group { display: inline-flex; align-items: stretch; height: 44px; border: 1px solid var(--voice-border); border-radius: 9999px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.06); transition: border-color .15s ease, background-color .15s ease; }
   .chatty-voice-mic-group.is-muted { border-color: #fca5a5; background: #fff5f5; }
   .chatty-voice-mic-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 100%; min-width: 86px; padding: 0 12px 0 14px; border: 0; border-radius: 9999px 0 0 9999px; background: transparent; color: var(--voice-ink); cursor: pointer; transition: background-color .15s ease; }
   .chatty-voice-mic-toggle:hover { background: var(--voice-soft); }
   .chatty-voice-mic-group.is-muted .chatty-voice-mic-toggle:hover { background: #fee2e2; }
   .chatty-mic-waves-box { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 20px; }
-  .chatty-mic-bar-visualizer { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 3px !important; height: 20px !important; width: auto !important; background: transparent !important; padding: 0 !important; }
-  .chatty-mic-bar-visualizer .lk-audio-bar { display: inline-block !important; width: 2.5px !important; min-height: 4px !important; max-height: 20px !important; border-radius: 9999px !important; background-color: var(--voice-accent) !important; opacity: 0.85 !important; transition: height 0.08s ease, background-color 0.15s ease !important; transform-origin: center !important; }
+  .chatty-mic-bar-visualizer { display: inline-flex !important; align-items: center !important; justify-content: center !important; gap: 3px !important; height: 20px !important; width: auto !important; background: transparent !important; padding: 0 !important; --lk-va-bar-width: 2.5px !important; --lk-va-bar-gap: 3px !important; --lk-va-bar-border-radius: 9999px !important; --lk-bg: transparent !important; }
+  .chatty-mic-bar-visualizer .lk-audio-bar { display: inline-block !important; width: 2.5px !important; min-width: 2.5px !important; max-width: 2.5px !important; min-height: 4px !important; max-height: 20px !important; border-radius: 9999px !important; background-color: var(--voice-accent, #f97316) !important; opacity: 0.85 !important; transition: height 0.08s ease, background-color 0.15s ease !important; transform-origin: center !important; margin: 0 !important; }
   .chatty-mic-bar-visualizer .lk-audio-bar[data-lk-highlighted="true"],
   .chatty-mic-bar-visualizer .lk-audio-bar.lk-highlighted { background-color: #059669 !important; opacity: 1 !important; }
   .chatty-mic-muted-label { font-size: 12px; font-weight: 500; color: #dc2626; }
-  .chatty-voice-mic-menu-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; min-width: 32px; height: 100%; border: 0; border-left: 1px solid var(--voice-border); border-radius: 0 9999px 9999px 0; background: transparent; color: var(--voice-muted); cursor: pointer; transition: background-color .15s ease, color .15s ease; padding: 0; }
+  .chatty-voice-mic-menu-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; min-width: 34px; height: 100%; border: 0; border-left: 1px solid var(--voice-border); border-radius: 0 9999px 9999px 0; background: transparent; color: var(--voice-muted); cursor: pointer; transition: background-color .15s ease, color .15s ease; padding: 0; }
   .chatty-voice-mic-menu-btn:hover, .chatty-voice-mic-menu-btn.is-open { background: var(--voice-soft); color: var(--voice-ink); }
   .chatty-voice-mic-menu-btn.is-open svg { transform: rotate(180deg); }
 

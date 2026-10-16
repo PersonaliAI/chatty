@@ -17,6 +17,7 @@ import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-se
 import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard";
 import { TrialCountdown } from "@/components/trial-countdown";
+import { TrialExpiredModal } from "@/components/trial-expired-modal";
 import { InboxPanel } from "@/components/inbox-panel";
 import { CampaignsUI } from "@/components/campaigns-ui";
 import { KBManager } from "@/components/kb-manager";
@@ -317,6 +318,32 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     const currentBot = userBots.find((b) => b.id === botId);
     return Boolean(currentBot && user?.id && currentBot.user_id && currentBot.user_id !== user.id);
   }, [billingInfo?.isSharedBot, userBots, botId, user?.id]);
+
+  const isTrialExpired = useMemo(() => {
+    if (SELF_HOST_MODE) return false;
+    if (isCurrentBotShared) return false;
+    if (loadingSession || !user || !botId || billingInfo === null) return false;
+    if (billingInfo?.status === "active" || billingInfo?.status === "on_trial") return false;
+
+    const startDate = new Date(
+      ((user?.user_metadata as Record<string, unknown>)?.trial_started_at as string) ||
+      user?.created_at ||
+      Date.now()
+    );
+    const trialDurationDays = 14;
+    const trialDurationMs = trialDurationDays * 24 * 60 * 60 * 1000;
+    const endDate = new Date(startDate.getTime() + trialDurationMs);
+    return Date.now() > endDate.getTime();
+  }, [isCurrentBotShared, loadingSession, user, botId, billingInfo]);
+
+  const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
+  const [trialDismissed, setTrialDismissed] = useState(false);
+
+  useEffect(() => {
+    if (isTrialExpired && !trialDismissed) {
+      setShowTrialExpiredModal(true);
+    }
+  }, [isTrialExpired, trialDismissed]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamOwner, setTeamOwner] = useState<TeamMember | null>(null);
   const [inviteName, setInviteName] = useState("");
@@ -3192,6 +3219,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
   // Crawl the admin-selected URLs and index each as a knowledge source.
   const handleCrawlSelected = async () => {
+    if (isTrialExpired) {
+      setShowTrialExpiredModal(true);
+      return;
+    }
     const urls = Array.from(selectedUrls);
     if (!urls.length || !botId) return;
     setCrawlingPages(true); setCrawlSummary(null);
@@ -3229,6 +3260,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   };
 
   const handleBulkAddUrls = async () => {
+    if (isTrialExpired) {
+      setShowTrialExpiredModal(true);
+      return;
+    }
     const urls = Array.from(new Set(
       bulkUrlsText.split("\n").map((u) => u.trim()).filter(Boolean)
     )).slice(0, 100);
@@ -3272,6 +3307,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
   const handleTrainUrl = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isTrialExpired) {
+      setShowTrialExpiredModal(true);
+      return;
+    }
     if (!inputUrl.trim()) return;
 
     const urlName = inputUrl.trim();
@@ -3512,6 +3551,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   // crawl uses, which upserts by (bot_id, type=url, name=url) so re-crawling
   // an existing source updates its row in place rather than duplicating it.
   const handleRecrawlNow = async (sourceId: string, url: string) => {
+    if (isTrialExpired) {
+      setShowTrialExpiredModal(true);
+      return;
+    }
     if (!botId || recrawlingSourceId) return;
     setRecrawlingSourceId(sourceId);
     startKnowledgeProgress(
@@ -3554,6 +3597,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   // bounded batches keep each request within the API timeout and let the UI
   // report real progress between batches.
   const handleCrawlAll = async () => {
+    if (isTrialExpired) {
+      setShowTrialExpiredModal(true);
+      return;
+    }
     if (!botId || crawlingAll) return;
     const urlSources = sources.filter((s) => s.type === "url");
     if (urlSources.length === 0) return;
@@ -3881,6 +3928,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   // Playground Chatbot Reply Generator
   const handlePlaygroundSend = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isTrialExpired) {
+      setShowTrialExpiredModal(true);
+      showToast("Your 14-day free trial has expired. Please select a plan to test in playground.", "error");
+      return;
+    }
     if (!playgroundInput.trim()) return;
 
     const userText = playgroundInput;
@@ -4452,7 +4504,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               createdAt={user?.created_at}
               trialStartedAt={(user?.user_metadata as Record<string, unknown>)?.trial_started_at as string | undefined}
               isSharedBot={isCurrentBotShared}
-              onUpgradeClick={() => setActiveTab("billing")}
+              onUpgradeClick={() => setShowTrialExpiredModal(true)}
               variant="pill"
               isLoading={loadingSession || !user || !botId || billingInfo === null}
             />
@@ -5633,6 +5685,17 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           backgroundHex={logoBgColor || "#ffffff"}
         />
       )}
+
+      <TrialExpiredModal
+        open={showTrialExpiredModal}
+        onClose={() => {
+          setShowTrialExpiredModal(false);
+          setTrialDismissed(true);
+        }}
+        currentPlan={billingInfo?.plan || (user?.user_metadata?.selected_plan as string) || "standard"}
+        userEmail={user?.email}
+        isSharedBot={isCurrentBotShared}
+      />
 
     </div>
   );

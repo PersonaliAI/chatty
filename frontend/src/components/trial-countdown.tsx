@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import Link from "next/link";
-import { Clock, Sparkles, ArrowRight, ShieldCheck } from "lucide-react";
+import { Clock, Sparkles, ArrowRight } from "lucide-react";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 
 const PLAN_LABELS: Record<string, string> = {
@@ -38,6 +37,26 @@ export function TrialCountdown({
   className = "",
   isLoading = false,
 }: TrialCountdownProps) {
+  const { daysRemaining, isExpired, planName } = useMemo(() => {
+    const rawPlan = (plan || "chatty_standard").toLowerCase();
+    const name = PLAN_LABELS[rawPlan] || "Standard";
+
+    const startDate = new Date(trialStartedAt || createdAt || Date.now());
+    const trialDurationDays = 14;
+    const trialDurationMs = trialDurationDays * 24 * 60 * 60 * 1000;
+    const endDate = new Date(startDate.getTime() + trialDurationMs);
+    const now = new Date();
+
+    const msRemaining = endDate.getTime() - now.getTime();
+    const days = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+
+    return {
+      daysRemaining: days,
+      isExpired: msRemaining <= 0,
+      planName: name,
+    };
+  }, [plan, createdAt, trialStartedAt]);
+
   // Never render during initial bootstrap or before session/dates are resolved.
   // Prevents flashing a trial banner that immediately vanishes once permissions/status settle.
   if (isLoading || (!trialStartedAt && !createdAt)) {
@@ -53,29 +72,6 @@ export function TrialCountdown({
   if (subscriptionStatus === "active") {
     return null;
   }
-
-  const { daysRemaining, percentElapsed, isExpired, planName } = useMemo(() => {
-    const rawPlan = (plan || "chatty_standard").toLowerCase();
-    const name = PLAN_LABELS[rawPlan] || "Standard";
-
-    const startDate = new Date(trialStartedAt || createdAt || Date.now());
-    const trialDurationDays = 14;
-    const trialDurationMs = trialDurationDays * 24 * 60 * 60 * 1000;
-    const endDate = new Date(startDate.getTime() + trialDurationMs);
-    const now = new Date();
-
-    const msRemaining = endDate.getTime() - now.getTime();
-    const days = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
-    const msElapsed = Math.max(0, now.getTime() - startDate.getTime());
-    const pct = Math.min(100, Math.max(0, Math.round((msElapsed / trialDurationMs) * 100)));
-
-    return {
-      daysRemaining: days,
-      percentElapsed: pct,
-      isExpired: msRemaining <= 0,
-      planName: name,
-    };
-  }, [plan, createdAt, trialStartedAt]);
 
   if (isExpired) {
     if (variant === "pill") {

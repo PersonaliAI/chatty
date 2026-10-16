@@ -1,10 +1,14 @@
+"use client";
+
 import React, { useState } from "react";
-import { RotateCw, ExternalLink, Sparkles, Monitor, Smartphone } from "lucide-react";
+import { RotateCw, ExternalLink, Sparkles, Monitor, Smartphone, Lock, ArrowRight } from "lucide-react";
 
 export interface PlaygroundTabProps {
   botId?: string | null;
   botName?: string;
   primaryColor?: string;
+  isTrialExpired?: boolean;
+  onUpgradeClick?: () => void;
   [key: string]: any;
 }
 
@@ -12,6 +16,8 @@ export function PlaygroundTab({
   botId,
   botName,
   primaryColor = "#0052FF",
+  isTrialExpired = false,
+  onUpgradeClick,
   ...rest
 }: PlaygroundTabProps) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
@@ -80,10 +86,36 @@ export function PlaygroundTab({
 
       {botId ? (
         <div
-          className={`transition-all duration-300 flex items-center justify-center p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-900/50 border border-neutral-200/80 dark:border-neutral-800 w-full ${
+          className={`relative transition-all duration-300 flex items-center justify-center p-4 rounded-2xl bg-neutral-100/70 dark:bg-neutral-900/50 border border-neutral-200/80 dark:border-neutral-800 w-full overflow-hidden ${
             device === "mobile" ? "max-w-[420px]" : "max-w-[500px]"
           }`}
         >
+          {isTrialExpired && (
+            <div className="absolute inset-0 z-20 backdrop-blur-md bg-neutral-900/80 dark:bg-neutral-950/85 p-6 flex flex-col items-center justify-center text-center space-y-4 rounded-2xl">
+              <div className="size-14 rounded-2xl bg-amber-500/20 text-amber-400 grid place-items-center border border-amber-500/30">
+                <Lock className="size-7" />
+              </div>
+              <div className="space-y-1.5">
+                <h3 className="text-base font-bold text-white">
+                  Playground Testing is Frozen
+                </h3>
+                <p className="text-xs text-neutral-300 max-w-xs leading-relaxed">
+                  Your 14-day free trial has expired. Upgrade your plan to resume unlimited playground testing and live customer chats.
+                </p>
+              </div>
+              {onUpgradeClick && (
+                <button
+                  type="button"
+                  onClick={onUpgradeClick}
+                  className="px-4 py-2.5 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  <span>Select a Plan to Unlock</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
           <iframe
             key={refreshKey}
             src={`/embed/${botId}`}
