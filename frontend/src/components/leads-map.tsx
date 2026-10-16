@@ -97,22 +97,30 @@ export function LeadsMap({ leads, color = "#f97316" }: { leads: Lead[]; color?: 
         mapRef.current = L.map(containerRef.current, {
           center: [20, 0], zoom: 2, scrollWheelZoom: true, worldCopyJump: true,
         });
-        const cartoKey = process.env.NEXT_PUBLIC_CARTO_API_KEY || "cb1_4m5s_1_d886be05518f21ae2a94531a";
-        const tileUrl = `https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${cartoKey}`;
+        const cartoKey = process.env.NEXT_PUBLIC_CARTO_API_KEY;
+        const tileUrl = cartoKey
+          ? `https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${cartoKey}`
+          : "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+        const attribution = cartoKey
+          ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
         const mainTileLayer = L.tileLayer(tileUrl, {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-          subdomains: "abcd",
+          attribution,
+          subdomains: cartoKey ? "abcd" : "abc",
           maxZoom: 18,
         });
 
         // Graceful fallback to OpenStreetMap if CARTO key restrictions block localhost or domain
-        mainTileLayer.on?.("tileerror", (e: unknown) => {
-          const err = e as { tile?: HTMLImageElement & { __retried?: boolean }; coords?: { z: number; x: number; y: number } };
-          if (err?.tile && !err.tile.__retried && err.coords) {
-            err.tile.__retried = true;
-            err.tile.src = `https://tile.openstreetmap.org/${err.coords.z}/${err.coords.x}/${err.coords.y}.png`;
-          }
-        });
+        if (cartoKey) {
+          mainTileLayer.on?.("tileerror", (e: unknown) => {
+            const err = e as { tile?: HTMLImageElement & { __retried?: boolean }; coords?: { z: number; x: number; y: number } };
+            if (err?.tile && !err.tile.__retried && err.coords) {
+              err.tile.__retried = true;
+              err.tile.src = `https://tile.openstreetmap.org/${err.coords.z}/${err.coords.x}/${err.coords.y}.png`;
+            }
+          });
+        }
 
         mainTileLayer.addTo(mapRef.current);
       }
