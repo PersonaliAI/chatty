@@ -25,7 +25,11 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import logging
 from typing import Callable, TypeVar
+import httpx
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -36,6 +40,25 @@ _DB_EXECUTOR = ThreadPoolExecutor(max_workers=64, thread_name_prefix="chatty-db-
 
 
 async def run_db(fn: Callable[[], T]) -> T:
-    """Run a synchronous supabase-py call in a dedicated I/O worker thread."""
+    """Run a synchronous supabase-py call in a dedicated I/O worker thread,
+    with automatic retry on transient transport disconnects."""
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(_DB_EXECUTOR, fn)
+    last_exc = None
+    for attempt in range(3):
+        try:
+            return await loop.run_in_executor(_DB_EXECUTOR, fn)
+        except (httpx.TransportError, httpx.RemoteProtocolError, httpx.ReadError) as exc:
+            last_exc = exc
+            if attempt == 2:
+                logger.error("run_db failed after 3 attempts with transport error: %s", exc)
+                raise
+            await asyncio.sleep(0.05 * (2 ** attempt))
+        except Exception as exc:
+            status_code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+            if status_code in (502, 503, 504) and attempt < 2:
+                last_exc = exc
+                await asyncio.sleep(0.05 * (2 ** attempt))
+                continue
+            raise
+    if last_exc:
+        raise last_exc
