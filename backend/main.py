@@ -402,10 +402,13 @@ async def _rate_limited_async(
             json=[["INCR", rkey], ["EXPIRE", rkey, str(window)]],
         )
         resp.raise_for_status()
-        count = int(resp.json()[0]["result"])
-        return count > limit
-    except Exception:  # noqa: BLE001 - never let the limiter take down a request
-        logger.warning("Upstash rate limiter unavailable; using in-memory fallback", exc_info=True)
+        data = resp.json()
+        if isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict) and "result" in data[0]:
+            count = int(data[0]["result"])
+            return count > limit
+        return _rate_limited(key_id, limit, window)
+    except Exception as exc:  # noqa: BLE001 - never let the limiter take down a request
+        logger.warning("Upstash rate limiter unavailable (%s); using in-memory fallback", exc)
         return _rate_limited(key_id, limit, window)
 
 

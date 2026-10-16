@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentProps } from 'react';
+import { useMemo, type ComponentProps } from 'react';
 import { type AgentState, type ReceivedMessage } from '@livekit/components-react';
 import { Streamdown } from 'streamdown';
 
@@ -91,18 +91,31 @@ export interface AgentChatTranscriptProps
 
 /** Official LiveKit Agents UI transcript adapted from the provided components-js shadcn source. */
 export function AgentChatTranscript({
-  scrollAnchor,
+  scrollAnchor = 'any',
   autoScroll = true,
   scrollMargin,
   scrollEdgeThreshold,
   preserveScrollOnPrepend,
   scrollPreviousItemPeek,
-  defaultScrollPosition = 'last-anchor',
+  defaultScrollPosition = 'end',
   agentState,
   messages = [],
   className,
   ...props
 }: AgentChatTranscriptProps) {
+  const normalizedMessages = useMemo(() => {
+    return [...messages].sort((a, b) => {
+      const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime();
+      const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp).getTime();
+      if (!Number.isNaN(timeA) && !Number.isNaN(timeB) && timeA > 0 && timeB > 0) {
+        if (Math.abs(timeA - timeB) < 31536000000) {
+          return timeA - timeB;
+        }
+      }
+      return 0;
+    });
+  }, [messages]);
+
   return (
     <MessageScrollerProvider
       autoScroll={autoScroll}
@@ -114,7 +127,7 @@ export function AgentChatTranscript({
       <MessageScroller className={className} {...props}>
         <MessageScrollerViewport preserveScrollOnPrepend={preserveScrollOnPrepend}>
           <MessageScrollerContent spacerClassName="min-h-2" aria-busy={agentState === 'thinking'}>
-            {[...messages].sort((a, b) => Number(a.timestamp) - Number(b.timestamp)).map((receivedMessage) => {
+            {normalizedMessages.map((receivedMessage) => {
               const isUser = (receivedMessage as { type?: string }).type === 'userTranscript'
                 || ((receivedMessage as { type?: string }).type !== 'agentTranscript' && Boolean(receivedMessage.from?.isLocal));
               const time = new Date(receivedMessage.timestamp);

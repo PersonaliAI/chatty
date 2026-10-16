@@ -788,7 +788,7 @@ async def get_user_profile(
 
     try:
         res = await run_db(lambda: supabase.table("users").select(
-            "display_name, avatar_url, email, plan, subscription_status, subscription_renews_at, role"
+            "display_name, avatar_url, email, plan, subscription_status, subscription_renews_at, role, created_at, onboarding_completed, terms_accepted_at, initial_utm_source"
         ).eq("auth_user_id", user_id).limit(1).execute())
         row = res.data[0] if res.data else None
         if row:
@@ -842,6 +842,70 @@ async def get_user_profile(
         "plan": (row or {}).get("plan") or "free",
         "subscription_status": (row or {}).get("subscription_status"),
         "subscription_renews_at": (row or {}).get("subscription_renews_at"),
+        "created_at": (row or {}).get("created_at") or user.get("created_at"),
+        "onboarding_completed": bool((row or {}).get("onboarding_completed")),
+        "terms_accepted_at": (row or {}).get("terms_accepted_at"),
+        "initial_utm_source": (row or {}).get("initial_utm_source"),
+    }
+
+
+@router.post("/api/user/onboarding")
+async def save_user_onboarding(
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Save user registration onboarding details: plan preference, company details,
+    referral source, and terms acceptance."""
+    user_id = user["auth_user_id"]
+    email = user.get("email") or ""
+
+    plan_preference = (body.get("plan_preference") or "chatty_standard").strip()
+    company_name = (body.get("company_name") or "").strip()
+    company_size = (body.get("company_size") or "").strip()
+    company_role = (body.get("company_role") or "").strip()
+    website_url = (body.get("website_url") or "").strip()
+    referral_source = (body.get("referral_source") or "").strip()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    updates: dict[str, Any] = {
+        "onboarding_completed": True,
+        "terms_accepted_at": now_iso,
+    }
+    if plan_preference in ("chatty_hobby", "chatty_standard", "chatty_business"):
+        updates["plan"] = plan_preference
+    if referral_source:
+        updates["initial_utm_source"] = referral_source
+
+    try:
+        await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", user_id).execute())
+    except Exception as e:
+        logger.warning("Failed to update users table during onboarding: %s", e)
+
+    # Also update Supabase Auth user_metadata so it is available client-side in session
+    try:
+        meta = {
+            "onboarding_completed": True,
+            "registration_onboarded": True,
+            "plan_preference": plan_preference,
+            "company_name": company_name,
+            "company_size": company_size,
+            "company_role": company_role,
+            "website_url": website_url,
+            "referral_source": referral_source,
+            "terms_accepted_at": now_iso,
+            "trial_started_at": now_iso,
+        }
+        await run_db(lambda: supabase.auth.admin.update_user_by_id(user_id, {"user_metadata": meta}))
+    except Exception as e:
+        logger.warning("Failed to update auth user metadata: %s", e)
+
+    return {
+        "ok": True,
+        "plan_preference": plan_preference,
+        "company_name": company_name,
+        "referral_source": referral_source,
+        "onboarding_completed": True,
+        "trial_started_at": now_iso,
     }
 
 

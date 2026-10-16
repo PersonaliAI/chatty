@@ -25,6 +25,9 @@ function SignupPageInner() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
   const dest = next && next.startsWith("/") ? next : "/dashboard";
+  const [selectedPlan, setSelectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(
+    (searchParams.get("plan") as "chatty_hobby" | "chatty_standard" | "chatty_business") || "chatty_standard"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -41,6 +44,7 @@ function SignupPageInner() {
     const ref = getAffiliateReferral()?.ref;
     const nextUrl = new URL(dest, origin || "https://chatty.personaliai.com");
     if (ref && !nextUrl.searchParams.get("ref")) nextUrl.searchParams.set("ref", ref);
+    if (selectedPlan && !nextUrl.searchParams.get("plan")) nextUrl.searchParams.set("plan", selectedPlan);
     return `${origin}/auth/callback?next=${encodeURIComponent(`${nextUrl.pathname}${nextUrl.search}`)}`;
   }
 
@@ -59,9 +63,10 @@ function SignupPageInner() {
       password,
       options: {
         emailRedirectTo: redirect(),
-        data: signupReferral
-          ? { chatty_ref: signupReferral.ref, chatty_referral: signupReferral }
-          : undefined,
+        data: {
+          plan_preference: selectedPlan,
+          ...(signupReferral ? { chatty_ref: signupReferral.ref, chatty_referral: signupReferral } : {}),
+        },
       },
     });
     setBusy(null);
@@ -69,10 +74,9 @@ function SignupPageInner() {
       setError(humanizeAuthError(error.message));
       return;
     }
-    // If email confirmation is disabled in Supabase, the session is returned
-    // immediately and we route to onboarding. Otherwise, show "check email".
+    // If email confirmation is disabled in Supabase, route directly to onboarding
     if (data.session) {
-      window.location.href = dest;
+      window.location.href = `/onboarding?plan=${selectedPlan}&next=${encodeURIComponent(dest)}`;
       return;
     }
     setSent(true);
@@ -82,6 +86,11 @@ function SignupPageInner() {
     if (busy) return;
     setBusy(provider === "azure" ? "microsoft" : "google");
     setError(null);
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("chatty_plan_preference", selectedPlan);
+      }
+    } catch {}
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
@@ -118,13 +127,13 @@ function SignupPageInner() {
     return (
       <AuthShell title="Almost there" subtitle="Confirm your email to continue">
         <div className="text-center py-4">
-          <div className="size-12 mx-auto rounded-full bg-emerald-50 grid place-items-center text-emerald-600 mb-3">
+          <div className="size-12 mx-auto rounded-full bg-emerald-50 dark:bg-emerald-950/60 grid place-items-center text-emerald-600 dark:text-emerald-400 mb-3 border border-emerald-200 dark:border-emerald-800">
             <CheckCircle2 className="size-6" />
           </div>
           <h3 className="text-sm font-semibold">Check your email</h3>
           <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
             We sent a confirmation link to <b>{email}</b>.<br />
-            Click it to verify your address, then sign in.
+            Click it to verify your address, then complete onboarding.
           </p>
           <Link
             href="/login"
@@ -139,8 +148,8 @@ function SignupPageInner() {
 
   return (
     <AuthShell
-      title="Create your account"
-      subtitle="Start using Chatty in under a minute"
+      title="Start your 14-day free trial"
+      subtitle="Experience all industrial features with zero commitments"
       footer={
         <>
           Already have an account?{" "}
@@ -150,102 +159,150 @@ function SignupPageInner() {
         </>
       }
     >
-      <form onSubmit={handlePassword} className="space-y-3">
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="text-xs font-medium text-foreground/80">
-            Email address
+      <div className="space-y-5">
+        {/* Plan preference picker */}
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-foreground/80 flex items-center justify-between">
+            <span>Select Free Trial Plan</span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">
+              14 Days Free
+            </span>
           </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com"
-            required
-            disabled={busy !== null}
-            className="w-full h-10 px-3 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-foreground/20 disabled:opacity-60"
-          />
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: "chatty_hobby", name: "Hobby", price: "$19/mo" },
+              { id: "chatty_standard", name: "Standard", price: "$49/mo", popular: true },
+              { id: "chatty_business", name: "Business", price: "$99/mo" },
+            ].map((p) => {
+              const isSelected = selectedPlan === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPlan(p.id as typeof selectedPlan)}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer relative ${
+                    isSelected
+                      ? "border-foreground bg-foreground/5 font-bold ring-1 ring-foreground/10"
+                      : "border-border hover:border-foreground/30 bg-background text-muted-foreground"
+                  }`}
+                >
+                  {p.popular && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.2 rounded-full text-[8px] font-bold uppercase bg-orange-500 text-white">
+                      Popular
+                    </span>
+                  )}
+                  <div className="text-xs text-foreground font-semibold truncate">{p.name}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{p.price}</div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-muted-foreground text-center">
+            No credit card required. Upgrade or cancel anytime.
+          </p>
         </div>
-        <div className="space-y-1.5">
-          <label htmlFor="password" className="text-xs font-medium text-foreground/80">
-            Password
-          </label>
-          <div className="relative">
-            <input
-              id="password"
-              type={showPwd ? "text" : "password"}
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              required
-              minLength={8}
-              disabled={busy !== null}
-              className="w-full h-10 pl-3 pr-10 bg-background border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-foreground/20 disabled:opacity-60"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPwd((s) => !s)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded"
-              aria-label={showPwd ? "Hide password" : "Show password"}
-            >
-              {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
+
+        {/* OAuth Buttons */}
+        <div className="space-y-2 pt-1">
+          <Button
+            variant="outline"
+            type="button"
+            className="w-full h-11 font-medium flex items-center justify-center gap-2 cursor-pointer text-sm rounded-xl"
+            disabled={busy !== null}
+            onClick={() => handleOAuth("google")}
+          >
+            {busy === "google" ? <Loader2 className="size-4 animate-spin" /> : <GoogleIcon />}
+            Continue with Google
+          </Button>
+          <Button
+            variant="outline"
+            type="button"
+            className="w-full h-11 font-medium flex items-center justify-center gap-2 cursor-pointer text-sm rounded-xl"
+            disabled={busy !== null}
+            onClick={() => handleOAuth("azure")}
+          >
+            {busy === "microsoft" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <MicrosoftIcon />
+            )}
+            Continue with Microsoft
+          </Button>
+        </div>
+
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground text-[10px] font-semibold tracking-wider">
+              Or with email
+            </span>
           </div>
         </div>
-        <Button
-          type="submit"
-          className="w-full h-10 font-medium cursor-pointer mt-4"
-          disabled={!email.trim() || password.length < 8 || busy !== null}
-        >
-          {busy === "password" && <Loader2 className="size-4 animate-spin" />}
-          Create account
-        </Button>
-      </form>
 
-      <div className="relative my-5">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">Or</span>
-        </div>
+        {/* Email Password Form */}
+        <form onSubmit={handlePassword} className="space-y-3.5">
+          <div className="space-y-1.5">
+            <label htmlFor="email" className="text-xs font-medium text-foreground/80">
+              Work Email address
+            </label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
+              required
+              disabled={busy !== null}
+              className="w-full h-11 px-3.5 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-foreground/20 disabled:opacity-60"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="password" className="text-xs font-medium text-foreground/80">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPwd ? "text" : "password"}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                required
+                minLength={8}
+                disabled={busy !== null}
+                className="w-full h-11 pl-3.5 pr-10 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-foreground/20 disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd((s) => !s)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded"
+                aria-label={showPwd ? "Hide password" : "Show password"}
+              >
+                {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-11 font-bold cursor-pointer mt-4 rounded-xl text-sm"
+            disabled={!email.trim() || password.length < 8 || busy !== null}
+          >
+            {busy === "password" && <Loader2 className="size-4 animate-spin" />}
+            Start Free Trial
+          </Button>
+        </form>
+
+        {error && (
+          <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 p-3 rounded-xl border border-destructive/20">
+            <AlertCircle className="size-4 mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
-
-      <div className="space-y-2">
-        <Button
-          variant="outline"
-          type="button"
-          className="w-full h-10 font-medium flex items-center justify-center gap-2 cursor-pointer"
-          disabled={busy !== null}
-          onClick={() => handleOAuth("google")}
-        >
-          {busy === "google" ? <Loader2 className="size-4 animate-spin" /> : <GoogleIcon />}
-          Continue with Google
-        </Button>
-        <Button
-          variant="outline"
-          type="button"
-          className="w-full h-10 font-medium flex items-center justify-center gap-2 cursor-pointer"
-          disabled={busy !== null}
-          onClick={() => handleOAuth("azure")}
-        >
-          {busy === "microsoft" ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <MicrosoftIcon />
-          )}
-          Continue with Microsoft
-        </Button>
-      </div>
-
-      {error && (
-        <div className="mt-4 flex items-start gap-2 text-xs text-destructive">
-          <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
     </AuthShell>
   );
 }

@@ -31,7 +31,7 @@ function MessageScrollerViewport({ className, ...props }: React.ComponentProps<t
   return (
     <MessageScrollerPrimitive.Viewport
       data-slot="message-scroller-viewport"
-      className={cn('size-full min-h-0 min-w-0 overflow-y-auto overscroll-contain', className)}
+      className={cn('size-full min-h-0 min-w-0 overflow-y-auto overscroll-contain chatty-custom-scrollbar scrollbar-thin', className)}
       {...props}
     />
   );

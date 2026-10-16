@@ -41,7 +41,7 @@ export async function GET(request: Request) {
   )
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.exchangeCodeForSession(code)
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code)
   if (error) {
     console.error('Auth callback exchange failed', {
       code: error.code ?? null,
@@ -55,9 +55,18 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/auth/auth-code-error?reason=${reason}`)
   }
 
-  // Chatty has no separate /onboarding route (unlike Kin) - onboarding is
-  // per-bot and handled inline in the dashboard, so just honor `next`.
   const target = requestedNext.startsWith('/') ? requestedNext : '/dashboard'
+  const user = data?.user
+  const hasOnboarded = Boolean(
+    user?.user_metadata?.onboarding_completed ||
+    user?.user_metadata?.registration_onboarded
+  )
+
+  // In self-host mode, never show commercial onboarding.
+  // In hosted mode, if the newly registered user hasn't completed registration onboarding, route to /onboarding
+  if (!SELF_HOST_MODE && !hasOnboarded) {
+    return NextResponse.redirect(`${origin}/onboarding?next=${encodeURIComponent(target)}`)
+  }
 
   return NextResponse.redirect(`${origin}${target}`)
 }

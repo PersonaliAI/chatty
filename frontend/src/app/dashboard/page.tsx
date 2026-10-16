@@ -16,6 +16,7 @@ import Image from "next/image";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import { LeadsMap } from "@/components/leads-map";
 import { OnboardingWizard, extractDomain } from "@/components/onboarding-wizard";
+import { TrialCountdown } from "@/components/trial-countdown";
 import { InboxPanel } from "@/components/inbox-panel";
 import { CampaignsUI } from "@/components/campaigns-ui";
 import { KBManager } from "@/components/kb-manager";
@@ -310,6 +311,12 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   const [logoBgColor, setLogoBgColor] = useState("");
   const [launcherShape, setLauncherShape] = useState("circle");
   const [userBots, setUserBots] = useState<Bot[]>([]);
+
+  const isCurrentBotShared = useMemo(() => {
+    if (billingInfo?.isSharedBot) return true;
+    const currentBot = userBots.find((b) => b.id === botId);
+    return Boolean(currentBot && user?.id && currentBot.user_id && currentBot.user_id !== user.id);
+  }, [billingInfo?.isSharedBot, userBots, botId, user?.id]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamOwner, setTeamOwner] = useState<TeamMember | null>(null);
   const [inviteName, setInviteName] = useState("");
@@ -4386,6 +4393,17 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-4 text-xs text-neutral-500">
+            {/* 14-Day Free Trial Countdown Pill */}
+            <TrialCountdown
+              plan={billingInfo?.plan || (user?.user_metadata?.selected_plan as string) || "standard"}
+              subscriptionStatus={billingInfo?.status}
+              createdAt={user?.created_at}
+              trialStartedAt={(user?.user_metadata as Record<string, unknown>)?.trial_started_at as string | undefined}
+              isSharedBot={isCurrentBotShared}
+              onUpgradeClick={() => setActiveTab("billing")}
+              variant="pill"
+            />
+
             {/* Language Selector */}
             <ModernSelect
               value={language}
@@ -4512,16 +4530,29 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           
           {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (
-            <HomeTab
-              setActiveTab={setActiveTab}
-              totalSessions={totalSessions}
-              sources={sources}
-              leads={leads}
-              resolutionRate={resolutionRate}
-              csatScore={csatScore}
-              busiestHour={busiestHour}
-              csatFeedback={csatFeedback}
-            />
+            <>
+              <div className="px-4 sm:px-6 md:px-8 pt-4 sm:pt-6">
+                <TrialCountdown
+                  plan={billingInfo?.plan || (user?.user_metadata?.selected_plan as string) || "standard"}
+                  subscriptionStatus={billingInfo?.status}
+                  createdAt={user?.created_at}
+                  trialStartedAt={(user?.user_metadata as Record<string, unknown>)?.trial_started_at as string | undefined}
+                  isSharedBot={isCurrentBotShared}
+                  onUpgradeClick={() => setActiveTab("billing")}
+                  variant="banner"
+                />
+              </div>
+              <HomeTab
+                setActiveTab={setActiveTab}
+                totalSessions={totalSessions}
+                sources={sources}
+                leads={leads}
+                resolutionRate={resolutionRate}
+                csatScore={csatScore}
+                busiestHour={busiestHour}
+                csatFeedback={csatFeedback}
+              />
+            </>
           )}
 
           {/* TAB: WORKSPACE SETTINGS */}
