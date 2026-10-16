@@ -25,11 +25,18 @@ Supabase project.
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![MCP](https://img.shields.io/badge/Agent%20Control-MCP-8b5cf6)](#mcp-server--agent-control)
+[![MCP](https://img.shields.io/badge/FastMCP-65%20Tools-8b5cf6)](#mcp-server--agent-control)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 [Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Performance Scorecard](docs/SCORECARD.md) · [Flow Builder](https://docs.chatty.personaliai.com/guides/flow-integrations) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Secure customer identity](docs/INBOX_IDENTITY_SETUP.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](docs/AI_CODING_PLUGINS.md) · [Community Traction](docs/traction.md)
+
+<br />
+<br />
+
+<p align="center">
+  <a href="screenshots/real-01-overview.png"><img src="screenshots/real-01-overview.png" alt="Chatty Executive Overview & Live Telemetry" width="100%" style="border-radius: 8px;" /></a>
+</p>
 
 </div>
 
@@ -38,6 +45,7 @@ Supabase project.
 ## Table of contents
 
 - [Why Chatty](#why-chatty)
+- [Live Dashboard Showcase (4K Retina)](#-live-dashboard-showcase-4k-retina)
 - [Performance Scorecard (A-F Auditing)](docs/SCORECARD.md)
 - [Flow Builder & Integrations](https://docs.chatty.personaliai.com/guides/flow-integrations)
 - [Widget Integration (3-Line Embed)](docs/WIDGET_INTEGRATION.md)
@@ -75,8 +83,95 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 | Your conversation data | Lives on their servers, always | Your Supabase project - whether you self-host or use Chatty Cloud |
 | Pricing | Per-seat / per-message, no free tier | Self-host for free, or a straightforward hosted plan on Chatty Cloud |
 | LLM | Locked to their model | **Bring your own** - Gemini by default, or BYOK OpenAI/Anthropic/OpenRouter |
-| Agent/automation access | Usually none, or a paid add-on | **Full MCP server included** - 55 tools, OAuth 2.0 secured |
+| Agent/automation access | Usually none, or a paid add-on | **Full MCP server included** - 65 tools, OAuth 2.0 & API Key secured |
 | Source code | Closed | **MIT licensed** - fork it, audit it, extend it, run it anywhere |
+
+## 🖥️ Live Dashboard Showcase (4K Retina)
+
+All 22 core modules are captured from live production ([`chatty.personaliai.com/dashboard`](https://chatty.personaliai.com/dashboard)) in crisp **4K Retina (3840×2160)** resolution, representing real hydrated application state:
+
+<table width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <a href="screenshots/real-06-inbox.png"><img src="screenshots/real-06-inbox.png" alt="Omnichannel Live Helpdesk & SLA Inbox" width="100%" /></a>
+      <br />
+      <b>Omnichannel Live Helpdesk & SLA Inbox</b>
+      <br />
+      <sub>Real-time visitor threads, SLA breach warnings & 1-click human takeover</sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="screenshots/real-04-knowledge-base.png"><img src="screenshots/real-04-knowledge-base.png" alt="Knowledge Base & Vector Documents" width="100%" /></a>
+      <br />
+      <b>Knowledge Base & Vector Documents</b>
+      <br />
+      <sub>Multi-format ingestion, recursive crawler & 186k+ tokens indexed</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="screenshots/real-18-voice-agent.png"><img src="screenshots/real-18-voice-agent.png" alt="LiveKit WebRTC Voice Studio" width="100%" /></a>
+      <br />
+      <b>LiveKit WebRTC Voice Studio</b>
+      <br />
+      <sub>Sub-500ms bidirectional audio, dynamic visualizers & multi-platform SDKs</sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="screenshots/real-08-flow-builder.png"><img src="screenshots/real-08-flow-builder.png" alt="Visual Conversation Flow Architect" width="100%" /></a>
+      <br />
+      <b>Visual Conversation Flow Architect</b>
+      <br />
+      <sub>Interactive decision tree graph with AI Flow Copilot & cycle validation</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="screenshots/real-03-customizer.png"><img src="screenshots/real-03-customizer.png" alt="Live Widget Customizer & Style Studio" width="100%" /></a>
+      <br />
+      <b>Live Widget Customizer & Style Studio</b>
+      <br />
+      <sub>WYSIWYG live preview with automated WCAG AA/AAA contrast engine</sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="screenshots/real-16-analytics.png"><img src="screenshots/real-16-analytics.png" alt="Resolution Rates & Deflection Telemetry" width="100%" /></a>
+      <br />
+      <b>Resolution Rates & Deflection Telemetry</b>
+      <br />
+      <sub>Conversation volume, 100% deflection rate, and token usage heatmaps</sub>
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><b>📸 Click to explore all 22 High-Resolution Production Dashboard Views</b></summary>
+<br />
+
+| # | Module | Description | High-Res Capture |
+| :---: | :--- | :--- | :---: |
+| **01** | **Executive Overview** | 5-pillar health score, deflection rate & live 30-day KPIs | [View 4K Image](screenshots/real-01-overview.png) |
+| **02** | **Chatbot Workspace** | Multi-bot management, model switching (GPT-4o, Claude, Gemini) | [View 4K Image](screenshots/real-02-workspace.png) |
+| **03** | **Widget Customizer** | 6-part styling palette, brand logo, WCAG contrast pass/fail | [View 4K Image](screenshots/real-03-customizer.png) |
+| **04** | **Knowledge Base** | 52+ sources, 186k chars indexed, HNSW vector search | [View 4K Image](screenshots/real-04-knowledge-base.png) |
+| **05** | **AI Playground** | Sandboxed simulator with citation inspect drawer | [View 4K Image](screenshots/real-05-playground.png) |
+| **06** | **Omnichannel Inbox** | Unified helpdesk, live visitor presence, SLA breach timers | [View 4K Image](screenshots/real-06-inbox.png) |
+| **07** | **Campaigns** | Proactive announcement modals, exit-intent & scroll triggers | [View 4K Image](screenshots/real-07-campaigns.png) |
+| **08** | **Flow Builder** | Drag-and-drop conversation canvas with AI Flow Copilot | [View 4K Image](screenshots/real-08-flow-builder.png) |
+| **09** | **Visitor Leads CRM** | Automated lead extraction, GeoIP country/city telemetry, CSV export | [View 4K Image](screenshots/real-09-leads.png) |
+| **10** | **Feedback & CSAT** | Post-chat customer ratings, sentiment analysis & friction tags | [View 4K Image](screenshots/real-10-feedback.png) |
+| **11** | **Visitor Map** | Interactive Leaflet geolocation map showing regional traffic | [View 4K Image](screenshots/real-11-map.png) |
+| **12** | **Meeting Scheduler** | 2-way Google Calendar OAuth sync & automated Meet links | [View 4K Image](screenshots/real-12-meetings.png) |
+| **13** | **Inbound Mailbox** | Resend email routing converting incoming emails to tickets | [View 4K Image](screenshots/real-13-mailbox.png) |
+| **14** | **Team Notifications** | Incident alert policies dispatching via Slack, Email, and SMS | [View 4K Image](screenshots/real-14-notifications.png) |
+| **15** | **Audit Log** | Immutable append-only audit trail logging IP and actor email | [View 4K Image](screenshots/real-15-audit-log.png) |
+| **16** | **Analytics** | Deflection analytics, resolution speed, and token heatmaps | [View 4K Image](screenshots/real-16-analytics.png) |
+| **17** | **Embed & Integrate** | Embed generator for React, Next.js, WordPress & domain allowlist | [View 4K Image](screenshots/real-17-embed-integrate.png) |
+| **18** | **Voice Agent** | LiveKit WebRTC studio with active visualizer & multi-SDK code | [View 4K Image](screenshots/real-18-voice-agent.png) |
+| **19** | **FastMCP Server Hub** | 65 tools & 8 resources for Claude Desktop, Cursor, Antigravity | [View 4K Image](screenshots/real-19-mcp.png) |
+| **20** | **Developer API** | Scoped API keys (`chatty_sk_...`) & multi-language SDK snippets | [View 4K Image](screenshots/real-20-developer-api.png) |
+| **21** | **Billing & Quota** | Stripe portal, quota ledger, and affiliate referral program | [View 4K Image](screenshots/real-21-billing.png) |
+| **22** | **Agent Settings** | Strict vector grounding, PII scrubbing, and BYOK encryption | [View 4K Image](screenshots/real-22-agent-settings.png) |
+
+</details>
+
 
 ## ✨ Features
 
@@ -86,7 +181,7 @@ Every hosted chatbot SaaS charges per-seat or per-message and holds your convers
 - 🛠️ **Autonomous Tool-Calling** — Schedules real meetings (Google Meet, Teams, Zoom), qualifies leads, and checks calendars.
 - 🔌 **Omnichannel Ingress** — Web widget, WhatsApp Cloud API, Slack events, and inbound email ticketing.
 - 🔑 **Bring Your Own Key (BYOK)** — Free-tier Gemini by default, or per-bot OpenAI/Anthropic/Groq with AES-128 encryption.
-- 🤖 **58-Tool MCP Server** — Control the entire dashboard programmatically from Claude Desktop, Cursor, or Codex via OAuth 2.0 (including complete Voice Agent configuration).
+- 🤖 **65-Tool FastMCP Server** — Control the entire dashboard programmatically from Claude Desktop, Cursor, or Codex via OAuth 2.0 / API Keys (including complete Voice Agent configuration, screenshot telemetry, and autonomous workflows).
 - 📊 **5-Pillar Scorecard** — Independent A–F performance auditing across Conversion, Deflection, Accuracy, Reliability, and CSAT.
 - 🎯 **Proactive Campaigns** — Behavioral triggers (exit-intent, time-on-page, scroll-depth) with timezone-aware cadence planning.
 - 🗺️ **Visual Flow Architect** — Interactive `@xyflow/react` canvas with AI flow generation and deterministic dry-run simulations.
@@ -462,8 +557,8 @@ Chatty ships a full [Model Context Protocol](https://modelcontextprotocol.io) se
 
 - **Auth**: OAuth 2.0 authorization-code flow with mandatory PKCE (RFC 7636), dynamic client registration (RFC 7591), and authorization server metadata discovery (RFC 8414) - no API key to paste into a config file.
 - **Scopes**: `read`, `write`, `knowledge`, `actions`, `admin` - a client only gets what it's granted.
-- **58 tools** across 11 categories: bot lifecycle, customizer & design, visual flow builder, proactive campaigns, knowledge base & RAG, inbox & human takeover, leads/calendar/meetings, analytics & self-healing, settings/guardrails/BYOK/team RBAC, and **LiveKit Voice Agent Studio** (`get_voice_agent_config`, `configure_voice_agent`, `get_voice_agent_embed_code`).
-- **Live resources & prompts**: inspect live voice state via `chatty://bots/{bot_id}/voice-config` and run guided workflows with `setup-voice-agent`.
+- **65 tools** across 12 categories: bot lifecycle, customizer & design, visual flow builder, proactive campaigns, knowledge base & RAG, inbox & human takeover, leads/calendar/meetings, analytics & deflection, settings/guardrails/BYOK/team RBAC, LiveKit Voice Agent Studio, and **Dashboard Telemetry & Screenshots** (`get_dashboard_screenshots`).
+- **Live resources & prompts**: inspect live voice state via `chatty://bots/{bot_id}/voice-config`, live dashboard screenshots via `chatty://dashboard/screenshots`, and run guided workflows with `setup-voice-agent`, `audit-and-optimize-bot`, and `build-bot-from-brand`.
 - **Real data only** - every tool reads and writes the exact same tables the dashboard does; nothing simulated.
 
 Connect by pointing an MCP client at:
