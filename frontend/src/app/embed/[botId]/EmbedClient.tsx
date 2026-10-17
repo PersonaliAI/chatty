@@ -416,17 +416,7 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
   );
 }
 
-function sanitizeArticleHtml(html: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
-    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
-    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "")
-    .replace(/\s*on[a-z]+\s*=\s*(['"][^'"]*['"]|[^\s>]+)/gi, "")
-    .replace(/(href|src)\s*=\s*(['"]\s*(?:javascript|data|vbscript):[^'"]*['"])/gi, '$1="#"');
-}
+import { sanitizeArticleHtml } from "@/lib/sanitize-html";
 
 interface EmbedClientProps {
   botId: string;

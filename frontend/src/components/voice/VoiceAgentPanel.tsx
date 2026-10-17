@@ -165,8 +165,13 @@ function VoiceLanguageMenu({ language, options, onChange }: { language: string; 
   );
 }
 
-function createVoiceRoomNonce() {
-  return globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function createVoiceRoomNonce(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = new Uint32Array(4);
+  globalThis.crypto.getRandomValues(bytes);
+  return `voice-${Date.now()}-${Array.from(bytes, (b) => b.toString(16).padStart(8, '0')).join('')}`;
 }
 
 function LiveKitTranscript({ messages, state }: { messages: ReceivedMessage[]; state: ReturnType<typeof useAgent>['state'] }) {

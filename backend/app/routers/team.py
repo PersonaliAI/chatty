@@ -154,7 +154,7 @@ async def invite_team(req: TeamInviteRequest, user: dict[str, Any] = Depends(req
     except Exception as exc:
         err_msg = str(exc).lower()
         if "role" in err_msg and role not in ("admin", "agent"):
-            logger.warning("DB check constraint on role rejected %s; falling back to agent with customized permissions", role)
+            logger.warning("DB check constraint on custom role; falling back to standard role with customized permissions")
             payload["role"] = "admin" if role in ("editor", "billing_manager") else "agent"
             await run_db(lambda: supabase.table("chatty_team_members").upsert(
                 payload,
@@ -233,7 +233,7 @@ async def update_team(member_id: str, req: TeamUpdateRequest, user: dict[str, An
     except Exception as exc:
         err_msg = str(exc).lower()
         if "role" in err_msg and role not in ("admin", "agent"):
-            logger.warning("DB constraint rejected %s; falling back to agent role", role)
+            logger.warning("DB check constraint on custom role; falling back to standard role")
             update["role"] = "admin" if role in ("editor", "billing_manager") else "agent"
             role_fallback = True
             await run_db(lambda: supabase.table("chatty_team_members").update(update).eq(

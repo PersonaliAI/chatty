@@ -930,8 +930,10 @@ async def process_webhook_payload(
     if topic_lower.startswith("order."):
         await record_freshness()
         mapped_order = _map_wc_order(payload)
-        action = topic_lower.split(".", 1)[1] if "." in topic_lower else "updated"
-        logger.info("WooCommerce webhook order.%s processed for order %s", action, wc_id)
+        raw_action = topic_lower.split(".", 1)[1] if "." in topic_lower else "updated"
+        allowed_actions = {"created": "created", "updated": "updated", "refunded": "refunded", "deleted": "deleted"}
+        action = allowed_actions.get(raw_action, "updated")
+        logger.info("WooCommerce order webhook processed")
         return {
             "event": f"order.{action}",
             "id": wc_id,

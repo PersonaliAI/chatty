@@ -19,6 +19,7 @@ import { OrderCard, type OrderCardData } from "./order-card";
 // public widget must not maintain a second visualizer/transcript implementation.
 import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
 import { parseRichContent } from "./rich-content";
+import { sanitizeArticleHtml } from "./sanitize-html";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
 import { dedupeAdjacentWelcomeMessages } from "./widget-history";
@@ -3436,7 +3437,7 @@ function IdentifiedChatWidget({
                           {activeArticle.content?.trim().startsWith("<") ? (
                             <div
                               className="article-html-body space-y-2"
-                              dangerouslySetInnerHTML={{ __html: activeArticle.content }}
+                              dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(activeArticle.content) }}
                             />
                           ) : (
                             <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>

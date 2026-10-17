@@ -79,8 +79,13 @@ type VoiceTokenResponse = {
 
 const DEFAULT_BACKEND_URL = "https://api.chatty.personaliai.com";
 
-function createVoiceRoomNonce() {
-  return globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+function createVoiceRoomNonce(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  const bytes = new Uint32Array(4);
+  globalThis.crypto.getRandomValues(bytes);
+  return `voice-${Date.now()}-${Array.from(bytes, (b) => b.toString(16).padStart(8, "0")).join("")}`;
 }
 
 function Transcript({ messages }: { messages: ReceivedMessage[] }) {

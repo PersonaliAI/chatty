@@ -200,19 +200,7 @@ interface KBManagerProps {
   initialSubTab?: KBSubTab;
 }
 
-function sanitizeArticleHtml(html: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
-    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
-    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "")
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
-    .replace(/\son\w+\s*=\s*(['"]).*?\1/gi, "")
-    .replace(/\son\w+\s*=\s*[^>\s]+/gi, "")
-    .replace(/href\s*=\s*(['"])\s*(?:javascript|data|vbscript):.*?\1/gi, 'href="#"')
-    .replace(/src\s*=\s*(['"])\s*(?:javascript|data|vbscript):.*?\1/gi, 'src=""');
-}
+import { sanitizeArticleHtml } from "@/lib/sanitize-html";
 
 export function KBManager({
   botId,

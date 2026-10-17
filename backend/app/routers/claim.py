@@ -71,9 +71,9 @@ async def _crawl_demo_target_site(bot_id: str, target_url: str):
                 "status": "trained",
                 "char_count": len(content[:150000]),
             }).execute())
-            logger.info("Successfully pre-trained demo bot %s on %s (%d chars)", bot_id, target_url, len(content))
+            logger.info("Successfully pre-trained demo bot %s (%d chars)", bot_id, len(content))
     except Exception:
-        logger.exception("Failed to pre-train demo bot %s on %s", bot_id, target_url)
+        logger.exception("Failed to pre-train demo bot %s", bot_id)
 
 class ClaimResponse(BaseModel):
     success: bool
@@ -336,7 +336,7 @@ async def claim_bot(
     except Exception:
         logger.warning("Could not upsert team member record during claim for bot %s", bot_id)
 
-    logger.info("Bot %s successfully claimed by %s (%s)", bot_id, user_email, new_user_id)
+    logger.info("Bot %s successfully claimed", bot_id)
 
     return ClaimResponse(
         success=True,
@@ -373,7 +373,7 @@ async def decline_and_delete_demo_bot(claim_token: str) -> dict[str, Any]:
     # Delete the bot row; foreign keys cascade to sources, documents, vectors, sessions
     await run_db(lambda: supabase.table("chatty_bots").delete().eq("id", bot_id).eq("claim_status", "unclaimed").execute())
 
-    logger.info("Demo bot %s permanently declined and deleted via claim token %s", bot_id, token)
+    logger.info("Demo bot %s permanently declined and deleted", bot_id)
 
     return {
         "success": True,
