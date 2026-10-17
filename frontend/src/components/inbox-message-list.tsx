@@ -1,14 +1,14 @@
 "use client";
 
-import { memo, type RefObject } from "react";
-import { Bot, Calendar, Clock, FileText, Headphones, Link2, Lock, Paperclip, ShieldCheck, ThumbsDown, ThumbsUp, User, Video } from "lucide-react";
+import { Fragment, memo, type RefObject } from "react";
+import { Bot, Calendar, Check, Clock, FileText, Headphones, Link2, Lock, Mail, Paperclip, ShieldCheck, ThumbsDown, ThumbsUp, User, Video } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
-import { parseRichContent } from "@/lib/rich-content";
+import { parseRichContent, parseVisitorMessageContent } from "@/lib/rich-content";
 import { OrderCard, type OrderCardData } from "@/components/order-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
@@ -91,52 +91,60 @@ function InboxBookingCard({ content, meeting }: { content: string; meeting?: Inb
   const dateMatch = content.match(/(?:for|on)\s+([A-Za-z]+,?\s+[A-Za-z]+\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?(?:\s+at\s+\d{1,2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)?(?:\s*\([^)]+\))?)/i);
   const timeStr = meeting?.formatted_time || confirmationTime?.[1]?.trim() || dateMatch?.[1] || null;
   const attendeeMatch = meeting?.attendee_email ? [meeting.attendee_email] : content.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  const attendeeName = meeting?.attendee_name || null;
 
   return (
     <div className={`mt-2 p-2.5 rounded-xl border text-xs ${
       isCancelled
-        ? "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300"
+        ? "bg-red-500/15 border-red-500/35 text-white"
         : isConfirmed
-        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200"
-        : "bg-blue-500/10 border-blue-500/30 text-blue-800 dark:text-blue-200"
+        ? "bg-black/20 border-white/25 text-white"
+        : "bg-black/15 border-white/20 text-white"
     }`}>
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className="flex items-center gap-1.5 font-bold text-[11px]">
           {isConfirmed ? <Lock className="size-3.5" /> : <Calendar className="size-3.5" />}
-          {isCancelled ? "Meeting Cancelled" : isConfirmed ? `${meeting?.summary || "Booking confirmed"} · locked` : "Booking Widget Active"}
+          {isCancelled ? "Meeting Cancelled" : isConfirmed ? `${meeting?.summary || "Booking Confirmed"} · Locked` : "Booking Widget Active"}
         </span>
         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider ${
           isCancelled
-            ? "bg-red-500/20 text-red-600 dark:text-red-400"
+            ? "bg-red-500/30 text-white"
             : isConfirmed
-            ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-            : "bg-blue-500/20 text-blue-600 dark:text-blue-400"
+            ? "bg-emerald-500/30 text-white"
+            : "bg-white/20 text-white"
         }`}>
           {isCancelled ? "Cancelled" : isConfirmed ? "Locked" : "Select time"}
         </span>
       </div>
 
       {timeStr && (
-        <p className="text-[11px] font-medium opacity-90 flex items-center gap-1.5 my-1">
+        <p className="text-[11px] font-medium opacity-95 flex items-center gap-1.5 my-1">
           <Clock className="size-3 shrink-0" />
           {timeStr}
         </p>
       )}
 
+      {attendeeName && isConfirmed && (
+        <p className="text-[11px] font-medium opacity-90 flex items-center gap-1.5 my-0.5">
+          <User className="size-3 shrink-0" />
+          {attendeeName}
+        </p>
+      )}
+
       {attendeeMatch && isConfirmed && (
-        <p className="text-[11px] font-medium opacity-90 flex items-center gap-1.5 my-1">
-          <span className="size-3 shrink-0 rounded-full border border-current/50" aria-hidden="true" />
+        <p className="text-[11px] font-medium opacity-90 flex items-center gap-1.5 my-0.5">
+          <Mail className="size-3 shrink-0" />
           {attendeeMatch[0]}
         </p>
       )}
 
       {isConfirmed && !timeStr && (
-        <p className="text-[10px] opacity-80 mt-0.5">The visitor’s selected slot is locked and the calendar invitation was sent.</p>
+        <p className="text-[10px] opacity-85 mt-0.5">The visitor’s selected slot is locked and the calendar invitation was sent.</p>
       )}
 
       {safeMeetUrl && (
-        <div className="mt-1.5 pt-1.5 border-t border-current/15 flex items-center justify-between gap-2">
-          <span className="text-[10px] opacity-75 font-mono truncate">{safeMeetUrl}</span>
+        <div className="mt-1.5 pt-1.5 border-t border-white/20 flex items-center justify-between gap-2">
+          <span className="text-[10px] opacity-80 font-mono truncate">{safeMeetUrl}</span>
           <a
             href={safeMeetUrl}
             target="_blank"
@@ -150,7 +158,7 @@ function InboxBookingCard({ content, meeting }: { content: string; meeting?: Inb
       )}
 
       {isWidgetPrompt && !isConfirmed && !isCancelled && (
-        <p className="text-[10px] opacity-80 mt-0.5">
+        <p className="text-[10px] opacity-85 mt-0.5">
           Visitor was prompted to select a date and time slot from the calendar.
         </p>
       )}
@@ -196,10 +204,13 @@ function MessageListInner({
       {messages.map((m, i) => {
         const isVisitor = m.role === "user";
         const isHuman = m.sender === "human";
+        const visitorParsed = isVisitor ? parseVisitorMessageContent(m.content) : null;
+        if (visitorParsed?.isSyntheticHidden) return null;
+
         const lastAssistantIndex = messages.reduce((last, item, index) => item.role !== "user" && item.sender !== "human" ? index : last, -1);
         const bookingIntent = messages.some((item) => item.role === "user" && /\b(book|booking|demo|schedule|appointment|meeting|calendar|slot)\b/i.test(item.content));
 
-        let cleanContent = m.content;
+        let cleanContent = visitorParsed ? visitorParsed.cleanText : m.content;
         let attachmentUrl: string | null = null;
         let attachmentName = "";
 
@@ -217,21 +228,33 @@ function MessageListInner({
           }
         }
 
-        const hasBooking = m.content.includes("[BOOKING_WIDGET]") ||
-          ((/demo|meeting|appointment/i.test(m.content)) && (/scheduled|confirmed|meet\.google\.com|teams\.microsoft\.com|cancelled|canceled/i.test(m.content)));
+        // Parse structured rich tokens ([ORDER_CARD:...], [PRODUCT_CARD:...], [VIDEO_CLIP:...], [HANDOFF_ACTIONS], [EMAIL_CAPTURED:...], [BOOKING_CONFIRMED:...], [LIVE_AGENT_REQUESTED])
+        const richParsed = !isVisitor
+          ? parseRichContent(cleanContent)
+          : { cleanContent, products: [], videoClips: [], orders: [], hasHandoffActions: false, isLiveHandoffAck: false, emailCaptured: null, bookingConfirmed: null };
+        cleanContent = richParsed.cleanContent;
+
+        const hasBooking = !isVisitor && (
+          m.content.includes("[BOOKING_WIDGET]") ||
+          Boolean(richParsed.bookingConfirmed) ||
+          ((/demo|meeting|appointment/i.test(m.content)) && (/scheduled|confirmed|meet\.google\.com|teams\.microsoft\.com|cancelled|canceled/i.test(m.content)))
+        );
         // Human agent replies use role="assistant" too, but must never inherit
         // the AI booking fallback card from an earlier visitor intent.
-        const showBookingFallback = !isVisitor && !isHuman && i === lastAssistantIndex && bookingIntent && !hasBooking;
+        const showBookingFallback = !isVisitor && !isHuman && i === lastAssistantIndex && bookingIntent && !hasBooking && Boolean(confirmedMeeting);
+        const resolvedInboxMeeting: InboxMeeting | null = richParsed.bookingConfirmed
+          ? { ...confirmedMeeting, ...richParsed.bookingConfirmed }
+          : (confirmedMeeting || null);
 
         if (cleanContent.includes("[BOOKING_WIDGET]")) {
           cleanContent = cleanContent.replace(/\[BOOKING_WIDGET\]/g, "").trim();
         }
 
-        // Parse structured rich tokens ([ORDER_CARD:...], [PRODUCT_CARD:...], [VIDEO_CLIP:...], [HANDOFF_ACTIONS])
-        const richParsed = !isVisitor
-          ? parseRichContent(cleanContent)
-          : { cleanContent, products: [], videoClips: [], orders: [], hasHandoffActions: false };
-        cleanContent = richParsed.cleanContent;
+        const nextMsg = messages[i + 1];
+        const showLegacyHandoffAckBelow = Boolean(
+          visitorParsed?.isLiveHandoffRequest &&
+          (!nextMsg || nextMsg.role === "user" || (!nextMsg.content.includes("[LIVE_AGENT_REQUESTED]") && !/connecting you with our support team/i.test(nextMsg.content)))
+        );
 
         const isImage = attachmentUrl && (
           attachmentName.toLowerCase().endsWith(".png") ||
@@ -256,7 +279,8 @@ function MessageListInner({
           : isHuman ? "You" : "Assistant";
 
         return (
-          <div key={i} className={`inbox-message flex gap-2 max-w-[85%] ${isVisitor ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
+          <Fragment key={i}>
+          <div className={`inbox-message flex gap-2 max-w-[85%] ${isVisitor ? "mr-auto" : "ml-auto flex-row-reverse"}`}>
             <div className={`size-5 rounded-full flex items-center justify-center shrink-0 ${isVisitor ? "bg-neutral-200 dark:bg-neutral-700" : isHuman ? "bg-purple-500 text-white" : "text-white"}`} style={!isVisitor && !isHuman ? { background: color } : {}}>
               {isVisitor ? <User className="size-3" /> : isHuman ? <Headphones className="size-3" /> : <Bot className="size-3" />}
             </div>
@@ -276,7 +300,28 @@ function MessageListInner({
                   {attachmentName}
                 </a>
               )}
-              {cleanContent && (
+              {visitorParsed?.offlineTicket ? (
+                <div className="space-y-1.5 text-left min-w-[210px]">
+                  <div className="flex items-center justify-between gap-2 pb-1 border-b border-neutral-300/60 dark:border-neutral-700">
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold">
+                      <Mail className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      Support Ticket Submitted
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                      Locked
+                    </span>
+                  </div>
+                  <div className="text-[11px] space-y-0.5">
+                    <div><span className="opacity-70">Name:</span> <span className="font-semibold">{visitorParsed.offlineTicket.name}</span></div>
+                    <div><span className="opacity-70">Email:</span> <span className="font-semibold">{visitorParsed.offlineTicket.email}</span></div>
+                  </div>
+                  {visitorParsed.offlineTicket.message && (
+                    <p className="text-xs pt-1 border-t border-neutral-300/50 dark:border-neutral-700/60 whitespace-pre-wrap">
+                      {visitorParsed.offlineTicket.message}
+                    </p>
+                  )}
+                </div>
+              ) : cleanContent ? (
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm, remarkMath]}
                   rehypePlugins={[rehypeKatex]}
@@ -296,6 +341,45 @@ function MessageListInner({
                 >
                   {cleanContent}
                 </ReactMarkdown>
+              ) : null}
+              {richParsed.emailCaptured && (
+                <div className="mt-2 p-2.5 rounded-xl border border-white/25 bg-black/20 text-white text-xs space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 font-bold text-[11px]">
+                      <Mail className="size-3.5" />
+                      Contact Details Saved
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-emerald-500/30 text-white">
+                      Locked
+                    </span>
+                  </div>
+                  {richParsed.emailCaptured.name && (
+                    <div className="text-[11px] flex items-center gap-1.5 opacity-95">
+                      <User className="size-3 shrink-0" />
+                      <span>{richParsed.emailCaptured.name}</span>
+                    </div>
+                  )}
+                  <div className="text-[11px] font-medium flex items-center gap-1.5 opacity-95">
+                    <Check className="size-3 shrink-0" />
+                    <span className="truncate">{richParsed.emailCaptured.email}</span>
+                  </div>
+                </div>
+              )}
+              {richParsed.isLiveHandoffAck && (
+                <div className="mt-2 p-2.5 rounded-xl border border-white/25 bg-black/20 text-white text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 font-bold text-[11px]">
+                      <Headphones className="size-3.5" />
+                      Live Agent Handoff Requested
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-white/20 text-white">
+                      Locked
+                    </span>
+                  </div>
+                  <p className="text-[10px] opacity-90 mt-1">
+                    Visitor requested a live human support agent.
+                  </p>
+                </div>
               )}
               {richParsed.products.length > 0 && (
                 <div className="flex flex-col gap-2 my-2 w-full text-neutral-900 dark:text-neutral-100">
@@ -319,12 +403,18 @@ function MessageListInner({
                 </div>
               )}
               {richParsed.hasHandoffActions && (
-                <div className="mt-2 pt-1.5 border-t border-white/20 flex items-center gap-1.5 text-[10px] font-medium opacity-95">
-                  <Headphones className="size-3 shrink-0" />
-                  <span>AI offered human handoff to visitor</span>
+                <div className="mt-2 pt-2 border-t border-white/20 flex flex-wrap items-center gap-1.5 text-[10px] font-medium">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/20 border border-white/20 text-white/95 select-none">
+                    <Headphones className="size-2.5 shrink-0" />
+                    <span>Talk to an agent</span>
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/20 border border-white/20 text-white/95 select-none">
+                    <Mail className="size-2.5 shrink-0" />
+                    <span>Leave email for follow-up</span>
+                  </span>
                 </div>
               )}
-              {(hasBooking || showBookingFallback) && <InboxBookingCard content={showBookingFallback ? `${m.content}\n[BOOKING_WIDGET]` : m.content} meeting={confirmedMeeting} />}
+              {(hasBooking || showBookingFallback) && <InboxBookingCard content={showBookingFallback ? `${m.content}\n[BOOKING_WIDGET]` : m.content} meeting={resolvedInboxMeeting} />}
               {!isVisitor && !isHuman && ((m.sources && m.sources.length > 0) || typeof m.rag_confidence === "number") && (
                 <div className="mt-2 pt-1.5 border-t border-white/20 flex flex-wrap items-center gap-1.5 text-[10px]">
                   {typeof m.rag_confidence === "number" && (
@@ -427,6 +517,34 @@ function MessageListInner({
               </div>
             )}
           </div>
+          {showLegacyHandoffAckBelow && (
+            <div className="inbox-message flex gap-2 max-w-[85%] ml-auto flex-row-reverse">
+              <div className="size-5 rounded-full flex items-center justify-center shrink-0 text-white" style={{ background: color }}>
+                <Bot className="size-3" />
+              </div>
+              <div className="flex flex-col min-w-0 items-end">
+                <span className="text-[9px] font-semibold text-neutral-400 dark:text-neutral-500 px-0.5 mb-0.5 text-right">Assistant</span>
+                <div className="inbox-message-bubble p-2.5 rounded-2xl text-white rounded-tr-none" style={{ background: color }}>
+                  <p className="mb-1.5 leading-relaxed">Connecting you with our support team now. An agent has been notified and will join the conversation shortly.</p>
+                  <div className="mt-2 p-2.5 rounded-xl border border-white/25 bg-black/20 text-white text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 font-bold text-[11px]">
+                        <Headphones className="size-3.5" />
+                        Live Agent Handoff Requested
+                      </span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-white/20 text-white">
+                        Locked
+                      </span>
+                    </div>
+                    <p className="text-[10px] opacity-90 mt-1">
+                      Visitor requested a live human support agent.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          </Fragment>
         );
       })}
       <div ref={endRef} />

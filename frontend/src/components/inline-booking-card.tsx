@@ -839,20 +839,22 @@ export function InlineBookingCard({
 
   // Google Calendar web URL
   const getGoogleCalendarUrl = (m: ConfirmedMeeting) => {
-    const startIso = m.start_time.replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-    const endIso = m.end_time.replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(m.summary)}&dates=${startIso}/${endIso}&details=${encodeURIComponent(`Meeting link: ${m.meeting_link}`)}&location=${encodeURIComponent(m.meeting_link)}`;
+    const startIso = (m.start_time || "").replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const endIso = (m.end_time || "").replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const datesParam = startIso && endIso ? `&dates=${startIso}/${endIso}` : "";
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(m.summary || "Demo Meeting")}${datesParam}&details=${encodeURIComponent(`Meeting link: ${m.meeting_link}`)}&location=${encodeURIComponent(m.meeting_link)}`;
   };
 
   // Download .ics file
   const downloadIcs = (m: ConfirmedMeeting) => {
+    if (!m.start_time || !m.end_time) return;
     const formatIcs = (iso: string) => iso.replace(/[-:]/g, "").replace(/\.\d{3}/, "");
     const ics = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
       "PRODID:-//Chatty//Self-Hosted Meeting Scheduler//EN",
       "BEGIN:VEVENT",
-      `SUMMARY:${m.summary}`,
+      `SUMMARY:${m.summary || "Demo Meeting"}`,
       `DESCRIPTION:Join video call: ${m.meeting_link}`,
       `LOCATION:${m.meeting_link}`,
       `DTSTART:${formatIcs(m.start_time)}`,
@@ -924,25 +926,32 @@ export function InlineBookingCard({
           </span>
         </div>
 
-        {/* Modern Cal.com-style Timezone Selector */}
+        {/* Modern Cal.com-style Timezone Selector OR Locked Confirmed Badge */}
         <div className="min-w-0 max-w-full sm:max-w-[55%]">
-          <button
-            ref={tzButtonRef}
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsTzOpen((open) => !open);
-              setTzQuery("");
-            }}
-            className="flex max-w-full items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
-            title="Click to change timezone"
-          >
-            <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
-            <span className="truncate max-w-[80px] min-[360px]:max-w-[105px] sm:max-w-[160px] font-medium">
-              {formatTimezoneCity(activeTimezone)}
+          {step === 3 && cardMode === "confirmed" && confirmedMeeting ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+              <Check className="size-3 stroke-[2.5]" />
+              <span>Booked</span>
             </span>
-            <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 shrink-0 ${isTzOpen ? "rotate-180" : ""}`} />
-          </button>
+          ) : (
+            <button
+              ref={tzButtonRef}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTzOpen((open) => !open);
+                setTzQuery("");
+              }}
+              className="flex max-w-full items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
+              title="Click to change timezone"
+            >
+              <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
+              <span className="truncate max-w-[80px] min-[360px]:max-w-[105px] sm:max-w-[160px] font-medium">
+                {formatTimezoneCity(activeTimezone)}
+              </span>
+              <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 shrink-0 ${isTzOpen ? "rotate-180" : ""}`} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -1594,42 +1603,25 @@ export function InlineBookingCard({
               <CalendarPlus className="size-3.5 text-neutral-400" />
               <span>Google Calendar</span>
             </a>
-            <span className="text-neutral-300 dark:text-neutral-700">|</span>
-            <button
-              type="button"
-              onClick={() => downloadIcs(confirmedMeeting)}
-              className="inline-flex items-center gap-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              <Calendar className="size-3.5 text-neutral-400" />
-              <span>Download .ics</span>
-            </button>
+            {confirmedMeeting.start_time && confirmedMeeting.end_time && (
+              <>
+                <span className="text-neutral-300 dark:text-neutral-700">|</span>
+                <button
+                  type="button"
+                  onClick={() => downloadIcs(confirmedMeeting)}
+                  className="inline-flex items-center gap-1.5 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+                >
+                  <Calendar className="size-3.5 text-neutral-400" />
+                  <span>Download .ics</span>
+                </button>
+              </>
+            )}
           </div>
 
-          {/* Manage Appointment Actions */}
-          <div className="pt-2.5 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedSlot(null);
-                setRescheduleError(null);
-                setCardMode("reschedule");
-              }}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 font-medium transition-colors cursor-pointer"
-            >
-              <CalendarClock className="size-3.5 text-neutral-500" />
-              <span>Reschedule</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCancelError(null);
-                setCardMode("cancel_confirm");
-              }}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 font-medium transition-colors cursor-pointer"
-            >
-              <XCircle className="size-3.5 text-red-500" />
-              <span>Cancel</span>
-            </button>
+          {/* Locked Confirmation Footer */}
+          <div className="pt-2.5 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
+            <ShieldCheck className="size-3 text-emerald-500 shrink-0" />
+            <span>Booking confirmed & locked · Check your email for calendar invite</span>
           </div>
         </div>
       )}

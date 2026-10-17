@@ -18,7 +18,7 @@ import { OrderCard, type OrderCardData } from "./order-card";
 // Use the exact LiveKit voice panel rendered by the dashboard preview. The
 // public widget must not maintain a second visualizer/transcript implementation.
 import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
-import { parseRichContent } from "./rich-content";
+import { parseRichContent, parseVisitorMessageContent, formatMessagePreview } from "./rich-content";
 import { renderSafeArticleHtml } from "./sanitize-html";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
 import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
@@ -34,7 +34,7 @@ import {
   Paperclip, Smile, Mic, AudioWaveform, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Play, Pause, Trash2,
-  BookOpen, Home, HelpCircle, Megaphone, Compass, Clock, Calendar,
+  BookOpen, Home, HelpCircle, Megaphone, Compass, Clock, Calendar, ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -840,12 +840,29 @@ function IdentifiedChatWidget({
 
   const latestActiveMeeting = useMemo(() => {
     for (let idx = messages.length - 1; idx >= 0; idx--) {
-      if (messages[idx].confirmedMeeting) {
-        return messages[idx].confirmedMeeting;
+      const m = messages[idx];
+      if (m.confirmedMeeting) {
+        return m.confirmedMeeting;
+      }
+      if (m.role === "assistant" && typeof m.content === "string") {
+        const { bookingConfirmed } = parseRichContent(m.content);
+        if (bookingConfirmed) {
+          return {
+            id: bookingConfirmed.id || "confirmed",
+            meeting_link: bookingConfirmed.meeting_link,
+            formatted_time: bookingConfirmed.formatted_time,
+            summary: bookingConfirmed.summary || "Scheduled Demo Meeting",
+            start_time: bookingConfirmed.start_time || "",
+            end_time: bookingConfirmed.end_time || "",
+            attendee_name: bookingConfirmed.attendee_name || extractedVisitorInfo.name || "Guest",
+            attendee_email: bookingConfirmed.attendee_email || extractedVisitorInfo.email || "",
+            assigned_to_email: bookingConfirmed.assigned_to_email,
+          } satisfies ConfirmedMeeting;
+        }
       }
     }
     return null;
-  }, [messages]);
+  }, [messages, extractedVisitorInfo.name, extractedVisitorInfo.email]);
 
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
@@ -1361,6 +1378,11 @@ function IdentifiedChatWidget({
             { role: "user", content: choiceText, created_at: new Date().toISOString() },
             { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }
           ]);
+          fetch(`${BACKEND_URL}/api/widget/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+            body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[Calendar booking offered: ${promptText}]` })
+          }).catch(() => {});
           return;
         }
       }
@@ -1393,7 +1415,10 @@ function IdentifiedChatWidget({
   };
 
   const submitOfflineMessage = async () => {
-    if (!offlineEmail.trim() || !offlineMessage.trim()) return;
+    const cleanOfflineEmail = offlineEmail.trim().toLowerCase();
+    const cleanOfflineMsg = offlineMessage.trim();
+    if (!cleanOfflineEmail || !cleanOfflineMsg) return;
+    const ticketText = `[Offline Support Ticket]\nName: ${extractedVisitorInfo.name || "Visitor"}\nEmail: ${cleanOfflineEmail}\nMessage: ${cleanOfflineMsg}`;
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
@@ -1401,17 +1426,38 @@ function IdentifiedChatWidget({
         body: JSON.stringify({
           bot_id: botId,
           session_id: sessionId,
-          text: `[Offline Support Ticket]\nEmail: ${offlineEmail}\nMessage: ${offlineMessage}`,
+          text: ticketText,
+          visitor_email: cleanOfflineEmail,
+          visitor_name: extractedVisitorInfo.name || undefined,
+          offline_ticket: true,
           visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           host: getHost(),
         }),
       });
       if (res.ok) {
+        const nowIso = new Date().toISOString();
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", content: ticketText, created_at: nowIso },
+          {
+            role: "assistant",
+            content: "Thank you! Your follow-up email and message have been received. Our team will get back to you via email shortly.",
+            sender: "ai",
+            created_at: nowIso,
+          },
+        ]);
+        setCapturedLeadData((prev) => ({ ...prev, email: cleanOfflineEmail }));
+        setSupportEmail(cleanOfflineEmail);
+        setSupportEmailSaved(true);
+        setEmailCaptureDismissed(true);
+        try {
+          localStorage.setItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`, "1");
+        } catch {}
         setOfflineSubmitted(true);
         showToast("Ticket submitted successfully!", "success");
         setOfflineEmail("");
         setOfflineMessage("");
-        setTimeout(() => { setShowOfflineForm(false); setOfflineSubmitted(false); }, 2000);
+        setTimeout(() => { setShowOfflineForm(false); }, 1200);
       } else {
         showToast("Error sending message.", "error");
       }
@@ -1514,37 +1560,65 @@ function IdentifiedChatWidget({
     try {
       localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, marketingConsent ? "1" : "0");
     } catch {}
+    const payloadStr = JSON.stringify({
+      email,
+      name: extractedVisitorInfo.name || null,
+      marketing_consent: marketingConsent,
+    });
+    const capturedMsgContent = `Your follow-up email has been saved (${email}). [EMAIL_CAPTURED:${payloadStr}]`;
     try {
       const response = await fetch(`${BACKEND_URL}/api/widget/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...widgetTokenHeader },
-        body: JSON.stringify({ bot_id: botId, session_id: sessionId, email, marketing_consent: marketingConsent }),
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          email,
+          name: extractedVisitorInfo.name || undefined,
+          marketing_consent: marketingConsent,
+        }),
       });
       if (!response.ok && response.status !== 404) throw new Error("Unable to save email");
       setSupportEmailSaved(true);
     } catch {
-      // The session may not exist until the visitor sends their first message.
-      // Keep the value locally and include it with that first message.
       setSupportEmailSaved(true);
     } finally {
       setSupportEmailSaving(false);
+      setEmailCaptureDismissed(true);
+      try {
+        localStorage.setItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`, "1");
+      } catch {}
+      setMessages((prev) => {
+        const already = prev.some((m) => typeof m.content === "string" && m.content.includes(`[EMAIL_CAPTURED:`) && m.content.includes(email));
+        if (already) return prev;
+        return [
+          ...prev,
+          {
+            role: "assistant",
+            content: capturedMsgContent,
+            sender: "ai",
+            created_at: new Date().toISOString(),
+          },
+        ];
+      });
     }
-  }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader]);
+  }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader, extractedVisitorInfo.name]);
 
   const requestLiveHandoff = useCallback(async () => {
     setLiveAgent(true);
+    const nowIso = new Date().toISOString();
     setMessages((prev) => [
       ...prev,
       {
         role: "user",
         content: "I would like to speak to a human agent",
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
       },
       {
         role: "assistant",
-        content: "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you.",
+        content: "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you. [LIVE_AGENT_REQUESTED]",
         sender: "ai",
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
       },
     ]);
     try {
@@ -1564,17 +1638,6 @@ function IdentifiedChatWidget({
     } catch {}
   }, [botId, sessionId, widgetTokenHeader]);
 
-  // Transcript restoration is server-backed below; never hydrate message
-  // content from browser storage because it may contain visitor PII.
-  useEffect(() => {
-    let alive = true;
-    void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
-      .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
-      .then(body => { if (alive && body.messages?.length) setMessages(dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg)); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [botId, sessionId, fetch, welcomeMsg]);
-
   // Query active scheduled meeting for the current session on load
   const fetchActiveMeeting = useCallback(async () => {
     if (!botId || !sessionId || !calendarSchedulingEnabled) return;
@@ -1582,12 +1645,18 @@ function IdentifiedChatWidget({
       const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
       if (!res.ok) return;
       const data = await res.json();
-      if (data.success && data.meeting && data.has_active !== false && data.meeting.status !== "cancelled") {
+      if ((data.success || data.has_active) && data.meeting && data.has_active !== false && data.meeting.status !== "cancelled") {
         const activeMeeting: ConfirmedMeeting = data.meeting;
         setMessages((prev) => {
           const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
           if (alreadyHas) return prev;
           const updated = [...prev];
+          for (let idx = updated.length - 1; idx >= 0; idx--) {
+            if (updated[idx].role === "assistant" && (updated[idx].content.includes("[BOOKING_WIDGET]") || updated[idx].content.includes("[BOOKING_CONFIRMED:"))) {
+              updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+              return updated;
+            }
+          }
           for (let idx = updated.length - 1; idx >= 0; idx--) {
             if (updated[idx].role === "assistant") {
               updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
@@ -1599,18 +1668,34 @@ function IdentifiedChatWidget({
           }
           return updated;
         });
-      } else {
-        // If has_active is false or cancelled, mark any existing confirmedMeeting as cancelled
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.confirmedMeeting
-              ? { ...m, confirmedMeeting: { ...m.confirmedMeeting, status: "cancelled" } }
-              : m
-          )
-        );
       }
     } catch {}
   }, [botId, sessionId, calendarSchedulingEnabled]);
+
+  // Transcript restoration is server-backed below; never hydrate message
+  // content from browser storage because it may contain visitor PII.
+  useEffect(() => {
+    let alive = true;
+    void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
+      .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
+      .then(body => {
+        if (!alive || !body.messages?.length) return;
+        const hydrated = dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg);
+        const hasEmailMsg = hydrated.some((m: Message) => typeof m.content === "string" && (m.content.includes("[EMAIL_CAPTURED:") || m.content.startsWith("[Offline Support Ticket]")));
+        if (hasEmailMsg) {
+          setSupportEmailSaved(true);
+          setEmailCaptureDismissed(true);
+        }
+        const hasLiveHandoff = hydrated.some((m: Message) => typeof m.content === "string" && (m.content.includes("[LIVE_AGENT_REQUESTED]") || m.content.startsWith("[Visitor requested live agent")));
+        if (hasLiveHandoff) {
+          setLiveAgent(true);
+        }
+        setMessages(hydrated);
+        void fetchActiveMeeting();
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [botId, sessionId, fetch, welcomeMsg, fetchActiveMeeting]);
 
   useEffect(() => {
     fetchActiveMeeting();
@@ -2092,8 +2177,13 @@ function IdentifiedChatWidget({
           const promptText = cleanLabel(targetNode.data?.label) || "Select a time that works best for you from our available slots to schedule your personalized demo meeting:";
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai" }
+            { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }
           ]);
+          fetch(`${BACKEND_URL}/api/widget/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+            body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[Calendar booking offered: ${promptText}]` })
+          }).catch(() => {});
           return;
         }
       }
@@ -2991,7 +3081,7 @@ function IdentifiedChatWidget({
                             </span>
                           </div>
                           <p className="text-[11px] opacity-70 truncate mt-0.5">
-                            {messages[messages.length - 1]?.content?.slice(0, 100) || "Conversation started"}
+                            {formatMessagePreview(messages[messages.length - 1]?.content).slice(0, 100) || "Conversation started"}
                           </p>
                         </div>
                       </div>
@@ -3099,7 +3189,43 @@ function IdentifiedChatWidget({
                 <div className="p-4 space-y-4 text-xs">
                 <AnimatePresence initial={false}>
                   {messages.map((msg, i) => {
-                    const hasBooking = Boolean(msg.confirmedMeeting || i === lastBookingMsgIdx);
+                    const visitorParsed = msg.role === "user" ? parseVisitorMessageContent(msg.content) : null;
+                    if (visitorParsed?.isSyntheticHidden) return null;
+                    const parsedRich = msg.role === "assistant"
+                      ? parseRichContent<ProductCardData, VideoClipData, OrderCardData>(msg.content)
+                      : null;
+                    const msgBookingConfirmed: ConfirmedMeeting | undefined =
+                      msg.confirmedMeeting ||
+                      (parsedRich?.bookingConfirmed
+                        ? {
+                            id: parsedRich.bookingConfirmed.id || "confirmed",
+                            meeting_link: parsedRich.bookingConfirmed.meeting_link,
+                            formatted_time: parsedRich.bookingConfirmed.formatted_time,
+                            summary: parsedRich.bookingConfirmed.summary || "Scheduled Demo Meeting",
+                            start_time: parsedRich.bookingConfirmed.start_time || "",
+                            end_time: parsedRich.bookingConfirmed.end_time || "",
+                            attendee_name: parsedRich.bookingConfirmed.attendee_name || extractedVisitorInfo.name || "Guest",
+                            attendee_email: parsedRich.bookingConfirmed.attendee_email || extractedVisitorInfo.email || supportEmail || "",
+                            assigned_to_email: parsedRich.bookingConfirmed.assigned_to_email,
+                          }
+                        : undefined);
+                    const shouldRenderBookingCard = Boolean(
+                      i === lastBookingMsgIdx || (msgBookingConfirmed && lastBookingMsgIdx === -1)
+                    );
+                    const hasWideCard = Boolean(
+                      shouldRenderBookingCard ||
+                      parsedRich?.emailCaptured ||
+                      parsedRich?.isLiveHandoffAck ||
+                      parsedRich?.hasHandoffActions ||
+                      visitorParsed?.offlineTicket
+                    );
+                    const nextMsg = messages[i + 1];
+                    const nextIsHandoffAck =
+                      nextMsg?.role === "assistant" &&
+                      (/\[LIVE_AGENT_REQUESTED\]/.test(nextMsg.content || "") ||
+                        /Connecting you with our support team now/i.test(nextMsg.content || ""));
+                    const showLegacyHandoffAckBelow = Boolean(visitorParsed?.isLiveHandoffRequest && !nextIsHandoffAck);
+
                     const isTakeover =
                       msg.role === "assistant" &&
                       msg.sender === "human" &&
@@ -3135,7 +3261,7 @@ function IdentifiedChatWidget({
                         <motion.div
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={`flex gap-2 ${hasBooking ? "w-full max-w-[96%] sm:max-w-[88%]" : "max-w-[88%]"} ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
+                          className={`flex gap-2 ${hasWideCard ? "w-full max-w-[96%] sm:max-w-[88%]" : "max-w-[88%]"} ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
                         >
                           {msg.role !== "user" && (
                             msg.sender === "human" ? (
@@ -3158,22 +3284,16 @@ function IdentifiedChatWidget({
                               </div>
                             )
                           )}
-                          <div className={`flex flex-col min-w-0 ${hasBooking ? "w-full" : ""}`}>
-                            {/* .user-bubble's background/color come entirely from the
-                                design preset's own CSS (globals.css, !important) - an
-                                inline style here computed from primaryColor would be
-                                silently overridden for the background but NOT
-                                recomputed for the text color, producing the same
-                                invisible-text bug the header had. */}
-                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
-                              {/* msg.fileUrl is a local blob: URL (URL.createObjectURL) or an uploaded-file URL - neither works with next/image's optimizer */}
+                          <div className={`flex flex-col min-w-0 ${hasWideCard ? "w-full" : ""}`}>
+                            <div className={`${hasWideCard ? "p-2 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                               {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
-                              {msg.role === "assistant" ? (
+                              {msg.role === "assistant" && parsedRich ? (
                                 <>
                                   {(() => {
-                                    const { cleanContent, products, videoClips, orders, hasHandoffActions } = parseRichContent<ProductCardData, VideoClipData, OrderCardData>(msg.content);
+                                    const { cleanContent, products, videoClips, orders, hasHandoffActions, isLiveHandoffAck, emailCaptured } = parsedRich;
+                                    const handoffLocked = liveAgent || offlineSubmitted || i < messages.length - 1 || isBotResponding;
                                     return (
                                       <>
                                         {cleanContent && (
@@ -3207,12 +3327,57 @@ function IdentifiedChatWidget({
                                             ))}
                                           </div>
                                         )}
-                                        {hasHandoffActions && i === messages.length - 1 && !isBotResponding && !liveAgent && (
+                                        {emailCaptured && (
+                                          <div className="mt-2.5 rounded-xl border border-emerald-200/80 dark:border-emerald-800/70 bg-white dark:bg-neutral-900 p-3 shadow-xs text-left space-y-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">
+                                                <Mail className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                <span>Follow-up Email Saved</span>
+                                              </div>
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                                <Check className="size-2.5 stroke-[2.5]" />
+                                                <span>Saved</span>
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/70 px-2.5 py-1.5">
+                                              <input
+                                                type="email"
+                                                readOnly
+                                                disabled
+                                                value={emailCaptured.email}
+                                                className="w-full bg-transparent text-xs font-medium text-neutral-700 dark:text-neutral-200 cursor-not-allowed select-all focus:outline-none"
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+                                        {isLiveHandoffAck && (
+                                          <div className="mt-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 p-3 shadow-xs text-left space-y-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">
+                                                <Headphones className="size-3.5 shrink-0" style={{ color: primaryColor }} />
+                                                <span>Human Support Handoff</span>
+                                              </div>
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                                <Check className="size-2.5 stroke-[2.5]" />
+                                                <span>Requested</span>
+                                              </span>
+                                            </div>
+                                            <div className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
+                                              Live agent handoff is active. A team member will reply right here in this chat.
+                                            </div>
+                                          </div>
+                                        )}
+                                        {hasHandoffActions && (
                                           <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
                                             <button
                                               type="button"
-                                              onClick={requestLiveHandoff}
-                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                                              disabled={handoffLocked}
+                                              onClick={() => { if (!handoffLocked) void requestLiveHandoff(); }}
+                                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all ${
+                                                handoffLocked
+                                                  ? "opacity-75 cursor-not-allowed"
+                                                  : "hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                                              }`}
                                               style={{
                                                 borderColor: primaryColor,
                                                 color: primaryColor,
@@ -3220,29 +3385,35 @@ function IdentifiedChatWidget({
                                               }}
                                             >
                                               <Headphones className="size-3.5" />
-                                              <span>Talk to an agent</span>
+                                              <span>{liveAgent ? "Live agent requested" : "Talk to an agent"}</span>
+                                              {liveAgent && <Check className="size-3 stroke-[2.5]" />}
                                             </button>
                                             <button
                                               type="button"
-                                              onClick={() => setShowOfflineForm(true)}
-                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
+                                              disabled={handoffLocked}
+                                              onClick={() => { if (!handoffLocked) setShowOfflineForm(true); }}
+                                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 transition-all ${
+                                                handoffLocked
+                                                  ? "opacity-70 cursor-not-allowed"
+                                                  : "hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+                                              }`}
                                             >
                                               <Mail className="size-3.5" />
-                                              <span>Leave email for follow-up</span>
+                                              <span>{offlineSubmitted ? "Follow-up email submitted" : "Leave email for follow-up"}</span>
                                             </button>
                                           </div>
                                         )}
                                       </>
                                     );
                                   })()}
-                                  {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
+                                  {shouldRenderBookingCard && (
                                     <InlineBookingCard
                                       botId={String(botId)}
                                       sessionId={sessionId}
                                       visitorTimezone={typeof Intl !== "undefined" && Intl.DateTimeFormat().resolvedOptions().timeZone && Intl.DateTimeFormat().resolvedOptions().timeZone !== "UTC" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "America/New_York"}
                                       primaryColor={primaryColor}
                                       backendUrl={BACKEND_URL}
-                                      initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
+                                      initialMeeting={msgBookingConfirmed || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
                                       initialName={extractedVisitorInfo.name}
                                       initialEmail={extractedVisitorInfo.email}
                                       initialPhone={extractedVisitorInfo.phone}
@@ -3280,7 +3451,32 @@ function IdentifiedChatWidget({
                                     />
                                   )}
                                 </>
-                              ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && <span>{msg.content}</span>}
+                              ) : visitorParsed?.offlineTicket ? (
+                                <div className="rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-100 p-3 shadow-xs text-left space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                                      <Mail className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                      <span>Follow-up Email & Ticket</span>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                      <Check className="size-2.5 stroke-[2.5]" />
+                                      <span>Submitted</span>
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1.5 text-[11px]">
+                                    <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/70 px-2.5 py-1.5">
+                                      <span className="text-[10px] text-neutral-400 block">Email</span>
+                                      <span className="font-medium text-neutral-800 dark:text-neutral-200 break-all">{visitorParsed.offlineTicket.email}</span>
+                                    </div>
+                                    <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/70 px-2.5 py-1.5">
+                                      <span className="text-[10px] text-neutral-400 block">Message</span>
+                                      <span className="text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap break-words">{visitorParsed.offlineTicket.message}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : !(msg.fileType?.startsWith("audio/") && msg.content === VOICE_MESSAGE_PLACEHOLDER) && (
+                                <span>{visitorParsed ? visitorParsed.cleanText : msg.content}</span>
+                              )}
                               {msg.role === "assistant" && msg.content && i === messages.length - 1 && !isBotResponding && (
                                 <div className="mt-1.5 flex items-center gap-1">
                                   <button onClick={() => rateMessage(i, "up")} aria-label="Helpful"
@@ -3317,6 +3513,40 @@ function IdentifiedChatWidget({
                             )}
                           </div>
                         </motion.div>
+                        {showLegacyHandoffAckBelow && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex gap-2 w-full max-w-[96%] sm:max-w-[88%] mr-auto"
+                          >
+                            <div
+                              className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5"
+                              style={{ background: primaryColor, color: onPrimary }}
+                            >
+                              {avatarInner("size-3.5")}
+                            </div>
+                            <div className="flex flex-col min-w-0 w-full">
+                              <div className="p-2.5 w-full rounded-2xl rounded-tl-none leading-relaxed min-w-0 break-words bot-bubble bg-neutral-100 dark:bg-neutral-800">
+                                <span>Connecting you with our support team now. Our team has access to your full conversation history and will be right with you.</span>
+                                <div className="mt-2.5 rounded-xl border border-neutral-200/80 dark:border-neutral-700/80 bg-white dark:bg-neutral-900 p-3 shadow-xs text-left space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-800 dark:text-neutral-100">
+                                      <Headphones className="size-3.5 shrink-0" style={{ color: primaryColor }} />
+                                      <span>Human Support Handoff</span>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                      <Check className="size-2.5 stroke-[2.5]" />
+                                      <span>Requested</span>
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
+                                    Live agent handoff is active. A team member will reply right here in this chat.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
                       </Fragment>
                     );
                   })}

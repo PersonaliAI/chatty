@@ -27,12 +27,13 @@ import {
   dedupeAdjacentWelcomeMessages,
   shouldRenderInlineWelcome,
 } from "@/lib/widget-history";
+import { parseRichContent, parseVisitorMessageContent, formatMessagePreview } from "@/lib/rich-content";
 import {
   Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
   Paperclip, Smile, AudioWaveform, Mic, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
   ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Play, Pause, Trash2,
-  BookOpen, Star, Home, HelpCircle, Megaphone, Compass, Clock, Calendar,
+  BookOpen, Star, Home, HelpCircle, Megaphone, Compass, Clock, Calendar, ShieldCheck,
 } from "lucide-react";
 import { BACKEND_URL } from "@/lib/backend-client";
 import { useSearchParams } from "next/navigation";
@@ -82,76 +83,8 @@ function isPlausibleEmail(value: string): boolean {
   return !/[\s<>()[\]\\,;:]/.test(email);
 }
 
-function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[]; orders: OrderCardData[]; hasHandoffActions?: boolean } {
-  const extract = <T extends object>(source: string, marker: string): { text: string; items: T[] } => {
-    const items: T[] = [];
-    let cursor = 0;
-    let text = "";
-    while (cursor < source.length) {
-      const markerStart = source.indexOf(marker, cursor);
-      if (markerStart < 0) {
-        text += source.slice(cursor);
-        break;
-      }
-      const jsonStart = markerStart + marker.length;
-      if (source[jsonStart] !== "{") {
-        text += source.slice(cursor, jsonStart);
-        cursor = jsonStart;
-        continue;
-      }
-
-      let depth = 0;
-      let end = -1;
-      let inString = false;
-      let escaped = false;
-      for (let i = jsonStart; i < source.length; i++) {
-        const char = source[i];
-        if (inString) {
-          if (escaped) escaped = false;
-          else if (char === "\\") escaped = true;
-          else if (char === '"') inString = false;
-          continue;
-        }
-        if (char === '"') { inString = true; continue; }
-        if (char === "{") depth++;
-        else if (char === "}" && --depth === 0) {
-          end = i;
-          break;
-        }
-      }
-
-      if (end < 0 || source[end + 1] !== "]") {
-        text += source.slice(cursor, jsonStart + 1);
-        cursor = jsonStart + 1;
-        continue;
-      }
-      let parsedOk = false;
-      try {
-        const parsed = JSON.parse(source.slice(jsonStart, end + 1));
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          items.push(parsed as T);
-          parsedOk = true;
-        }
-      } catch {}
-      text += source.slice(cursor, markerStart);
-      if (!parsedOk) text += source.slice(markerStart, end + 2);
-      cursor = end + 2;
-    }
-    return { text, items };
-  };
-
-  const hasHandoffActions = /\[HANDOFF_ACTIONS\]/.test(content);
-  const productResult = extract<ProductCardData>(content, "[PRODUCT_CARD:");
-  const videoResult = extract<VideoClipData>(productResult.text, "[VIDEO_CLIP:");
-  const orderResult = extract<OrderCardData>(videoResult.text, "[ORDER_CARD:");
-  const products = productResult.items;
-  const videoClips = videoResult.items;
-  const orders = orderResult.items;
-  let clean = orderResult.text;
-
-  clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").replace(/\[HANDOFF_ACTIONS\]/g, "").trim();
-
-  return { cleanContent: clean, products, videoClips, orders, hasHandoffActions };
+function parseProductCards(content: string) {
+  return parseRichContent<ProductCardData, VideoClipData, OrderCardData>(content);
 }
 
 interface FlowNode {
@@ -682,12 +615,29 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
 
   const latestActiveMeeting = useMemo(() => {
     for (let idx = messages.length - 1; idx >= 0; idx--) {
-      if (messages[idx].confirmedMeeting) {
-        return messages[idx].confirmedMeeting;
+      const m = messages[idx];
+      if (m.confirmedMeeting) {
+        return m.confirmedMeeting;
+      }
+      if (m.role === "assistant" && typeof m.content === "string") {
+        const { bookingConfirmed } = parseRichContent(m.content);
+        if (bookingConfirmed) {
+          return {
+            id: bookingConfirmed.id || "confirmed",
+            meeting_link: bookingConfirmed.meeting_link,
+            formatted_time: bookingConfirmed.formatted_time,
+            summary: bookingConfirmed.summary || "Scheduled Demo Meeting",
+            start_time: bookingConfirmed.start_time || "",
+            end_time: bookingConfirmed.end_time || "",
+            attendee_name: bookingConfirmed.attendee_name || extractedVisitorInfo.name || "Guest",
+            attendee_email: bookingConfirmed.attendee_email || extractedVisitorInfo.email || "",
+            assigned_to_email: bookingConfirmed.assigned_to_email,
+          } satisfies ConfirmedMeeting;
+        }
       }
     }
     return null;
-  }, [messages]);
+  }, [messages, extractedVisitorInfo.name, extractedVisitorInfo.email]);
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -1330,6 +1280,11 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             { role: "user", content: choiceText, created_at: new Date().toISOString() },
             { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }
           ]);
+          fetch(`${BACKEND_URL}/api/widget/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+            body: JSON.stringify({ bot_id: botId, session_id: sessionId, text: `[Calendar booking offered: ${promptText}]` })
+          }).catch(() => {});
           return;
         }
       }
@@ -1369,6 +1324,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     const name = offlineName.trim();
     const email = offlineEmail.trim().toLowerCase();
     const message = offlineMessage.trim();
+    const ticketText = `[Offline Support Ticket]\nName: ${name}\nEmail: ${email}\nMessage: ${message}`;
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
@@ -1376,7 +1332,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         body: JSON.stringify({
           bot_id: botId,
           session_id: sessionId,
-          text: `[Offline Support Ticket]\nName: ${name}\nEmail: ${email}\nMessage: ${message}`,
+          text: ticketText,
           visitor_name: name,
           visitor_email: email,
           visitor_timezone: visitorTimezone,
@@ -1386,12 +1342,30 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         }),
       });
       if (res.ok) {
+        const nowIso = new Date().toISOString();
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", content: ticketText, created_at: nowIso },
+          {
+            role: "assistant",
+            content: "Thank you! Your follow-up email and message have been received. Our team will get back to you via email shortly.",
+            sender: "ai",
+            created_at: nowIso,
+          },
+        ]);
+        setCapturedLeadData((prev) => ({ ...prev, name, email }));
+        setSupportEmail(email);
+        setSupportEmailSaved(true);
+        setEmailCaptureDismissed(true);
+        try {
+          localStorage.setItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`, "1");
+        } catch {}
         setOfflineSubmitted(true);
         showToast("Ticket submitted successfully!", "success");
         setOfflineName("");
         setOfflineEmail("");
         setOfflineMessage("");
-        setTimeout(() => { setShowOfflineForm(false); setOfflineSubmitted(false); }, 2000);
+        setTimeout(() => { setShowOfflineForm(false); }, 1200);
       } else {
         showToast("Error sending message.", "error");
       }
@@ -1575,6 +1549,12 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     try {
       localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, marketingConsent ? "1" : "0");
     } catch {}
+    const payloadStr = JSON.stringify({
+      email,
+      name: extractedVisitorInfo.name || null,
+      marketing_consent: marketingConsent,
+    });
+    const capturedMsgContent = `Your follow-up email has been saved (${email}). [EMAIL_CAPTURED:${payloadStr}]`;
     try {
       const response = await fetch(`${BACKEND_URL}/api/widget/contact`, {
         method: "POST",
@@ -1594,23 +1574,41 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       setSupportEmailSaved(true);
     } finally {
       setSupportEmailSaving(false);
+      setEmailCaptureDismissed(true);
+      try {
+        localStorage.setItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`, "1");
+      } catch {}
+      setMessages((prev) => {
+        const already = prev.some((m) => typeof m.content === "string" && m.content.includes(`[EMAIL_CAPTURED:`) && m.content.includes(email));
+        if (already) return prev;
+        return [
+          ...prev,
+          {
+            role: "assistant",
+            content: capturedMsgContent,
+            sender: "ai",
+            created_at: new Date().toISOString(),
+          },
+        ];
+      });
     }
   }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader, extractedVisitorInfo.name]);
 
   const requestLiveHandoff = useCallback(async () => {
     setLiveAgent(true);
+    const nowIso = new Date().toISOString();
     setMessages((prev) => [
       ...prev,
       {
         role: "user",
         content: "I would like to speak to a human agent",
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
       },
       {
         role: "assistant",
-        content: "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you.",
+        content: "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you. [LIVE_AGENT_REQUESTED]",
         sender: "ai",
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
       },
     ]);
     try {
@@ -1630,6 +1628,40 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     } catch {}
   }, [botId, sessionId, widgetTokenHeader]);
 
+  // Query active scheduled meeting for the current session on load
+  const fetchActiveMeeting = useCallback(async () => {
+    if (!botId || !sessionId || !calendarSchedulingEnabled) return;
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if ((data.success || data.has_active) && data.meeting && data.has_active !== false && data.meeting.status !== "cancelled") {
+        const activeMeeting: ConfirmedMeeting = data.meeting;
+        setMessages((prev) => {
+          const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
+          if (alreadyHas) return prev;
+          const updated = [...prev];
+          for (let idx = updated.length - 1; idx >= 0; idx--) {
+            if (updated[idx].role === "assistant" && (updated[idx].content.includes("[BOOKING_WIDGET]") || updated[idx].content.includes("[BOOKING_CONFIRMED:"))) {
+              updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+              return updated;
+            }
+          }
+          for (let idx = updated.length - 1; idx >= 0; idx--) {
+            if (updated[idx].role === "assistant") {
+              updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
+              return updated;
+            }
+          }
+          if (updated.length > 0) {
+            updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
+          }
+          return updated;
+        });
+      }
+    } catch {}
+  }, [botId, sessionId, calendarSchedulingEnabled]);
+
   // Conversation history and transcripts are restored from the authenticated
   // server endpoints below; no message bodies are read from localStorage.
   // Conversation switcher
@@ -1639,7 +1671,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
       .then(body => {
         if (alive && body.conversations?.length) setConversationsList(body.conversations.map((conversation: { session_id: string; channel: string; last_message: string; last_message_at: string }) => ({
-          sessionId: conversation.session_id, lastSnippet: conversation.last_message || "Conversation", lastSender: "assistant", lastChannel: conversation.channel === "voice" ? "voice" : "text", updatedAt: conversation.last_message_at, messageCount: 1,
+          sessionId: conversation.session_id, lastSnippet: formatMessagePreview(conversation.last_message) || "Conversation", lastSender: "assistant", lastChannel: conversation.channel === "voice" ? "voice" : "text", updatedAt: conversation.last_message_at, messageCount: 1,
         })));
       }).catch(() => {});
     return () => { alive = false; };
@@ -1648,9 +1680,23 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     let alive = true;
     void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
       .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
-      .then(body => { if (alive && body.messages?.length) setMessages(dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg)); }).catch(() => {});
+      .then(body => {
+        if (!alive || !body.messages?.length) return;
+        const hydrated = dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg);
+        const hasEmailMsg = hydrated.some((m: Message) => typeof m.content === "string" && (m.content.includes("[EMAIL_CAPTURED:") || m.content.startsWith("[Offline Support Ticket]")));
+        if (hasEmailMsg) {
+          setSupportEmailSaved(true);
+          setEmailCaptureDismissed(true);
+        }
+        const hasLiveHandoff = hydrated.some((m: Message) => typeof m.content === "string" && (m.content.includes("[LIVE_AGENT_REQUESTED]") || m.content.startsWith("[Visitor requested live agent")));
+        if (hasLiveHandoff) {
+          setLiveAgent(true);
+        }
+        setMessages(hydrated);
+        void fetchActiveMeeting();
+      }).catch(() => {});
     return () => { alive = false; };
-  }, [botId, sessionId, fetch, welcomeMsg]);
+  }, [botId, sessionId, fetch, welcomeMsg, fetchActiveMeeting]);
   const switchConversation = (targetSessionId: string) => {
     setSessionId(targetSessionId);
     try {
@@ -1665,43 +1711,6 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
   const startNewConversation = () => {
     clearChat();
   };
-
-  // Query active scheduled meeting for the current session on load
-  const fetchActiveMeeting = useCallback(async () => {
-    if (!botId || !sessionId || !calendarSchedulingEnabled) return;
-    try {
-      const res = await fetch(`${BACKEND_URL}/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.success && data.meeting && data.has_active !== false && data.meeting.status !== "cancelled") {
-        const activeMeeting: ConfirmedMeeting = data.meeting;
-        setMessages((prev) => {
-          const alreadyHas = prev.some((m) => m.confirmedMeeting?.id === activeMeeting.id);
-          if (alreadyHas) return prev;
-          const updated = [...prev];
-          for (let idx = updated.length - 1; idx >= 0; idx--) {
-            if (updated[idx].role === "assistant") {
-              updated[idx] = { ...updated[idx], confirmedMeeting: activeMeeting };
-              return updated;
-            }
-          }
-          if (updated.length > 0) {
-            updated[0] = { ...updated[0], confirmedMeeting: activeMeeting };
-          }
-          return updated;
-        });
-      } else {
-        // If has_active is false or cancelled, mark any existing confirmedMeeting as cancelled
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.confirmedMeeting
-              ? { ...m, confirmedMeeting: { ...m.confirmedMeeting, status: "cancelled" } }
-              : m
-          )
-        );
-      }
-    } catch {}
-  }, [botId, sessionId, calendarSchedulingEnabled]);
 
   useEffect(() => {
     fetchActiveMeeting();
@@ -1724,13 +1733,14 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       const lastM = messages[messages.length - 1];
       if (lastM) {
         const rawContent = lastM.content || "";
-        const cleanContent = rawContent
-          .replace(/\[BOOKING_WIDGET\]/g, "")
+        const cleanContent = formatMessagePreview(rawContent)
           .replace(/\[attachment:.*?\]/g, "")
           .trim();
         const snippet = cleanContent || (lastM.fileUrl ? "Attachment" : "Conversation started");
         setConversationsList((prev) => {
           const existingIdx = prev.findIndex((c) => c.sessionId === sessionId);
+          const firstUserMsg = messages.find((m) => m.role === "user");
+          const firstUserTopic = firstUserMsg ? formatMessagePreview(firstUserMsg.content).slice(0, 40) : "";
           const updated: VisitorConversationItem = {
             sessionId,
             lastSnippet: snippet.slice(0, 100),
@@ -1740,7 +1750,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             messageCount: messages.length,
             agentName: lastM.sender === "human" ? (lastM.sender_name || activeAgentName || undefined) : (existingIdx >= 0 ? prev[existingIdx]?.agentName : undefined),
             agentAvatar: lastM.sender === "human" ? (lastM.sender_avatar || activeAgentAvatar || undefined) : (existingIdx >= 0 ? prev[existingIdx]?.agentAvatar : undefined),
-            topic: messages.find((m) => m.role === "user")?.content?.slice(0, 40) || (existingIdx >= 0 ? prev[existingIdx]?.topic : undefined),
+            topic: firstUserTopic || (existingIdx >= 0 ? prev[existingIdx]?.topic : undefined),
           };
           let nextList: VisitorConversationItem[];
           if (existingIdx >= 0) {
@@ -2174,6 +2184,23 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             ...prev,
             { role: "assistant", content: `${promptText} [BOOKING_WIDGET]`, sender: "ai", created_at: new Date().toISOString() }
           ]);
+          try {
+            await fetch(`${BACKEND_URL}/api/widget/chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+              body: JSON.stringify({
+                bot_id: botId,
+                session_id: sessionId,
+                text: `[Calendar booking offered: ${promptText}]`,
+                visitor_email: extractedVisitorInfo.email || supportEmail.trim().toLowerCase() || undefined,
+                visitor_name: extractedVisitorInfo.name || undefined,
+                visitor_timezone: visitorTimezone,
+                visitor_country: visitorCountry,
+                host: getHost(),
+                flow_tag: true,
+              }),
+            });
+          } catch { /* non-blocking */ }
           return;
         }
       }
@@ -3336,31 +3363,329 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                 {/* Conversation History */}
                 <AnimatePresence initial={false}>
                   {messages.map((msg, i) => {
-                    const hasBooking = isBookingMessage(msg.content);
-                    const bookingDone = Boolean(msg.confirmedMeeting);
+                    const visitorParsed = msg.role === "user" ? parseVisitorMessageContent(msg.content) : null;
+                    if (visitorParsed?.isSyntheticHidden) return null;
+
+                    const offlineTicketDone = messages.some((m) => m.role === "user" && /^\[Offline Support Ticket\]/i.test((m.content || "").trim()));
+                    const parsedRich = msg.role === "assistant" ? parseProductCards(msg.content) : null;
+                    const hasPrecedingBookingWidget = Boolean(
+                      parsedRich?.bookingConfirmed &&
+                      messages.slice(0, i).some((prevMsg) => prevMsg.role === "assistant" && isBookingMessage(prevMsg.content))
+                    );
+                    const msgBookingConfirmed: ConfirmedMeeting | undefined =
+                      !hasPrecedingBookingWidget && parsedRich?.bookingConfirmed
+                        ? {
+                            id: parsedRich.bookingConfirmed.id || "confirmed",
+                            meeting_link: parsedRich.bookingConfirmed.meeting_link,
+                            formatted_time: parsedRich.bookingConfirmed.formatted_time,
+                            summary: parsedRich.bookingConfirmed.summary || "Scheduled Demo Meeting",
+                            start_time: parsedRich.bookingConfirmed.start_time || "",
+                            end_time: parsedRich.bookingConfirmed.end_time || "",
+                            attendee_name: parsedRich.bookingConfirmed.attendee_name || extractedVisitorInfo.name || "Guest",
+                            attendee_email: parsedRich.bookingConfirmed.attendee_email || extractedVisitorInfo.email || supportEmail || "",
+                            assigned_to_email: parsedRich.bookingConfirmed.assigned_to_email,
+                          }
+                        : undefined;
+                    const resolvedMeeting: ConfirmedMeeting | undefined =
+                      msg.confirmedMeeting ||
+                      msgBookingConfirmed ||
+                      (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined);
+                    const shouldRenderBookingCard = Boolean(
+                      msg.role === "assistant" &&
+                      (msg.confirmedMeeting ||
+                        isBookingMessage(msg.content) ||
+                        msgBookingConfirmed ||
+                        i === lastBookingMsgIdx)
+                    );
+                    const hasBooking = shouldRenderBookingCard;
+
+                    const nextMsg = messages[i + 1];
+                    const showLegacyHandoffAckBelow = Boolean(
+                      visitorParsed?.isLiveHandoffRequest &&
+                      (!nextMsg || (nextMsg.role === "user") || (!nextMsg.content.includes("[LIVE_AGENT_REQUESTED]") && !/connecting you with our support team/i.test(nextMsg.content)))
+                    );
+
                     return (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, y: 10, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -6, scale: 0.95 }}
-                        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                        className={`flex gap-2 ${msg.role === "user" ? "ml-auto flex-row-reverse max-w-[85%]" : hasBooking ? "max-w-[95%] w-full" : "max-w-[85%]"}`}
-                      >
-                        {msg.role === "assistant" && (
-                          (msg.sender === "human" || (liveAgent && !msg.sender)) ? (
-                            <AgentAvatar
-                              src={msg.sender_avatar || activeAgentAvatar}
-                              name={msg.sender_name || activeAgentName || "Agent"}
-                              size="size-7"
-                              showStatusDot={false}
-                              primaryColor={primaryColor}
-                              onPrimary={onPrimary}
-                              bgColor={colorScheme?.avatar?.bg || logoBgColor}
-                              textColor={colorScheme?.avatar?.text}
-                              className="shrink-0"
-                            />
-                          ) : (
+                      <React.Fragment key={i}>
+                        <motion.div
+                          initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                          transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                          className={`flex gap-2 ${msg.role === "user" ? "ml-auto flex-row-reverse max-w-[85%]" : hasBooking ? "max-w-[95%] w-full" : "max-w-[85%]"}`}
+                        >
+                          {msg.role === "assistant" && (
+                            (msg.sender === "human" || (liveAgent && !msg.sender)) ? (
+                              <AgentAvatar
+                                src={msg.sender_avatar || activeAgentAvatar}
+                                name={msg.sender_name || activeAgentName || "Agent"}
+                                size="size-7"
+                                showStatusDot={false}
+                                primaryColor={primaryColor}
+                                onPrimary={onPrimary}
+                                bgColor={colorScheme?.avatar?.bg || logoBgColor}
+                                textColor={colorScheme?.avatar?.text}
+                                className="shrink-0"
+                              />
+                            ) : (
+                              <div
+                                className="agent-avatar-badge size-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden shadow-2xs"
+                                style={{
+                                  backgroundColor: colorScheme?.avatar?.bg || logoBgColor || primaryColor,
+                                  color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || logoBgColor || primaryColor),
+                                }}
+                              >
+                                {avatarInner("size-4")}
+                              </div>
+                            )
+                          )}
+                          <div className={`space-y-1 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col ${hasBooking ? "w-full min-w-0" : ""}`}>
+                            {msg.role === "assistant" && showSenderTag && (
+                              <span className="text-[10px] font-medium px-1 flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
+                                {(msg.sender === "human" || (liveAgent && !msg.sender)) ? (
+                                  <>
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                                      <User className="size-2.5" />
+                                      Human Agent
+                                    </span>
+                                    <span>{msg.sender_name || activeAgentName || "Support"}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-neutral-200/80 dark:bg-neutral-700/80 text-neutral-700 dark:text-neutral-200 flex items-center gap-1">
+                                      <Bot className="size-2.5 text-[#f97316]" />
+                                      AI
+                                    </span>
+                                    <span>{botName}</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
+                              {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
+                              {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
+                              {msg.role === "assistant" && parsedRich ? (
+                                <>
+                                  {(() => {
+                                    const { cleanContent, products, videoClips, orders, hasHandoffActions, isLiveHandoffAck, emailCaptured } = parsedRich;
+                                    return (
+                                      <>
+                                        {cleanContent && (
+                                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
+                                            {cleanContent}
+                                          </ReactMarkdown>
+                                        )}
+                                        {emailCaptured && (
+                                          <div className="mt-2 p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 text-xs space-y-1">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="flex items-center gap-1.5 font-bold text-[11px]">
+                                                <Mail className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                                                Contact Details Saved
+                                              </span>
+                                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                                                Locked
+                                              </span>
+                                            </div>
+                                            {emailCaptured.name && (
+                                              <div className="text-[11px] flex items-center gap-1.5 opacity-90">
+                                                <User className="size-3 shrink-0" />
+                                                <span>{emailCaptured.name}</span>
+                                              </div>
+                                            )}
+                                            <div className="text-[11px] font-medium flex items-center gap-1.5 opacity-95">
+                                              <Check className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                              <span className="truncate">{emailCaptured.email}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {isLiveHandoffAck && (
+                                          <div className="mt-2 p-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 text-xs">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="flex items-center gap-1.5 font-bold text-[11px]">
+                                                <Headphones className="size-3.5 text-blue-600 dark:text-blue-400" />
+                                                Live Agent Handoff Requested
+                                              </span>
+                                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                                                {liveAgent ? "Connected" : "Requested"}
+                                              </span>
+                                            </div>
+                                            <p className="text-[10px] opacity-85 mt-1">
+                                              {liveAgent ? "A human support specialist is connected to this conversation." : "Our support team has been notified and will join this chat shortly."}
+                                            </p>
+                                          </div>
+                                        )}
+                                        {products.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-2 w-full">
+                                            {products.map((p, pIdx) => (
+                                              <ProductCard
+                                                key={p.id || pIdx}
+                                                product={p}
+                                                primaryColor={primaryColor}
+                                                onSelect={(prod) => setInputValue(`Is ${prod.title} available?`)}
+                                              />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {videoClips.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-2 w-full">
+                                            {videoClips.map((c, cIdx) => (
+                                              <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {orders.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-2 w-full">
+                                            {orders.map((ord, oIdx) => (
+                                              <OrderCard key={ord.order_id || ord.order_number || oIdx} order={ord} primaryColor={primaryColor} />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {hasHandoffActions && (
+                                          <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
+                                            {i === messages.length - 1 && !isBotResponding && !liveAgent && !offlineTicketDone ? (
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  onClick={requestLiveHandoff}
+                                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                                                  style={{
+                                                    borderColor: primaryColor,
+                                                    color: primaryColor,
+                                                    backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
+                                                  }}
+                                                >
+                                                  <Headphones className="size-3.5" />
+                                                  <span>Talk to an agent</span>
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setShowOfflineForm(true)}
+                                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
+                                                >
+                                                  <Mail className="size-3.5" />
+                                                  <span>Leave email for follow-up</span>
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <div className="flex flex-wrap items-center gap-1.5 w-full">
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
+                                                  <Headphones className="size-3" />
+                                                  <span>{liveAgent ? "Human agent requested ✓" : "Talk to an agent"}</span>
+                                                </span>
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
+                                                  <Mail className="size-3" />
+                                                  <span>{offlineTicketDone ? "Follow-up email submitted ✓" : "Leave email for follow-up"}</span>
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+                                  {shouldRenderBookingCard && (
+                                    <InlineBookingCard
+                                      botId={String(botId)}
+                                      sessionId={sessionId}
+                                      visitorTimezone={visitorTimezone}
+                                      visitorCountry={visitorCountry}
+                                      primaryColor={primaryColor}
+                                      backendUrl={BACKEND_URL}
+                                      initialMeeting={resolvedMeeting}
+                                      initialName={extractedVisitorInfo.name}
+                                      initialEmail={extractedVisitorInfo.email}
+                                      initialPhone={extractedVisitorInfo.phone}
+                                      preferredText={msg.content || messages.slice(-3).map(m => m.content).join(" ")}
+                                      onBookingSuccess={(meeting) => {
+                                        setMessages((prev) => {
+                                          const updated = [...prev];
+                                          if (updated[i]) {
+                                            updated[i] = { ...updated[i], confirmedMeeting: meeting };
+                                          }
+                                          return updated;
+                                        });
+                                      }}
+                                    />
+                                  )}
+                                  {msg.sources && msg.sources.length > 0 && (
+                                    <div className="mt-2.5 pt-2 border-t border-neutral-200/70 dark:border-neutral-700/60 flex flex-wrap gap-1.5 items-center">
+                                      <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider flex items-center gap-1">
+                                        <Link2 className="size-2.5" /> Sources:
+                                      </span>
+                                      {msg.sources.map((s, sIdx) => {
+                                        const isUrl = s.url || (s.name && (s.name.startsWith("http://") || s.name.startsWith("https://")));
+                                        const href = s.url || (isUrl ? s.name : undefined);
+                                        return href ? (
+                                          <a
+                                            key={sIdx}
+                                            href={href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-200/60 hover:bg-neutral-300/80 dark:bg-neutral-700/60 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-200 transition-colors max-w-[200px] truncate"
+                                            title={s.name}
+                                          >
+                                            <span className="truncate">{s.name.replace(/^https?:\/\/(www\.)?/, "")}</span>
+                                          </a>
+                                        ) : (
+                                          <span
+                                            key={sIdx}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-200/60 dark:bg-neutral-700/60 text-neutral-600 dark:text-neutral-300 max-w-[200px] truncate"
+                                            title={s.name}
+                                          >
+                                            <FileText className="size-2.5 shrink-0 opacity-60" />
+                                            <span className="truncate">{s.name}</span>
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </>
+                              ) : visitorParsed?.offlineTicket ? (
+                                <div className="space-y-1.5 text-left min-w-[210px]">
+                                  <div className="flex items-center justify-between gap-2 pb-1 border-b border-current/15">
+                                    <span className="flex items-center gap-1.5 text-[11px] font-bold">
+                                      <Mail className="size-3.5 shrink-0" />
+                                      Support Ticket Submitted
+                                    </span>
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-black/15 dark:bg-white/15">
+                                      Locked
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] space-y-0.5 opacity-95">
+                                    <div><span className="opacity-75">Name:</span> <span className="font-semibold">{visitorParsed.offlineTicket.name}</span></div>
+                                    <div><span className="opacity-75">Email:</span> <span className="font-semibold">{visitorParsed.offlineTicket.email}</span></div>
+                                  </div>
+                                  {visitorParsed.offlineTicket.message && (
+                                    <p className="text-xs pt-1 border-t border-current/10 whitespace-pre-wrap opacity-95">
+                                      {visitorParsed.offlineTicket.message}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="whitespace-pre-wrap">{visitorParsed ? visitorParsed.cleanText : msg.content}</p>
+                              )}
+                            </div>
+                            {msg.role === "assistant" && (
+                              <div className="flex items-center gap-2 px-1 text-[10px] text-neutral-400">
+                                <span className="tabular-nums">{formatTimeAgo(msg.created_at)}</span>
+                                <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                  <button type="button" onClick={() => rateMessage(i, "up")} className={`p-0.5 rounded hover:text-green-500 cursor-pointer ${msg.feedback === "up" ? "text-green-500 font-bold" : ""}`}>
+                                    <ThumbsUp className="size-2.5" />
+                                  </button>
+                                  <button type="button" onClick={() => rateMessage(i, "down")} className={`p-0.5 rounded hover:text-red-500 cursor-pointer ${msg.feedback === "down" ? "text-red-500 font-bold" : ""}`}>
+                                    <ThumbsDown className="size-2.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                        {showLegacyHandoffAckBelow && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex gap-2 max-w-[85%]"
+                          >
                             <div
                               className="agent-avatar-badge size-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 overflow-hidden shadow-2xs"
                               style={{
@@ -3370,174 +3695,28 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                             >
                               {avatarInner("size-4")}
                             </div>
-                          )
-                        )}
-                        <div className={`space-y-1 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col ${hasBooking ? "w-full min-w-0" : ""}`}>
-                          {msg.role === "assistant" && showSenderTag && (
-                            <span className="text-[10px] font-medium px-1 flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
-                              {(msg.sender === "human" || (liveAgent && !msg.sender)) ? (
-                                <>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 flex items-center gap-1">
-                                    <User className="size-2.5" />
-                                    Human Agent
-                                  </span>
-                                  <span>{msg.sender_name || activeAgentName || "Support"}</span>
-                                </>
-                              ) : (
-                                <>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-neutral-200/80 dark:bg-neutral-700/80 text-neutral-700 dark:text-neutral-200 flex items-center gap-1">
-                                    <Bot className="size-2.5 text-[#f97316]" />
-                                    AI
-                                  </span>
-                                  <span>{botName}</span>
-                                </>
-                              )}
-                            </span>
-                          )}
-                          <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
-                            {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
-                            {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
-                            {msg.role === "assistant" ? (
-                              <>
-                                {(() => {
-                                  const { cleanContent, products, videoClips, orders, hasHandoffActions } = parseProductCards(msg.content);
-                                  return (
-                                    <>
-                                      {cleanContent && (
-                                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
-                                          {cleanContent}
-                                        </ReactMarkdown>
-                                      )}
-                                      {products.length > 0 && (
-                                        <div className="flex flex-col gap-2 my-2 w-full">
-                                          {products.map((p, pIdx) => (
-                                            <ProductCard
-                                              key={p.id || pIdx}
-                                              product={p}
-                                              primaryColor={primaryColor}
-                                              onSelect={(prod) => setInputValue(`Is ${prod.title} available?`)}
-                                            />
-                                          ))}
-                                        </div>
-                                      )}
-                                      {videoClips.length > 0 && (
-                                        <div className="flex flex-col gap-2 my-2 w-full">
-                                          {videoClips.map((c, cIdx) => (
-                                            <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
-                                          ))}
-                                        </div>
-                                      )}
-                                      {orders.length > 0 && (
-                                        <div className="flex flex-col gap-2 my-2 w-full">
-                                          {orders.map((ord, oIdx) => (
-                                            <OrderCard key={ord.order_id || ord.order_number || oIdx} order={ord} primaryColor={primaryColor} />
-                                          ))}
-                                        </div>
-                                      )}
-                                      {hasHandoffActions && i === messages.length - 1 && !isBotResponding && !liveAgent && (
-                                        <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
-                                          <button
-                                            type="button"
-                                            onClick={requestLiveHandoff}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                                            style={{
-                                              borderColor: primaryColor,
-                                              color: primaryColor,
-                                              backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
-                                            }}
-                                          >
-                                            <Headphones className="size-3.5" />
-                                            <span>Talk to an agent</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => setShowOfflineForm(true)}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
-                                          >
-                                            <Mail className="size-3.5" />
-                                            <span>Leave email for follow-up</span>
-                                          </button>
-                                        </div>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                                {(msg.confirmedMeeting || i === lastBookingMsgIdx) && (
-                                  <InlineBookingCard
-                                    botId={String(botId)}
-                                    sessionId={sessionId}
-                                    visitorTimezone={visitorTimezone}
-                                    visitorCountry={visitorCountry}
-                                    primaryColor={primaryColor}
-                                    backendUrl={BACKEND_URL}
-                                    initialMeeting={msg.confirmedMeeting || (i === lastBookingMsgIdx ? latestActiveMeeting || undefined : undefined)}
-                                    initialName={extractedVisitorInfo.name}
-                                    initialEmail={extractedVisitorInfo.email}
-                                    initialPhone={extractedVisitorInfo.phone}
-                                    preferredText={msg.content || messages.slice(-3).map(m => m.content).join(" ")}
-                                    onBookingSuccess={(meeting) => {
-                                      setMessages((prev) => {
-                                        const updated = [...prev];
-                                        if (updated[i]) {
-                                          updated[i] = { ...updated[i], confirmedMeeting: meeting };
-                                        }
-                                        return updated;
-                                      });
-                                    }}
-                                  />
-                                )}
-                                {msg.sources && msg.sources.length > 0 && (
-                                  <div className="mt-2.5 pt-2 border-t border-neutral-200/70 dark:border-neutral-700/60 flex flex-wrap gap-1.5 items-center">
-                                    <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider flex items-center gap-1">
-                                      <Link2 className="size-2.5" /> Sources:
+                            <div className="space-y-1 items-start flex flex-col">
+                              <div className="p-2.5 rounded-2xl rounded-tl-none bot-bubble bg-neutral-100 dark:bg-neutral-800 leading-relaxed">
+                                <p className="text-xs">Connecting you with our support team now. An agent has been notified and will join the conversation shortly.</p>
+                                <div className="mt-2 p-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 text-xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="flex items-center gap-1.5 font-bold text-[11px]">
+                                      <Headphones className="size-3.5 text-blue-600 dark:text-blue-400" />
+                                      Live Agent Handoff Requested
                                     </span>
-                                    {msg.sources.map((s, sIdx) => {
-                                      const isUrl = s.url || (s.name && (s.name.startsWith("http://") || s.name.startsWith("https://")));
-                                      const href = s.url || (isUrl ? s.name : undefined);
-                                      return href ? (
-                                        <a
-                                          key={sIdx}
-                                          href={href}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-200/60 hover:bg-neutral-300/80 dark:bg-neutral-700/60 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-200 transition-colors max-w-[200px] truncate"
-                                          title={s.name}
-                                        >
-                                          <span className="truncate">{s.name.replace(/^https?:\/\/(www\.)?/, "")}</span>
-                                        </a>
-                                      ) : (
-                                        <span
-                                          key={sIdx}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-neutral-200/60 dark:bg-neutral-700/60 text-neutral-600 dark:text-neutral-300 max-w-[200px] truncate"
-                                          title={s.name}
-                                        >
-                                          <FileText className="size-2.5 shrink-0 opacity-60" />
-                                          <span className="truncate">{s.name}</span>
-                                        </span>
-                                      );
-                                    })}
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                                      {liveAgent ? "Connected" : "Requested"}
+                                    </span>
                                   </div>
-                                )}
-                              </>
-                            ) : (
-                              <p className="whitespace-pre-wrap">{msg.content}</p>
-                            )}
-                          </div>
-                          {msg.role === "assistant" && (
-                            <div className="flex items-center gap-2 px-1 text-[10px] text-neutral-400">
-                              <span className="tabular-nums">{formatTimeAgo(msg.created_at)}</span>
-                              <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                <button type="button" onClick={() => rateMessage(i, "up")} className={`p-0.5 rounded hover:text-green-500 cursor-pointer ${msg.feedback === "up" ? "text-green-500 font-bold" : ""}`}>
-                                  <ThumbsUp className="size-2.5" />
-                                </button>
-                                <button type="button" onClick={() => rateMessage(i, "down")} className={`p-0.5 rounded hover:text-red-500 cursor-pointer ${msg.feedback === "down" ? "text-red-500 font-bold" : ""}`}>
-                                  <ThumbsDown className="size-2.5" />
-                                </button>
+                                  <p className="text-[10px] opacity-85 mt-1">
+                                    {liveAgent ? "A human support specialist is connected to this conversation." : "Our support team has been notified and will join this chat shortly."}
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          )}
-                        </div>
-                      </motion.div>
+                          </motion.div>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </AnimatePresence>

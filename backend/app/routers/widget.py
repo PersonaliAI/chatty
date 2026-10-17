@@ -414,41 +414,82 @@ async def widget_contact(body: WidgetContactRequest, request: Request):
         raise HTTPException(status_code=400, detail="email must be a valid email address")
     if len(body.bot_id) > 80 or len(body.session_id) > 160:
         raise HTTPException(status_code=422, detail="invalid identifiers")
-    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", body.bot_id).maybe_single().execute())
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).maybe_single().execute())
     if not bot_res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
-    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", body.bot_id).maybe_single().execute())
-    await _widget_rate_limit_or_429(bot_res.data, body.bot_id, _client_ip(request), request.headers.get("x-widget-token"))
-    existing = await run_db(lambda: supabase.table("chatty_sessions").select("id").eq(
+    bot = bot_res.data
+    await _widget_rate_limit_or_429(bot, body.bot_id, _client_ip(request), request.headers.get("x-widget-token"))
+    visitor_name = (body.name or "").strip()[:120] or None
+    existing = await run_db(lambda: supabase.table("chatty_sessions").select("id, visitor_name").eq(
         "bot_id", body.bot_id).eq("session_id", body.session_id).maybe_single().execute())
     if not existing.data:
-        return {"saved": False, "reason": "session_not_started"}
-    await run_db(lambda: supabase.table("chatty_sessions").update({"visitor_email": email}).eq("id", existing.data["id"]).execute())
+        await _upsert_session(
+            body.bot_id,
+            body.session_id,
+            f"Follow-up email saved: {email}",
+            visitor_name=visitor_name,
+            visitor_email=email,
+        )
+    else:
+        session_update: dict[str, Any] = {"visitor_email": email}
+        if visitor_name and not existing.data.get("visitor_name"):
+            session_update["visitor_name"] = visitor_name
+        await run_db(lambda: supabase.table("chatty_sessions").update(session_update).eq("id", existing.data["id"]).execute())
 
     # Upsert by bot + session so later name/phone/company capture enriches the
     # same lead rather than creating another row. Do not revoke an existing
     # opt-in from a save request that simply omitted the checkbox.
-    lead_result = await run_db(lambda: supabase.table("chatty_leads").select("id,marketing_consent").eq(
+    lead_result = await run_db(lambda: supabase.table("chatty_leads").select("id,name,marketing_consent").eq(
         "bot_id", body.bot_id).eq("session_id", body.session_id).order("created_at", desc=True).limit(1).execute())
     consent = bool(body.marketing_consent)
     lead_update: dict[str, Any] = {"email": email}
+    if visitor_name:
+        lead_update["name"] = visitor_name
     if consent:
         lead_update.update({"marketing_consent": True, "marketing_consent_at": datetime.now(timezone.utc).isoformat()})
     if lead_result.data:
         lead_id = lead_result.data[0].get("id")
+        final_consent = consent or bool(lead_result.data[0].get("marketing_consent"))
+        final_name = visitor_name or lead_result.data[0].get("name")
         await run_db(lambda: supabase.table("chatty_leads").update(lead_update).eq("id", lead_id).execute())
-        return {"saved": True, "lead_id": lead_id, "lead_created": False, "marketing_consent": consent or bool(lead_result.data[0].get("marketing_consent"))}
+        lead_created = False
+    else:
+        final_consent = consent
+        final_name = visitor_name
+        lead_insert = {
+            "bot_id": body.bot_id,
+            "session_id": body.session_id,
+            "email": email,
+            "name": visitor_name,
+            "marketing_consent": consent,
+            "marketing_consent_at": datetime.now(timezone.utc).isoformat() if consent else None,
+        }
+        created = await run_db(lambda: supabase.table("chatty_leads").insert(lead_insert).execute())
+        lead_id = (created.data or [{}])[0].get("id") if created.data else None
+        lead_created = bool(lead_id)
 
-    lead_insert = {
-        "bot_id": body.bot_id,
-        "session_id": body.session_id,
-        "email": email,
-        "marketing_consent": consent,
-        "marketing_consent_at": datetime.now(timezone.utc).isoformat() if consent else None,
-    }
-    created = await run_db(lambda: supabase.table("chatty_leads").insert(lead_insert).execute())
-    lead_id = (created.data or [{}])[0].get("id") if created.data else None
-    return {"saved": True, "lead_id": lead_id, "lead_created": bool(lead_id), "marketing_consent": consent}
+    try:
+        email_payload = json.dumps({
+            "email": email,
+            "name": final_name,
+            "marketing_consent": final_consent,
+        })
+        email_msg = f"Your follow-up email has been saved ({email}). [EMAIL_CAPTURED:{email_payload}]"
+        bot_name = bot.get("name") or "Chatty"
+        bot_av = bot.get("avatar_url") or bot.get("logo_url")
+        await run_db(lambda: supabase.table("chatty_conversations").insert({
+            "bot_id": body.bot_id,
+            "session_id": body.session_id,
+            "role": "assistant",
+            "content": email_msg,
+            "sender": "ai",
+            "sender_name": bot_name,
+            "sender_avatar": bot_av,
+        }).execute())
+    except Exception:
+        logger.exception("Failed to record EMAIL_CAPTURED message in chatty_conversations")
+
+    return {"saved": True, "lead_id": lead_id, "lead_created": lead_created, "marketing_consent": final_consent}
 
 
 @router.post("/api/widget/campaign-events")
@@ -604,6 +645,26 @@ async def widget_chat(
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
             background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
 
+    # 2b. Handle synthetic flow booking offer or flow tag events without recording fake user bubbles
+    if text.startswith("[Calendar booking offered:"):
+        prompt_text = text[len("[Calendar booking offered:") :].rstrip("]").strip() or "Let's schedule a meeting! Pick a convenient time below:"
+        booking_reply = prompt_text if "[BOOKING_WIDGET]" in prompt_text else f"{prompt_text} [BOOKING_WIDGET]"
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": booking_reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save flow booking widget message")
+        return WidgetChatResponse(reply=booking_reply, session_id=session_id, ai_paused=bool(session_row.get("ai_paused")))
+
+    if text.startswith("[Flow tag:"):
+        return WidgetChatResponse(reply="", session_id=session_id, ai_paused=bool(session_row.get("ai_paused")))
+
     # 3. Save user message
     user_event_data = {
         "content": text,
@@ -634,10 +695,37 @@ async def widget_chat(
         data=user_event_data,
     )
 
-    if body.offline_ticket:
-        return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
+    if body.offline_ticket or text.startswith("[Offline Support Ticket]"):
+        offline_ack = "Thank you! Your follow-up email and message have been received. Our team will get back to you via email shortly."
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": offline_ack, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save offline ticket confirmation")
+        return WidgetChatResponse(reply=offline_ack, session_id=session_id, ai_paused=True)
 
-    # 2c. If a human agent has taken over, don't run the AI - they'll reply.
+    # 2c. If a human agent has taken over or visitor requested live handoff, record confirmation if explicit handoff request
+    if "[Visitor requested live agent" in text or (body.ai_paused and not session_row.get("ai_paused")):
+        handoff_ack = "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you. [LIVE_AGENT_REQUESTED]"
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": handoff_ack, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save live agent handoff confirmation")
+        return WidgetChatResponse(reply=handoff_ack, session_id=session_id, ai_paused=True)
+
     if session_row.get("ai_paused") or body.ai_paused or (esc and "human agent" in esc.lower()):
         return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
 
@@ -823,6 +911,33 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
             background_tasks.add_task(send_slack_escalation_alert, bot_id, session_id, esc, priority_val, text)
 
+    def _sse(obj: dict) -> str:
+        return f"data: {json.dumps(obj)}\n\n"
+
+    if text.startswith("[Calendar booking offered:"):
+        prompt_text = text[len("[Calendar booking offered:") :].rstrip("]").strip() or "Let's schedule a meeting! Pick a convenient time below:"
+        booking_reply = prompt_text if "[BOOKING_WIDGET]" in prompt_text else f"{prompt_text} [BOOKING_WIDGET]"
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": booking_reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save stream flow booking widget message")
+        async def _booking_gen():
+            yield _sse({"type": "delta", "text": booking_reply})
+            yield _sse({"type": "done", "session_id": session_id, "sources": []})
+        return StreamingResponse(_booking_gen(), media_type="text/event-stream", background=background_tasks)
+
+    if text.startswith("[Flow tag:"):
+        async def _tag_gen():
+            yield _sse({"type": "done", "session_id": session_id, "sources": []})
+        return StreamingResponse(_tag_gen(), media_type="text/event-stream", background=background_tasks)
+
     user_event_data = {
         "content": text,
         "visitor_name": visitor_name,
@@ -851,13 +966,39 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         data=user_event_data,
     )
 
-    def _sse(obj: dict) -> str:
-        return f"data: {json.dumps(obj)}\n\n"
-
-    if body.offline_ticket:
+    if body.offline_ticket or text.startswith("[Offline Support Ticket]"):
+        offline_ack = "Thank you! Your follow-up email and message have been received. Our team will get back to you via email shortly."
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": offline_ack, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save stream offline ticket confirmation")
         async def _offline_gen():
             yield _sse({"type": "paused"})
         return StreamingResponse(_offline_gen(), media_type="text/event-stream", background=background_tasks)
+
+    if "[Visitor requested live agent" in text or (body.ai_paused and not session_row.get("ai_paused")):
+        handoff_ack = "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you. [LIVE_AGENT_REQUESTED]"
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": handoff_ack, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save stream live agent handoff confirmation")
+        async def _handoff_gen():
+            yield _sse({"type": "paused"})
+        return StreamingResponse(_handoff_gen(), media_type="text/event-stream", background=background_tasks)
 
     # Human agent took over - nothing to stream.
     if session_row.get("ai_paused") or body.ai_paused or (esc and "human agent" in esc.lower()):
@@ -2297,11 +2438,25 @@ async def widget_booking_confirm(
         or "https://meet.google.com/"
     )
 
+    assigned_email = exec_res.get("assigned_to_email") or (owner_user.get("email") or "").strip().lower()
+    meeting_id_val = exec_res.get("meeting_id") or exec_res.get("id")
+    booking_meta = json.dumps({
+        "id": meeting_id_val,
+        "formatted_time": formatted_time,
+        "meeting_link": meeting_link,
+        "summary": summary,
+        "start_time": body.start_time,
+        "end_time": body.end_time,
+        "attendee_name": visitor_name,
+        "attendee_email": visitor_email,
+        "assigned_to_email": assigned_email,
+    })
+
     # Append confirmation to chatty_conversations so the chat history records the scheduled event
     confirmation_msg = (
         f"Your demo is scheduled for {formatted_time}.\n\n"
         f"Meeting Link: {meeting_link}\n\n"
-        f"A calendar invitation has been sent to {visitor_email}. See you there!"
+        f"A calendar invitation has been sent to {visitor_email}. See you there! [BOOKING_CONFIRMED:{booking_meta}]"
     )
     if body.session_id:
         try:
@@ -2346,11 +2501,9 @@ async def widget_booking_confirm(
         else:
             logger.warning("WhatsApp booking confirmation skipped: invalid, missing, or expired HMAC signature")
 
-    assigned_email = exec_res.get("assigned_to_email") or (owner_user.get("email") or "").strip().lower()
-
     return {
         "success": True,
-        "meeting_id": exec_res.get("meeting_id") or exec_res.get("id"),
+        "meeting_id": meeting_id_val,
         "meeting_link": meeting_link,
         "formatted_time": formatted_time,
         "summary": summary,
@@ -2589,12 +2742,25 @@ async def widget_booking_reschedule(
     meeting_link = meeting.get("meeting_link") or "https://meet.google.com/"
 
     # 9. Record confirmation message in chatty_conversations
+    assigned_email = meeting.get("assigned_to_email") or host_user.get("email")
+    resched_summary = meeting.get("title") or f"Demo Meeting with {meeting.get('attendee_name') or 'Guest'}"
     if body.session_id:
         try:
+            resched_meta = json.dumps({
+                "id": meeting["id"],
+                "formatted_time": formatted_time,
+                "meeting_link": meeting_link,
+                "summary": resched_summary,
+                "start_time": body.new_start_time,
+                "end_time": body.new_end_time,
+                "attendee_name": meeting.get("attendee_name") or "Guest",
+                "attendee_email": visitor_email,
+                "assigned_to_email": assigned_email,
+            })
             confirmation_msg = (
                 f"Your meeting has been rescheduled to {formatted_time}.\n\n"
                 f"Meeting Link: {meeting_link}\n\n"
-                f"A calendar invitation update has been sent to {visitor_email}."
+                f"A calendar invitation update has been sent to {visitor_email}. [BOOKING_CONFIRMED:{resched_meta}]"
             )
             await run_db(lambda: supabase.table("chatty_conversations").insert({
                 "bot_id": body.bot_id,
@@ -2611,11 +2777,12 @@ async def widget_booking_reschedule(
         "meeting_id": meeting["id"],
         "meeting_link": meeting_link,
         "formatted_time": formatted_time,
+        "summary": resched_summary,
         "start_time": body.new_start_time,
         "end_time": body.new_end_time,
         "attendee_name": meeting.get("attendee_name") or "Guest",
         "attendee_email": visitor_email,
-        "assigned_to_email": meeting.get("assigned_to_email") or host_user.get("email"),
+        "assigned_to_email": assigned_email,
     }
 
 
@@ -2744,10 +2911,12 @@ async def widget_booking_active(
             m = res.data[0]
             from plugins.agent_tools import _format_invitation_time
             return {
+                "success": True,
                 "has_active": True,
                 "meeting": {
                     "id": m["id"],
                     "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
+                    "summary": m.get("title") or f"Demo Meeting with {m.get('attendee_name') or 'Guest'}",
                     "start_time": m["start_time"],
                     "end_time": m["end_time"],
                     "attendee_name": m.get("attendee_name") or "Guest",
@@ -2781,10 +2950,12 @@ async def widget_booking_active(
                     m = res.data[0]
                     from plugins.agent_tools import _format_invitation_time
                     return {
+                        "success": True,
                         "has_active": True,
                         "meeting": {
                             "id": m["id"],
                             "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
+                            "summary": m.get("title") or f"Demo Meeting with {m.get('attendee_name') or 'Guest'}",
                             "start_time": m["start_time"],
                             "end_time": m["end_time"],
                             "attendee_name": m.get("attendee_name") or "Guest",
@@ -2796,4 +2967,4 @@ async def widget_booking_active(
         except Exception:
             logger.exception("Failed looking up active meeting by session")
 
-    return {"has_active": False, "meeting": None}
+    return {"success": False, "has_active": False, "meeting": None}

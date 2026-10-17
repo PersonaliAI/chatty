@@ -56,6 +56,7 @@ import { AttachMenu } from "@/components/attach-menu";
 import { createClient } from "@/lib/supabase/client";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 import { MessageList, type InboxMeeting, type Msg } from "@/components/inbox-message-list";
+import { formatMessagePreview } from "@/lib/rich-content";
 import { InboxVisitorDetails } from "@/components/inbox-visitor-details";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 
@@ -2168,7 +2169,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   )}
 
                   <p className="text-[10px] text-neutral-400 truncate mt-0.5">
-                    {s.last_message || "…"}
+                    {formatMessagePreview(s.last_message) || "…"}
                   </p>
 
                   {/* Badges Row: Priority, SLA, Channel, Assignee, Tags */}
