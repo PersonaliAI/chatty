@@ -105,7 +105,7 @@ function getHeadingSlug(children: any): string {
     .replace(/[\s_-]+/g, "-");
 }
 
-import { sanitizeArticleHtml } from "@/lib/sanitize-html";
+import { renderSafeArticleHtml } from "@/lib/sanitize-html";
 
 const kbMarkdownComponents = {
   a: SafeMarkdownLink,
@@ -749,7 +749,7 @@ export default function KnowledgeBasePortal() {
                 {/* Rich Markdown Article Body */}
                 <article className="prose dark:prose-invert prose-neutral max-w-none text-xs sm:text-sm leading-relaxed space-y-4">
                   {/<[a-z][\s\S]*>/i.test(selectedArticle.content) ? (
-                    <div dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(selectedArticle.content) }} />
+                    <div>{renderSafeArticleHtml(selectedArticle.content)}</div>
                   ) : (
                     <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbMarkdownComponents}>
                       {selectedArticle.content}

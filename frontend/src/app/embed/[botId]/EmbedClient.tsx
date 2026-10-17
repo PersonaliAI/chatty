@@ -416,7 +416,7 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
   );
 }
 
-import { sanitizeArticleHtml } from "@/lib/sanitize-html";
+import { renderSafeArticleHtml } from "@/lib/sanitize-html";
 
 interface EmbedClientProps {
   botId: string;
@@ -3657,10 +3657,9 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                         ) : (
                           <div className="text-xs leading-relaxed space-y-2 prose prose-xs dark:prose-invert max-w-none">
                             {activeArticle.content?.trim().startsWith("<") ? (
-                              <div
-                                className="article-html-body space-y-2"
-                                dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(activeArticle.content) }}
-                              />
+                              <div className="article-html-body space-y-2">
+                                {renderSafeArticleHtml(activeArticle.content)}
+                              </div>
                             ) : (
                               <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={mdComponents}>
                                 {activeArticle.content || activeArticle.subtitle || "No additional content."}

@@ -200,7 +200,7 @@ interface KBManagerProps {
   initialSubTab?: KBSubTab;
 }
 
-import { sanitizeArticleHtml } from "@/lib/sanitize-html";
+import { renderSafeArticleHtml } from "@/lib/sanitize-html";
 
 export function KBManager({
   botId,
@@ -1237,7 +1237,7 @@ export function KBManager({
                   <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white dark:bg-neutral-900 p-6 max-h-[460px] overflow-y-auto">
                     <article className="prose dark:prose-invert prose-xs text-neutral-700 dark:text-neutral-300 max-w-none leading-relaxed space-y-3">
                       {/<[a-z][\s\S]*>/i.test(editorContent) ? (
-                        <div dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(editorContent || "") }} />
+                        <div>{renderSafeArticleHtml(editorContent || "")}</div>
                       ) : (
                         <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]} components={kbPreviewMarkdownComponents}>
                           {editorContent || "*No content written yet.*"}
