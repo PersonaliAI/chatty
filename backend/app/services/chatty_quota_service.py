@@ -17,7 +17,7 @@ from app.core.db import run_db
 logger = logging.getLogger("chatty.quota")
 
 PLAN_QUOTAS: dict[str, int] = {
-    "free": 100,
+    "free": 1000,
     "basic": 500,
     "pro": 3000,
     "executive": 15000,

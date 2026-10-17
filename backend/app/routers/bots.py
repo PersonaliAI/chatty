@@ -839,7 +839,7 @@ async def get_user_profile(
         "role": (row or {}).get("role") or user.get("role") or "user",
         "role_title": role_title,
         "is_bot_custom": is_bot_custom,
-        "plan": (row or {}).get("plan") or "free",
+        "plan": ((row or {}).get("plan") if (row or {}).get("plan") not in (None, "", "free") else "chatty_standard"),
         "subscription_status": (row or {}).get("subscription_status"),
         "subscription_renews_at": (row or {}).get("subscription_renews_at"),
         "created_at": (row or {}).get("created_at") or user.get("created_at"),
@@ -859,7 +859,16 @@ async def save_user_onboarding(
     user_id = user["auth_user_id"]
     email = user.get("email") or ""
 
-    plan_preference = (body.get("plan_preference") or "chatty_standard").strip()
+    raw_plan = (body.get("plan_preference") or "chatty_standard").strip().lower()
+    plan_map = {
+        "hobby": "chatty_hobby",
+        "chatty_hobby": "chatty_hobby",
+        "standard": "chatty_standard",
+        "chatty_standard": "chatty_standard",
+        "business": "chatty_business",
+        "chatty_business": "chatty_business",
+    }
+    plan_preference = plan_map.get(raw_plan, "chatty_standard")
     company_name = (body.get("company_name") or "").strip()
     company_size = (body.get("company_size") or "").strip()
     company_role = (body.get("company_role") or "").strip()
@@ -870,9 +879,8 @@ async def save_user_onboarding(
     updates: dict[str, Any] = {
         "onboarding_completed": True,
         "terms_accepted_at": now_iso,
+        "plan": plan_preference,
     }
-    if plan_preference in ("chatty_hobby", "chatty_standard", "chatty_business"):
-        updates["plan"] = plan_preference
     if referral_source:
         updates["initial_utm_source"] = referral_source
 

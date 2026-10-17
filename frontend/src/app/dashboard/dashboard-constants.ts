@@ -260,14 +260,14 @@ export const LOCALE_TEXTS: Record<string, Record<string, string>> = {
 };
 
 export const PLAN_LABELS: Record<string, string> = {
-  free: "Free",
+  free: "Standard (14-Day Trial)",
   chatty_hobby: "Hobby",
   chatty_standard: "Standard",
   chatty_business: "Business",
 };
 
 export const MAX_BOTS_BY_PLAN: Record<string, number> = {
-  free: 1,
+  free: 6,
   chatty_hobby: 3,
   chatty_standard: 6,
   chatty_business: Infinity,

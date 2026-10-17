@@ -595,7 +595,7 @@ const COMPARISONS = [
   },
   {
     feature: "Zero-Markup BYOK (OpenAI/Anthropic)",
-    chatty: "Included Free Forever",
+    chatty: "Supported + Self-Host Free",
     intercom: "Not Supported",
     zendesk: "Not Supported",
     crisp: "Not Supported",
@@ -623,7 +623,7 @@ const COMPARISONS = [
   },
   {
     feature: "Pricing Model",
-    chatty: "Flat Rate or Free BYOK",
+    chatty: "3 Flat Plans (14-Day Trial) or Self-Host Free",
     intercom: "$39/seat + $0.99/resolution",
     zendesk: "$55/seat + AI add-on",
     crisp: "$95/mo + limited AI",
@@ -1534,7 +1534,7 @@ export default function LandingClient() {
                 <Check className="size-4 text-emerald-600" /> No credit card required
               </span>
               <span className="flex items-center gap-1.5">
-                <Check className="size-4 text-emerald-600" /> Free BYOK tier forever
+                <Check className="size-4 text-emerald-600" /> 14-day free trial on all plans
               </span>
               <span className="flex items-center gap-1.5">
                 <Check className="size-4 text-emerald-600" /> 2-minute embed script
@@ -1916,7 +1916,7 @@ export default function LandingClient() {
                   markup on tokens, providing total cost predictability.
                 </p>
                 <div className="mt-4 pt-3 border-t border-zinc-100 flex items-center gap-2 text-[11px] font-mono text-zinc-600">
-                  <Check className="size-3.5 text-emerald-600" /> Free forever tier available
+                  <Check className="size-3.5 text-emerald-600" /> Self-host open source 100% free
                 </div>
               </div>
             </div>
@@ -2036,7 +2036,7 @@ export default function LandingClient() {
                     href="/signup"
                     className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#f95721] hover:bg-[#ea4815] py-3 text-xs font-bold text-white transition-colors shadow-md shadow-orange-500/20"
                   >
-                    <span>Start Deflecting Today (Free)</span>
+                    <span>Start 14-Day Free Trial</span>
                     <ArrowRight className="size-3.5" />
                   </Link>
                 </div>
@@ -2103,11 +2103,11 @@ export default function LandingClient() {
                 {"// TRANSPARENT PRICING"}
               </p>
               <h2 className="mt-3 font-display text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950">
-                Predictable plans. No hidden per-resolution tax.
+                Predictable plans. 14-day free trial on every tier.
               </h2>
               <p className="mt-3 text-sm sm:text-base text-zinc-600">
-                Start completely free with your own API keys, or upgrade for managed AI credits, multi-bot fleets, and
-                white-label branding.
+                Every cloud plan includes a full-featured 14-day free trial with no credit card required. The only free
+                forever option is self-hosting our open-source stack on your own infrastructure.
               </p>
 
               {/* Monthly vs Annual Toggle */}
@@ -2136,59 +2136,27 @@ export default function LandingClient() {
               </div>
             </div>
 
-            {/* Pricing Cards Grid */}
-            <div className="mt-14 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch max-w-7xl mx-auto">
-              {/* Plan 1: Free BYOK */}
+            {/* Pricing Cards Grid (3 Cloud Plans) */}
+            <div className="mt-14 grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch max-w-6xl mx-auto">
+              {/* Plan 1: Hobby */}
               <div className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
                 <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Free BYOK</span>
-                  <div className="mt-3 flex items-baseline gap-1">
-                    <span className="font-display text-4xl font-bold text-zinc-950">$0</span>
-                    <span className="text-xs font-mono text-zinc-400">/ forever</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Hobby</span>
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700">
+                      14-Day Free Trial
+                    </span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-600">Bring your own model keys with zero platform fee.</p>
-
-                  <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
-                    <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> 1 Live AI Agent
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Bring OpenAI, Anthropic, Gemini
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> 100 platform AI credits/mo
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Knowledge RAG training
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Conversational lead capture
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Zero token markup
-                    </li>
-                  </ul>
-                </div>
-
-                <Link
-                  href="/signup"
-                  className="mt-8 block w-full rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 py-2.5 text-center text-xs font-bold text-zinc-900 transition-all shadow-sm"
-                >
-                  Deploy Free BYOK
-                </Link>
-              </div>
-
-              {/* Plan 2: Hobby */}
-              <div className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
-                <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Hobby</span>
                   <div className="mt-3 flex items-baseline gap-1">
                     <span className="font-display text-4xl font-bold text-zinc-950">{isAnnual ? "$15" : "$19"}</span>
                     <span className="text-xs font-mono text-zinc-400">/ mo</span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-600">For indie builders & solo founders.</p>
+                  <p className="mt-2 text-xs text-zinc-600">For indie builders &amp; solo founders.</p>
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
+                    <li className="flex items-center gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 14-day free trial included
+                    </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> 3 Live AI Agents
                     </li>
@@ -2199,7 +2167,7 @@ export default function LandingClient() {
                       <Check className="size-4 text-emerald-600 shrink-0" /> 10M characters knowledge base
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Analytics & visitor logs
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Analytics &amp; visitor logs
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> Calendar booking integration
@@ -2208,30 +2176,38 @@ export default function LandingClient() {
                 </div>
 
                 <Link
-                  href="/signup"
+                  href="/signup?plan=chatty_hobby"
                   className="mt-8 block w-full rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 py-2.5 text-center text-xs font-bold text-zinc-900 transition-all shadow-sm"
                 >
-                  Get Started
+                  Start 14-Day Free Trial
                 </Link>
               </div>
 
-              {/* Plan 3: Standard (Highlighted) */}
+              {/* Plan 2: Standard (Highlighted) */}
               <div className="rounded-2xl border-2 border-[#f95721] bg-white p-6 flex flex-col justify-between shadow-xl relative">
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#f95721] px-3 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-white">
                   MOST POPULAR
                 </span>
 
                 <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#f95721]">
-                    Standard
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#f95721]">
+                      Standard
+                    </span>
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700">
+                      14-Day Free Trial
+                    </span>
+                  </div>
                   <div className="mt-3 flex items-baseline gap-1">
                     <span className="font-display text-4xl font-bold text-zinc-950">{isAnnual ? "$79" : "$99"}</span>
                     <span className="text-xs font-mono text-zinc-400">/ mo</span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-600">For fast-growing SaaS & support teams.</p>
+                  <p className="mt-2 text-xs text-zinc-600">For fast-growing SaaS &amp; support teams.</p>
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-800">
+                    <li className="flex items-center gap-2">
+                      <Check className="size-4 text-[#f95721] shrink-0" /> 14-day free trial included
+                    </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-[#f95721] shrink-0" /> 6 Live AI Agents
                     </li>
@@ -2254,29 +2230,34 @@ export default function LandingClient() {
                 </div>
 
                 <Link
-                  href="/signup"
+                  href="/signup?plan=chatty_standard"
                   className="mt-8 block w-full rounded-xl bg-[#f95721] hover:bg-[#ea4815] py-2.5 text-center text-xs font-bold text-white transition-all shadow-md shadow-orange-500/20"
                 >
                   Start 14-Day Free Trial
                 </Link>
               </div>
 
-              {/* Plan 4: Business */}
+              {/* Plan 3: Business */}
               <div className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
                 <div>
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Business</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">Business</span>
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700">
+                      14-Day Free Trial
+                    </span>
+                  </div>
                   <div className="mt-3 flex items-baseline gap-1">
                     <span className="font-display text-4xl font-bold text-zinc-950">{isAnnual ? "$319" : "$399"}</span>
                     <span className="text-xs font-mono text-zinc-400">/ mo</span>
                   </div>
-                  <p className="mt-2 text-xs text-zinc-600">For high-volume enterprises & agencies.</p>
+                  <p className="mt-2 text-xs text-zinc-600">For high-volume enterprises &amp; agencies.</p>
 
                   <ul className="mt-6 space-y-2.5 text-xs text-zinc-700">
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Unlimited agent configurations
+                      <Check className="size-4 text-emerald-600 shrink-0" /> 14-day free trial included
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Fair-use limits apply
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Unlimited agent configurations (fair-use)
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> 40,000 weighted AI credits/mo
@@ -2285,10 +2266,10 @@ export default function LandingClient() {
                       <Check className="size-4 text-emerald-600 shrink-0" /> 50M characters knowledge base
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Full white-label controls
+                      <Check className="size-4 text-emerald-600 shrink-0" /> BYOK &amp; Full white-label controls
                     </li>
                     <li className="flex items-center gap-2">
-                      <Check className="size-4 text-emerald-600 shrink-0" /> Management API & Webhooks
+                      <Check className="size-4 text-emerald-600 shrink-0" /> Management API &amp; Webhooks
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="size-4 text-emerald-600 shrink-0" /> Priority 99.9% uptime SLA
@@ -2297,12 +2278,41 @@ export default function LandingClient() {
                 </div>
 
                 <Link
-                  href="/signup"
+                  href="/signup?plan=chatty_business"
                   className="mt-8 block w-full rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 py-2.5 text-center text-xs font-bold text-zinc-900 transition-all shadow-sm"
                 >
-                  Deploy Business
+                  Start 14-Day Free Trial
                 </Link>
               </div>
+            </div>
+
+            {/* Self-Hosted Open Source — Only Free Option */}
+            <div className="mt-8 max-w-6xl mx-auto rounded-2xl border border-zinc-200 bg-zinc-50/70 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2 max-w-2xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700">
+                    Only Free Option
+                  </span>
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-500">
+                    Self-Hosted / Open Source
+                  </span>
+                </div>
+                <h3 className="font-display text-xl sm:text-2xl font-bold text-zinc-950">
+                  Self-Host on Your Own Infrastructure &mdash; $0 Forever
+                </h3>
+                <p className="text-xs sm:text-sm text-zinc-600 leading-relaxed">
+                  Want a 100% free setup? Deploy the open-source Chatty stack on your own servers using Docker and PostgreSQL/pgvector, bring your own LLM API keys (OpenAI, Anthropic, Gemini, OpenRouter), and manage everything yourself.
+                </p>
+              </div>
+              <a
+                href="https://github.com/PersonaliAI/chatty"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white hover:bg-zinc-100 px-5 py-3 text-xs font-bold text-zinc-900 transition-all shadow-sm"
+              >
+                <GithubIcon className="size-4 text-zinc-800" />
+                <span>Self-Host via GitHub</span>
+              </a>
             </div>
           </div>
         </section>

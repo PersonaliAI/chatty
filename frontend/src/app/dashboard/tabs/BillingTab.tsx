@@ -36,7 +36,7 @@ interface BillingTabProps {
 }
 
 const PLAN_LABELS: Record<string, string> = {
-  free: "Free",
+  free: "Standard (14-Day Trial)",
   chatty_hobby: "Hobby",
   chatty_standard: "Standard",
   chatty_business: "Business",
@@ -44,11 +44,11 @@ const PLAN_LABELS: Record<string, string> = {
 
 const PLAN_FEATURES: Record<string, string[]> = {
   free: [
-    "100 AI credits/mo",
-    "Bring your own model key",
-    "1 chatbot",
-    "Basic AI models",
-    "100 MB Media Storage (50 products)",
+    "14-day free trial included",
+    "10,000 weighted AI credits/mo",
+    "20M training characters",
+    "6 chatbots",
+    "2 GB Media Storage (1,500 products)",
   ],
   chatty_hobby: [
     "1,000 weighted AI credits/mo",
@@ -558,7 +558,8 @@ export function BillingTab({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {PLAN_CARDS.map((card) => {
-            const isCurrent = plan.includes(card.id);
+            const isCurrent = isPaid && plan.includes(card.id);
+            const isTrialPlan = !isPaid && (plan.includes(card.id) || (plan === "free" && card.id === "standard"));
             const price =
               billingInterval === "yearly" ? card.yearly : card.monthly;
 
@@ -577,7 +578,14 @@ export function BillingTab({
                   </span>
                 )}
                 <div>
-                  <h4 className="text-base font-bold">{card.label}</h4>
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-base font-bold">{card.label}</h4>
+                    {isTrialPlan && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold uppercase">
+                        14-Day Trial
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-neutral-400 mt-1 min-h-[32px]">
                     {card.blurb}
                   </p>
@@ -614,12 +622,38 @@ export function BillingTab({
                         : "border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 font-semibold"
                     }`}
                   >
-                    {isPaid ? "Switch Plan" : "Upgrade"}
+                    {isPaid ? "Switch Plan" : `Activate ${card.label}`}
                   </Link>
                 )}
               </div>
             );
           })}
+        </div>
+
+        {/* Self-Hosted Open Source — Only Free Option */}
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/60 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold uppercase">
+                Only Free Option
+              </span>
+              <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                Self-Host Open Source ($0 Forever)
+              </span>
+            </div>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              All cloud plans include a 14-day free trial. To run Chatty 100% free forever, self-host the open-source stack on your own server with Docker and bring your own API keys.
+            </p>
+          </div>
+          <a
+            href="https://github.com/PersonaliAI/chatty"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 px-4 py-2 text-xs font-semibold text-neutral-900 dark:text-white transition-colors"
+          >
+            <span>Self-Host via GitHub</span>
+            <ExternalLink className="size-3.5" />
+          </a>
         </div>
       </div>
 

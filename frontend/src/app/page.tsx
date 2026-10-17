@@ -67,7 +67,7 @@ const featuresList: Feature[] = [
   { title: "Inbox", desc: "Access conversations between your AI agent and page visitors." },
   { title: "AI Models", desc: "GPT-5.3, Claude Opus, Mistral, Gemini... Switch between AI models at any time." },
   { title: "AI Agent API", desc: "Use our powerful API and access your AI agent from other apps." },
-  { title: "BYOK (Free Forever)", desc: "Provide your own OpenAI, Anthropic, Gemini, or OpenRouter API key. 100% free option - no paid plan required." },
+  { title: "Self-Hosted & BYOK", desc: "Bring your own OpenAI, Anthropic, Gemini, or OpenRouter API keys, or self-host the open-source stack 100% free on your own servers." },
   { title: "Multilingual", desc: "Our AI agents can use over 95 languages out of the box." },
   { title: "Customizable", desc: "Change name, icon, theme, position, color, CSS, JS... make it yours." },
   { title: "Guardrails", desc: "Prevent abuse. Get a reliable and assertive AI agent, not 'ChatGPT for free'." },
@@ -80,7 +80,7 @@ const featuresList: Feature[] = [
 
 const faqs = [
   { question: "How do I train my AI agent?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text - it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
-  { question: "Can I use my own API keys?", answer: "Yes! BYOK (Bring Your Own Key) is 100% free forever - there is no need to buy a plan for BYOK. Simply plug in your own OpenAI, Anthropic, Gemini, or OpenRouter key and pay only your model provider directly with zero platform markup." },
+  { question: "Is there a free plan or can I self-host?", answer: "All 3 cloud plans (Hobby, Standard, and Business) include a full-featured 14-day free trial with no credit card required. The only 100% free forever option is self-hosting the open-source Chatty stack on your own infrastructure via Docker and bringing your own LLM API keys." },
   { question: "What counts as a 'message credit'?", answer: "Each reply your AI agent sends to a visitor uses one message credit. Credits reset every billing cycle, and unused credits don't roll over." },
   { question: "How does lead collection work?", answer: "Chatty can ask for a visitor's name, email, and phone number mid-conversation, save it automatically to your dashboard, and push it to your CRM or inbox via webhook or API." },
   { question: "Can I embed the AI agent on multiple sites?", answer: "Yes - each AI agent can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
@@ -163,24 +163,10 @@ const helpArticles = [
 
 const plans = [
   {
-    key: "byok", tag: "FREE FOREVER", name: "Free (BYOK)", monthly: 0, popular: false,
-    desc: "Bring your own API key. 100% free forever - zero subscription fee.",
-    features: [
-      "100% Free - No paid plan needed",
-      "BYOK (Bring-Your-Own-Key)",
-      "OpenAI, Anthropic, Gemini, OpenRouter",
-      "1 AI agent",
-      "100 platform AI credits/mo (pay LLM directly)",
-      "Knowledge base training (5M chars)",
-      "100 MB Media Storage (50 products)",
-      "Lead collection & Contact forms",
-      "No credit card required",
-    ],
-  },
-  {
-    key: "hobby", tag: "HOBBY", name: "Hobby", monthly: 19, popular: false,
+    key: "hobby", tag: "HOBBY", name: "Hobby", monthly: 19, yearlyMonthly: 15, popular: false,
     desc: "Perfect for individuals, developers, and side projects.",
     features: [
+      "14-day free trial included",
       "1,000 weighted AI credits/mo",
       "10M training characters",
       "500 MB Media Storage (250 products)",
@@ -193,9 +179,10 @@ const plans = [
     ],
   },
   {
-    key: "standard", tag: "STANDARD", name: "Standard", monthly: 99, popular: true,
+    key: "standard", tag: "STANDARD", name: "Standard", monthly: 99, yearlyMonthly: 79, popular: true,
     desc: "All in Hobby, plus advanced automation and multi-bot systems.",
     features: [
+      "14-day free trial included",
       "10,000 weighted AI credits/mo",
       "20M training characters",
       "2 GB Media Storage (1,500 products)",
@@ -206,13 +193,15 @@ const plans = [
     ],
   },
   {
-    key: "business", tag: "BUSINESS", name: "Business", monthly: 399, popular: false,
+    key: "business", tag: "BUSINESS", name: "Business", monthly: 399, yearlyMonthly: 319, popular: false,
     desc: "For enterprise scale, heavy traffic, and reseller options.",
     features: [
+      "14-day free trial included",
       "40,000 weighted AI credits/mo",
       "50M training characters",
       "10 GB Media Storage (Unlimited products)",
       "Unlimited agent configurations (fair-use limits apply)",
+      "BYOK (Bring-Your-Own-Key) option",
       "White-label configuration",
       "Management Admin API",
     ],
@@ -504,8 +493,8 @@ export default function Home() {
         <section id="pricing" className="py-14 sm:py-16">
           <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 01 / Transparent Fees ]</span>
           <h2 className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Pricing plans</h2>
-          <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[56ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
-            Start with our 100% free BYOK option (no credit card required), or choose a tier with bundled AI credits and a 14-day free trial.
+          <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[60ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+            Every cloud plan includes a full-featured <strong>14-day free trial</strong> with no credit card required. The only free forever option is self-hosting our open-source stack on your own infrastructure.
           </p>
 
           <div className="inline-flex rounded-full overflow-hidden border mt-7" style={{ borderColor: "var(--color-divider)" }}>
@@ -523,40 +512,40 @@ export default function Home() {
             >
               Yearly
               <span className="rounded-full text-[10px] px-1.5 py-0.5 font-bold" style={{ background: isYearly ? "var(--color-bg)" : "var(--color-accent-100)", color: isYearly ? "var(--color-accent-700)" : "var(--color-accent-800)" }}>
-                2 months free
+                Save 20%
               </span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-9">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-9">
             {plans.map((plan) => (
               <div
                 key={plan.key}
-                className="flex flex-col p-6 rounded-[28px]"
+                className="flex flex-col p-6 sm:p-7 rounded-[28px]"
                 style={
                   plan.popular
                     ? { background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", border: "2px solid var(--color-accent)" }
-                    : { background: "var(--color-surface)" }
+                    : { background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }
                 }
               >
-                {plan.popular && (
-                  <span className="self-start rounded-full text-[11px] font-semibold px-3 py-1 mb-1.5" style={{ background: "var(--color-accent-100)", color: "var(--color-accent-800)" }}>
-                    Popular choice
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  {plan.popular && (
+                    <span className="rounded-full text-[11px] font-semibold px-3 py-1" style={{ background: "var(--color-accent-100)", color: "var(--color-accent-800)" }}>
+                      Popular choice
+                    </span>
+                  )}
+                  <span className="rounded-full text-[11px] font-semibold px-3 py-1" style={{ background: "var(--color-accent-2-100)", color: "var(--color-accent-2-800)" }}>
+                    14-Day Free Trial
                   </span>
-                )}
-                {plan.monthly === 0 && (
-                  <span className="self-start rounded-full text-[11px] font-semibold px-3 py-1 mb-1.5" style={{ background: "var(--color-accent-2-100)", color: "var(--color-accent-2-800)" }}>
-                    100% Free Forever
-                  </span>
-                )}
+                </div>
                 <span className="text-xs tracking-wide uppercase mt-1.5" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>[ PLAN: {plan.tag} ]</span>
                 <h3 className="text-2xl mt-2" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{plan.name}</h3>
                 <div className="mt-2.5 flex items-baseline gap-1.5">
                   <p className="text-[32px]" style={{ fontFamily: "var(--font-heading)", color: "var(--color-accent-700)" }}>
-                    {plan.monthly === 0 ? "$0" : (isYearly ? `$${plan.monthly * 10}/yr` : `$${plan.monthly}/mo`)}
+                    ${isYearly ? plan.yearlyMonthly : plan.monthly}/mo
                   </p>
                   <span className="text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>
-                    {plan.monthly === 0 ? "forever" : (isYearly ? "billed annually" : "billed monthly")}
+                    {isYearly ? `billed annually ($${plan.yearlyMonthly * 12}/yr)` : "billed monthly"}
                   </span>
                 </div>
                 <p className="mt-2 text-sm leading-relaxed min-h-[44px]" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{plan.desc}</p>
@@ -568,26 +557,52 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                {plan.monthly === 0 ? (
-                  <Link
-                    href="/signup"
-                    className="mt-5 w-full text-center rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
-                    style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
-                  >
-                    Start Free (No Card)
-                  </Link>
-                ) : (
-                  <Link
-                    href={`/checkout?plan=${plan.key}&interval=${isYearly ? "yearly" : "monthly"}`}
-                    className="mt-5 w-full text-center rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
-                    style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
-                  >
-                    Start 14-day trial
-                  </Link>
-                )}
+                <Link
+                  href={`/signup?plan=chatty_${plan.key}`}
+                  className="mt-6 w-full text-center rounded-full px-5 py-3 text-sm font-medium transition-opacity hover:opacity-90"
+                  style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+                >
+                  Start 14-day free trial
+                </Link>
               </div>
             ))}
           </div>
+
+          {/* Self-Hosted Open Source — Only Free Option */}
+          <div
+            className="mt-6 p-6 sm:p-7 rounded-[28px] flex flex-col md:flex-row md:items-center justify-between gap-6 border"
+            style={{ background: "var(--color-surface)", borderColor: "var(--color-divider)", boxShadow: "var(--shadow-sm)" }}
+          >
+            <div className="space-y-2 max-w-[66ch]">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full text-[11px] font-semibold px-3 py-1" style={{ background: "var(--color-accent-2-100)", color: "var(--color-accent-2-800)" }}>
+                  Only Free Option
+                </span>
+                <span className="text-xs tracking-wide uppercase font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 60%, transparent)" }}>
+                  [ SELF-HOSTED / OPEN SOURCE ]
+                </span>
+              </div>
+              <h3 className="text-[22px] sm:text-2xl" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
+                Self-Host on Your Own Server &mdash; $0 Forever
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+                Want a 100% free setup? Self-host the open-source Chatty stack on your own infrastructure with Docker and PostgreSQL/pgvector, bring your own LLM API keys (OpenAI, Anthropic, Gemini, OpenRouter), and manage everything yourself.
+              </p>
+            </div>
+            <div className="shrink-0">
+              <a
+                href="https://github.com/PersonaliAI/chatty"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 rounded-full border px-6 py-3 text-sm font-medium transition-colors hover:bg-black/5"
+                style={{ fontFamily: "var(--font-heading)", borderColor: "var(--color-divider)", color: "var(--color-text)" }}
+              >
+                <GithubIcon className="size-4" />
+                <span>Self-Host via GitHub</span>
+              </a>
+            </div>
+          </div>
+
           <p className="mt-7 text-[11px] tracking-wide uppercase" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>
             [ Taxes &amp; Compliance ] All plans are subject to local tax system regulation.
           </p>

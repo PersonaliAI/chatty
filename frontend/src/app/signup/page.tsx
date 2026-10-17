@@ -25,9 +25,14 @@ function SignupPageInner() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
   const dest = next && next.startsWith("/") ? next : "/dashboard";
-  const [selectedPlan, setSelectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(
-    (searchParams.get("plan") as "chatty_hobby" | "chatty_standard" | "chatty_business") || "chatty_standard"
-  );
+  const rawPlanParam = (searchParams.get("plan") || "").toLowerCase();
+  const initialPlan: "chatty_hobby" | "chatty_standard" | "chatty_business" =
+    rawPlanParam === "hobby" || rawPlanParam === "chatty_hobby"
+      ? "chatty_hobby"
+      : rawPlanParam === "business" || rawPlanParam === "chatty_business"
+      ? "chatty_business"
+      : "chatty_standard";
+  const [selectedPlan, setSelectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(initialPlan);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -171,8 +176,8 @@ function SignupPageInner() {
           <div className="grid grid-cols-3 gap-2">
             {[
               { id: "chatty_hobby", name: "Hobby", price: "$19/mo" },
-              { id: "chatty_standard", name: "Standard", price: "$49/mo", popular: true },
-              { id: "chatty_business", name: "Business", price: "$99/mo" },
+              { id: "chatty_standard", name: "Standard", price: "$99/mo", popular: true },
+              { id: "chatty_business", name: "Business", price: "$399/mo" },
             ].map((p) => {
               const isSelected = selectedPlan === p.id;
               return (
@@ -198,7 +203,15 @@ function SignupPageInner() {
             })}
           </div>
           <p className="text-[11px] text-muted-foreground text-center">
-            No credit card required. Upgrade or cancel anytime.
+            No credit card required for 14-day free trial.{" "}
+            <a
+              href="https://github.com/PersonaliAI/chatty"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Self-host open source ($0)
+            </a>
           </p>
         </div>
 

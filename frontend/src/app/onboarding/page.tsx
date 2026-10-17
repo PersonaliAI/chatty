@@ -76,43 +76,43 @@ const PLANS: PlanTier[] = [
     id: "chatty_hobby",
     name: "Hobby",
     monthlyPrice: 19,
-    description: "Ideal for solo builders and individual sites looking for smart conversational AI.",
+    description: "Perfect for individuals, developers, and side projects.",
     features: [
-      "1 Custom AI Chatbot",
-      "2,000 messages / month",
-      "Standard LLM models",
-      "Web scraping & file training",
-      "Email support",
+      "3 Live AI Agents",
+      "1,000 weighted AI credits / month",
+      "10M training characters",
+      "500 MB Media Storage (250 products)",
+      "AI Actions, Analytics & Lead capture",
     ],
   },
   {
     id: "chatty_standard",
     name: "Standard",
     badge: "Most Popular",
-    monthlyPrice: 49,
-    description: "Designed for scaling startups and teams requiring full automation and live handoff.",
+    monthlyPrice: 99,
+    description: "All in Hobby, plus advanced automation and multi-bot systems.",
     features: [
-      "3 Custom AI Chatbots",
-      "10,000 messages / month",
-      "Pro models & multimodal vision",
-      "Live human agent takeover",
-      "Team scheduling & Google Calendar",
-      "Flow builder & webhook actions",
+      "6 Live AI Agents",
+      "10,000 weighted AI credits / month",
+      "20M training characters",
+      "2 GB Media Storage (1,500 products)",
+      "Daily Auto Train & Remove branding",
+      "Unlimited team inbox members",
     ],
   },
   {
     id: "chatty_business",
     name: "Business",
     badge: "Enterprise Grade",
-    monthlyPrice: 99,
-    description: "High-volume AI power, full white-label branding, and dedicated SLAs.",
+    monthlyPrice: 399,
+    description: "For enterprise scale, heavy traffic, and reseller options.",
     features: [
-      "Unlimited AI Chatbots",
-      "50,000 messages / month",
-      "100% Whitelabel branding",
-      "Voice agents & phone integrations",
-      "Priority API access & BYOK keys",
-      "Dedicated account manager",
+      "Unlimited AI Agents (fair-use limits)",
+      "40,000 weighted AI credits / month",
+      "50M training characters",
+      "10 GB Media Storage (Unlimited products)",
+      "White-label configuration & BYOK option",
+      "Management Admin API",
     ],
   },
 ];
@@ -136,9 +136,14 @@ function OnboardingPageInner() {
   const [error, setError] = useState<string | null>(null);
 
   // Form states
-  const [selectedPlan, setSelectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(
-    (searchParams.get("plan") as "chatty_hobby" | "chatty_standard" | "chatty_business") || "chatty_standard"
-  );
+  const rawPlanParam = (searchParams.get("plan") || "").toLowerCase();
+  const initialPlan: "chatty_hobby" | "chatty_standard" | "chatty_business" =
+    rawPlanParam === "hobby" || rawPlanParam === "chatty_hobby"
+      ? "chatty_hobby"
+      : rawPlanParam === "business" || rawPlanParam === "chatty_business"
+      ? "chatty_business"
+      : "chatty_standard";
+  const [selectedPlan, setSelectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(initialPlan);
   const [companyName, setCompanyName] = useState("");
   const [companySize, setCompanySize] = useState("2-10");
   const [companyRole, setCompanyRole] = useState("founder");
