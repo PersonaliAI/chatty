@@ -927,4 +927,384 @@ async def process_webhook_payload(
             await record_freshness()
             return {"event": "created", "id": wc_id}
 
+    if topic_lower.startswith("order."):
+        await record_freshness()
+        mapped_order = _map_wc_order(payload)
+        action = topic_lower.split(".", 1)[1] if "." in topic_lower else "updated"
+        logger.info("WooCommerce webhook order.%s processed for order %s", action, wc_id)
+        return {
+            "event": f"order.{action}",
+            "id": wc_id,
+            "order_number": mapped_order.get("order_number"),
+            "status": mapped_order.get("status"),
+            "is_split_shipment": mapped_order.get("is_split_shipment", False),
+            "is_partial_refund": mapped_order.get("is_partial_refund", False),
+            "requires_human_review": mapped_order.get("requires_human_review", False),
+        }
+
     return {"ignored": True, "topic": topic}
+
+
+_CARRIER_URL_TEMPLATES: dict[str, str] = {
+    "ups": "https://www.ups.com/track?tracknum={num}",
+    "usps": "https://tools.usps.com/go/TrackConfirmAction?tLabels={num}",
+    "fedex": "https://www.fedex.com/fedextrack/?trknbr={num}",
+    "dhl": "https://www.dhl.com/en/express/tracking.html?AWB={num}",
+    "royal mail": "https://www.royalmail.com/track-your-item#/tracking-results/{num}",
+    "royalmail": "https://www.royalmail.com/track-your-item#/tracking-results/{num}",
+    "canada post": "https://www.canadapost-postescanada.ca/track-reperage/en#/search?searchFor={num}",
+    "australia post": "https://auspost.com.au/mypost/track/#/details/{num}",
+}
+
+_ORDER_STATUS_LABELS: dict[str, str] = {
+    "pending": "Pending Payment",
+    "processing": "Processing",
+    "on-hold": "On Hold",
+    "completed": "Completed / Shipped",
+    "shipped": "Shipped",
+    "delivered": "Delivered",
+    "cancelled": "Cancelled",
+    "refunded": "Refunded",
+    "failed": "Payment Failed",
+    "partial-refund": "Partially Refunded",
+    "partially-shipped": "Partially Shipped",
+}
+
+
+def _build_carrier_tracking_url(carrier: str, tracking_number: str, explicit_url: str = "") -> str:
+    """Resolve a direct tracking URL from an explicit link or known carrier template."""
+    clean_url = (explicit_url or "").strip()
+    if clean_url.startswith(("http://", "https://")):
+        return clean_url
+    clean_num = (tracking_number or "").strip()
+    if not clean_num:
+        return ""
+    carrier_lower = (carrier or "").strip().lower()
+    for key, template in _CARRIER_URL_TEMPLATES.items():
+        if key in carrier_lower:
+            return template.format(num=clean_num)
+    return ""
+
+
+def _extract_order_tracking(order: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract shipment tracking items from WooCommerce order meta_data and line_items."""
+    tracking_list: list[dict[str, Any]] = []
+    seen_numbers: set[str] = set()
+
+    def _add_item(carrier: Any, number: Any, url: Any = "", date_shipped: Any = "", item_name: str = "") -> None:
+        num_str = str(number or "").strip()
+        if not num_str:
+            return
+        dedup_key = f"{num_str.lower()}:{item_name.lower()}"
+        if dedup_key in seen_numbers:
+            return
+        seen_numbers.add(dedup_key)
+        carrier_str = str(carrier or "Carrier").strip() or "Carrier"
+        resolved_url = _build_carrier_tracking_url(carrier_str, num_str, str(url or ""))
+        entry: dict[str, Any] = {
+            "carrier": carrier_str,
+            "tracking_number": num_str,
+            "tracking_url": resolved_url or None,
+        }
+        if date_shipped:
+            entry["date_shipped"] = str(date_shipped)
+        if item_name:
+            entry["item_name"] = item_name
+        tracking_list.append(entry)
+
+    meta_data = order.get("meta_data") or []
+    flat_meta: dict[str, Any] = {}
+    for meta in meta_data:
+        if not isinstance(meta, dict):
+            continue
+        m_key = str(meta.get("key") or "").strip()
+        m_val = meta.get("value")
+        flat_meta[m_key] = m_val
+
+        if m_key in ("_wc_shipment_tracking_items", "wc_shipment_tracking_items", "tracking_items") and isinstance(m_val, list):
+            for entry in m_val:
+                if isinstance(entry, dict):
+                    _add_item(
+                        carrier=entry.get("tracking_provider") or entry.get("custom_tracking_provider") or entry.get("carrier"),
+                        number=entry.get("tracking_number") or entry.get("number"),
+                        url=entry.get("custom_tracking_link") or entry.get("tracking_link") or entry.get("tracking_url"),
+                        date_shipped=entry.get("date_shipped"),
+                    )
+
+    for num_key in ("_tracking_number", "tracking_number", "_aftership_tracking_number"):
+        if flat_meta.get(num_key):
+            _add_item(
+                carrier=flat_meta.get("_tracking_provider") or flat_meta.get("tracking_provider") or flat_meta.get("_aftership_tracking_provider_name") or "Carrier",
+                number=flat_meta.get(num_key),
+                url=flat_meta.get("_custom_tracking_link") or flat_meta.get("tracking_url") or "",
+            )
+
+    # Also check per-line-item tracking metadata (common in split-shipment plugins)
+    for li in (order.get("line_items") or []):
+        if not isinstance(li, dict):
+            continue
+        li_name = str(li.get("name") or "").strip()
+        for m in (li.get("meta_data") or []):
+            if not isinstance(m, dict):
+                continue
+            mk = str(m.get("key") or "").strip().lower()
+            mv = m.get("value")
+            if mk in ("_tracking_number", "tracking_number", "shipment_tracking") and mv:
+                _add_item("Carrier", mv, "", "", item_name=li_name)
+            elif isinstance(mv, list) and "tracking" in mk:
+                for sub in mv:
+                    if isinstance(sub, dict) and sub.get("tracking_number"):
+                        _add_item(
+                            sub.get("tracking_provider") or sub.get("carrier") or "Carrier",
+                            sub.get("tracking_number"),
+                            sub.get("tracking_link") or sub.get("tracking_url") or "",
+                            sub.get("date_shipped") or "",
+                            item_name=li_name,
+                        )
+
+    return tracking_list
+
+
+def _map_wc_order(order: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a WooCommerce order payload and detect edge cases (split shipments, partial refunds)."""
+    order_id = str(order.get("id") or "")
+    order_number = str(order.get("number") or order_id)
+    status = str(order.get("status") or "processing").strip().lower()
+    status_label = _ORDER_STATUS_LABELS.get(status, status.replace("-", " ").title())
+    currency = str(order.get("currency") or "USD").upper()
+    currency_symbol = str(order.get("currency_symbol") or "$")
+
+    try:
+        total = round(float(order.get("total") or 0.0), 2)
+    except (TypeError, ValueError):
+        total = 0.0
+
+    line_items: list[dict[str, Any]] = []
+    fulfillment_statuses: set[str] = set()
+    for li in (order.get("line_items") or []):
+        if not isinstance(li, dict):
+            continue
+        li_img = ""
+        if isinstance(li.get("image"), dict):
+            li_img = str(li["image"].get("src") or "")
+        try:
+            li_total = round(float(li.get("total") or 0.0), 2)
+        except (TypeError, ValueError):
+            li_total = 0.0
+        li_status = str(li.get("fulfillment_status") or "").strip().lower()
+        if li_status:
+            fulfillment_statuses.add(li_status)
+        line_items.append({
+            "id": li.get("id"),
+            "name": str(li.get("name") or "Item").strip(),
+            "quantity": int(li.get("quantity") or 1),
+            "total": li_total,
+            "sku": str(li.get("sku") or "") or None,
+            "image_url": li_img or None,
+            "fulfillment_status": li_status or None,
+        })
+
+    tracking = _extract_order_tracking(order)
+    unique_tracking_numbers = {t["tracking_number"] for t in tracking if t.get("tracking_number")}
+
+    refunds: list[dict[str, Any]] = []
+    refunded_total = 0.0
+    for ref in (order.get("refunds") or []):
+        if not isinstance(ref, dict):
+            continue
+        try:
+            amt = abs(float(ref.get("total") or 0.0))
+        except (TypeError, ValueError):
+            amt = 0.0
+        if amt > 0:
+            refunded_total = round(refunded_total + amt, 2)
+            refunds.append({
+                "id": ref.get("id"),
+                "amount": round(amt, 2),
+                "reason": str(ref.get("reason") or "").strip() or None,
+            })
+
+    try:
+        explicit_refund_total = abs(float(order.get("total_refunded") or 0.0))
+        if explicit_refund_total > refunded_total:
+            refunded_total = round(explicit_refund_total, 2)
+    except (TypeError, ValueError):
+        pass
+
+    net_total = round(max(0.0, total - refunded_total), 2)
+
+    meta_flags_split = any(
+        isinstance(m, dict)
+        and (
+            "split" in str(m.get("key") or "").lower()
+            or "partial_shipment" in str(m.get("key") or "").lower()
+            or "partially-shipped" in str(m.get("value") or "").lower()
+        )
+        for m in (order.get("meta_data") or [])
+    )
+
+    is_split_shipment = (
+        len(unique_tracking_numbers) > 1
+        or len(fulfillment_statuses) > 1
+        or status in ("partially-shipped", "partial-shipped")
+        or meta_flags_split
+    )
+    is_partial_refund = bool(
+        (refunded_total > 0 and total > 0 and refunded_total < total)
+        or (refunded_total > 0 and status not in ("refunded", "cancelled"))
+        or status == "partial-refund"
+    )
+
+    edge_case_reasons: list[str] = []
+    if is_split_shipment:
+        edge_case_reasons.append(f"Split shipment ({max(len(unique_tracking_numbers), 2)} separate packages/fulfillments)")
+    if is_partial_refund:
+        edge_case_reasons.append(f"Partial refund of {currency_symbol}{refunded_total:.2f} out of {currency_symbol}{total:.2f}")
+    if status in ("on-hold", "failed"):
+        edge_case_reasons.append(f"Order is currently marked '{status_label}'")
+
+    requires_human_review = bool(edge_case_reasons)
+
+    card_payload = {
+        "order_id": order_id,
+        "order_number": order_number,
+        "status": status,
+        "status_label": status_label,
+        "date_created": order.get("date_created") or "",
+        "total": f"{total:.2f}",
+        "refunded_total": f"{refunded_total:.2f}" if refunded_total > 0 else None,
+        "net_total": f"{net_total:.2f}",
+        "currency": currency,
+        "currency_symbol": currency_symbol,
+        "line_items": line_items[:8],
+        "items": line_items[:8],
+        "tracking": tracking[:6],
+        "refunds": refunds[:5],
+        "is_split_shipment": is_split_shipment,
+        "is_partial_refund": is_partial_refund,
+        "requires_human_review": requires_human_review,
+        "edge_case_reasons": edge_case_reasons,
+    }
+    order_card_token = f"[ORDER_CARD:{json.dumps(card_payload, separators=(',', ':'))}]"
+
+    return {
+        **card_payload,
+        "order_card_token": order_card_token,
+    }
+
+
+def _verify_order_customer(
+    order: dict[str, Any],
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+) -> bool:
+    """Verify caller identity against the order's billing email or phone number."""
+    billing = order.get("billing") or {}
+    if not isinstance(billing, dict):
+        return False
+
+    order_email = str(billing.get("email") or "").strip().lower()
+    caller_email = str(email or "").strip().lower()
+    if order_email and caller_email and hmac.compare_digest(order_email, caller_email):
+        return True
+
+    order_phone_digits = re.sub(r"[^\d]", "", str(billing.get("phone") or ""))
+    caller_phone_digits = re.sub(r"[^\d]", "", str(phone or ""))
+    if (
+        len(order_phone_digits) >= 4
+        and len(caller_phone_digits) >= 4
+        and order_phone_digits[-6:] == caller_phone_digits[-6:]
+    ):
+        return True
+
+    return False
+
+
+async def lookup_order(
+    bot_id: str,
+    order_identifier: str,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+) -> dict[str, Any]:
+    """Look up a live WooCommerce order by ID/number with mandatory customer verification."""
+    clean_id = re.sub(r"^[#\s]+", "", str(order_identifier or "").strip())
+    clean_id = re.sub(r"(?i)^order\s*#?\s*", "", clean_id).strip()
+    if not clean_id:
+        return {"found": False, "error": "Please provide an order number."}
+
+    integration = await get_integration(bot_id)
+    if not integration:
+        return {"found": False, "error": "WooCommerce store integration is not connected for this assistant."}
+
+    store_url = _normalize_store_url(str(integration.get("store_url") or ""))
+    consumer_key = str(integration.get("consumer_key") or "").strip()
+    consumer_secret = str(integration.get("consumer_secret") or "").strip()
+    parsed_store = httpx.URL(store_url)
+    if parsed_store.scheme != "https" or not parsed_store.host or not consumer_key or not consumer_secret:
+        return {"found": False, "error": "WooCommerce store credentials are incomplete."}
+
+    auth = (consumer_key, consumer_secret)
+    timeout = httpx.Timeout(8.0, connect=4.0)
+    matched_order: Optional[dict[str, Any]] = None
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        if clean_id.isdigit():
+            direct_url = f"{store_url}/wp-json/wc/v3/orders/{clean_id}"
+            try:
+                resp = await ssrf.request_async(client, "GET", direct_url, auth=auth)
+                if resp.status_code == 200 and isinstance(resp.json(), dict):
+                    matched_order = resp.json()
+            except Exception as exc:
+                logger.warning("WooCommerce direct order lookup failed for %s: %s", clean_id, exc)
+
+        if matched_order is None:
+            search_url = f"{store_url}/wp-json/wc/v3/orders"
+            try:
+                resp = await ssrf.request_async(
+                    client, "GET", search_url, auth=auth, params={"search": clean_id, "per_page": 10}
+                )
+                if resp.status_code == 200 and isinstance(resp.json(), list):
+                    for candidate in resp.json():
+                        if not isinstance(candidate, dict):
+                            continue
+                        c_id = str(candidate.get("id") or "").strip()
+                        c_num = str(candidate.get("number") or "").strip()
+                        if c_id.lower() == clean_id.lower() or c_num.lower() == clean_id.lower():
+                            matched_order = candidate
+                            break
+            except Exception as exc:
+                logger.warning("WooCommerce order search failed for %s: %s", clean_id, exc)
+
+    if not matched_order:
+        return {
+            "found": False,
+            "order_number": clean_id,
+            "message": f"No order matching #{clean_id} was found in the store.",
+        }
+
+    if not _verify_order_customer(matched_order, email=email, phone=phone):
+        return {
+            "found": True,
+            "verified": False,
+            "verification_required": True,
+            "order_number": str(matched_order.get("number") or clean_id),
+            "message": (
+                f"Order #{matched_order.get('number') or clean_id} was located, "
+                "but billing verification is required before disclosing order details. "
+                "Please ask the customer to confirm the billing email address or phone number used on the order."
+            ),
+        }
+
+    mapped = _map_wc_order(matched_order)
+    return {
+        "found": True,
+        "verified": True,
+        "verification_required": False,
+        **mapped,
+        "order": mapped,
+        "order_card": mapped["order_card_token"],
+        "order_card_token": mapped["order_card_token"],
+        "requires_human_review": mapped["requires_human_review"],
+        "edge_case_reasons": mapped["edge_case_reasons"],
+    }
+

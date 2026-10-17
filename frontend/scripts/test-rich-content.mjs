@@ -10,13 +10,32 @@ for (const parseRichContent of [parseApp, parsePackage]) {
       `[PRODUCT_CARD:${JSON.stringify({ id: "one", title: "One", metadata: { tags: ["a", "b"], label: "brace } in text" } })}]`,
       `[PRODUCT_CARD:${JSON.stringify({ id: "two", title: "Two", metadata: { price: { amount: 10, currency: "USD" } } })}]`,
       `[VIDEO_CLIP:${JSON.stringify({ video_url: "https://example.com/demo.mp4", metadata: { chapters: [{ start: 0 }] } })}]`,
+      `[ORDER_CARD:${JSON.stringify({
+        order_id: "1042",
+        order_number: "1042",
+        status: "processing",
+        status_label: "Processing",
+        total: "129.00",
+        is_split_shipment: true,
+        is_partial_refund: true,
+        refunded_total: "29.00",
+        tracking: [
+          { carrier: "UPS", tracking_number: "1Z999AA10123456784", tracking_url: "https://www.ups.com/track?tracknum=1Z999AA10123456784" },
+          { carrier: "FedEx", tracking_number: "771234567890", tracking_url: "https://www.fedex.com/fedextrack/?trknbr=771234567890" },
+        ],
+      })}]`,
       "[BOOKING_WIDGET]",
     ].join(" ");
     const result = parseRichContent(content);
     assert.equal(result.products.length, 2);
     assert.equal(result.videoClips.length, 1);
+    assert.equal(result.orders.length, 1);
     assert.equal(result.products[0].metadata.tags[1], "b");
     assert.equal(result.videoClips[0].metadata.chapters[0].start, 0);
+    assert.equal(result.orders[0].order_number, "1042");
+    assert.equal(result.orders[0].is_split_shipment, true);
+    assert.equal(result.orders[0].is_partial_refund, true);
+    assert.equal(result.orders[0].tracking.length, 2);
     assert.equal(result.cleanContent, "Here are two matches:");
   });
 

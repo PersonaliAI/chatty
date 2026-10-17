@@ -16,7 +16,10 @@ class MessageFeedbackRequest(BaseModel):
 class InboxReplyRequest(BaseModel):
     bot_id: str
     session_id: str
-    text: str
+    text: str = ""
+    template_name: Optional[str] = None
+    template_language: Optional[str] = "en_US"
+    template_params: Optional[list[str]] = None
 
 
 class InboxAIToggle(BaseModel):

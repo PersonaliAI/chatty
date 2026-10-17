@@ -1,7 +1,12 @@
-export interface RichContentResult<TProduct extends object = Record<string, unknown>, TVideo extends object = Record<string, unknown>> {
+export interface RichContentResult<
+  TProduct extends object = Record<string, unknown>,
+  TVideo extends object = Record<string, unknown>,
+  TOrder extends object = Record<string, unknown>,
+> {
   cleanContent: string;
   products: TProduct[];
   videoClips: TVideo[];
+  orders: TOrder[];
   hasHandoffActions?: boolean;
 }
 
@@ -64,19 +69,25 @@ function extractMarker<T extends object>(source: string, marker: string): { text
   return { text, items };
 }
 
-export function parseRichContent<TProduct extends object = Record<string, unknown>, TVideo extends object = Record<string, unknown>>(
+export function parseRichContent<
+  TProduct extends object = Record<string, unknown>,
+  TVideo extends object = Record<string, unknown>,
+  TOrder extends object = Record<string, unknown>,
+>(
   content: string,
-): RichContentResult<TProduct, TVideo> {
+): RichContentResult<TProduct, TVideo, TOrder> {
   const hasHandoffActions = /\[HANDOFF_ACTIONS\]/.test(content);
   const productResult = extractMarker<TProduct>(content, "[PRODUCT_CARD:");
   const videoResult = extractMarker<TVideo>(productResult.text, "[VIDEO_CLIP:");
+  const orderResult = extractMarker<TOrder>(videoResult.text, "[ORDER_CARD:");
   return {
-    cleanContent: videoResult.text
+    cleanContent: orderResult.text
       .replace(/\[BOOKING_WIDGET\]/g, "")
       .replace(/\[HANDOFF_ACTIONS\]/g, "")
       .trim(),
     products: productResult.items,
     videoClips: videoResult.items,
+    orders: orderResult.items,
     hasHandoffActions,
   };
 }

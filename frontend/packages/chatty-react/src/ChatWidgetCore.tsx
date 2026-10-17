@@ -14,6 +14,7 @@ import { AttachMenu } from "./attach-menu";
 import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
+import { OrderCard, type OrderCardData } from "./order-card";
 // Use the exact LiveKit voice panel rendered by the dashboard preview. The
 // public widget must not maintain a second visualizer/transcript implementation.
 import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
@@ -3171,7 +3172,7 @@ function IdentifiedChatWidget({
                               {msg.role === "assistant" ? (
                                 <>
                                   {(() => {
-                                    const { cleanContent, products, videoClips, hasHandoffActions } = parseRichContent<ProductCardData, VideoClipData>(msg.content);
+                                    const { cleanContent, products, videoClips, orders, hasHandoffActions } = parseRichContent<ProductCardData, VideoClipData, OrderCardData>(msg.content);
                                     return (
                                       <>
                                         {cleanContent && (
@@ -3195,6 +3196,13 @@ function IdentifiedChatWidget({
                                           <div className="flex flex-col gap-2 my-2 w-full">
                                             {videoClips.map((c, cIdx) => (
                                               <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {orders.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-2 w-full">
+                                            {orders.map((ord, oIdx) => (
+                                              <OrderCard key={ord.order_id || ord.order_number || oIdx} order={ord} primaryColor={primaryColor} />
                                             ))}
                                           </div>
                                         )}

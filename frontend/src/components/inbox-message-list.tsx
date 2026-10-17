@@ -1,13 +1,24 @@
 "use client";
 
 import { memo, type RefObject } from "react";
-import { Bot, Calendar, Clock, Headphones, Lock, Paperclip, ThumbsDown, ThumbsUp, User, Video } from "lucide-react";
+import { Bot, Calendar, Clock, FileText, Headphones, Link2, Lock, Paperclip, ShieldCheck, ThumbsDown, ThumbsUp, User, Video } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
+import { parseRichContent } from "@/lib/rich-content";
+import { OrderCard, type OrderCardData } from "@/components/order-card";
+import { ProductCard, type ProductCardData } from "@/components/product-card";
+import { VideoCard, type VideoClipData } from "@/components/video-card";
+
+export interface InboxSourceCitation {
+  name: string;
+  type?: string;
+  url?: string | null;
+  confidence?: number;
+}
 
 export interface Msg {
   id?: string;
@@ -17,6 +28,8 @@ export interface Msg {
   created_at?: string;
   feedback_rating?: string | null;
   correction?: string | null;
+  sources?: InboxSourceCitation[] | null;
+  rag_confidence?: number | null;
 }
 
 export interface InboxMeeting {
@@ -214,6 +227,12 @@ function MessageListInner({
           cleanContent = cleanContent.replace(/\[BOOKING_WIDGET\]/g, "").trim();
         }
 
+        // Parse structured rich tokens ([ORDER_CARD:...], [PRODUCT_CARD:...], [VIDEO_CLIP:...], [HANDOFF_ACTIONS])
+        const richParsed = !isVisitor
+          ? parseRichContent(cleanContent)
+          : { cleanContent, products: [], videoClips: [], orders: [], hasHandoffActions: false };
+        cleanContent = richParsed.cleanContent;
+
         const isImage = attachmentUrl && (
           attachmentName.toLowerCase().endsWith(".png") ||
           attachmentName.toLowerCase().endsWith(".jpg") ||
@@ -278,7 +297,80 @@ function MessageListInner({
                   {cleanContent}
                 </ReactMarkdown>
               )}
+              {richParsed.products.length > 0 && (
+                <div className="flex flex-col gap-2 my-2 w-full text-neutral-900 dark:text-neutral-100">
+                  {(richParsed.products as unknown as ProductCardData[]).map((p, pIdx) => (
+                    <ProductCard key={p.id || pIdx} product={p} primaryColor={color} />
+                  ))}
+                </div>
+              )}
+              {richParsed.videoClips.length > 0 && (
+                <div className="flex flex-col gap-2 my-2 w-full text-neutral-900 dark:text-neutral-100">
+                  {(richParsed.videoClips as unknown as VideoClipData[]).map((c, cIdx) => (
+                    <VideoCard key={cIdx} clip={c} primaryColor={color} />
+                  ))}
+                </div>
+              )}
+              {richParsed.orders.length > 0 && (
+                <div className="flex flex-col gap-2 my-2 w-full text-neutral-900 dark:text-neutral-100">
+                  {(richParsed.orders as unknown as OrderCardData[]).map((ord, oIdx) => (
+                    <OrderCard key={ord.order_id || ord.order_number || oIdx} order={ord} primaryColor={color} />
+                  ))}
+                </div>
+              )}
+              {richParsed.hasHandoffActions && (
+                <div className="mt-2 pt-1.5 border-t border-white/20 flex items-center gap-1.5 text-[10px] font-medium opacity-95">
+                  <Headphones className="size-3 shrink-0" />
+                  <span>AI offered human handoff to visitor</span>
+                </div>
+              )}
               {(hasBooking || showBookingFallback) && <InboxBookingCard content={showBookingFallback ? `${m.content}\n[BOOKING_WIDGET]` : m.content} meeting={confirmedMeeting} />}
+              {!isVisitor && !isHuman && ((m.sources && m.sources.length > 0) || typeof m.rag_confidence === "number") && (
+                <div className="mt-2 pt-1.5 border-t border-white/20 flex flex-wrap items-center gap-1.5 text-[10px]">
+                  {typeof m.rag_confidence === "number" && (
+                    <span
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full font-semibold ${
+                        m.rag_confidence >= 0.5
+                          ? "bg-emerald-500/25 text-white"
+                          : m.rag_confidence >= 0.25
+                          ? "bg-amber-500/25 text-white"
+                          : "bg-rose-500/30 text-white"
+                      }`}
+                      title={`RAG Knowledge Retrieval Confidence: ${Math.round(m.rag_confidence * 100)}%`}
+                    >
+                      <ShieldCheck className="size-2.5 shrink-0" />
+                      <span>{Math.round(m.rag_confidence * 100)}% RAG</span>
+                    </span>
+                  )}
+                  {m.sources && m.sources.map((s, sIdx) => {
+                    const isUrl = s.url || (s.name && (s.name.startsWith("http://") || s.name.startsWith("https://")));
+                    const href = s.url || (isUrl ? s.name : undefined);
+                    const label = s.name.replace(/^https?:\/\/(www\.)?/, "");
+                    return href ? (
+                      <a
+                        key={sIdx}
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/20 hover:bg-black/30 text-white/95 transition-colors max-w-[180px] truncate"
+                        title={`Source: ${s.name}${typeof s.confidence === "number" ? ` (${Math.round(s.confidence * 100)}% match)` : ""}`}
+                      >
+                        <Link2 className="size-2.5 shrink-0 opacity-80" />
+                        <span className="truncate">{label}</span>
+                      </a>
+                    ) : (
+                      <span
+                        key={sIdx}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/20 text-white/95 max-w-[180px] truncate"
+                        title={`Source: ${s.name}${typeof s.confidence === "number" ? ` (${Math.round(s.confidence * 100)}% match)` : ""}`}
+                      >
+                        <FileText className="size-2.5 shrink-0 opacity-80" />
+                        <span className="truncate">{label}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             </div>
             {!isVisitor && !isHuman && m.id && (

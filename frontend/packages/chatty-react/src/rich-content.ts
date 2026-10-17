@@ -1,14 +1,21 @@
-export interface RichContentResult<TProduct extends object = Record<string, unknown>, TVideo extends object = Record<string, unknown>> {
+export interface RichContentResult<
+  TProduct extends object = Record<string, unknown>,
+  TVideo extends object = Record<string, unknown>,
+  TOrder extends object = Record<string, unknown>,
+> {
   cleanContent: string;
   products: TProduct[];
   videoClips: TVideo[];
+  orders: TOrder[];
   hasHandoffActions?: boolean;
 }
 
+/** Extract nested JSON marker payloads without a non-nesting regex. */
 function extractMarker<T extends object>(source: string, marker: string): { text: string; items: T[] } {
   const items: T[] = [];
   let text = "";
   let cursor = 0;
+
   while (cursor < source.length) {
     const markerStart = source.indexOf(marker, cursor);
     if (markerStart < 0) {
@@ -20,6 +27,7 @@ function extractMarker<T extends object>(source: string, marker: string): { text
       text += source.slice(cursor);
       break;
     }
+
     let depth = 0;
     let end = -1;
     let inString = false;
@@ -39,17 +47,19 @@ function extractMarker<T extends object>(source: string, marker: string): { text
         break;
       }
     }
+
     if (end < 0 || source[end + 1] !== "]") {
       text += source.slice(cursor, markerStart + marker.length);
       cursor = markerStart + marker.length;
       continue;
     }
+
     let parsed: T | null = null;
     try {
       const candidate = JSON.parse(source.slice(jsonStart, end + 1));
       if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) parsed = candidate as T;
     } catch {
-      // Keep malformed content visible to the visitor.
+      // Preserve malformed markers as visible response text.
     }
     text += source.slice(cursor, markerStart);
     if (parsed) items.push(parsed);
@@ -59,19 +69,25 @@ function extractMarker<T extends object>(source: string, marker: string): { text
   return { text, items };
 }
 
-export function parseRichContent<TProduct extends object = Record<string, unknown>, TVideo extends object = Record<string, unknown>>(
+export function parseRichContent<
+  TProduct extends object = Record<string, unknown>,
+  TVideo extends object = Record<string, unknown>,
+  TOrder extends object = Record<string, unknown>,
+>(
   content: string,
-): RichContentResult<TProduct, TVideo> {
+): RichContentResult<TProduct, TVideo, TOrder> {
   const hasHandoffActions = /\[HANDOFF_ACTIONS\]/.test(content);
   const productResult = extractMarker<TProduct>(content, "[PRODUCT_CARD:");
   const videoResult = extractMarker<TVideo>(productResult.text, "[VIDEO_CLIP:");
+  const orderResult = extractMarker<TOrder>(videoResult.text, "[ORDER_CARD:");
   return {
-    cleanContent: videoResult.text
+    cleanContent: orderResult.text
       .replace(/\[BOOKING_WIDGET\]/g, "")
       .replace(/\[HANDOFF_ACTIONS\]/g, "")
       .trim(),
     products: productResult.items,
     videoClips: videoResult.items,
+    orders: orderResult.items,
     hasHandoffActions,
   };
 }

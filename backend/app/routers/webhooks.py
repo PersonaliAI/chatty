@@ -529,6 +529,82 @@ async def _send_whatsapp(
 
 
 _PRODUCT_CARD_MARKER = "[PRODUCT_CARD:"
+_ORDER_CARD_MARKER = "[ORDER_CARD:"
+
+
+def _render_whatsapp_order_cards(reply: str) -> str:
+    """Turn structured [ORDER_CARD:{...}] tokens into rich WhatsApp text messages."""
+    def render_order(card: object) -> str:
+        if not isinstance(card, dict) or not (card.get("order_number") or card.get("order_id")):
+            return ""
+
+        def clean(value: object, limit: int = 240) -> str:
+            return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
+
+        order_num = clean(card.get("order_number") or card.get("order_id"), 40)
+        status_label = clean(card.get("status_label") or card.get("status") or "Processing", 60)
+        currency = clean(card.get("currency") or "USD", 12)
+        total = clean(card.get("total"), 40)
+        lines = [f"📦 *Order #{order_num}* — *{status_label}*"]
+        if total:
+            lines.append(f"Total: {currency} {total}")
+
+        if card.get("is_split_shipment"):
+            lines.append("⚠️ *Split Shipment:* Items are shipping in multiple packages.")
+        if card.get("is_partial_refund"):
+            refunded = clean(card.get("refunded_total"), 40)
+            lines.append(f"⚠️ *Partial Refund Issued:* {currency} {refunded}")
+
+        items = card.get("items")
+        if isinstance(items, list) and items:
+            item_strs = []
+            for it in items[:5]:
+                if isinstance(it, dict) and it.get("name"):
+                    qty = it.get("quantity") or 1
+                    item_strs.append(f"• {qty}× {clean(it.get('name'), 80)}")
+            if item_strs:
+                lines.append("Items:\n" + "\n".join(item_strs))
+
+        tracking = card.get("tracking")
+        if isinstance(tracking, list) and tracking:
+            for trk in tracking[:4]:
+                if not isinstance(trk, dict):
+                    continue
+                carrier = clean(trk.get("carrier") or "Carrier", 60)
+                tnum = clean(trk.get("tracking_number"), 80)
+                turl = clean(trk.get("tracking_url"), 500)
+                if tnum:
+                    lines.append(f"🚚 *{carrier}:* `{tnum}`")
+                if re.match(r"^https://", turl, re.IGNORECASE):
+                    lines.append(f"🔗 Track package: {turl}")
+
+        return "\n".join(lines)
+
+    source = reply or ""
+    rendered: list[str] = []
+    cursor = 0
+    decoder = json.JSONDecoder()
+    while True:
+        marker_start = source.find(_ORDER_CARD_MARKER, cursor)
+        if marker_start < 0:
+            rendered.append(source[cursor:])
+            break
+        rendered.append(source[cursor:marker_start])
+        json_start = marker_start + len(_ORDER_CARD_MARKER)
+        try:
+            card, consumed = decoder.raw_decode(source[json_start:])
+        except (TypeError, json.JSONDecodeError):
+            rendered.append(_ORDER_CARD_MARKER)
+            cursor = json_start
+            continue
+        closing_index = json_start + consumed
+        if closing_index >= len(source) or source[closing_index] != "]":
+            rendered.append(_ORDER_CARD_MARKER)
+            cursor = json_start
+            continue
+        rendered.append(render_order(card))
+        cursor = closing_index + 1
+    return "".join(rendered).strip()
 
 
 def _render_whatsapp_product_cards(reply: str) -> str:
@@ -694,7 +770,10 @@ async def _handle_whatsapp_message(
         # Strip booking marker if leftover
         reply = reply.replace(booking_marker, "").strip()
 
+    has_handoff_marker = "[HANDOFF_ACTIONS]" in reply
+    reply = reply.replace("[HANDOFF_ACTIONS]", "").strip()
     reply = _render_whatsapp_product_cards(reply)
+    reply = _render_whatsapp_order_cards(reply)
 
     # Save AI reply
     try:
@@ -710,7 +789,9 @@ async def _handle_whatsapp_message(
 
     # Quick replies from bot configuration
     quick_replies = bot.get("whatsapp_quick_replies")
-    btn_list = quick_replies if isinstance(quick_replies, list) else []
+    btn_list = list(quick_replies) if isinstance(quick_replies, list) else []
+    if has_handoff_marker and not any("human" in str(b).lower() or "agent" in str(b).lower() for b in btn_list):
+        btn_list = (["Talk to Human"] + btn_list)[:3]
 
     await _send_whatsapp(phone_number_id, frm, reply, access_token, quick_replies=btn_list)
 

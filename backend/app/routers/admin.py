@@ -196,6 +196,14 @@ async def admin_inbox(bot_id: str, user: dict[str, Any] = Depends(require_user))
             .order("last_message_at", desc=True).limit(200).execute())).data or []
     # Float conversations that need a human to the top (stable: keeps recency).
     rows.sort(key=lambda r: not r.get("needs_attention"))
+    from app.services import whatsapp_service
+    for r in rows:
+        sess_id = str(r.get("session_id") or "")
+        if r.get("channel") == "whatsapp" or sess_id.startswith("wa:"):
+            r["channel"] = "whatsapp"
+            r["whatsapp_window"] = whatsapp_service.compute_service_window(
+                r.get("last_message_at") or r.get("created_at")
+            )
     return {"sessions": rows}
 
 
@@ -206,6 +214,31 @@ async def admin_inbox_messages(bot_id: str, session_id: str,
     rows = (await run_db(lambda: supabase.table("chatty_conversations").select("id,role,content,sender,sender_name,sender_avatar,created_at,feedback_rating,correction") \
         .eq("bot_id", bot_id).eq("session_id", session_id) \
         .order("created_at", desc=False).limit(500).execute())).data or []
+    try:
+        from plugins import widget_brain
+        trained_sources = (await run_db(
+            lambda: supabase.table("chatty_sources")
+            .select("name,type,content")
+            .eq("bot_id", bot_id)
+            .eq("status", "trained")
+            .limit(100)
+            .execute()
+        )).data or []
+        if trained_sources:
+            last_user_query = ""
+            for r in rows:
+                if r.get("role") == "user":
+                    last_user_query = str(r.get("content") or "").strip()
+                elif r.get("role") == "assistant" and r.get("sender") != "human" and last_user_query:
+                    candidate_refs = widget_brain._ranked_source_refs(last_user_query, trained_sources)
+                    grounded_refs = widget_brain._refs_grounded_in_reply(candidate_refs, str(r.get("content") or ""))
+                    rag_conf = widget_brain.compute_rag_confidence(last_user_query, trained_sources)
+                    if grounded_refs:
+                        r["sources"] = grounded_refs
+                    if rag_conf > 0 or "[HANDOFF_ACTIONS]" in str(r.get("content") or ""):
+                        r["rag_confidence"] = rag_conf
+    except Exception:
+        logger.debug("Non-fatal error computing inbox source provenance", exc_info=True)
     return {"messages": rows}
 
 
@@ -259,11 +292,63 @@ async def admin_inbox_visitor(bot_id: str, session_id: str,
         "previous_conversations": previous,
         "identity_status": "verified" if contact.get("external_user_id") else "details_provided" if profile.get("name") or profile.get("email") or name or email or lead.get("phone") else "anonymous",
         "identity_verified": bool(contact.get("external_user_id")),
-        "channel": session.get("channel") or "web",
+        "channel": "whatsapp" if (session.get("channel") == "whatsapp" or session_id.startswith("wa:")) else (session.get("channel") or "web"),
         "first_seen_at": session.get("created_at") or lead.get("created_at"),
         "last_seen_at": session.get("last_message_at"),
         "location": {key: lead.get(key) for key in ("country", "region", "city")},
+        **(await _resolve_whatsapp_visitor_window(bot_id, session_id, session)),
     }}
+
+
+async def _resolve_whatsapp_visitor_window(bot_id: str, session_id: str, session: dict[str, Any]) -> dict[str, Any]:
+    is_wa = session.get("channel") == "whatsapp" or session_id.startswith("wa:")
+    if not is_wa:
+        return {}
+    from app.services import whatsapp_service
+    last_user_ts = None
+    try:
+        u_msgs = (await run_db(
+            lambda: supabase.table("chatty_conversations")
+            .select("created_at")
+            .eq("bot_id", bot_id)
+            .eq("session_id", session_id)
+            .eq("role", "user")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )).data or []
+        if u_msgs:
+            last_user_ts = u_msgs[0].get("created_at")
+    except Exception:
+        pass
+    if not last_user_ts:
+        last_user_ts = session.get("last_message_at") or session.get("created_at")
+    return {"whatsapp_window": whatsapp_service.compute_service_window(last_user_ts)}
+
+
+@router.get("/api/admin/inbox/whatsapp-templates")
+async def admin_inbox_whatsapp_templates(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Return pre-approved Meta WhatsApp message templates (HSM) for the bot so
+    agents can re-open conversations after the 24-hour customer service window."""
+    await _verify_inbox_access(bot_id, user)
+    from app.services import whatsapp_service
+    from app.core.crypto import decrypt_secret
+    bot_res = await run_db(
+        lambda: supabase.table("chatty_bots")
+        .select("id, whatsapp_waba_id, whatsapp_access_token")
+        .eq("id", bot_id)
+        .limit(1)
+        .execute()
+    )
+    bot_row = bot_res.data[0] if (bot_res and bot_res.data) else {}
+    waba_id = (bot_row.get("whatsapp_waba_id") or os.environ.get("WHATSAPP_WABA_ID") or "").strip() or None
+    access_token = (
+        decrypt_secret((bot_row.get("whatsapp_access_token") or "").strip())
+        or whatsapp_service.WHATSAPP_ACCESS_TOKEN
+        or None
+    )
+    templates = await whatsapp_service.list_whatsapp_templates(waba_id, access_token)
+    return {"templates": templates}
 
 
 @router.patch("/api/admin/inbox/messages/{message_id}/feedback")
@@ -359,16 +444,96 @@ async def _extract_agent_profile(user: dict[str, Any], bot_id: Optional[str] = N
 @router.post("/api/admin/inbox/reply")
 async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depends(require_user)):
     await _verify_session_inbox_access(req.bot_id, req.session_id, user)
-    if not req.text.strip():
-        raise HTTPException(status_code=400, detail="text required")
-    safe_text = pii_service.scrub_pii(req.text)
+    has_template = bool(req.template_name and req.template_name.strip())
+    if not req.text.strip() and not has_template:
+        raise HTTPException(status_code=400, detail="text or template_name required")
     agent_name, agent_avatar = await _extract_agent_profile(user, req.bot_id)
 
-    # Check if first_responded_at is already set and check for email ticket
+    # Check if first_responded_at is already set and check for email / WhatsApp session
     sess_res = await run_db(lambda: supabase.table("chatty_sessions")
-        .select("first_responded_at, channel, visitor_email, visitor_name, subject, last_inbound_message_id")
+        .select("first_responded_at, channel, visitor_email, visitor_name, subject, last_inbound_message_id, last_message_at, created_at")
         .eq("bot_id", req.bot_id).eq("session_id", req.session_id)
         .limit(1).execute())
+
+    s_row_initial = sess_res.data[0] if (sess_res and sess_res.data) else {}
+    is_whatsapp = s_row_initial.get("channel") == "whatsapp" or str(req.session_id).startswith("wa:")
+    whatsapp_delivery_result: Optional[bool] = None
+
+    if is_whatsapp:
+        from app.services import whatsapp_service
+        from app.core.crypto import decrypt_secret
+        win_info = await _resolve_whatsapp_visitor_window(req.bot_id, req.session_id, s_row_initial)
+        wa_window = win_info.get("whatsapp_window") or whatsapp_service.compute_service_window(None)
+        if not wa_window.get("window_open") and not has_template:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "whatsapp_window_expired",
+                    "message": (
+                        "The 24-hour WhatsApp customer service window has expired. "
+                        "Per Meta Business policy, free-form messages cannot be delivered until the customer replies. "
+                        "Please select and send a pre-approved WhatsApp Template message to re-open the conversation."
+                    ),
+                    "whatsapp_window": wa_window,
+                },
+            )
+
+        # Resolve recipient phone number and bot WhatsApp credentials
+        to_phone = str(req.session_id)[3:].strip() if str(req.session_id).startswith("wa:") else ""
+        if not to_phone:
+            lead_phone_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("phone")
+                .eq("bot_id", req.bot_id)
+                .eq("session_id", req.session_id)
+                .limit(1)
+                .execute()
+            )
+            if lead_phone_res and lead_phone_res.data:
+                to_phone = str(lead_phone_res.data[0].get("phone") or "").strip()
+
+        bot_wa_res = await run_db(
+            lambda: supabase.table("chatty_bots")
+            .select("id, name, whatsapp_phone_number_id, whatsapp_access_token")
+            .eq("id", req.bot_id)
+            .limit(1)
+            .execute()
+        )
+        bot_wa = bot_wa_res.data[0] if (bot_wa_res and bot_wa_res.data) else {}
+        phone_number_id = (
+            (bot_wa.get("whatsapp_phone_number_id") or "").strip()
+            or whatsapp_service.WHATSAPP_PHONE_NUMBER_ID
+        )
+        access_token = (
+            decrypt_secret((bot_wa.get("whatsapp_access_token") or "").strip())
+            or whatsapp_service.WHATSAPP_ACCESS_TOKEN
+        )
+
+        if phone_number_id and access_token and to_phone:
+            if has_template:
+                whatsapp_delivery_result = await whatsapp_service.send_whatsapp_template(
+                    phone_number_id=phone_number_id,
+                    to=to_phone,
+                    template_name=req.template_name.strip(),
+                    language_code=(req.template_language or "en_US").strip(),
+                    access_token=access_token,
+                    body_params=req.template_params or [],
+                )
+            else:
+                whatsapp_delivery_result = await whatsapp_service.send_whatsapp_message(
+                    phone_number_id=phone_number_id,
+                    to=to_phone,
+                    text=req.text.strip(),
+                    access_token=access_token,
+                )
+
+    raw_display_text = req.text.strip()
+    if has_template and not raw_display_text:
+        params_preview = ", ".join(req.template_params or [])
+        raw_display_text = f"[WhatsApp Template: {req.template_name.strip()}]" + (f" ({params_preview})" if params_preview else "")
+    elif has_template and not raw_display_text.startswith("[WhatsApp Template:"):
+        raw_display_text = f"[WhatsApp Template: {req.template_name.strip()}] {raw_display_text}"
+    safe_text = pii_service.scrub_pii(raw_display_text)
 
     # Resolve the email delivery before mutating the conversation when the
     # durable queue is unavailable, so production cannot report success for a
@@ -400,7 +565,7 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
     }).execute())
     now_iso = datetime.now(timezone.utc).isoformat()
     upd: dict[str, Any] = {
-        "ai_paused": True, "needs_attention": False, "last_message": req.text[:300],
+        "ai_paused": True, "needs_attention": False, "last_message": raw_display_text[:300],
         "last_message_at": now_iso,
         "assigned_agent_name": agent_name,
     }
@@ -418,7 +583,11 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
     if email_delivery and not _admin_job_queue:
         await _enqueue_ticket_reply_email(**email_delivery)
 
-    return {"success": True}
+    return {
+        "success": True,
+        **({"whatsapp_delivered": whatsapp_delivery_result} if whatsapp_delivery_result is not None else {}),
+        **({"template_sent": req.template_name.strip()} if has_template and req.template_name else {}),
+    }
 
 
 @router.post("/api/admin/inbox/reply/media")

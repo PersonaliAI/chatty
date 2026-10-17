@@ -162,6 +162,23 @@ interface Session {
   channel?: "web" | "email" | "slack" | "whatsapp";
   subject?: string;
   visitor_email?: string;
+  whatsapp_window?: {
+    window_open: boolean;
+    requires_template: boolean;
+    remaining_seconds: number;
+    expires_at?: string | null;
+    last_user_message_at?: string | null;
+    reason?: string;
+  };
+}
+
+interface WhatsAppTemplateItem {
+  name: string;
+  language: string;
+  status: string;
+  category: string;
+  body: string;
+  param_labels: string[];
 }
 
 // A conversation is only a routing ticket after it explicitly needs a human
@@ -852,6 +869,76 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   );
 
   // ── Knowledge Base Quick-Insert state ──
+  const [waTemplateOpen, setWaTemplateOpen] = useState(false);
+  const [waTemplates, setWaTemplates] = useState<WhatsAppTemplateItem[]>([]);
+  const [loadingWaTemplates, setLoadingWaTemplates] = useState(false);
+  const [selectedWaTemplate, setSelectedWaTemplate] = useState<WhatsAppTemplateItem | null>(null);
+  const [waTemplateParams, setWaTemplateParams] = useState<string[]>([]);
+
+  const loadWaTemplates = useCallback(async () => {
+    if (!botId) return;
+    setLoadingWaTemplates(true);
+    try {
+      const res = await fetchBackend(`/api/admin/inbox/whatsapp-templates?bot_id=${encodeURIComponent(botId)}`);
+      if (res.ok) {
+        const d = await res.json();
+        const list: WhatsAppTemplateItem[] = d.templates || [];
+        setWaTemplates(list);
+        if (list.length > 0 && !selectedWaTemplate) {
+          setSelectedWaTemplate(list[0]);
+          setWaTemplateParams((list[0].param_labels || []).map((_, idx) => idx === 0 ? (current?.visitor_name || "Customer") : ""));
+        }
+      }
+    } catch {} finally {
+      setLoadingWaTemplates(false);
+    }
+  }, [botId, fetchBackend, current?.visitor_name, selectedWaTemplate]);
+
+  const openWaTemplatePicker = () => {
+    setWaTemplateOpen(true);
+    setKbInsertOpen(false);
+    setAttachOpen(false);
+    setEmojiOpen(false);
+    setCannedOpen(false);
+    void loadWaTemplates();
+  };
+
+  const sendWaTemplate = async () => {
+    if (!selected || !selectedWaTemplate) return;
+    setSending(true);
+    try {
+      let renderedBody = selectedWaTemplate.body || "";
+      waTemplateParams.forEach((val, idx) => {
+        renderedBody = renderedBody.replace(new RegExp(`\\{\\{\\s*${idx + 1}\\s*\\}\\}`, "g"), val || `{{${idx + 1}}}`);
+      });
+      const previewText = `[WhatsApp Template: ${selectedWaTemplate.name}] ${renderedBody}`.trim();
+      setMessages((p) => [...p, { role: "assistant", content: previewText, sender: "human" }]);
+      const res = await fetchBackend("/api/admin/inbox/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: selected,
+          text: renderedBody,
+          template_name: selectedWaTemplate.name,
+          template_language: selectedWaTemplate.language || "en_US",
+          template_params: waTemplateParams,
+        }),
+      });
+      if (res.ok) {
+        showToast(`WhatsApp template '${selectedWaTemplate.name}' sent!`, "success");
+        setWaTemplateOpen(false);
+        loadSessions();
+      } else {
+        showToast("Failed to send WhatsApp template", "error");
+      }
+    } catch {
+      showToast("Error sending WhatsApp template", "error");
+    } finally {
+      setSending(false);
+    }
+  };
+
   const [kbInsertOpen, setKbInsertOpen] = useState(false);
   const [kbArticles, setKbArticles] = useState<Array<{ id: string; title: string; slug: string; subtitle?: string; content?: string; category?: { name: string } }>>([]);
   const [kbSearchQuery, setKbSearchQuery] = useState("");
@@ -1442,17 +1529,28 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   const sendReply = async () => {
     if (!reply.trim() || !selected) return;
+    const isWaSession = current?.channel === "whatsapp" || selected.startsWith("wa:");
+    if (isWaSession && current?.whatsapp_window && !current.whatsapp_window.window_open) {
+      showToast("24h WhatsApp window expired - select an approved Template message to re-open.", "error");
+      openWaTemplatePicker();
+      return;
+    }
     setSending(true);
     const text = reply;
     setReply("");
     setMentionQuery(null);
     setMessages((p) => [...p, { role: "assistant", content: text, sender: "human" }]);
     try {
-      await fetchBackend("/api/admin/inbox/reply", {
+      const res = await fetchBackend("/api/admin/inbox/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bot_id: botId, session_id: selected, text }),
       });
+      if (res.status === 409) {
+        setReply(text);
+        showToast("WhatsApp 24-hour reply window expired. Please send a pre-approved template.", "error");
+        openWaTemplatePicker();
+      }
       loadSessions();
     } catch {} finally {
       setSending(false);
@@ -2154,6 +2252,11 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     <Mail className="size-2.5" />Email
                   </span>
                 )}
+                {(current?.channel === "whatsapp" || selected.startsWith("wa:")) && (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <MessageSquare className="size-2.5" />WhatsApp
+                  </span>
+                )}
                 {current?.visitor_email && (
                   <span className="text-[10px] text-neutral-400 truncate max-w-48 font-mono">
                     &lt;{current.visitor_email}&gt;
@@ -2447,6 +2550,48 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               </div>
             )}
 
+            {/* WhatsApp 24-Hour Customer Service Window Banner */}
+            {(current?.channel === "whatsapp" || selected.startsWith("wa:")) && (() => {
+              const win = current?.whatsapp_window;
+              const isOpen = win ? win.window_open : true;
+              const remSec = win?.remaining_seconds ?? 0;
+              const hrs = Math.floor(remSec / 3600);
+              const mins = Math.floor((remSec % 3600) / 60);
+              return isOpen ? (
+                <div className="px-3.5 py-1.5 bg-emerald-50/60 dark:bg-emerald-950/25 border-b border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200 shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Clock className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="truncate">
+                      <strong>WhatsApp 24h Service Window Open</strong> ? Free-form replies allowed ({hrs}h {mins}m remaining)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openWaTemplatePicker}
+                    className="text-[10px] font-semibold px-2.5 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 cursor-pointer shrink-0"
+                  >
+                    Send Template
+                  </button>
+                </div>
+              ) : (
+                <div className="px-3.5 py-2 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200 shrink-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertCircle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>
+                      <strong>24-Hour Reply Window Expired:</strong> Meta blocks free-form messages 24h after the customer&apos;s last reply. Send a pre-approved template to re-open the conversation.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openWaTemplatePicker}
+                    className="text-[10px] font-bold px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white shadow-xs cursor-pointer shrink-0"
+                  >
+                    Choose WhatsApp Template
+                  </button>
+                </div>
+              );
+            })()}
+
             {/* Smart Escalation Notice Banner */}
             {current?.needs_attention && (
               <div className="bg-red-500/10 border-b border-red-500/20 px-3.5 py-2 flex items-center justify-between text-xs text-red-800 dark:text-red-300 shrink-0">
@@ -2705,6 +2850,128 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                             </div>
                           </div>
                         ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <AnimatePresence>
+                {waTemplateOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute bottom-[84px] left-2.5 right-2.5 z-30 max-h-96 flex flex-col rounded-2xl border border-emerald-500/40 shadow-2xl bg-white dark:bg-neutral-900 overflow-hidden"
+                  >
+                    <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/40 border-b border-emerald-200/60 dark:border-emerald-800/50 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <MessageSquare className="size-4 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-xs font-bold text-neutral-800 dark:text-neutral-100">
+                          Send Pre-Approved Meta WhatsApp Template (HSM)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setWaTemplateOpen(false)}
+                        className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                    <div className="p-3 overflow-y-auto space-y-3 text-xs">
+                      {loadingWaTemplates ? (
+                        <div className="py-6 flex items-center justify-center gap-2 text-neutral-400">
+                          <Loader2 className="size-4 animate-spin" /> Loading approved Meta templates...
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                              Select Approved Template
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                              {waTemplates.map((tpl) => {
+                                const isSel = selectedWaTemplate?.name === tpl.name;
+                                return (
+                                  <button
+                                    key={tpl.name}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedWaTemplate(tpl);
+                                      setWaTemplateParams(
+                                        (tpl.param_labels || []).map((_, idx) =>
+                                          idx === 0 ? (current?.visitor_name || "Customer") : ""
+                                        )
+                                      );
+                                    }}
+                                    className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                      isSel
+                                        ? "border-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 font-bold"
+                                        : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
+                                    }`}
+                                  >
+                                    <div className="text-[11px] font-mono truncate">{tpl.name}</div>
+                                    <div className="text-[9px] opacity-70 uppercase">{tpl.category} ? {tpl.language}</div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {selectedWaTemplate && (
+                            <div className="space-y-2.5 pt-1">
+                              <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-[11px] text-neutral-700 dark:text-neutral-300 leading-relaxed">
+                                <span className="block text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-1">
+                                  Template Preview
+                                </span>
+                                {selectedWaTemplate.body}
+                              </div>
+
+                              {selectedWaTemplate.param_labels && selectedWaTemplate.param_labels.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {selectedWaTemplate.param_labels.map((label, idx) => (
+                                    <div key={idx} className="space-y-1">
+                                      <label className="text-[10px] font-semibold text-neutral-500">
+                                        {label} ({`{{${idx + 1}}}`})
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={waTemplateParams[idx] || ""}
+                                        onChange={(e) => {
+                                          const next = [...waTemplateParams];
+                                          next[idx] = e.target.value;
+                                          setWaTemplateParams(next);
+                                        }}
+                                        placeholder={`Enter ${label.toLowerCase()}...`}
+                                        className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div className="flex justify-end gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setWaTemplateOpen(false)}
+                                  className="px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 text-xs font-semibold text-neutral-600 dark:text-neutral-300 cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void sendWaTemplate()}
+                                  disabled={sending}
+                                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                                >
+                                  {sending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                                  <span>Send Approved Template</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </motion.div>

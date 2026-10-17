@@ -335,6 +335,18 @@ DECLARATIONS: list[dict] = [
         },
         ["visitor_email"],
     ),
+    _tool(
+        "lookup_woocommerce_order",
+        "Look up a real-time WooCommerce order status, tracking numbers, carrier links, line items, and refund status. "
+        "STRICT SECURITY RULE: You MUST require and pass either the customer's billing `email` or `phone` number alongside `order_number` to verify ownership before order details or tracking links are returned. "
+        "If the customer has not provided their email or phone number yet, ask for it first or call this tool and follow the `verification_required` prompt.",
+        {
+            "order_number": {"type": "string", "description": "The order number or ID (e.g. '1042' or '#1042')."},
+            "email": {"type": "string", "description": "Customer billing email address used on the order for identity verification."},
+            "phone": {"type": "string", "description": "Customer billing phone number (or last 4-6 digits) for identity verification."},
+        },
+        ["order_number"],
+    ),
 ]
 
 
@@ -1695,6 +1707,42 @@ async def execute(
             return await _cancel_meeting(args, user, supabase, context=context)
         if name == "create_lead":
             return await _create_lead(args, user, supabase)
+        if name == "lookup_woocommerce_order":
+            from app.services import woocommerce_service
+            bot_id_val = (context or {}).get("bot_id") or args.get("bot_id") or ((context or {}).get("bot") or {}).get("id")
+            if not bot_id_val:
+                return {"error": "Bot ID is missing from context."}
+            order_num = str(args.get("order_number") or "").strip()
+            v_email = str(args.get("email") or "").strip() or None
+            v_phone = str(args.get("phone") or "").strip() or None
+            sess_id = (context or {}).get("session_id") or ""
+            # If WhatsApp session and no phone provided, auto-fill from wa:<phone>
+            if not v_phone and sess_id.startswith("wa:"):
+                v_phone = sess_id[3:].strip()
+            res = await woocommerce_service.lookup_order(
+                str(bot_id_val),
+                order_num,
+                email=v_email,
+                phone=v_phone,
+            )
+            if isinstance(res, dict) and res.get("requires_human_review") and sess_id and supabase:
+                try:
+                    edge_flags = []
+                    if res.get("is_split_shipment"):
+                        edge_flags.append("Split shipment")
+                    if res.get("is_partial_refund"):
+                        edge_flags.append("Partial refund")
+                    reason_str = f"Order #{res.get('order_number') or order_num}: {', '.join(edge_flags) or 'Edge-case review'}"
+                    await run_db(
+                        lambda: supabase.table("chatty_sessions").update({
+                            "needs_attention": True,
+                            "escalation_reason": reason_str[:200],
+                            "priority": "high",
+                        }).eq("bot_id", str(bot_id_val)).eq("session_id", sess_id).execute()
+                    )
+                except Exception:
+                    logger.warning("Failed to flag session for order edge-case human review", exc_info=True)
+            return res
         if name == "web_search":
             return await _web_search(args, user, supabase)
         if name == "list_outlook_events":

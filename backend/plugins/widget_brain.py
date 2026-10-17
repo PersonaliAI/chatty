@@ -205,9 +205,23 @@ async def search_knowledge(
             logger.exception("Widget RAG search failed")
 
     if trained_sources:
+        rag_conf = compute_rag_confidence(english_query, trained_sources)
+        conf_pct = int(round(rag_conf * 100))
+        if rag_conf >= 0.5:
+            conf_banner = f"[RAG Retrieval Confidence: {conf_pct}% (HIGH) — Strong match in knowledge base]"
+        elif rag_conf >= 0.25:
+            conf_banner = f"[RAG Retrieval Confidence: {conf_pct}% (MODERATE) — Partial match; answer only what is explicitly supported]"
+        else:
+            conf_banner = (
+                f"[RAG Retrieval Confidence: {conf_pct}% (LOW / BELOW THRESHOLD) — "
+                "No strong match in trained sources for this query. If the visitor is asking a specific business/policy question "
+                "that cannot be answered by a tool, do NOT guess; state that you don't have that detail and append [HANDOFF_ACTIONS]]"
+            )
         ranked = _rank_sources(english_query, trained_sources)
         if ranked:
-            knowledge_context += "\n\nWebsite / business knowledge (most relevant first):" + ranked
+            knowledge_context += f"\n\n{conf_banner}\nWebsite / business knowledge (most relevant first):" + ranked
+        else:
+            knowledge_context += f"\n\n{conf_banner}"
         source_refs = _ranked_source_refs(english_query, trained_sources)
 
     return knowledge_context, source_refs
@@ -233,6 +247,7 @@ def scheduling_tool_names(
         elif owner_user.get("google_access_token") or bot.get("google_connected_account_id"):
             names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
+    names.append("lookup_woocommerce_order")
     return names
 
 
@@ -817,6 +832,13 @@ async def run_widget_assistant(
         + "- If the visitor attaches an image, screenshot, document, or voice message, USE its contents to understand and help "
         "with their support request (e.g. read an error screenshot, an invoice, or a photo; transcribe and act on a voice note). "
         "Don't refuse attachments - interpret them in the context of helping this customer.\n"
+        + "- E-COMMERCE ORDER LOOKUP (WISMO), TRACKING & EDGE-CASE SAFETY: "
+        "Whenever a customer asks 'Where is my order?', asks for tracking status, shipment updates, delivery status, or refund/return status for an order, "
+        "use the `lookup_woocommerce_order` tool! "
+        "STRICT VERIFICATION RULE: Never disclose order details without verifying the customer's billing email or phone number. If they only gave an order number, ask for their billing email or phone number (or call `lookup_woocommerce_order` and follow its `verification_required` prompt). "
+        "When `lookup_woocommerce_order` returns a verified order with `order_card_token`, ALWAYS include that exact `[ORDER_CARD:{...}]` token in your reply so the interactive Order & Tracking Card renders with clickable carrier links! "
+        "HIGH-STAKES EDGE-CASE DEFENSE (SPLIT SHIPMENTS & PARTIAL REFUNDS): "
+        "If an order has `is_split_shipment: true` or `is_partial_refund: true` (or `requires_human_review: true`), state the exact factual per-shipment or partial-refund breakdown returned by the tool, NEVER guess or promise financial/logistical actions, inform the customer you have flagged their order for priority human review, and ALWAYS append `[HANDOFF_ACTIONS]` at the end of your reply.\n"
         + "- MULTIMODAL & PRODUCT CARDS: When recommending, showing, or answering about available products or inventory items, "
         "always include the structured token [PRODUCT_CARD:{\"id\":\"...\",\"title\":\"...\",\"price\":\"...\",\"currency\":\"...\",\"url\":\"...\",\"image_url\":\"...\",\"in_stock\":true}] "
         "so the widget displays an interactive product card with photo and purchase link. "
@@ -1085,6 +1107,8 @@ async def run_widget_assistant(
 
     thinking_parts: list[str] = []
     booking_tool_succeeded = False
+    order_card_tokens: list[str] = []
+    order_requires_handoff = False
     booking_correction_attempted = False
     called_tools_this_turn: set[str] = set()
 
@@ -1206,6 +1230,11 @@ async def run_widget_assistant(
             clean_reply, flow_action = _extract_flow_actions(reply)
             from app.services import multimodal_service as _multimodal_service
             clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items, query_text=text)
+            for oc_tok in order_card_tokens:
+                if oc_tok not in clean_reply and "[ORDER_CARD:" not in clean_reply:
+                    clean_reply = clean_reply.rstrip() + "\n\n" + oc_tok
+            if order_requires_handoff and "[HANDOFF_ACTIONS]" not in clean_reply:
+                clean_reply = clean_reply.rstrip() + "\n\n[HANDOFF_ACTIONS]"
             if on_token and not stream_live:
                 # Held back for validation above - release it now as one chunk.
                 await on_token(clean_reply)
@@ -1254,6 +1283,11 @@ async def run_widget_assistant(
                     if otp_match:
                         args["verification_code"] = otp_match.group(1)
 
+            if fn_name == "lookup_woocommerce_order":
+                if not args.get("email") and lead_row and lead_row.get("email"):
+                    args["email"] = lead_row["email"]
+                if not args.get("phone") and lead_row and lead_row.get("phone"):
+                    args["phone"] = lead_row["phone"]
             result = await agent_tools.execute(
                 fn_name,
                 args,
@@ -1263,6 +1297,13 @@ async def run_widget_assistant(
             )
             if fn_name in ("create_calendar_event", "create_outlook_event") and isinstance(result, dict) and "error" not in result:
                 booking_tool_succeeded = True
+            if fn_name == "lookup_woocommerce_order" and isinstance(result, dict):
+                if result.get("order_card_token"):
+                    tok = str(result["order_card_token"]).strip()
+                    if tok and tok not in order_card_tokens:
+                        order_card_tokens.append(tok)
+                if result.get("requires_human_review"):
+                    order_requires_handoff = True
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
 
     # Exceeded tool rounds - force a final, tool-free answer (streamed too).
@@ -1303,6 +1344,11 @@ async def run_widget_assistant(
     clean_reply, flow_action = _extract_flow_actions(reply)
     from app.services import multimodal_service as _multimodal_service
     clean_reply = _multimodal_service.sanitize_product_cards(clean_reply, catalog_items, query_text=text)
+    for oc_tok in order_card_tokens:
+        if oc_tok not in clean_reply and "[ORDER_CARD:" not in clean_reply:
+            clean_reply = clean_reply.rstrip() + "\n\n" + oc_tok
+    if order_requires_handoff and "[HANDOFF_ACTIONS]" not in clean_reply:
+        clean_reply = clean_reply.rstrip() + "\n\n[HANDOFF_ACTIONS]"
     if on_token and not stream_live:
         await on_token(clean_reply)
     return {"reply": clean_reply, "thinking": "\n\n".join(thinking_parts), "sources": _refs_grounded_in_reply(source_refs, clean_reply), "transcript": transcribed_voice or "", "flow_action": flow_action}
@@ -1503,18 +1549,68 @@ def _rank_sources(query: str, sources: list[dict], max_sources: int = 6,
     return "".join(lines)
 
 
+_CITATION_NOISE_TOKENS = frozenset({
+    "http", "https", "www", "com", "org", "net", "io", "ai", "co", "app",
+    "html", "htm", "php", "asp", "aspx", "jsp", "docs", "doc", "page",
+    "pages", "site", "web", "home", "index", "main", "default", "chatty",
+    "personaliai",
+})
+
+
+def compute_rag_confidence(query: str, sources: list[dict]) -> float:
+    """Compute a normalized [0.0, 1.0] RAG confidence score based on token overlap,
+    term diversity, and title match against trained knowledge sources."""
+    q_tokens = _query_tokens(query)
+    if not q_tokens or not sources:
+        return 0.0
+    best_score = max((_score_source_candidate(s, q_tokens) for s in sources), default=0)
+    if best_score <= 0:
+        return 0.0
+    # A score of >= 35 (e.g. 2+ distinct query tokens matched or title boost + body match)
+    # represents high confidence (1.0). Single weak token match (~9) is ~0.26.
+    return round(min(1.0, best_score / 35.0), 2)
+
+
 def _refs_grounded_in_reply(refs: list[dict], reply: str) -> list[dict]:
-    """Keep citations reflecting the reply. If strict name-token matching filters out
-    everything, fallback to the top retrieved refs so citations are not dropped."""
-    reply_tokens = _query_tokens(reply)
+    """Keep citations reflecting the reply. Never attach citations when the assistant
+    declined, couldn't answer from documentation, or triggered human handoff."""
+    if not refs or not reply:
+        return []
+    if "[HANDOFF_ACTIONS]" in reply:
+        return []
+    try:
+        from app.services.widget_session_service import looks_unanswered
+        if looks_unanswered(reply):
+            return []
+    except Exception:
+        pass
+
+    reply_tokens = _query_tokens(reply) - _CITATION_NOISE_TOKENS
     if not reply_tokens:
-        return refs[:2] if refs else []
+        return []
     grounded = []
     for ref in refs:
-        name_tokens = _query_tokens(ref.get("name") or "")
-        if name_tokens & reply_tokens:
-            grounded.append(ref)
-    return grounded if grounded else (refs[:2] if refs else [])
+        raw_name = (ref.get("name") or "").strip()
+        name_tokens = _query_tokens(raw_name) - _CITATION_NOISE_TOKENS
+        # Also include explicit content tokens if available on the ref
+        ref_tokens = name_tokens | (_query_tokens(ref.get("snippet") or "") - _CITATION_NOISE_TOKENS)
+        if ref_tokens & reply_tokens:
+            grounded.append({
+                "name": ref.get("name"),
+                "type": ref.get("type"),
+                "url": ref.get("url"),
+                **({"confidence": ref["confidence"]} if "confidence" in ref else {}),
+            })
+    return grounded if grounded else [
+        {
+            "name": r.get("name"),
+            "type": r.get("type"),
+            "url": r.get("url"),
+            **({"confidence": r["confidence"]} if "confidence" in r else {}),
+        }
+        for r in refs[:2]
+        if r.get("confidence", 0.5) >= 0.45
+    ]
 
 
 def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list[dict]:
@@ -1532,7 +1628,7 @@ def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list
             scored.append((score, s))
     scored.sort(key=lambda x: x[0], reverse=True)
     refs, seen = [], set()
-    for _, s in scored[:limit]:
+    for _score, s in scored[:limit]:
         name = (s.get("name") or "").strip()
         stype = s.get("type") or "text"
         key = name.lower()
@@ -1540,10 +1636,13 @@ def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list
             continue
         seen.add(key)
         is_url = stype == "url" and name.startswith(("http://", "https://"))
+        conf = round(min(1.0, _score / 35.0), 2)
         refs.append({
             "name": (name if is_url else name)[:120],
             "type": stype,
             "url": name if is_url else None,
+            "confidence": conf,
+            "snippet": (s.get("content") or "")[:300],
         })
     return refs
 

@@ -17,6 +17,7 @@ import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
+import { OrderCard, type OrderCardData } from "@/components/order-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle, getPresetSignature } from "@/lib/widget-style";
 import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
@@ -81,7 +82,7 @@ function isPlausibleEmail(value: string): boolean {
   return !/[\s<>()[\]\\,;:]/.test(email);
 }
 
-function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[]; hasHandoffActions?: boolean } {
+function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[]; orders: OrderCardData[]; hasHandoffActions?: boolean } {
   const extract = <T extends object>(source: string, marker: string): { text: string; items: T[] } => {
     const items: T[] = [];
     let cursor = 0;
@@ -142,13 +143,15 @@ function parseProductCards(content: string): { cleanContent: string; products: P
   const hasHandoffActions = /\[HANDOFF_ACTIONS\]/.test(content);
   const productResult = extract<ProductCardData>(content, "[PRODUCT_CARD:");
   const videoResult = extract<VideoClipData>(productResult.text, "[VIDEO_CLIP:");
+  const orderResult = extract<OrderCardData>(videoResult.text, "[ORDER_CARD:");
   const products = productResult.items;
   const videoClips = videoResult.items;
-  let clean = videoResult.text;
+  const orders = orderResult.items;
+  let clean = orderResult.text;
 
   clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").replace(/\[HANDOFF_ACTIONS\]/g, "").trim();
 
-  return { cleanContent: clean, products, videoClips, hasHandoffActions };
+  return { cleanContent: clean, products, videoClips, orders, hasHandoffActions };
 }
 
 interface FlowNode {
@@ -3407,7 +3410,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                             {msg.role === "assistant" ? (
                               <>
                                 {(() => {
-                                  const { cleanContent, products, videoClips, hasHandoffActions } = parseProductCards(msg.content);
+                                  const { cleanContent, products, videoClips, orders, hasHandoffActions } = parseProductCards(msg.content);
                                   return (
                                     <>
                                       {cleanContent && (
@@ -3431,6 +3434,13 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                                         <div className="flex flex-col gap-2 my-2 w-full">
                                           {videoClips.map((c, cIdx) => (
                                             <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
+                                          ))}
+                                        </div>
+                                      )}
+                                      {orders.length > 0 && (
+                                        <div className="flex flex-col gap-2 my-2 w-full">
+                                          {orders.map((ord, oIdx) => (
+                                            <OrderCard key={ord.order_id || ord.order_number || oIdx} order={ord} primaryColor={primaryColor} />
                                           ))}
                                         </div>
                                       )}
