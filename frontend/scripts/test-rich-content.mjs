@@ -25,4 +25,10 @@ for (const parseRichContent of [parseApp, parsePackage]) {
     assert.equal(result.products.length, 0);
     assert.match(result.cleanContent, /\[PRODUCT_CARD:/);
   });
+
+  test(`${parseRichContent.name} detects and cleans [HANDOFF_ACTIONS] marker`, () => {
+    const result = parseRichContent("I don't have return policy details in my documentation. Would you like me to connect you with our team?\n\n[HANDOFF_ACTIONS]");
+    assert.equal(result.hasHandoffActions, true);
+    assert.equal(result.cleanContent, "I don't have return policy details in my documentation. Would you like me to connect you with our team?");
+  });
 }

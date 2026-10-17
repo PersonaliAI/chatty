@@ -162,8 +162,20 @@ async def geoip_lookup(ip: str) -> dict[str, Any]:
 _HANDOFF_PATTERNS = (
     "human", "real person", "real human", "speak to someone", "speak with someone",
     "speak to a person", "speak to an agent", "talk to someone", "talk to a person",
-    "talk to an agent", "live agent", "customer service", "representative",
-    "contact a person", "call me", "phone me",
+    "talk to an agent", "talk to agent", "speak to agent", "connect to agent",
+    "connect with agent", "connect me to a person", "connect me to an agent",
+    "connect to human", "live agent", "customer service", "representative",
+    "contact a person", "call me", "phone me", "live support", "support agent",
+    "real agent", "transfer to agent", "transfer to human", "handoff to agent",
+    "handoff to human", "talk to human", "speak to human", "human assistance",
+    "help from a person", "get a human", "get an agent", "need a person", "need a human",
+)
+
+_AFFIRMATIVE_HANDOFF_PATTERNS = (
+    "yes", "yes please", "please", "sure", "connect me", "connect me please",
+    "talk to them", "talk to agent", "let me talk", "speak with them", "i want to",
+    "transfer me", "pass me", "escalate", "yeah", "yep", "ok please", "okay please",
+    "yes connect me", "yes transfer me", "yes talk to human", "yes talk to agent",
 )
 
 _NEGATIVE_PATTERNS = (
@@ -171,21 +183,6 @@ _NEGATIVE_PATTERNS = (
     "useless", "ridiculous", "unacceptable", "scam", "cancel subscription",
     "refund", "complain", "complaint", "broken", "does not work", "doesn't work",
 )
-
-
-def needs_human(text: str) -> bool:
-    lowered = (text or "").lower()
-    return any(pattern in lowered for pattern in _HANDOFF_PATTERNS)
-
-
-def detect_sentiment_escalation(text: str) -> Optional[str]:
-    lowered = (text or "").lower()
-    if any(pattern in lowered for pattern in _HANDOFF_PATTERNS):
-        return "Customer requested human agent"
-    if any(pattern in lowered for pattern in _NEGATIVE_PATTERNS):
-        return "Negative sentiment detected"
-    return None
-
 
 _UNANSWERED_MARKERS = (
     "i don't have", "i do not have", "don't have that information",
@@ -201,6 +198,32 @@ _UNANSWERED_MARKERS = (
 def looks_unanswered(reply: str) -> bool:
     lowered = (reply or "").lower()
     return any(marker in lowered for marker in _UNANSWERED_MARKERS)
+
+
+def needs_human(text: str) -> bool:
+    lowered = (text or "").lower()
+    return any(pattern in lowered for pattern in _HANDOFF_PATTERNS)
+
+
+def detect_sentiment_escalation(text: str, previous_message: Optional[str] = None) -> Optional[str]:
+    lowered = (text or "").strip().lower()
+    if any(pattern in lowered for pattern in _HANDOFF_PATTERNS):
+        return "Customer requested human agent"
+    if any(pattern in lowered for pattern in _NEGATIVE_PATTERNS):
+        return "Negative sentiment detected"
+    if previous_message:
+        prev_lowered = previous_message.lower()
+        has_handoff_context = (
+            looks_unanswered(previous_message)
+            or "[handoff_actions]" in prev_lowered
+            or any(kw in prev_lowered for kw in ("connect you", "team member", "human agent", "support team", "live agent", "follow up"))
+        )
+        if has_handoff_context and any(
+            lowered == aff or lowered.startswith(aff + " ") or lowered.endswith(" " + aff)
+            for aff in _AFFIRMATIVE_HANDOFF_PATTERNS
+        ):
+            return "Customer accepted human handoff offer"
+    return None
 
 
 def log_unanswered_if_needed(bot_id: str, session_id: str, question: str, reply: str) -> None:

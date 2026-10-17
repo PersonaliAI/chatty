@@ -1529,6 +1529,39 @@ function IdentifiedChatWidget({
     }
   }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader]);
 
+  const requestLiveHandoff = useCallback(async () => {
+    setLiveAgent(true);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: "I would like to speak to a human agent",
+        created_at: new Date().toISOString(),
+      },
+      {
+        role: "assistant",
+        content: "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you.",
+        sender: "ai",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(widgetTokenHeader ? { "x-widget-token": widgetTokenHeader } : {}),
+        },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          text: "[Visitor requested live agent]",
+          ai_paused: true,
+        }),
+      });
+    } catch {}
+  }, [botId, sessionId, widgetTokenHeader]);
+
   // Transcript restoration is server-backed below; never hydrate message
   // content from browser storage because it may contain visitor PII.
   useEffect(() => {
@@ -3138,7 +3171,7 @@ function IdentifiedChatWidget({
                               {msg.role === "assistant" ? (
                                 <>
                                   {(() => {
-                                    const { cleanContent, products, videoClips } = parseRichContent<ProductCardData, VideoClipData>(msg.content);
+                                    const { cleanContent, products, videoClips, hasHandoffActions } = parseRichContent<ProductCardData, VideoClipData>(msg.content);
                                     return (
                                       <>
                                         {cleanContent && (
@@ -3163,6 +3196,31 @@ function IdentifiedChatWidget({
                                             {videoClips.map((c, cIdx) => (
                                               <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
                                             ))}
+                                          </div>
+                                        )}
+                                        {hasHandoffActions && i === messages.length - 1 && !isBotResponding && !liveAgent && (
+                                          <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
+                                            <button
+                                              type="button"
+                                              onClick={requestLiveHandoff}
+                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                                              style={{
+                                                borderColor: primaryColor,
+                                                color: primaryColor,
+                                                backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
+                                              }}
+                                            >
+                                              <Headphones className="size-3.5" />
+                                              <span>Talk to an agent</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => setShowOfflineForm(true)}
+                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
+                                            >
+                                              <Mail className="size-3.5" />
+                                              <span>Leave email for follow-up</span>
+                                            </button>
                                           </div>
                                         )}
                                       </>

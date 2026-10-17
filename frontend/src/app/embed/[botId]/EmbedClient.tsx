@@ -81,7 +81,7 @@ function isPlausibleEmail(value: string): boolean {
   return !/[\s<>()[\]\\,;:]/.test(email);
 }
 
-function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[] } {
+function parseProductCards(content: string): { cleanContent: string; products: ProductCardData[]; videoClips: VideoClipData[]; hasHandoffActions?: boolean } {
   const extract = <T extends object>(source: string, marker: string): { text: string; items: T[] } => {
     const items: T[] = [];
     let cursor = 0;
@@ -139,15 +139,16 @@ function parseProductCards(content: string): { cleanContent: string; products: P
     return { text, items };
   };
 
+  const hasHandoffActions = /\[HANDOFF_ACTIONS\]/.test(content);
   const productResult = extract<ProductCardData>(content, "[PRODUCT_CARD:");
   const videoResult = extract<VideoClipData>(productResult.text, "[VIDEO_CLIP:");
   const products = productResult.items;
   const videoClips = videoResult.items;
   let clean = videoResult.text;
 
-  clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").trim();
+  clean = clean.replace(/\[BOOKING_WIDGET\]/g, "").replace(/\[HANDOFF_ACTIONS\]/g, "").trim();
 
-  return { cleanContent: clean, products, videoClips };
+  return { cleanContent: clean, products, videoClips, hasHandoffActions };
 }
 
 interface FlowNode {
@@ -1602,6 +1603,39 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       setSupportEmailSaving(false);
     }
   }, [supportEmail, marketingConsent, botId, hostKey, sessionId, widgetTokenHeader, extractedVisitorInfo.name]);
+
+  const requestLiveHandoff = useCallback(async () => {
+    setLiveAgent(true);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: "I would like to speak to a human agent",
+        created_at: new Date().toISOString(),
+      },
+      {
+        role: "assistant",
+        content: "Connecting you with our support team now. Our team has access to your full conversation history and will be right with you.",
+        sender: "ai",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(widgetTokenHeader ? { "x-widget-token": widgetTokenHeader } : {}),
+        },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          text: "[Visitor requested live agent]",
+          ai_paused: true,
+        }),
+      });
+    } catch {}
+  }, [botId, sessionId, widgetTokenHeader]);
 
   // Conversation history and transcripts are restored from the authenticated
   // server endpoints below; no message bodies are read from localStorage.
@@ -3373,7 +3407,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                             {msg.role === "assistant" ? (
                               <>
                                 {(() => {
-                                  const { cleanContent, products, videoClips } = parseProductCards(msg.content);
+                                  const { cleanContent, products, videoClips, hasHandoffActions } = parseProductCards(msg.content);
                                   return (
                                     <>
                                       {cleanContent && (
@@ -3398,6 +3432,31 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                                           {videoClips.map((c, cIdx) => (
                                             <VideoCard key={cIdx} clip={c} primaryColor={primaryColor} />
                                           ))}
+                                        </div>
+                                      )}
+                                      {hasHandoffActions && i === messages.length - 1 && !isBotResponding && !liveAgent && (
+                                        <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
+                                          <button
+                                            type="button"
+                                            onClick={requestLiveHandoff}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                                            style={{
+                                              borderColor: primaryColor,
+                                              color: primaryColor,
+                                              backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
+                                            }}
+                                          >
+                                            <Headphones className="size-3.5" />
+                                            <span>Talk to an agent</span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowOfflineForm(true)}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
+                                          >
+                                            <Mail className="size-3.5" />
+                                            <span>Leave email for follow-up</span>
+                                          </button>
                                         </div>
                                       )}
                                     </>

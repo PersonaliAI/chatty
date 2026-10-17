@@ -2,6 +2,7 @@ export interface RichContentResult<TProduct extends object = Record<string, unkn
   cleanContent: string;
   products: TProduct[];
   videoClips: TVideo[];
+  hasHandoffActions?: boolean;
 }
 
 function extractMarker<T extends object>(source: string, marker: string): { text: string; items: T[] } {
@@ -61,11 +62,16 @@ function extractMarker<T extends object>(source: string, marker: string): { text
 export function parseRichContent<TProduct extends object = Record<string, unknown>, TVideo extends object = Record<string, unknown>>(
   content: string,
 ): RichContentResult<TProduct, TVideo> {
+  const hasHandoffActions = /\[HANDOFF_ACTIONS\]/.test(content);
   const productResult = extractMarker<TProduct>(content, "[PRODUCT_CARD:");
   const videoResult = extractMarker<TVideo>(productResult.text, "[VIDEO_CLIP:");
   return {
-    cleanContent: videoResult.text.replace(/\[BOOKING_WIDGET\]/g, "").trim(),
+    cleanContent: videoResult.text
+      .replace(/\[BOOKING_WIDGET\]/g, "")
+      .replace(/\[HANDOFF_ACTIONS\]/g, "")
+      .trim(),
     products: productResult.items,
     videoClips: videoResult.items,
+    hasHandoffActions,
   };
 }

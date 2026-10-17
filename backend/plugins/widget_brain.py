@@ -783,10 +783,8 @@ async def run_widget_assistant(
             "- Answer primarily from the business knowledge below. If it doesn't cover the question, "
             "you MAY use your own general knowledge to help. Never invent specifics about THIS business "
             "(prices, policies, features, contact details) - only state those if they're in the knowledge.\n"
-            "- If the answer isn't in your knowledge, be upfront that it's general information, then offer to "
-            "capture the visitor's name + email so the team can follow up"
-            + (", or offer to book a call" if scheduling_enabled else "")
-            + ".\n"
+            "- If the answer isn't in your knowledge, be upfront that it's general information, offer to "
+            "connect with a human agent or team follow up, and append the exact marker `[HANDOFF_ACTIONS]`.\n"
         )
     elif answer_mode == "web":
         knowledge_line = (
@@ -798,10 +796,7 @@ async def run_widget_assistant(
     else:  # strict
         knowledge_line = (
             "- Answer using ONLY the business knowledge provided below. Do NOT invent facts, prices, policies, or features.\n"
-            "- If the answer isn't in your knowledge, say so honestly and helpfully - never guess. Then offer to help another way "
-            "(capture the visitor's name + email so the team can follow up"
-            + (", or offer to book a call" if scheduling_enabled else "")
-            + ").\n"
+            "- If the answer isn't in your knowledge, say so honestly and helpfully - never guess. State that you don't have that specific information in your current documentation, offer to connect them with a human agent or have the team follow up, and ALWAYS append the exact marker `[HANDOFF_ACTIONS]` at the end of your message.\n"
         )
 
     persona = (

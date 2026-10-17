@@ -577,7 +577,7 @@ async def widget_chat(
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
 
     # Flag conversations where the visitor asks for a human or shows frustration.
-    esc = _detect_sentiment_escalation(text)
+    esc = _detect_sentiment_escalation(text, session_row.get("last_message"))
     if not esc and ("[Visitor requested live agent" in text or body.ai_paused):
         esc = "Visitor requested human agent"
     if esc:
@@ -587,6 +587,8 @@ async def widget_chat(
                 upd["priority"] = "urgent"
             else:
                 upd["priority"] = "high"
+            if body.ai_paused or "human agent" in esc.lower() or "live agent" in esc.lower():
+                upd["ai_paused"] = True
             await run_db(lambda: supabase.table("chatty_sessions").update(upd)
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
@@ -636,7 +638,7 @@ async def widget_chat(
         return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
 
     # 2c. If a human agent has taken over, don't run the AI - they'll reply.
-    if session_row.get("ai_paused"):
+    if session_row.get("ai_paused") or body.ai_paused or (esc and "human agent" in esc.lower()):
         return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
 
     if flow_result.get("reply"):
@@ -694,6 +696,8 @@ async def widget_chat(
         raise HTTPException(status_code=502, detail="widget assistant failed")
 
     reply = result["reply"]
+    if looks_unanswered(reply) and "[HANDOFF_ACTIONS]" not in reply:
+        reply = f"{reply.rstrip()}\n\n[HANDOFF_ACTIONS]"
 
     # 5. Save assistant reply
     try:
@@ -792,7 +796,9 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             from app.routers.admin import _dispatch_ticket_to_agent
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
 
-    esc = _detect_sentiment_escalation(text)
+    esc = _detect_sentiment_escalation(text, session_row.get("last_message"))
+    if not esc and ("[Visitor requested live agent" in text or body.ai_paused):
+        esc = "Visitor requested human agent"
     if esc:
         try:
             upd = {"needs_attention": True, "escalation_reason": esc}
@@ -800,6 +806,8 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 upd["priority"] = "urgent"
             else:
                 upd["priority"] = "high"
+            if body.ai_paused or "human agent" in esc.lower() or "live agent" in esc.lower():
+                upd["ai_paused"] = True
             await run_db(lambda: supabase.table("chatty_sessions").update(upd)
                 .eq("bot_id", bot_id).eq("session_id", session_id).execute())
         except Exception:
@@ -852,7 +860,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         return StreamingResponse(_offline_gen(), media_type="text/event-stream", background=background_tasks)
 
     # Human agent took over - nothing to stream.
-    if session_row.get("ai_paused"):
+    if session_row.get("ai_paused") or body.ai_paused or (esc and "human agent" in esc.lower()):
         async def _paused_gen():
             yield _sse({"type": "paused"})
         return StreamingResponse(_paused_gen(), media_type="text/event-stream", background=background_tasks)
@@ -926,6 +934,8 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 flow_context=body.flow_context,
             )
             reply = result["reply"]
+            if looks_unanswered(reply) and "[HANDOFF_ACTIONS]" not in reply:
+                reply = f"{reply.rstrip()}\n\n[HANDOFF_ACTIONS]"
             try:
                 bot_name = bot.get("name") or "Chatty"
                 bot_av = bot.get("avatar_url") or bot.get("logo_url")
