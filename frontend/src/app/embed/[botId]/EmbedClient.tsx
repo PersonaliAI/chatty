@@ -1625,7 +1625,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(widgetTokenHeader ? { "x-widget-token": widgetTokenHeader } : {}),
+          ...widgetTokenHeader,
         },
         body: JSON.stringify({
           bot_id: botId,
