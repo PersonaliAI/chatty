@@ -242,6 +242,7 @@ async def test_offline_ticket_stores_contact_fields_and_skips_ai(monkeypatch):
         MagicMock(data=[{"auth_user_id": "owner-1", "email": "owner@example.com"}]),
         MagicMock(data=[{"ok": True}]),  # mark offline ticket session
         MagicMock(data=[{"id": "msg-1"}]),  # persist user message
+        MagicMock(data=[{"id": "msg-2"}]),  # persist assistant confirmation
     ]
 
     with patch("app.routers.widget.run_db", new_callable=AsyncMock) as mock_run_db, \
@@ -255,7 +256,7 @@ async def test_offline_ticket_stores_contact_fields_and_skips_ai(monkeypatch):
         result = await widget_chat(req, request, BackgroundTasks())
 
     assert result.ai_paused is True
-    assert result.reply == ""
+    assert "received" in result.reply.lower()
     mock_upsert.assert_awaited_once()
     _, kwargs = mock_upsert.call_args
     assert kwargs["visitor_name"] == "Jane Smith"
