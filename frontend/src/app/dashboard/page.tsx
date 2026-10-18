@@ -4698,18 +4698,20 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (
             <>
-              <div className="px-4 sm:px-6 md:px-8 pt-4 sm:pt-6">
-                <TrialCountdown
-                  plan={billingInfo?.plan || (user?.user_metadata?.selected_plan as string) || "standard"}
-                  subscriptionStatus={billingInfo?.status}
-                  createdAt={user?.created_at}
-                  trialStartedAt={(user?.user_metadata as Record<string, unknown>)?.trial_started_at as string | undefined}
-                  isSharedBot={isCurrentBotShared}
-                  onUpgradeClick={() => setShowTrialExpiredModal(true)}
-                  variant="banner"
-                  isLoading={loadingSession || !user || !botId || billingInfo === null}
-                />
-              </div>
+              {!isTrialExpired && (
+                <div className="px-4 sm:px-6 md:px-8 pt-4 sm:pt-6">
+                  <TrialCountdown
+                    plan={billingInfo?.plan || (user?.user_metadata?.selected_plan as string) || "standard"}
+                    subscriptionStatus={billingInfo?.status}
+                    createdAt={user?.created_at}
+                    trialStartedAt={(user?.user_metadata as Record<string, unknown>)?.trial_started_at as string | undefined}
+                    isSharedBot={isCurrentBotShared}
+                    onUpgradeClick={() => setShowTrialExpiredModal(true)}
+                    variant="banner"
+                    isLoading={loadingSession || !user || !botId || billingInfo === null}
+                  />
+                </div>
+              )}
               <HomeTab
                 setActiveTab={setActiveTab}
                 totalSessions={totalSessions}
@@ -5751,7 +5753,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
       <TrialExpiredModal
         open={showTrialExpiredModal}
-        canDismiss={!isTrialExpired || userBots.some((b) => Boolean(b.user_id && user?.id && b.user_id !== user.id))}
+        canDismiss={true}
         onClose={() => {
           setShowTrialExpiredModal(false);
         }}

@@ -10,6 +10,10 @@ import {
   ShieldCheck,
   AlertCircle,
   LogOut,
+  Bot,
+  ChevronDown,
+  Check,
+  Eye,
 } from "lucide-react";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 
@@ -98,6 +102,14 @@ export function TrialExpiredModal({
   onSwitchToBot,
 }: TrialExpiredModalProps) {
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
+  const [selectedSharedBotId, setSelectedSharedBotId] = useState<string>(sharedBots[0]?.id || "");
+  const [sharedDropdownOpen, setSharedDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (sharedBots.length > 0 && (!selectedSharedBotId || !sharedBots.some((b) => b.id === selectedSharedBotId))) {
+      setSelectedSharedBotId(sharedBots[0].id);
+    }
+  }, [sharedBots, selectedSharedBotId]);
 
   // Prevent scroll on body while uncancelable modal is open
   useEffect(() => {
@@ -256,34 +268,95 @@ export function TrialExpiredModal({
 
         {/* Shared Bots Quick Access Banner */}
         {sharedBots && sharedBots.length > 0 && onSwitchToBot && (
-          <div className="mt-4 p-4 rounded-2xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex items-start gap-3">
+          <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left animate-in fade-in slide-in-from-top-2 duration-200 shadow-xs">
+            <div className="flex items-start gap-3 min-w-0">
               <ShieldCheck className="size-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-xs font-bold text-blue-950 dark:text-blue-100 flex items-center gap-1.5 flex-wrap">
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-blue-950 dark:text-blue-100 flex items-center gap-2 flex-wrap">
                   <span>Collaborating on Shared Chatbots?</span>
                   <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-extrabold uppercase tracking-wide">
-                    Free for Teammates
+                    {sharedBots.length > 1 ? `${sharedBots.length} Shared Assistants Available` : "Free for Teammates"}
                   </span>
                 </h4>
-                <p className="text-[11.5px] text-blue-800/90 dark:text-blue-200 mt-0.5 leading-relaxed">
+                <p className="text-[11.5px] text-blue-800/90 dark:text-blue-200 mt-1 leading-relaxed">
                   Your personal account trial ended, but you are an invited collaborator on shared assistant(s). All usage and AI credits are paid by the workspace owner.
                 </p>
               </div>
             </div>
-            <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto shrink-0">
-              {sharedBots.map((sb) => (
+
+            {sharedBots.length === 1 ? (
+              <button
+                type="button"
+                onClick={() => onSwitchToBot(sharedBots[0].id)}
+                className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              >
+                <span>Open &ldquo;{sharedBots[0].name}&rdquo;</span>
+                <ArrowRight className="size-3.5" />
+              </button>
+            ) : (
+              <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                {/* Modern Responsive Dropdown */}
+                <div className="relative min-w-[200px] sm:min-w-[220px]">
+                  <button
+                    type="button"
+                    onClick={() => setSharedDropdownOpen(!sharedDropdownOpen)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white dark:bg-neutral-900 border border-blue-200 dark:border-blue-700/80 text-xs font-medium text-neutral-800 dark:text-neutral-200 hover:border-blue-300 transition-colors shadow-xs cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Bot className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span className="truncate font-semibold">
+                        {sharedBots.find((b) => b.id === (selectedSharedBotId || sharedBots[0].id))?.name || "Select shared bot"}
+                      </span>
+                    </span>
+                    <ChevronDown className={`size-3.5 text-neutral-400 transition-transform ${sharedDropdownOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {sharedDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-20" onClick={() => setSharedDropdownOpen(false)} />
+                      <div className="absolute right-0 left-0 mt-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-xl z-30 py-1.5 max-h-52 overflow-y-auto chatty-custom-scrollbar">
+                        <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400 border-b border-neutral-100 dark:border-neutral-800 mb-1">
+                          Select an assistant
+                        </div>
+                        {sharedBots.map((sb) => {
+                          const isSelected = sb.id === (selectedSharedBotId || sharedBots[0].id);
+                          return (
+                            <button
+                              key={sb.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSharedBotId(sb.id);
+                                setSharedDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2 text-xs text-left transition-colors cursor-pointer ${
+                                isSelected
+                                  ? "bg-blue-50 dark:bg-blue-950/60 font-bold text-blue-700 dark:text-blue-300"
+                                  : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                              }`}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                <Bot className="size-3.5 text-blue-500 shrink-0" />
+                                <span className="truncate">{sb.name}</span>
+                              </span>
+                              {isSelected && <Check className="size-3.5 text-blue-600 dark:text-blue-400 shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <button
-                  key={sb.id}
                   type="button"
-                  onClick={() => onSwitchToBot(sb.id)}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => onSwitchToBot(selectedSharedBotId || sharedBots[0].id)}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <span>Open &ldquo;{sb.name}&rdquo;</span>
+                  <span>Open Assistant</span>
                   <ArrowRight className="size-3.5" />
                 </button>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -402,9 +475,11 @@ export function TrialExpiredModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200 underline underline-offset-4 cursor-pointer font-medium"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white transition-colors cursor-pointer text-xs font-semibold"
+                title="Dismiss and view dashboard in Read-Only Mode"
               >
-                Continue viewing in Read-Only Mode
+                <Eye className="size-3.5" />
+                <span>Explore in Read-Only Mode</span>
               </button>
             )}
           </div>
