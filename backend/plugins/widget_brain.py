@@ -180,6 +180,19 @@ async def search_knowledge(
             .execute())
         if res_sources and res_sources.data:
             trained_sources = res_sources.data
+            try:
+                res_articles = await run_db(lambda: supabase.table("chatty_kb_articles")
+                    .select("source_id, slug")
+                    .eq("bot_id", bot_id)
+                    .eq("status", "published")
+                    .execute())
+                if res_articles and res_articles.data:
+                    art_map = {a["source_id"]: a["slug"] for a in res_articles.data if a.get("source_id") and a.get("slug")}
+                    for s in trained_sources:
+                        if s.get("id") in art_map:
+                            s["url"] = f"https://chatty.personaliai.com/kb/{bot_id}?article={art_map[s['id']]}"
+            except Exception:
+                pass
     except Exception:
         logger.exception("Widget sources query failed")
 
@@ -1635,12 +1648,13 @@ def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list
         if not name or key in seen:
             continue
         seen.add(key)
-        is_url = stype == "url" and name.startswith(("http://", "https://"))
+        target_url = s.get("url") or (name if stype == "url" and name.startswith(("http://", "https://")) else None)
         conf = round(min(1.0, _score / 35.0), 2)
+        display_name = name.replace("Article: ", "") if name.startswith("Article: ") else name
         refs.append({
-            "name": (name if is_url else name)[:120],
+            "name": display_name[:120],
             "type": stype,
-            "url": name if is_url else None,
+            "url": target_url,
             "confidence": conf,
             "snippet": (s.get("content") or "")[:300],
         })
