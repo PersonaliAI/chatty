@@ -245,6 +245,7 @@ def test_well_known_authorization_server_metadata_is_served():
     body = r.json()
     assert body["authorization_endpoint"].endswith("/oauth/authorize")
     assert body["token_endpoint"].endswith("/oauth/token")
+    assert body["registration_endpoint"].endswith("/oauth/register")
     assert "S256" in body["code_challenge_methods_supported"]
 
 
@@ -336,3 +337,34 @@ def test_create_bot_requires_oauth_not_api_key():
         )
     assert r.status_code == 403
     assert "OAuth2" in r.json()["detail"]
+
+
+def test_register_client_public_client_without_initial_token():
+    client = TestClient(main.app)
+    query = _mock_insert_result({"id": "row-1"})
+    with patch.object(oauth_router, "OAUTH_DCR_INITIAL_ACCESS_TOKEN", None):
+        with patch.object(oauth.supabase, "table", return_value=query):
+            r = client.post("/oauth/register", json={
+                "client_name": "Claude Desktop",
+                "redirect_uris": ["http://localhost:54321/callback"],
+            })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["client_id"].startswith(oauth._CLIENT_ID_PREFIX)
+    assert body["token_endpoint_auth_method"] == "none"
+    assert body["client_secret"] is None
+
+
+def test_matches_registered_redirect_allows_loopback_port_variation():
+    registered = ["http://127.0.0.1:5000/callback", "https://app.example.com/oauth/callback"]
+    # Exact matches
+    assert oauth_router._matches_registered_redirect("https://app.example.com/oauth/callback", registered) is True
+    assert oauth_router._matches_registered_redirect("http://127.0.0.1:5000/callback", registered) is True
+    # RFC 8252: loopback port change permitted at runtime
+    assert oauth_router._matches_registered_redirect("http://127.0.0.1:59999/callback", registered) is True
+    assert oauth_router._matches_registered_redirect("http://localhost:59999/callback", registered) is True
+    # Path mismatch rejected
+    assert oauth_router._matches_registered_redirect("http://127.0.0.1:5000/wrong_path", registered) is False
+    # Non-loopback port change NOT permitted
+    assert oauth_router._matches_registered_redirect("https://app.example.com:8443/oauth/callback", registered) is False
+

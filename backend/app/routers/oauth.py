@@ -77,9 +77,8 @@ async def oauth_authorization_server_metadata():
         "grant_types_supported": ["authorization_code", "refresh_token"],
         "token_endpoint_auth_methods_supported": ["none", "client_secret_post"],
         "code_challenge_methods_supported": ["S256"],
+        "registration_endpoint": f"{_BACKEND_BASE_URL}/oauth/register",
     }
-    if OAUTH_DCR_INITIAL_ACCESS_TOKEN:
-        metadata["registration_endpoint"] = f"{_BACKEND_BASE_URL}/oauth/register"
     return metadata
 
 
@@ -140,20 +139,39 @@ def _validate_redirect_uri(uri: str) -> None:
         raise HTTPException(status_code=400, detail="redirect_uri host is not allowlisted")
 
 
+def _matches_registered_redirect(requested_uri: str, registered_uris: list[str]) -> bool:
+    if requested_uri in registered_uris:
+        return True
+    if _is_loopback_redirect(requested_uri):
+        from urllib.parse import urlsplit
+        req = urlsplit(requested_uri)
+        for reg in registered_uris:
+            if _is_loopback_redirect(reg):
+                r = urlsplit(reg)
+                # RFC 8252 §7.3: Native loopback redirect URIs may use any port chosen at runtime
+                if (
+                    req.scheme == r.scheme
+                    and req.hostname in {"127.0.0.1", "localhost", "::1"}
+                    and r.hostname in {"127.0.0.1", "localhost", "::1"}
+                    and req.path.rstrip("/") == r.path.rstrip("/")
+                ):
+                    return True
+    return False
+
+
 @router.post("/oauth/register", tags=["OAuth2"], response_model=ClientRegistrationResponse)
 async def register_client(
     body: ClientRegistrationRequest,
     authorization: Optional[str] = Header(None),
     x_initial_access_token: Optional[str] = Header(None),
 ):
-    if not OAUTH_DCR_INITIAL_ACCESS_TOKEN:
-        raise HTTPException(status_code=503, detail="Dynamic client registration is not enabled")
     presented = x_initial_access_token
     if authorization and authorization.lower().startswith("bearer "):
         presented = authorization[7:].strip()
-    import secrets
-    if not presented or not secrets.compare_digest(presented, OAUTH_DCR_INITIAL_ACCESS_TOKEN):
-        raise HTTPException(status_code=401, detail="A valid initial access token is required")
+    if OAUTH_DCR_INITIAL_ACCESS_TOKEN:
+        import secrets
+        if not presented or not secrets.compare_digest(presented, OAUTH_DCR_INITIAL_ACCESS_TOKEN):
+            raise HTTPException(status_code=401, detail="A valid initial access token is required")
     if not body.redirect_uris:
         raise HTTPException(status_code=400, detail="redirect_uris is required")
     if len(body.redirect_uris) > 10:
@@ -205,7 +223,7 @@ async def authorize_redirect(
     if not code_challenge or code_challenge_method != "S256":
         raise HTTPException(status_code=400, detail="PKCE with S256 is required")
     client = await _get_client_or_404(client_id)
-    if redirect_uri not in client["redirect_uris"]:
+    if not _matches_registered_redirect(redirect_uri, client["redirect_uris"]):
         raise HTTPException(status_code=400, detail="redirect_uri does not match a registered URI for this client")
     params = {
         "client_id": client_id,
@@ -254,7 +272,7 @@ async def authorize_decision(
     user: dict[str, Any] = Depends(require_user),
 ):
     client = await _get_client_or_404(body.client_id)
-    if body.redirect_uri not in client["redirect_uris"]:
+    if not _matches_registered_redirect(body.redirect_uri, client["redirect_uris"]):
         raise HTTPException(status_code=400, detail="redirect_uri does not match a registered URI for this client")
     if not body.code_challenge or body.code_challenge_method != "S256":
         raise HTTPException(status_code=400, detail="PKCE with S256 is required")
