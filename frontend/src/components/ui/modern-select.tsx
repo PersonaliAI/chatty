@@ -117,7 +117,7 @@ export function ModernSelect({
   const pad = size === "sm" ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-2 text-xs";
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
+    <div ref={rootRef} className={`relative w-full ${className}`}>
       <button
         data-modern-select-trigger
         id={id}
@@ -185,7 +185,7 @@ export function ModernSelect({
             openUpwards ? "bottom-full mb-1.5" : "top-full mt-1.5"
           } ${
             align === "right" ? "right-0" : "left-0"
-          } ${popupWidth || "w-full min-w-[280px] sm:min-w-[320px] max-w-[420px]"} bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-hidden ${popupClassName}`}
+          } ${popupWidth || "w-full min-w-full"} bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-hidden ${popupClassName}`}
         >
           {searchable && (
             <div className="p-2 border-b border-neutral-100 dark:border-neutral-850">

@@ -172,7 +172,7 @@ export function TrialExpiredModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto overflow-x-hidden chatty-custom-scrollbar scrollbar-thin bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       onClick={(e) => {
@@ -183,7 +183,7 @@ export function TrialExpiredModal({
       }}
     >
       <div
-        className="relative w-full max-w-4xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-2xl p-5 sm:p-8 overflow-hidden my-auto max-h-[92vh] overflow-y-auto"
+        className="relative w-full max-w-4xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-2xl p-5 sm:p-7 md:p-8 my-auto max-h-[92vh] overflow-y-auto overflow-x-hidden chatty-custom-scrollbar scrollbar-thin"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Glow accent in top corner */}
@@ -251,7 +251,7 @@ export function TrialExpiredModal({
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 mt-6 sm:mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 mt-5 sm:mt-6">
           {PLAN_CARDS.map((card) => {
             const isPreferred = card.id === selectedPlanId;
             const price = billingInterval === "yearly" ? card.yearly : card.monthly;
@@ -259,50 +259,50 @@ export function TrialExpiredModal({
             return (
               <div
                 key={card.id}
-                className={`relative flex flex-col justify-between rounded-3xl p-5 sm:p-6 transition-all duration-200 ${
+                className={`relative flex flex-col justify-between rounded-3xl p-4 sm:p-5 transition-all duration-200 ${
                   card.popular
                     ? "border-2 border-[#f97316] bg-gradient-to-b from-orange-50/50 to-white dark:from-orange-950/20 dark:to-neutral-900 shadow-xl"
                     : "border border-neutral-200 dark:border-neutral-800 bg-neutral-50/60 dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
                 }`}
               >
                 {card.popular && (
-                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-[#f97316] text-white text-[10px] font-mono uppercase font-black tracking-widest shadow-md">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-[#f97316] text-white text-[9px] font-mono uppercase font-black tracking-widest shadow-md">
                     Most Popular
                   </div>
                 )}
 
                 <div>
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white">
+                    <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white">
                       {card.label}
                     </h3>
                     {isPreferred && (
-                      <span className="px-2 py-0.5 rounded-md bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold text-neutral-600 dark:text-neutral-300">
+                      <span className="px-2 py-0.5 rounded-md bg-neutral-200 dark:bg-neutral-800 text-[9px] font-bold text-neutral-600 dark:text-neutral-300">
                         Selected Plan
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 min-h-[34px]">
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 min-h-[30px] leading-relaxed">
                     {card.blurb}
                   </p>
 
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-3xl sm:text-4xl font-black text-neutral-950 dark:text-white">
+                  <div className="mt-3 flex items-baseline gap-1">
+                    <span className="text-2xl sm:text-3xl font-black text-neutral-950 dark:text-white">
                       ${price}
                     </span>
                     <span className="text-xs text-neutral-500 dark:text-neutral-400">/month</span>
                   </div>
                   {billingInterval === "yearly" && (
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-0.5">
                       Billed annually (${price * 12}/year)
                     </p>
                   )}
 
                   {/* Feature Checklist */}
-                  <ul className="mt-5 space-y-2 text-xs text-neutral-700 dark:text-neutral-300">
+                  <ul className="mt-3.5 space-y-1.5 text-xs text-neutral-700 dark:text-neutral-300">
                     {card.features.map((feat) => (
-                      <li key={feat} className="flex items-start gap-2">
+                      <li key={feat} className="flex items-start gap-1.5 text-[11px] leading-snug">
                         <CheckCircle2 className="size-3.5 text-[#f97316] shrink-0 mt-0.5" />
                         <span>{feat}</span>
                       </li>
@@ -311,10 +311,10 @@ export function TrialExpiredModal({
                 </div>
 
                 {/* CTA Button */}
-                <div className="mt-6 pt-4 border-t border-neutral-200/80 dark:border-neutral-800">
+                <div className="mt-4 pt-3 border-t border-neutral-200/80 dark:border-neutral-800">
                   <Link
                     href={`/checkout?plan=${card.id}&interval=${billingInterval}`}
-                    className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm ${
+                    className={`w-full py-2 px-3.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm ${
                       card.popular
                         ? "bg-[#f97316] hover:bg-[#ea580c] text-white shadow-[#f97316]/20 active:scale-95"
                         : "bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:hover:bg-neutral-100 dark:text-neutral-950 active:scale-95"
@@ -330,7 +330,7 @@ export function TrialExpiredModal({
         </div>
 
         {/* Footer info & Account actions */}
-        <div className="mt-6 pt-5 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500 dark:text-neutral-400">
+        <div className="mt-4 pt-3.5 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-neutral-500 dark:text-neutral-400">
           <div className="flex items-center gap-2 text-center sm:text-left">
             <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Encrypted checkout powered by Lemon Squeezy. Switch plans or cancel anytime.</span>

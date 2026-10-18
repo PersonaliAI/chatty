@@ -3609,7 +3609,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       {/* ── Automation Rules Dialog ── */}
       {rulesModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Automation Rules" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto">
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Automation Rules" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto overflow-x-hidden chatty-custom-scrollbar scrollbar-thin">
             <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-lg bg-[#f97316]/10 text-[#f97316]">
@@ -3630,7 +3630,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             </div>
 
             {/* Existing Rules List */}
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-56 overflow-y-auto overflow-x-hidden pr-1 chatty-custom-scrollbar scrollbar-thin">
               {loadingRules ? (
                 <div className="py-8 flex items-center justify-center gap-2 text-neutral-400 text-xs">
                   <Loader2 className="size-4 animate-spin" /> Loading rules...
