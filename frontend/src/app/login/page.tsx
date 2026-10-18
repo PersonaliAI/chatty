@@ -113,13 +113,13 @@ function LoginPageInner() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to manage your Chatty assistant"
+      title={dest.startsWith("/oauth/consent") ? "Connect your AI agent" : "Welcome back"}
+      subtitle={dest.startsWith("/oauth/consent") ? "Sign in or create an account to authorize your assistant" : "Sign in to manage your Chatty assistant"}
       footer={
         <>
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-medium text-foreground hover:underline">
-            Create one
+          <Link href={dest ? `/signup?next=${encodeURIComponent(dest)}` : "/signup"} className="font-medium text-foreground hover:underline font-semibold text-[#f97316]">
+            Create one free
           </Link>
         </>
       }

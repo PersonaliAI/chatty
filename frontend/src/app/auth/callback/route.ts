@@ -64,7 +64,11 @@ export async function GET(request: Request) {
 
   // In self-host mode, never show commercial onboarding.
   // In hosted mode, if the newly registered user hasn't completed registration onboarding, route to /onboarding
+  // unless they are in the middle of authorizing an OAuth2 MCP client.
   if (!SELF_HOST_MODE && !hasOnboarded) {
+    if (target.startsWith('/oauth/consent')) {
+      return NextResponse.redirect(`${origin}${target}`)
+    }
     return NextResponse.redirect(`${origin}/onboarding?next=${encodeURIComponent(target)}`)
   }
 

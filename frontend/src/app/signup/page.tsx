@@ -153,12 +153,12 @@ function SignupPageInner() {
 
   return (
     <AuthShell
-      title="Start your 14-day free trial"
-      subtitle="Experience all industrial features with zero commitments"
+      title={dest.startsWith("/oauth/consent") ? "Create account to connect" : "Start your 14-day free trial"}
+      subtitle={dest.startsWith("/oauth/consent") ? "Set up your free account to authorize your AI agent with Chatty" : "Experience all industrial features with zero commitments"}
       footer={
         <>
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-foreground hover:underline">
+          <Link href={dest ? `/login?next=${encodeURIComponent(dest)}` : "/login"} className="font-medium text-foreground hover:underline font-semibold text-[#f97316]">
             Sign in
           </Link>
         </>

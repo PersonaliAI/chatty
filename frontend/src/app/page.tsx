@@ -19,6 +19,7 @@ import {
 import { captureAffiliateReferral } from "@/lib/affiliate-referral";
 import { BACKEND_URL } from "@/lib/backend-client";
 import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
+import { McpHub } from "@/components/mcp/McpHub";
 
 
 // Color tokens - a single warm, organic palette (this design has no dark
@@ -639,78 +640,9 @@ export default function Home() {
 
         {/* MCP */}
         <section id="mcp" className="py-8 sm:py-10 pb-16 sm:pb-20">
-          <div className="rounded-[28px] sm:rounded-[40px] p-7 sm:p-14" style={{ background: "var(--color-accent-2-100)" }}>
-            <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-2-800)" }}>[ 03 / Agent Control ]</span>
-            <h2 className="max-w-[22ch] text-[26px] sm:text-[30px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Start with MCP</h2>
-            <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[62ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
-              Chatty ships a full Model Context Protocol server. Point Claude, ChatGPT, or any MCP-compatible client at your account and run the entire dashboard - every bot, flow, campaign, and integration - from a conversation instead of clicking through screens.
-            </p>
-            <Link href="/dashboard" className="inline-flex items-center gap-2 rounded-full px-6.5 py-3.5 text-sm font-medium mt-6" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}>
-              Connect your agent
-            </Link>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-12">
-              {mcpPoints.map((p) => (
-                <div key={p.title}>
-                  <h4 className="text-[17px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{p.title}</h4>
-                  <p className="text-[13.5px] leading-snug mt-2" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{p.desc}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-10 rounded-[24px] p-4 sm:p-5" style={{ background: "color-mix(in srgb, var(--color-bg) 72%, white 8%)", boxShadow: "var(--shadow-sm)" }}>
-              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Chatty MCP integration options">
-                {mcpInstallTabs.map((tab) => {
-                  const isActive = activeMcpInstallTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      aria-controls="mcp-install-panel"
-                      onClick={() => setActiveMcpInstallTab(tab.id)}
-                      className="rounded-full border px-4 py-2 text-[12.5px] font-semibold transition-colors cursor-pointer"
-                      style={{
-                        borderColor: isActive ? "var(--color-accent)" : "var(--color-divider)",
-                        background: isActive ? "var(--color-accent)" : "transparent",
-                        color: isActive ? "var(--color-bg)" : "color-mix(in srgb, var(--color-text) 78%, transparent)",
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div id="mcp-install-panel" role="tabpanel" className="grid grid-cols-1 lg:grid-cols-[0.95fr_1.05fr] gap-5 mt-5">
-                <div>
-                  <p className="text-xs tracking-wide uppercase font-semibold" style={{ color: "var(--color-accent-2-800)" }}>{activeMcpInstall.eyebrow}</p>
-                  <h3 className="mt-2 text-[21px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>{activeMcpInstall.title}</h3>
-                  <p className="mt-2.5 text-[13.5px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>{activeMcpInstall.desc}</p>
-                  <ol className="mt-4 space-y-2.5 pl-5 text-[13px] leading-relaxed marker:font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 84%, transparent)" }}>
-                    {activeMcpInstall.steps.map((step) => <li key={step} className="pl-1">{step}</li>)}
-                  </ol>
-                  {activeMcpInstall.cta && (
-                    <Link href={activeMcpInstall.cta.href} className="inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium mt-5" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent-2)", color: "var(--color-bg)" }}>
-                      {activeMcpInstall.cta.label}
-                      <ArrowRight className="size-3.5" />
-                    </Link>
-                  )}
-                </div>
-                {activeMcpInstall.code && (
-                  <div>
-                    <p className="text-xs tracking-wide uppercase mb-2.5" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>Connection value</p>
-                    <pre className="rounded-[18px] p-5 sm:p-6 text-[12px] sm:text-[13.5px] leading-relaxed overflow-x-auto m-0 font-mono" style={{ background: "var(--color-neutral-900)", color: "#f9f4ed" }}>
-                      {activeMcpInstall.code}
-                    </pre>
-                    <p className="text-[13px] leading-snug mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 72%, transparent)" }}>
-                      The client opens a standard OAuth 2.0 authorization flow on first connect - approve it once, no API key to copy anywhere.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="rounded-[28px] sm:rounded-[40px] p-6 sm:p-10 bg-neutral-950 text-white shadow-2xl border border-neutral-800">
+            <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4 text-[#f97316]">[ 03 / Agent Control ]</span>
+            <McpHub defaultAgent="chatgpt" showCatalog={true} />
           </div>
         </section>
 

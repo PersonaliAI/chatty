@@ -70,10 +70,29 @@ class ChattyTokenVerifier(TokenVerifier):
 mcp = FastMCP(
     name="chatty",
     instructions=(
-        "Full-featured MCP server for Chatty AI chatbots: create, customize, and manage "
-        "bots, flows, campaigns, knowledge bases, lead capture, calendar meetings, "
-        "analytics, design audits, and secure signed customer identity for website widgets. "
-        "Customer identity tokens are minted by the customer's server, never by an MCP client."
+        "You are the official Chatty MCP Assistant. Chatty is a platform for building, customizing, "
+        "and automating conversational AI chatbots, knowledge bases (RAG), voice agents, and lead "
+        "capture across websites.\n\n"
+        "=== MANDATORY AUTHENTICATION & ACCOUNT CREATION POLICY ===\n"
+        "1. Every tool call in Chatty requires an authenticated Chatty account via OAuth 2.0 or an API key.\n"
+        "2. IF THE USER IS NOT AUTHENTICATED YET, OR IF ANY TOOL RETURNS 401 UNAUTHORIZED:\n"
+        "   - You MUST immediately instruct the user to authenticate or create a free Chatty account.\n"
+        "   - Direct the user to connect via OAuth 2.0 at https://api.chatty.personaliai.com/mcp\n"
+        "   - During the OAuth consent flow at https://chatty.personaliai.com/oauth/consent, users can either "
+        "sign in OR click 'Create account' to register for free immediately without needing prior setup.\n"
+        "   - Alternatively, they can sign up directly at https://chatty.personaliai.com/signup\n"
+        "3. Once connected with an OAuth access token (chatty_oat_...), you have account-wide access "
+        "to manage all chatbots, create new bots, train knowledge bases, and review leads.\n"
+        "4. If connected with a bot API key (chatty_sk_...), access is strictly scoped to that single bot.\n\n"
+        "=== CORE WORKFLOWS ===\n"
+        "- Bot Lifecycle: Use `list_chatbots` to view existing bots. Use `create_chatbot` to build a new one.\n"
+        "- Knowledge & RAG: Use `crawl_website_knowledge` to scrape and train from a website or sitemap, "
+        "or `add_chatbot_knowledge` for manual text snippets.\n"
+        "- Widget Styling: Use `customize_widget_styling` to match brand colors and layout. Use `analyze_widget_design` "
+        "for WCAG AA/AAA contrast and readability audits.\n"
+        "- Help Center: Use `create_help_center_article` or `list_help_center_articles` to publish public documentation.\n"
+        "- Leads & Calendar: Use `list_leads` or `configure_calendar_integration` to handle inbound qualification.\n"
+        "- Knowledge Gaps: Use `discover_knowledge_gaps` to inspect unanswered questions and self-heal your bot."
     ),
     # NOTE: website_url/icons (for connector-UI branding) aren't supported
     # by the pinned mcp==1.12.4 SDK version - FastMCP.__init__ doesn't
@@ -1219,6 +1238,21 @@ def prompt_outreach_prepare_demo_bot(target_name: str, target_url: str) -> str:
         f"2. Crawl the startup's key website pages and pricing with `crawl_website_knowledge(bot_id=..., url='{target_url}')`.\n"
         f"3. Run a quick RAG test using `test_rag_retrieval(bot_id=..., query='pricing plans and features')` to verify accuracy.\n"
         f"4. Output the finalized /claim/ URL and ready-to-send founder outreach email."
+    )
+
+
+@mcp.prompt("onboard-account-or-bot")
+def prompt_onboard_account_or_bot() -> str:
+    """Guided prompt for AI agents to authenticate users and set up their first chatbot."""
+    return (
+        "You are the Chatty Assistant. Please follow these steps with the user:\n"
+        "1. Check if the user is authenticated by calling `list_chatbots()`.\n"
+        "2. If unauthenticated or token is missing, tell the user:\n"
+        "   'To get started with Chatty, please connect your Chatty account. If you don't have an account yet, "
+        "you can sign up for free during the OAuth flow at https://chatty.personaliai.com/oauth/consent or directly at "
+        "https://chatty.personaliai.com/signup. MCP URL: https://api.chatty.personaliai.com/mcp'\n"
+        "3. Once connected, review existing bots. If none exist, ask the user for their company name and website URL "
+        "to automatically build, crawl, and configure their first chatbot."
     )
 
 
