@@ -1781,6 +1781,43 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
       // Recalculate real analytics
       await loadAnalyticsData(selected.id, currentLeadsCount);
+
+      // Update workspace billing & quota resolution for the newly selected bot
+      if (!SELF_HOST_MODE && selected.user_id && user?.id && selected.user_id !== user.id) {
+        supabase
+          .from("users")
+          .select("plan, subscription_status, subscription_renews_at, display_name, email")
+          .eq("auth_user_id", selected.user_id)
+          .maybeSingle()
+          .then(({ data: ownerData }) => {
+            if (ownerData) {
+              setBillingInfo({
+                plan: (ownerData.plan as string) || "free",
+                status: (ownerData.subscription_status as string) || null,
+                renewsAt: (ownerData.subscription_renews_at as string) || null,
+                ownerEmail: (ownerData.email as string) || null,
+                ownerName: (ownerData.display_name as string) || null,
+                isSharedBot: true,
+              });
+            }
+          });
+      } else if (!SELF_HOST_MODE && selected.user_id === user?.id) {
+        supabase
+          .from("users")
+          .select("plan, subscription_status, subscription_renews_at")
+          .eq("auth_user_id", user?.id)
+          .maybeSingle()
+          .then(({ data: myData }) => {
+            if (myData) {
+              setBillingInfo({
+                plan: (myData.plan as string) || "free",
+                status: (myData.subscription_status as string) || null,
+                renewsAt: (myData.subscription_renews_at as string) || null,
+                isSharedBot: false,
+              });
+            }
+          });
+      }
     } catch (err) {
       console.error("Error switching bot:", err);
     } finally {
@@ -5714,15 +5751,20 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
       <TrialExpiredModal
         open={showTrialExpiredModal}
-        canDismiss={!isTrialExpired}
+        canDismiss={!isTrialExpired || userBots.some((b) => Boolean(b.user_id && user?.id && b.user_id !== user.id))}
         onClose={() => {
-          if (!isTrialExpired) {
-            setShowTrialExpiredModal(false);
-          }
+          setShowTrialExpiredModal(false);
         }}
         currentPlan={billingInfo?.plan || (user?.user_metadata?.selected_plan as string) || "standard"}
         userEmail={user?.email}
         isSharedBot={isCurrentBotShared}
+        sharedBots={userBots
+          .filter((b) => Boolean(b.user_id && user?.id && b.user_id !== user.id))
+          .map((b) => ({ id: b.id, name: b.name || "Shared Assistant" }))}
+        onSwitchToBot={(targetId) => {
+          switchActiveBot(targetId);
+          setShowTrialExpiredModal(false);
+        }}
         reason={
           billingInfo?.status === "cancelled" || billingInfo?.status === "canceled"
             ? "subscription_canceled"

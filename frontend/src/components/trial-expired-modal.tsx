@@ -81,6 +81,8 @@ export interface TrialExpiredModalProps {
   canDismiss?: boolean;
   reason?: "trial_ended" | "subscription_canceled" | "payment_failed" | "inactive";
   onSignOut?: () => void;
+  sharedBots?: { id: string; name: string }[];
+  onSwitchToBot?: (botId: string) => void;
 }
 
 export function TrialExpiredModal({
@@ -92,6 +94,8 @@ export function TrialExpiredModal({
   canDismiss = false,
   reason = "trial_ended",
   onSignOut,
+  sharedBots = [],
+  onSwitchToBot,
 }: TrialExpiredModalProps) {
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
 
@@ -249,6 +253,39 @@ export function TrialExpiredModal({
             </div>
           </div>
         </div>
+
+        {/* Shared Bots Quick Access Banner */}
+        {sharedBots && sharedBots.length > 0 && onSwitchToBot && (
+          <div className="mt-4 p-4 rounded-2xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-start gap-3">
+              <ShieldCheck className="size-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-blue-950 dark:text-blue-100 flex items-center gap-1.5 flex-wrap">
+                  <span>Collaborating on Shared Chatbots?</span>
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-extrabold uppercase tracking-wide">
+                    Free for Teammates
+                  </span>
+                </h4>
+                <p className="text-[11.5px] text-blue-800/90 dark:text-blue-200 mt-0.5 leading-relaxed">
+                  Your personal account trial ended, but you are an invited collaborator on shared assistant(s). All usage and AI credits are paid by the workspace owner.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center flex-wrap gap-2 w-full sm:w-auto shrink-0">
+              {sharedBots.map((sb) => (
+                <button
+                  key={sb.id}
+                  type="button"
+                  onClick={() => onSwitchToBot(sb.id)}
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Open &ldquo;{sb.name}&rdquo;</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Pricing Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 mt-5 sm:mt-6">
