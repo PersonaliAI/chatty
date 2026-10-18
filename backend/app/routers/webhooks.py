@@ -1009,6 +1009,42 @@ async def webhook_lemonsqueezy(request: Request):
         except Exception:
             logger.exception("Failed to record subscription update")
 
+    # Keep users table subscription status, plan, and renewal timestamps in sync
+    if user_id:
+        try:
+            status_attr = str(attributes.get("status") or "").strip().lower()
+            if not status_attr:
+                if event_name in ("subscription_cancelled", "subscription_expired"):
+                    status_attr = "cancelled"
+                elif event_name in ("subscription_paused", "subscription_unpaid"):
+                    status_attr = "paused"
+                elif event_name in ("subscription_payment_failed",):
+                    status_attr = "past_due"
+                elif event_name in ("subscription_created", "subscription_updated", "subscription_payment_success", "order_created"):
+                    status_attr = "active"
+
+            user_updates: dict[str, Any] = {
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if status_attr:
+                user_updates["subscription_status"] = status_attr
+            if variant_id:
+                user_updates["subscription_variant_id"] = variant_id
+                user_updates["plan"] = f"chatty_{plan_name}"
+            renews = attributes.get("renews_at") or attributes.get("ends_at")
+            if renews:
+                user_updates["subscription_renews_at"] = renews
+            cust_id = str(attributes.get("customer_id") or "")
+            if cust_id:
+                user_updates["lemon_customer_id"] = cust_id
+            sub_id = str(attributes.get("subscription_id") or (data.get("data") or {}).get("id") or "")
+            if sub_id:
+                user_updates["lemon_subscription_id"] = sub_id
+
+            await run_db(lambda: supabase.table("users").update(user_updates).eq("auth_user_id", user_id).execute())
+        except Exception:
+            logger.exception("Failed to sync users table on Lemon Squeezy event")
+
     if user_id and event_name in ("order_created", "subscription_created", "subscription_payment_success"):
         try:
             await _record_affiliate_conversion(data, event_name, user_id, event_id)

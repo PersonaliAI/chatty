@@ -741,6 +741,10 @@ function IdentifiedChatWidget({
   const [voiceAgentOpen, setVoiceAgentOpen] = useState(() => initialVoiceOpen ?? (mode === "voice"));
   const voiceModeActive = voiceAgentOpen && voiceAgentEnabled;
   const [calendarSchedulingEnabled, setCalendarSchedulingEnabled] = useState(false);
+  const [isAgentActive, setIsAgentActive] = useState<boolean>(true);
+  const [agentStatus, setAgentStatus] = useState<"online" | "offline">("online");
+  const [offlineReason, setOfflineReason] = useState<string | null>(null);
+  const [agentOfflineNotice, setAgentOfflineNotice] = useState<string | null>(null);
 
   const [tab, setTab] = useState<Tab>("home");
   // The Chat tab has a lightweight history view of its own. Opening Chat from
@@ -1864,6 +1868,11 @@ function IdentifiedChatWidget({
         const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`);
         if (res.ok) {
           const bot = await res.json();
+          const active = bot.is_active !== false && bot.agent_status !== "offline";
+          setIsAgentActive(active);
+          setAgentStatus(active ? "online" : "offline");
+          setOfflineReason(bot.offline_reason || null);
+          setAgentOfflineNotice(bot.offline_message || null);
           // In preview mode (dashboard playground), query parameters override DB values
           // so the user sees their unsaved changes in real time.
           // In production, DB values take priority so dashboard edits apply automatically.
@@ -2041,6 +2050,11 @@ function IdentifiedChatWidget({
         const res = await fetch(`${BACKEND_URL}/api/widget/theme?bot_id=${encodeURIComponent(String(botId))}&t=${Date.now()}`);
         if (res.ok) {
           const bot = await res.json();
+          const active = bot.is_active !== false && bot.agent_status !== "offline";
+          setIsAgentActive(active);
+          setAgentStatus(active ? "online" : "offline");
+          setOfflineReason(bot.offline_reason || null);
+          setAgentOfflineNotice(bot.offline_message || null);
           const newJs = bot.custom_js || "";
           setCustomJs((prev) => {
             if (prev !== newJs) return newJs;
@@ -2764,6 +2778,11 @@ function IdentifiedChatWidget({
                 <span className="truncate">Help Center</span>
               ) : tab !== "home" && (liveAgent || activeAgentName) ? (
                 <span className="truncate">Active in the last 15m</span>
+              ) : !isAgentActive || agentStatus === "offline" ? (
+                <>
+                  <span className="size-1.5 rounded-full bg-neutral-400 shrink-0" />
+                  <span className="truncate">Offline</span>
+                </>
               ) : (
                 <>
                   <span className="size-1.5 rounded-full bg-green-300 animate-pulse shrink-0" />
@@ -2790,7 +2809,13 @@ function IdentifiedChatWidget({
             {voiceAgentEnabled && (
               <button
                 type="button"
-                onClick={() => setVoiceAgentOpen((open) => !open)}
+                onClick={() => {
+                  if (!isAgentActive || agentStatus === "offline") {
+                    showToast("Voice assistant is currently offline.", "info");
+                    return;
+                  }
+                  setVoiceAgentOpen((open) => !open);
+                }}
                 className="group flex size-7 sm:size-8 shrink-0 items-center justify-center rounded-full p-0 transition-colors hover:bg-white/15 cursor-pointer"
                 aria-label="Open voice agent"
                 aria-pressed={voiceModeActive}
@@ -3189,6 +3214,12 @@ function IdentifiedChatWidget({
                   </div>
                 ) : (
                 <div className="p-4 space-y-4 text-xs">
+                  {(!isAgentActive || agentStatus === "offline") && (
+                    <div className="p-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700/60 text-neutral-600 dark:text-neutral-300 text-xs flex items-center gap-2.5 shadow-xs">
+                      <span className="size-2 rounded-full bg-neutral-400 shrink-0" />
+                      <span className="leading-relaxed">{agentOfflineNotice || "Our AI assistant is currently offline. You can still send a message or inquiry below, and our team will get back to you shortly."}</span>
+                    </div>
+                  )}
                 <AnimatePresence initial={false}>
                   {messages.map((msg, i) => {
                     const visitorParsed = msg.role === "user" ? parseVisitorMessageContent(msg.content) : null;
@@ -4065,7 +4096,7 @@ function IdentifiedChatWidget({
                   e.currentTarget.form?.requestSubmit();
                 }
               }}
-              placeholder={transcribing ? "Transcribing…" : "Compose your message…"} disabled={isBotResponding || transcribing}
+              placeholder={transcribing ? "Transcribing…" : (!isAgentActive || agentStatus === "offline") ? "Leave a message…" : "Compose your message…"} disabled={isBotResponding || transcribing}
               rows={1}
               className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
             <div className="flex items-center justify-between">
@@ -4076,7 +4107,19 @@ function IdentifiedChatWidget({
                   {transcribing ? <Loader2 className="size-4 animate-spin" /> : <Mic className="size-4" />}
                 </button>
                 {voiceAgentEnabled && (
-                  <button type="button" onClick={() => setVoiceAgentOpen(true)} className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" aria-label="Start live voice agent" title="Live voice agent">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isAgentActive || agentStatus === "offline") {
+                        showToast("Voice assistant is currently offline.", "info");
+                        return;
+                      }
+                      setVoiceAgentOpen(true);
+                    }}
+                    className="chat-input-bar-icon p-1 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                    aria-label="Start live voice agent"
+                    title="Live voice agent"
+                  >
                     <AudioWaveform className="size-4 stroke-[2.1]" aria-hidden="true" />
                   </button>
                 )}

@@ -61,6 +61,7 @@ from app.adapters.redis_jobs import RedisJobQueue
 from app.services.chatty_quota_service import (
     WHITELABEL_PLANS,
     chatty_quota_exceeded,
+    check_bot_owner_subscription,
     plan_for,
     usage_units_for_message,
 )
@@ -584,6 +585,42 @@ async def widget_chat(
     if not owner_user:
         raise HTTPException(status_code=404, detail="Bot owner not found")
 
+    # 2a. Guard: If trial expired or subscription inactive/past-due, show assistant as offline
+    sub_info = await check_bot_owner_subscription(owner_user, owner_id)
+    if not sub_info["is_active"]:
+        try:
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "user",
+                "content": text, "sender": "visitor", "usage_units": usage_units,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save user conversation message")
+
+        try:
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "needs_attention": True,
+                "escalation_reason": f"Assistant offline ({sub_info['status']})",
+                "priority": "normal",
+                "ai_paused": True,
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+        except Exception:
+            pass
+
+        offline_reply = sub_info["offline_message"]
+        try:
+            bot_name = bot.get("name") or "Chatty Assistant"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": offline_reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            pass
+
+        return WidgetChatResponse(reply=offline_reply, session_id=session_id, ai_paused=True)
+
     # 2b. Session tracking + new-conversation email
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
     if is_new:
@@ -851,6 +888,46 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     owner_user = res_user.data[0] if res_user.data else None
     if not owner_user:
         raise HTTPException(status_code=404, detail="Bot owner not found")
+
+    # Guard: If trial expired or subscription inactive/past-due, stream offline message
+    sub_info = await check_bot_owner_subscription(owner_user, owner_id)
+    if not sub_info["is_active"]:
+        try:
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "user",
+                "content": text, "sender": "visitor", "usage_units": usage_units,
+            }).execute())
+        except Exception:
+            logger.exception("Failed to save user conversation message")
+
+        try:
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "needs_attention": True,
+                "escalation_reason": f"Assistant offline ({sub_info['status']})",
+                "priority": "normal",
+                "ai_paused": True,
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+        except Exception:
+            pass
+
+        offline_reply = sub_info["offline_message"]
+        try:
+            bot_name = bot.get("name") or "Chatty Assistant"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": offline_reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            pass
+
+        async def _offline_stream():
+            yield f"data: {json.dumps({'type': 'token', 'text': offline_reply})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'reply': offline_reply})}\n\n"
+
+        return StreamingResponse(_offline_stream(), media_type="text/event-stream")
 
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
     if is_new:
@@ -1275,6 +1352,15 @@ async def widget_chat_media(
     if not res_user.data:
         raise HTTPException(status_code=404, detail="Bot owner not found")
     owner_user = res_user.data[0]
+    sub_info = await check_bot_owner_subscription(owner_user, bot["user_id"])
+    if not sub_info["is_active"]:
+        return WidgetMediaResponse(
+            reply=sub_info["offline_message"],
+            session_id=session_id,
+            media_url="",
+            media_type="",
+            ai_paused=True,
+        )
     usage_units = usage_units_for_message(text, has_media=True)
 
     # Quota gate BEFORE the storage write - an owner who's already out of
@@ -1573,17 +1659,34 @@ async def widget_theme(bot_id: str, response: Response):
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     b = res.data[0]
+    # Evaluate owner account subscription and trial state
+    owner_user = None
+    sub_info = {"is_active": True, "status": "active", "reason": None, "offline_message": ""}
+    try:
+        owner_id = b.get("user_id")
+        if owner_id:
+            try:
+                owner_res = await run_db(lambda: supabase.table("users").select(
+                    "id, auth_user_id, email, plan, subscription_status, subscription_renews_at, created_at, trial_started_at"
+                ).eq("auth_user_id", owner_id).limit(1).execute())
+            except Exception:
+                owner_res = await run_db(lambda: supabase.table("users").select(
+                    "id, auth_user_id, email, plan, subscription_status, subscription_renews_at, created_at"
+                ).eq("auth_user_id", owner_id).limit(1).execute())
+            if owner_res.data:
+                owner_user = owner_res.data[0]
+                sub_info = await check_bot_owner_subscription(owner_user, owner_id)
+    except Exception:
+        logger.exception("Failed to check bot owner subscription in widget_theme")
+
+    is_bot_active = bool(sub_info.get("is_active", True))
+
     # White-label is a paid-plan feature - enforce server-side so the flag
     # can't be flipped client-side on a free plan.
     hide_branding = bool(b.get("hide_branding"))
     if hide_branding:
-        try:
-            owner = await run_db(lambda: supabase.table("users").select("email, plan").eq(
-                "auth_user_id", b.get("user_id")).limit(1).execute())
-            plan = plan_for(owner.data[0]) if (owner.data and len(owner.data) > 0) else "free"
-            if plan not in WHITELABEL_PLANS:
-                hide_branding = False
-        except Exception:
+        plan = plan_for(owner_user) if owner_user else "free"
+        if plan not in WHITELABEL_PLANS:
             hide_branding = False
 
     # Build up to 3 team profiles prioritizing:
@@ -1622,7 +1725,7 @@ async def widget_theme(bot_id: str, response: Response):
             "name": clean_name,
             "avatar_url": clean_av,
             "role": role,
-            "online": is_online,
+            "online": bool(is_online) and is_bot_active,
             "last_seen_at": last_seen_at,
             "priority": priority_score + (150 if clean_av else 0),
             "locked_avatar": locked_avatar,
@@ -1780,6 +1883,10 @@ async def widget_theme(bot_id: str, response: Response):
         "lead_fields": b.get("lead_fields") or ["name", "email"],
         "lead_required_fields": b.get("lead_required_fields") or ["email"],
         "team_profiles": team_profiles,
+        "is_active": is_bot_active,
+        "agent_status": "online" if is_bot_active else "offline",
+        "offline_reason": sub_info["status"] if not is_bot_active else None,
+        "offline_message": sub_info["offline_message"] if not is_bot_active else None,
     }
 
 

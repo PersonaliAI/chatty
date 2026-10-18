@@ -325,6 +325,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     if (loadingSession || !user || !botId || billingInfo === null) return false;
     if (billingInfo?.status === "active" || billingInfo?.status === "on_trial") return false;
 
+    const subStatus = (billingInfo?.status || "").toLowerCase();
+    if (["cancelled", "canceled", "expired", "past_due", "unpaid", "paused", "inactive"].includes(subStatus)) {
+      return true;
+    }
+
     const startDate = new Date(
       ((user?.user_metadata as Record<string, unknown>)?.trial_started_at as string) ||
       user?.created_at ||
@@ -337,13 +342,12 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   }, [isCurrentBotShared, loadingSession, user, botId, billingInfo]);
 
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
-  const [trialDismissed, setTrialDismissed] = useState(false);
 
   useEffect(() => {
-    if (isTrialExpired && !trialDismissed) {
+    if (isTrialExpired) {
       setShowTrialExpiredModal(true);
     }
-  }, [isTrialExpired, trialDismissed]);
+  }, [isTrialExpired]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamOwner, setTeamOwner] = useState<TeamMember | null>(null);
   const [inviteName, setInviteName] = useState("");
@@ -5710,13 +5714,28 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
       <TrialExpiredModal
         open={showTrialExpiredModal}
+        canDismiss={!isTrialExpired}
         onClose={() => {
-          setShowTrialExpiredModal(false);
-          setTrialDismissed(true);
+          if (!isTrialExpired) {
+            setShowTrialExpiredModal(false);
+          }
         }}
         currentPlan={billingInfo?.plan || (user?.user_metadata?.selected_plan as string) || "standard"}
         userEmail={user?.email}
         isSharedBot={isCurrentBotShared}
+        reason={
+          billingInfo?.status === "cancelled" || billingInfo?.status === "canceled"
+            ? "subscription_canceled"
+            : billingInfo?.status === "past_due" || billingInfo?.status === "unpaid"
+            ? "payment_failed"
+            : billingInfo?.status === "paused" || billingInfo?.status === "inactive"
+            ? "inactive"
+            : "trial_ended"
+        }
+        onSignOut={async () => {
+          await supabase.auth.signOut();
+          window.location.href = "/login";
+        }}
       />
 
     </div>

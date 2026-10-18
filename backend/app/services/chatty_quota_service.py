@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from app.core.clients import supabase
@@ -172,3 +172,105 @@ async def chatty_quota_exceeded(
     # total for the decision; media/WhatsApp use a pre-flight pending amount.
     committed_before_request = max(0, used - already_recorded)
     return committed_before_request + pending > limit if pending else committed_before_request >= limit
+
+
+OFFLINE_TRIAL_EXPIRED_MESSAGE = (
+    "Our AI assistant is currently offline. "
+    "Please leave your contact information and message below, and our team will get back to you shortly."
+)
+
+OFFLINE_SUBSCRIPTION_INACTIVE_MESSAGE = (
+    "Our AI assistant is currently offline. "
+    "Please leave your contact information and message below, and our team will get back to you shortly."
+)
+
+
+async def check_bot_owner_subscription(
+    owner_user: dict[str, Any],
+    owner_auth_id: str,
+) -> dict[str, Any]:
+    """Evaluate whether an owner's account has an active trial or valid subscription.
+
+    If the 14-day free trial has expired or the subscription is cancelled/unpaid/past_due,
+    returns is_active=False, reason code, and a polite visitor-facing offline message.
+    """
+    if not CHATTY_ENFORCE_AI_QUOTAS:
+        return {"is_active": True, "status": "active", "reason": None, "offline_message": ""}
+
+    owner_email = (owner_user.get("email") or "").strip().lower()
+    if owner_email in ADMIN_BYPASS_EMAILS:
+        return {"is_active": True, "status": "active", "reason": None, "offline_message": ""}
+
+    sub_status = (owner_user.get("subscription_status") or "").strip().lower()
+
+    # Active paid subscription or active provider-managed trial
+    if sub_status in ("active", "on_trial", "paid"):
+        return {"is_active": True, "status": "active", "reason": None, "offline_message": ""}
+
+    # Explicit cancelled or expired subscription
+    if sub_status in ("cancelled", "canceled", "expired"):
+        return {
+            "is_active": False,
+            "status": "subscription_canceled",
+            "reason": "Subscription cancelled or expired",
+            "offline_message": OFFLINE_SUBSCRIPTION_INACTIVE_MESSAGE,
+        }
+
+    # Explicit past-due or unpaid billing problem
+    if sub_status in ("past_due", "unpaid"):
+        return {
+            "is_active": False,
+            "status": "payment_failed",
+            "reason": "Subscription payment failed or past due",
+            "offline_message": OFFLINE_SUBSCRIPTION_INACTIVE_MESSAGE,
+        }
+
+    # Explicit paused or suspended statuses
+    if sub_status in ("paused", "suspended", "inactive"):
+        return {
+            "is_active": False,
+            "status": "inactive",
+            "reason": "Subscription paused or inactive",
+            "offline_message": OFFLINE_SUBSCRIPTION_INACTIVE_MESSAGE,
+        }
+
+    # Free plan or no active subscription record -> Evaluate 14-day trial
+    trial_start_raw = owner_user.get("trial_started_at") or owner_user.get("created_at")
+    start_dt: datetime | None = None
+    if trial_start_raw:
+        if isinstance(trial_start_raw, datetime):
+            start_dt = trial_start_raw
+        elif isinstance(trial_start_raw, str):
+            try:
+                start_dt = datetime.fromisoformat(trial_start_raw.replace("Z", "+00:00"))
+            except Exception:
+                pass
+
+    if not start_dt and owner_auth_id:
+        try:
+            u_resp = await run_db(lambda: supabase.auth.admin.get_user_by_id(owner_auth_id))
+            if u_resp and u_resp.user:
+                meta = u_resp.user.user_metadata or {}
+                raw_meta = meta.get("trial_started_at") or u_resp.user.created_at
+                if raw_meta:
+                    start_dt = datetime.fromisoformat(str(raw_meta).replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    if not start_dt:
+        start_dt = datetime.now(timezone.utc)
+
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    if now > (start_dt + timedelta(days=14)):
+        return {
+            "is_active": False,
+            "status": "trial_expired",
+            "reason": "14-day free trial has expired",
+            "offline_message": OFFLINE_TRIAL_EXPIRED_MESSAGE,
+        }
+
+    return {"is_active": True, "status": "on_trial", "reason": None, "offline_message": ""}
+

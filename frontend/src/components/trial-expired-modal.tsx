@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   X,
@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
+  AlertCircle,
+  LogOut,
 } from "lucide-react";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 
@@ -77,17 +79,49 @@ export interface TrialExpiredModalProps {
   userEmail?: string | null;
   isSharedBot?: boolean;
   canDismiss?: boolean;
+  reason?: "trial_ended" | "subscription_canceled" | "payment_failed" | "inactive";
+  onSignOut?: () => void;
 }
 
 export function TrialExpiredModal({
   open,
   onClose,
   currentPlan,
-  userEmail: _userEmail,
+  userEmail,
   isSharedBot = false,
-  canDismiss = true,
+  canDismiss = false,
+  reason = "trial_ended",
+  onSignOut,
 }: TrialExpiredModalProps) {
   const [billingInterval, setBillingInterval] = useState<"monthly" | "yearly">("monthly");
+
+  // Prevent scroll on body while uncancelable modal is open
+  useEffect(() => {
+    if (open && !SELF_HOST_MODE && !isSharedBot) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [open, isSharedBot]);
+
+  // Trap Escape key when uncancelable
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!canDismiss) {
+          e.preventDefault();
+          e.stopPropagation();
+        } else if (onClose) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, canDismiss, onClose]);
 
   if (!open || SELF_HOST_MODE || isSharedBot) {
     return null;
@@ -95,23 +129,73 @@ export function TrialExpiredModal({
 
   const selectedPlanId = (currentPlan || "standard").replace("chatty_", "").toLowerCase();
 
+  const getHeaderContent = () => {
+    switch (reason) {
+      case "subscription_canceled":
+        return {
+          badge: "Subscription Canceled",
+          badgeIcon: Lock,
+          title: "Reactivate Your AI Assistants",
+          subtitle:
+            "Your subscription has completed and your website AI assistant is currently Offline to visitors. Select a plan below to immediately reactivate everything and bring your assistants back Online.",
+        };
+      case "payment_failed":
+        return {
+          badge: "Payment Required",
+          badgeIcon: AlertCircle,
+          title: "Resume Your AI Assistant Service",
+          subtitle:
+            "We could not process your latest subscription payment. Your AI assistant live responses are temporarily paused. Please select a plan or update your payment method to restore service immediately.",
+        };
+      case "inactive":
+        return {
+          badge: "Account Inactive",
+          badgeIcon: Lock,
+          title: "Activate Your AI Assistants",
+          subtitle:
+            "Your account currently has no active subscription. Assistant responses and live chat on your site are set to Offline. Select a plan below to activate your account.",
+        };
+      case "trial_ended":
+      default:
+        return {
+          badge: "14-Day Free Trial Ended",
+          badgeIcon: Lock,
+          title: "Unlock Full Access to Your AI Assistants",
+          subtitle:
+            "Your 14-day trial has completed. Assistant live responses on your website are currently set to Offline, and playground testing is frozen. Select a plan below to immediately activate your account and bring your assistants online.",
+        };
+    }
+  };
+
+  const header = getHeaderContent();
+  const BadgeIcon = header.badgeIcon;
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto bg-black/75 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
+      onClick={(e) => {
+        // Prevent dismissal if not dismissible
+        if (canDismiss && onClose && e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
-      <div className="relative w-full max-w-4xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-2xl p-5 sm:p-8 overflow-hidden my-auto max-h-[92vh] overflow-y-auto">
+      <div
+        className="relative w-full max-w-4xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-2xl p-5 sm:p-8 overflow-hidden my-auto max-h-[92vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Glow accent in top corner */}
         <div className="absolute -top-24 -right-24 size-72 bg-[#f97316]/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 size-72 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Close / Dismiss button (if dismissible to read-only) */}
+        {/* Close / Dismiss button (ONLY if dismissible) */}
         {canDismiss && onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 sm:top-6 sm:right-6 size-9 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white flex items-center justify-center transition-colors z-10"
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 size-9 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white flex items-center justify-center transition-colors z-10 cursor-pointer"
             title="Explore in Read-Only Mode"
             aria-label="Close"
           >
@@ -122,16 +206,16 @@ export function TrialExpiredModal({
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs font-bold tracking-wide uppercase">
-            <Lock className="size-3.5" />
-            <span>14-Day Free Trial Ended</span>
+            <BadgeIcon className="size-3.5" />
+            <span>{header.badge}</span>
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-extrabold text-neutral-950 dark:text-white tracking-tight">
-            Unlock Full Access to Your AI Assistants
+            {header.title}
           </h2>
 
           <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed">
-            Your 14-day trial has completed. Assistant live responses, web crawlers, and playground testing are currently frozen in <strong>Read-Only Mode</strong>. Select a plan below to immediately reactivate everything.
+            {header.subtitle}
           </p>
 
           {/* Monthly / Yearly Toggle */}
@@ -245,22 +329,48 @@ export function TrialExpiredModal({
           })}
         </div>
 
-        {/* Footer info & dismiss */}
-        <div className="mt-6 pt-5 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-neutral-500 dark:text-neutral-400">
+        {/* Footer info & Account actions */}
+        <div className="mt-6 pt-5 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-neutral-500 dark:text-neutral-400">
           <div className="flex items-center gap-2 text-center sm:text-left">
             <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Encrypted checkout powered by Lemon Squeezy. Switch plans or cancel anytime.</span>
           </div>
 
-          {canDismiss && onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200 underline underline-offset-4 cursor-pointer font-medium"
+          <div className="flex items-center flex-wrap gap-3">
+            {userEmail && (
+              <span className="text-[11px] text-neutral-500">
+                Account: <strong className="text-neutral-700 dark:text-neutral-300 font-medium">{userEmail}</strong>
+              </span>
+            )}
+
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white underline underline-offset-4 cursor-pointer"
+              >
+                <LogOut className="size-3" />
+                <span>Log Out</span>
+              </button>
+            )}
+
+            <a
+              href="mailto:billing@personaliai.com"
+              className="text-[11px] text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline underline-offset-4"
             >
-              Continue viewing in Read-Only Mode
-            </button>
-          )}
+              Billing Support
+            </a>
+
+            {canDismiss && onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200 underline underline-offset-4 cursor-pointer font-medium"
+              >
+                Continue viewing in Read-Only Mode
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -268,6 +268,15 @@ async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
     await _widget_rate_limit_or_429(bot, body.bot_id, _client_ip(request), request.headers.get("x-widget-token"))
     if not bot.get("voice_enabled"):
         raise HTTPException(status_code=409, detail="Voice agent is disabled for this bot")
+
+    owner_id = bot.get("user_id")
+    if owner_id:
+        from app.services.chatty_quota_service import check_bot_owner_subscription
+        owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
+        if owner_res.data:
+            sub_info = await check_bot_owner_subscription(owner_res.data[0], owner_id)
+            if not sub_info["is_active"]:
+                raise HTTPException(status_code=402, detail="Voice assistant is currently offline because account subscription is inactive.")
     server_url, api_key, api_secret, default_agent_name = _livekit_settings()
     requested_language = (body.voice_language or "").strip()
     if requested_language and not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?", requested_language):
