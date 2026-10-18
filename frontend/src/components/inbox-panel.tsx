@@ -3120,13 +3120,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1.5"
                 />
                 <div className="flex items-center justify-between relative">
-                  {/* Mobile Action Bar: single '+' button opening action menu instead of taking whole width */}
-                  <div className="flex items-center gap-1 sm:hidden">
+                  <div className="flex items-center gap-0.5">
+                    {/* Mobile '+' button opening action menu instead of taking whole width */}
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.9 }}
                       onClick={() => setMobileActionsOpen((o) => !o)}
-                      className={`size-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                      className={`size-8 rounded-full sm:hidden flex items-center justify-center transition-all cursor-pointer ${
                         mobileActionsOpen
                           ? "bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 shadow-sm"
                           : "bg-neutral-200/80 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-700"
@@ -3137,41 +3137,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       <Plus className={`size-4.5 transition-transform duration-200 ${mobileActionsOpen ? "rotate-45" : ""}`} />
                     </motion.button>
 
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.85 }}
-                      onClick={handleAiDraftReply}
-                      disabled={generatingDraft || sending}
-                      className={`p-1.5 rounded-full transition-colors flex items-center gap-1 cursor-pointer ${
-                        generatingDraft
-                          ? "text-amber-500 bg-amber-500/10 animate-pulse"
-                          : "text-neutral-500 hover:text-amber-600 dark:hover:text-amber-400"
-                      }`}
-                      aria-label="AI Draft Reply"
-                      title="Generate AI Draft Reply"
-                    >
-                      {generatingDraft ? <Loader2 className="size-4 animate-spin text-amber-500" /> : <Sparkles className="size-4 text-amber-500" />}
-                    </motion.button>
-
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.85 }}
-                      onClick={toggleAttachBooking}
-                      className={`p-1.5 rounded-full transition-colors cursor-pointer ${
-                        reply.includes("[BOOKING_WIDGET]")
-                          ? "text-emerald-600 bg-emerald-500/15"
-                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
-                      }`}
-                      aria-label="Book Meeting"
-                      title="Attach interactive calendar booking card"
-                    >
-                      <Calendar className="size-4" />
-                    </motion.button>
-                  </div>
-
-                  {/* Desktop Action Bar: full icon toolbar */}
-                  <div className="hidden sm:flex items-center gap-0.5">
-                    {/* AI Draft Reply (Copilot) */}
+                    {/* AI Draft Reply (Copilot) - Single button in DOM */}
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.85 }}
@@ -3190,7 +3156,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       ) : (
                         <Sparkles className="size-4 text-amber-500" />
                       )}
-                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 pr-1">
+                      <span className="hidden sm:inline text-[10px] font-bold text-amber-600 dark:text-amber-400 pr-1">
                         AI Draft
                       </span>
                     </motion.button>
@@ -3200,7 +3166,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       type="button"
                       whileTap={{ scale: 0.85 }}
                       onClick={toggleAttachBooking}
-                      className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                      className={`p-1.5 rounded-full transition-colors cursor-pointer hidden sm:flex items-center ${
                         reply.includes("[BOOKING_WIDGET]")
                           ? "text-emerald-600 bg-emerald-500/15 font-semibold"
                           : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -3211,13 +3177,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       <Calendar className="size-4.5" />
                     </motion.button>
 
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { const value = noteDraft; const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`; setComposerMode("note"); setViewMode("notes"); setNoteDraft(next); setMentionQuery(""); }} className="rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 cursor-pointer" aria-label="Mention teammate" title="Mention teammate (internal note)"><AtSign className="size-4.5" /></motion.button>
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { const value = noteDraft; const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`; setComposerMode("note"); setViewMode("notes"); setNoteDraft(next); setMentionQuery(""); }} className="hidden sm:inline-flex rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 cursor-pointer" aria-label="Mention teammate" title="Mention teammate (internal note)"><AtSign className="size-4.5" /></motion.button>
 
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.85 }}
                       onClick={toggleKbInsert}
-                      className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                      className={`hidden sm:inline-flex p-1.5 rounded-full transition-colors cursor-pointer ${
                         kbInsertOpen
                           ? "text-[#f97316] bg-[#f97316]/10"
                           : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -3227,12 +3193,12 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     >
                       <BookOpen className="size-4.5" />
                     </motion.button>
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setCannedManageOpen(true); setCannedOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full cursor-pointer" aria-label="Canned responses" title="Manage quick responses (type / to use)"><Zap className="size-4.5" /></motion.button>
-                    <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full cursor-pointer" aria-label="Emoji" aria-expanded={emojiOpen}><Smile className="size-4.5" /></motion.button>
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group cursor-pointer" aria-label="Attach file">
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setCannedManageOpen(true); setCannedOpen(false); }} className="hidden sm:inline-flex p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full cursor-pointer" aria-label="Canned responses" title="Manage quick responses (type / to use)"><Zap className="size-4.5" /></motion.button>
+                    <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="hidden sm:inline-flex p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full cursor-pointer" aria-label="Emoji" aria-expanded={emojiOpen}><Smile className="size-4.5" /></motion.button>
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="hidden sm:inline-flex p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group cursor-pointer" aria-label="Attach file">
                       <Paperclip className="size-4.5 group-hover:animate-bounce transition-transform" />
                     </motion.button>
-                    <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full cursor-pointer ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+                    <button type="button" onClick={toggleRecord} className={`hidden sm:inline-flex p-1.5 rounded-full cursor-pointer ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                       {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                     </button>
                   </div>
