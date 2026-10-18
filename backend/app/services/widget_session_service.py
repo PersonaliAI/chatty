@@ -189,17 +189,16 @@ _UNANSWERED_MARKERS = (
     "don't have information", "i'm not sure", "i am not sure",
     "i don't know", "i do not know", "couldn't find", "could not find",
     "no information", "not in my knowledge", "outside my knowledge",
-    "unable to find", "wasn't able to", "was not able to",
+    "unable to find", "wasn't able to find", "was not able to find",
+    "was not able to answer", "wasn't able to answer", "was not able to locate",
     "i can't help with that", "i cannot help with that",
     "don't have details", "do not have details",
     "unable to provide", "cannot provide", "can't provide", "not able to provide",
     "unable to assist", "cannot assist", "can't assist", "not able to assist",
     "unable to answer", "cannot answer", "can't answer", "not able to answer",
-    "team member follow up", "team member to follow up", "have a team member",
-    "follow up with you", "outside my scope", "outside the scope", "outside of my scope",
+    "outside my scope", "outside the scope", "outside of my scope",
     "not covered in", "not in the documentation", "not in my documentation",
-    "not in our documentation", "not in our knowledge", "specialize in assisting with",
-    "only assist with",
+    "not in our documentation", "not in our knowledge",
 )
 
 

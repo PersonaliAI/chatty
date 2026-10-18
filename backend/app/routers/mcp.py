@@ -110,7 +110,14 @@ async def _current_principal() -> dict:
     access_token = get_access_token()
     if access_token is None:
         raise RuntimeError("No authenticated MCP session")
-    return await _oauth.resolve_principal(f"Bearer {access_token.token}")
+    principal = await _oauth.resolve_principal(f"Bearer {access_token.token}")
+    if principal.get("auth_type") == "api_key":
+        key_row = principal.get("key_row") or {}
+        key_id = key_row.get("id")
+        if key_id:
+            import asyncio
+            asyncio.create_task(_oauth.record_api_key_usage(key_id))
+    return principal
 
 
 # ===========================================================================

@@ -183,6 +183,23 @@ async def resolve_principal(authorization: Optional[str], request: Any = None) -
     }
 
 
+async def record_api_key_usage(key_id: str) -> None:
+    """Increment request_count atomically and set last_used_at to now()."""
+    if not key_id:
+        return
+    try:
+        await run_db(lambda: supabase.rpc("increment_api_key_usage", {"p_key_id": key_id}).execute())
+    except Exception:
+        try:
+            import datetime
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            await run_db(lambda: supabase.table("chatty_api_keys").update({
+                "last_used_at": now_iso,
+            }).eq("id", key_id).execute())
+        except Exception:
+            pass
+
+
 def check_principal_scope(principal: dict[str, Any], required: str) -> None:
     scopes = principal.get("scopes") or []
     if "admin" in scopes or required in scopes:

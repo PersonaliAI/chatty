@@ -577,12 +577,15 @@ def _next_crawl_at(schedule: str, now: Optional[datetime] = None) -> Optional[st
 def _update_key_usage(key_row: dict[str, Any]) -> None:
     """Best-effort update of last_used_at and request_count."""
     try:
-        supabase.table("chatty_api_keys").update({
-            "last_used_at": datetime.now(timezone.utc).isoformat(),
-            "request_count": (key_row.get("request_count") or 0) + 1,
-        }).eq("id", key_row["id"]).execute()
+        supabase.rpc("increment_api_key_usage", {"p_key_id": key_row["id"]}).execute()
     except Exception:
-        logger.warning("Failed to update API key usage")
+        try:
+            supabase.table("chatty_api_keys").update({
+                "last_used_at": datetime.now(timezone.utc).isoformat(),
+                "request_count": (key_row.get("request_count") or 0) + 1,
+            }).eq("id", key_row["id"]).execute()
+        except Exception:
+            logger.warning("Failed to update API key usage")
 
 
 
