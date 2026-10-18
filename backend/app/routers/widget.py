@@ -1673,9 +1673,23 @@ async def widget_theme(bot_id: str, response: Response):
                 owner_res = await run_db(lambda: supabase.table("users").select(
                     "id, auth_user_id, email, plan, subscription_status, subscription_renews_at, created_at"
                 ).eq("auth_user_id", owner_id).limit(1).execute())
-            if owner_res.data:
+            if not (owner_res and owner_res.data):
+                try:
+                    owner_res = await run_db(lambda: supabase.table("users").select(
+                        "id, auth_user_id, email, plan, subscription_status, subscription_renews_at, created_at, trial_started_at"
+                    ).eq("id", owner_id).limit(1).execute())
+                except Exception:
+                    pass
+            if owner_res and owner_res.data:
                 owner_user = owner_res.data[0]
                 sub_info = await check_bot_owner_subscription(owner_user, owner_id)
+            else:
+                sub_info = {
+                    "is_active": False,
+                    "status": "subscription_inactive",
+                    "reason": "Bot owner account not found",
+                    "offline_message": OFFLINE_SUBSCRIPTION_INACTIVE_MESSAGE,
+                }
     except Exception:
         logger.exception("Failed to check bot owner subscription in widget_theme")
 
