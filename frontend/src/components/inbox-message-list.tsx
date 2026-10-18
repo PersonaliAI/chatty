@@ -237,7 +237,7 @@ function MessageListInner({
         const hasBooking = !isVisitor && (
           m.content.includes("[BOOKING_WIDGET]") ||
           Boolean(richParsed.bookingConfirmed) ||
-          ((/demo|meeting|appointment/i.test(m.content)) && (/scheduled|confirmed|meet\.google\.com|teams\.microsoft\.com|cancelled|canceled/i.test(m.content)))
+          ((/demo|meeting|appointment|calendar/i.test(m.content)) && (/scheduled|confirmed|meet\.google\.com|teams\.microsoft\.com|cancelled|canceled|available slots?|available times?|what day and time|select a time|select time|pls select time|please select time|pick a time|choose a time/i.test(m.content)))
         );
         // Human agent replies use role="assistant" too, but must never inherit
         // the AI booking fallback card from an earlier visitor intent.

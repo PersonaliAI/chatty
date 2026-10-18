@@ -27,6 +27,7 @@ import {
   ArrowDown,
   Minus,
   Clock,
+  Calendar,
   User,
   UserCheck,
   ShieldAlert,
@@ -554,6 +555,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [recording, setRecording] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [correctingId, setCorrectingId] = useState<string | null>(null);
   const [correctionDraft, setCorrectionDraft] = useState("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -991,6 +993,30 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       a.title.toLowerCase().includes(kbSearchQuery.toLowerCase()) ||
       (a.subtitle || "").toLowerCase().includes(kbSearchQuery.toLowerCase())
   );
+
+  const toggleAttachBooking = () => {
+    if (reply.includes("[BOOKING_WIDGET]")) {
+      setReply((prev) => prev.replace(/\n*\[BOOKING_WIDGET\]/g, "").trim());
+      showToast("Booking widget removed from reply", "success");
+    } else {
+      const prompt = "Sure! You can book a meeting below. Please select a date and time that works best for you:\n[BOOKING_WIDGET]";
+      setReply((prev) => (prev.trim() ? `${prev.trim()}\n\n[BOOKING_WIDGET]` : prompt));
+      showToast("Booking calendar attached to reply", "success");
+    }
+    setMobileActionsOpen(false);
+  };
+
+  const visitorLastMsg = useMemo(() => {
+    for (let idx = messages.length - 1; idx >= 0; idx--) {
+      if (messages[idx].role === "user") return (messages[idx].content || "").toLowerCase();
+    }
+    return "";
+  }, [messages]);
+
+  const visitorWantsBooking = useMemo(() => {
+    if (!visitorLastMsg) return false;
+    return /\b(book|booking|schedule|demo|meeting|appointment|call|slots?|calendar)\b/i.test(visitorLastMsg);
+  }, [visitorLastMsg]);
 
   // ── Load Sessions, Messages, Notes, and Assignees ──
   const loadSessions = useCallback(async () => {
@@ -3034,6 +3060,43 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </div>
                 )}
 
+                {/* Booking Prompt Suggestion Chip when Visitor requested meeting */}
+                {visitorWantsBooking && !reply.includes("[BOOKING_WIDGET]") && composerMode !== "note" && (
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-1 mb-2 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-700 dark:text-blue-300 text-[11px]">
+                    <span className="flex items-center gap-1.5 truncate">
+                      <Calendar className="size-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                      <span className="truncate">Visitor asked about booking a meeting</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={toggleAttachBooking}
+                      className="shrink-0 font-semibold text-[10px] px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-2xs cursor-pointer flex items-center gap-1"
+                    >
+                      <Plus className="size-3" />
+                      Attach Booking Calendar
+                    </button>
+                  </div>
+                )}
+
+                {/* Booking Attached Indicator */}
+                {reply.includes("[BOOKING_WIDGET]") && (
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-1 mb-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs">
+                    <span className="flex items-center gap-1.5 font-medium text-[11px] truncate">
+                      <Calendar className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="truncate">Interactive Meeting Booking Calendar Attached</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setReply((p) => p.replace(/\n*\[BOOKING_WIDGET\]/g, "").trim())}
+                      className="p-0.5 rounded hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 cursor-pointer shrink-0"
+                      title="Remove booking widget"
+                      aria-label="Remove booking widget"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                )}
+
                 {mentionQuery !== null && mentionAssignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).length > 0 && (
                   <div role="listbox" aria-label="Mention teammate" className="absolute bottom-[84px] left-3 z-30 max-h-40 w-64 overflow-y-auto chatty-custom-scrollbar [scrollbar-width:thin] rounded-xl border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
                     <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Mention teammate</p>
@@ -3051,13 +3114,63 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   value={composerMode === "note" ? noteDraft : reply}
                   onChange={handleReplyChange}
                   onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!sending && !recording) void sendComposer(); } }}
-                  onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }}
+                  onFocus={() => { setEmojiOpen(false); setAttachOpen(false); setMobileActionsOpen(false); }}
                   placeholder={recording ? "Recording… tap ◼ to send" : composerMode === "note" ? "Add a private note for your team… Type @ to mention a teammate" : "Type a reply (this takes over ticket from AI)…"}
                   disabled={sending || recording}
                   className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1.5"
                 />
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-0.5">
+                <div className="flex items-center justify-between relative">
+                  {/* Mobile Action Bar: single '+' button opening action menu instead of taking whole width */}
+                  <div className="flex items-center gap-1 sm:hidden">
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setMobileActionsOpen((o) => !o)}
+                      className={`size-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                        mobileActionsOpen
+                          ? "bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 shadow-sm"
+                          : "bg-neutral-200/80 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-300 dark:hover:bg-neutral-700"
+                      }`}
+                      aria-label="All compose actions"
+                      title="All compose actions"
+                    >
+                      <Plus className={`size-4.5 transition-transform duration-200 ${mobileActionsOpen ? "rotate-45" : ""}`} />
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.85 }}
+                      onClick={handleAiDraftReply}
+                      disabled={generatingDraft || sending}
+                      className={`p-1.5 rounded-full transition-colors flex items-center gap-1 cursor-pointer ${
+                        generatingDraft
+                          ? "text-amber-500 bg-amber-500/10 animate-pulse"
+                          : "text-neutral-500 hover:text-amber-600 dark:hover:text-amber-400"
+                      }`}
+                      aria-label="AI Draft Reply"
+                      title="Generate AI Draft Reply"
+                    >
+                      {generatingDraft ? <Loader2 className="size-4 animate-spin text-amber-500" /> : <Sparkles className="size-4 text-amber-500" />}
+                    </motion.button>
+
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.85 }}
+                      onClick={toggleAttachBooking}
+                      className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                        reply.includes("[BOOKING_WIDGET]")
+                          ? "text-emerald-600 bg-emerald-500/15"
+                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                      }`}
+                      aria-label="Book Meeting"
+                      title="Attach interactive calendar booking card"
+                    >
+                      <Calendar className="size-4" />
+                    </motion.button>
+                  </div>
+
+                  {/* Desktop Action Bar: full icon toolbar */}
+                  <div className="hidden sm:flex items-center gap-0.5">
                     {/* AI Draft Reply (Copilot) */}
                     <motion.button
                       type="button"
@@ -3077,18 +3190,34 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                       ) : (
                         <Sparkles className="size-4 text-amber-500" />
                       )}
-                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 pr-1 hidden sm:inline">
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 pr-1">
                         AI Draft
                       </span>
                     </motion.button>
 
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { const value = noteDraft; const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`; setComposerMode("note"); setViewMode("notes"); setNoteDraft(next); setMentionQuery(""); }} className="rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200" aria-label="Mention teammate" title="Mention teammate (internal note)"><AtSign className="size-4.5" /></motion.button>
+                    {/* Book Meeting (Attach Booking Widget) */}
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.85 }}
+                      onClick={toggleAttachBooking}
+                      className={`p-1.5 rounded-full transition-colors cursor-pointer ${
+                        reply.includes("[BOOKING_WIDGET]")
+                          ? "text-emerald-600 bg-emerald-500/15 font-semibold"
+                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                      }`}
+                      aria-label="Attach Meeting Booking UI"
+                      title="Attach interactive calendar booking widget ([BOOKING_WIDGET])"
+                    >
+                      <Calendar className="size-4.5" />
+                    </motion.button>
+
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { const value = noteDraft; const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`; setComposerMode("note"); setViewMode("notes"); setNoteDraft(next); setMentionQuery(""); }} className="rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 cursor-pointer" aria-label="Mention teammate" title="Mention teammate (internal note)"><AtSign className="size-4.5" /></motion.button>
 
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.85 }}
                       onClick={toggleKbInsert}
-                      className={`p-1.5 rounded-full transition-colors ${
+                      className={`p-1.5 rounded-full transition-colors cursor-pointer ${
                         kbInsertOpen
                           ? "text-[#f97316] bg-[#f97316]/10"
                           : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
@@ -3098,25 +3227,151 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     >
                       <BookOpen className="size-4.5" />
                     </motion.button>
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setCannedManageOpen(true); setCannedOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Canned responses" title="Manage quick responses (type / to use)"><Zap className="size-4.5" /></motion.button>
-                    <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji" aria-expanded={emojiOpen}><Smile className="size-4.5" /></motion.button>
-                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group" aria-label="Attach file">
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setCannedManageOpen(true); setCannedOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full cursor-pointer" aria-label="Canned responses" title="Manage quick responses (type / to use)"><Zap className="size-4.5" /></motion.button>
+                    <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full cursor-pointer" aria-label="Emoji" aria-expanded={emojiOpen}><Smile className="size-4.5" /></motion.button>
+                    <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setAttachOpen((o) => !o); setEmojiOpen(false); }} className="p-1.5 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full group cursor-pointer" aria-label="Attach file">
                       <Paperclip className="size-4.5 group-hover:animate-bounce transition-transform" />
                     </motion.button>
-                    <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
+                    <button type="button" onClick={toggleRecord} className={`p-1.5 rounded-full cursor-pointer ${recording ? "text-red-500 animate-pulse" : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"}`} aria-label="Record audio">
                       {recording ? <Square className="size-4.5 fill-current" /> : <Mic className="size-4.5" />}
                     </button>
                   </div>
+
+                  {/* Send Button */}
                   <button
                     type="submit"
                     aria-label="Send reply"
                     disabled={sending || !(composerMode === "note" ? noteDraft : reply).trim()}
                     style={{ background: color }}
-                    className="h-8 px-3 rounded-lg flex items-center justify-center gap-2 text-white disabled:opacity-40 shrink-0 hover:opacity-90 transition-opacity"
+                    className="h-8 px-3 rounded-lg flex items-center justify-center gap-2 text-white disabled:opacity-40 shrink-0 hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
                   >
                     {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                     <span className="text-xs font-semibold">{composerMode === "note" ? "Add note" : "Send"}</span>
                   </button>
+
+                  {/* Mobile Popover Menu for all actions */}
+                  <AnimatePresence>
+                    {mobileActionsOpen && (
+                      <>
+                        <div className="fixed inset-0 z-20 sm:hidden" onClick={() => setMobileActionsOpen(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute bottom-11 left-0 z-30 w-64 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-2xl p-1.5 space-y-0.5 text-xs sm:hidden"
+                        >
+                          <button
+                            type="button"
+                            onClick={toggleAttachBooking}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors cursor-pointer ${
+                              reply.includes("[BOOKING_WIDGET]")
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold"
+                                : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200"
+                            }`}
+                          >
+                            <Calendar className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">{reply.includes("[BOOKING_WIDGET]") ? "Remove Booking Calendar" : "Send Booking Calendar"}</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Attach interactive calendar booking card</p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => { setMobileActionsOpen(false); handleAiDraftReply(); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            <Sparkles className="size-4 text-amber-500 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">AI Draft Reply</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Generate suggested response</p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => { setMobileActionsOpen(false); setCannedManageOpen(true); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            <Zap className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">Quick Responses</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Use canned response templates</p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => { setMobileActionsOpen(false); toggleKbInsert(); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            <BookOpen className="size-4 text-[#f97316] shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">Help Center Article</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Insert link or article summary</p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => { setMobileActionsOpen(false); setAttachOpen(true); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            <Paperclip className="size-4 text-neutral-500 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">Attach File / Photo</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Upload images, audio, documents</p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => { setMobileActionsOpen(false); toggleRecord(); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            <Mic className="size-4 text-red-500 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">Voice Message</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Record and send voice audio</p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => { setMobileActionsOpen(false); setEmojiOpen(true); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            <Smile className="size-4 text-yellow-500 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">Add Emoji</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Insert emoji symbols</p>
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileActionsOpen(false);
+                              const value = noteDraft;
+                              const next = `${value}${value && !value.endsWith(" ") ? " " : ""}@`;
+                              setComposerMode("note");
+                              setViewMode("notes");
+                              setNoteDraft(next);
+                              setMentionQuery("");
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
+                          >
+                            <AtSign className="size-4 text-blue-500 shrink-0" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold">Mention Teammate</p>
+                              <p className="text-[10px] text-neutral-400 truncate">Internal note for team</p>
+                            </div>
+                          </button>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
               </form>
             </div>}

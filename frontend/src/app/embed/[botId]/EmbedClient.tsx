@@ -599,7 +599,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
       return false;
     }
     const hasBookingWords = /\b(book|booking|demo|schedule|reschedule|appointment|meeting|calendar|slots?)\b/i.test(lower);
-    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot|pick a time|choose a time|select a time)\b/i.test(lower);
+    const mentionsTimesOrSlots = /\b(available slots?|earliest slot|available times?|what day and time|works best for you|reserve your slot|reserve your spot|pick a time|choose a time|select a time|pls select time|please select time|select time|select your time|pick a slot|pick a date|select a date)\b/i.test(lower);
     return hasBookingWords && mentionsTimesOrSlots;
   }, [calendarSchedulingEnabled]);
 
@@ -2731,8 +2731,8 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         } : undefined}
       >
       {/* Header */}
-      {!voiceModeActive && <div className="chat-header px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
-        <div className="flex items-center gap-2.5">
+      {!voiceModeActive && <div className="chat-header px-3 sm:px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           {tab !== "home" && (
             <motion.button
               type="button"
@@ -2763,7 +2763,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             <AgentAvatar
               src={activeAgentAvatar}
               name={activeAgentName || "Agent"}
-              size="size-10"
+              size="size-9 sm:size-10"
               showStatusDot={true}
               statusColor="bg-amber-400"
               primaryColor={primaryColor}
@@ -2774,82 +2774,84 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
             />
           ) : (
             <div
-              className="size-11 rounded-full flex items-center justify-center font-bold text-base overflow-hidden shrink-0 transition-colors"
+              className="size-9 sm:size-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base overflow-hidden shrink-0 transition-colors"
               style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
             >
-              {headerLogoInner("size-6")}
+              {headerLogoInner("size-5 sm:size-6")}
             </div>
           )}
-          <div className="leading-tight">
-            <h4 className="font-semibold text-sm">
+          <div className="leading-tight min-w-0 flex-1">
+            <h4 className="font-semibold text-xs sm:text-sm truncate">
               {tab === "articles" && activeArticle ? activeArticle.title : tab !== "home" && (liveAgent || activeAgentName) ? (activeAgentName || "Agent") : botName}
             </h4>
-            <p className="text-[9px] flex items-center gap-1" style={{ opacity: 0.85 }}>
+            <p className="text-[9px] flex items-center gap-1 truncate" style={{ opacity: 0.85 }}>
               {tab === "articles" ? (
-                <span>Help Center</span>
+                <span className="truncate">Help Center</span>
               ) : tab !== "home" && (liveAgent || activeAgentName) ? (
-                <span>Active in the last 15m</span>
+                <span className="truncate">Active in the last 15m</span>
               ) : (
                 <>
-                  <span className="size-1.5 rounded-full bg-green-300 animate-pulse" />
-                  <span>Online</span>
+                  <span className="size-1.5 rounded-full bg-green-300 animate-pulse shrink-0" />
+                  <span className="truncate">Online</span>
                 </>
               )}
             </p>
           </div>
-          <div className="ml-auto flex items-center gap-1.5 shrink-0">
-            {tab === "home" && (
-              <AvatarGroup
-                profiles={teamProfiles}
-                botAvatarUrl={avatarUrl || logoUrl}
-                botName={botName}
-                primaryColor={primaryColor}
-                onPrimary={onPrimary}
-                bgColor={logoBgColor}
-                size="size-7"
-              />
+          <div className="ml-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {tab === "home" && teamProfiles.length > 0 && (
+              <div className="hidden xs:flex">
+                <AvatarGroup
+                  profiles={teamProfiles}
+                  botAvatarUrl={avatarUrl || logoUrl}
+                  botName={botName}
+                  primaryColor={primaryColor}
+                  onPrimary={onPrimary}
+                  bgColor={logoBgColor}
+                  size="size-6 sm:size-7"
+                />
+              </div>
             )}
             {voiceAgentEnabled && (
-              <button type="button" onClick={openVoiceAgent} className="group relative flex size-8 shrink-0 items-center justify-center rounded-full p-0 text-current transition-colors hover:bg-white/15" aria-label="Open voice agent" title="Open live voice agent">
-                <AudioWaveform className="size-[18px] stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
+              <button type="button" onClick={openVoiceAgent} className="group relative flex size-7 sm:size-8 shrink-0 items-center justify-center rounded-full p-0 text-current transition-colors hover:bg-white/15 cursor-pointer" aria-label="Open voice agent" title="Open live voice agent">
+                <AudioWaveform className="size-4 sm:size-[18px] stroke-[2.1] transition-transform duration-200 group-hover:scale-110" aria-hidden="true" />
                 <span className="sr-only">Voice</span>
               </button>
             )}
-          <button
-            onClick={pushGranted ? toggleMute : requestPushPermission}
-            className={`${tab === "home" && teamProfiles.length > 0 ? "" : "ml-auto "}p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer`}
-            style={{ opacity: 0.8 }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
-            title={
-              !pushGranted
-                ? "Enable browser notifications"
-                : pushMuted
-                  ? "Notifications muted - tap to unmute"
-                  : "Browser notifications enabled - tap to mute"
-            }
-          >
-            {pushGranted && pushMuted ? (
-              <BellOff className="size-4" />
-            ) : (
-              <Bell className={`size-4 ${pushGranted ? "fill-current" : ""}`} />
-            )}
-          </button>
-          {tab === "messages" && (
-            <button onClick={clearChat} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
+            <button
+              onClick={pushGranted ? toggleMute : requestPushPermission}
+              className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer"
+              style={{ opacity: 0.8 }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-              aria-label="Clear conversation" title="Clear conversation">
-              <RefreshCw className="size-4" />
+              aria-label={pushGranted ? (pushMuted ? "Unmute notifications" : "Mute notifications") : "Enable browser notifications"}
+              title={
+                !pushGranted
+                  ? "Enable browser notifications"
+                  : pushMuted
+                    ? "Notifications muted - tap to unmute"
+                    : "Browser notifications enabled - tap to mute"
+              }
+            >
+              {pushGranted && pushMuted ? (
+                <BellOff className="size-3.5 sm:size-4" />
+              ) : (
+                <Bell className={`size-3.5 sm:size-4 ${pushGranted ? "fill-current" : ""}`} />
+              )}
             </button>
-          )}
-          <button onClick={handleCloseClick} className="p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0" style={{ opacity: 0.8 }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-            aria-label="Close chat" title="Close">
-            <X className="size-4" />
-          </button>
+            {tab === "messages" && (
+              <button onClick={clearChat} className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer" style={{ opacity: 0.8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                aria-label="Clear conversation" title="Clear conversation">
+                <RefreshCw className="size-3.5 sm:size-4" />
+              </button>
+            )}
+            <button onClick={handleCloseClick} className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer" style={{ opacity: 0.8 }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+              aria-label="Close chat" title="Close">
+              <X className="size-3.5 sm:size-4" />
+            </button>
           </div>
         </div>
       </div>}

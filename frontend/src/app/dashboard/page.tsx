@@ -4175,16 +4175,16 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       >
         <div className="flex flex-col flex-1 min-h-0">
           {/* Brand Logo */}
-          <div className={`h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center ${sidebarCollapsed ? "md:justify-center md:px-2" : "justify-between px-4 md:px-6"}`}>
-            <Link href="/" className="flex items-center gap-2">
+          <div className={`h-16 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between px-4 ${sidebarCollapsed ? "md:justify-center md:px-2" : "md:px-6"}`}>
+            <Link href="/" className="flex items-center gap-2 min-w-0">
               <span className="font-semibold text-base tracking-tight flex items-center gap-1.5">
-                <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain" />
+                <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="size-7 object-contain shrink-0" />
                 <span className={sidebarCollapsed ? "md:hidden" : ""}>Chatty</span>
               </span>
             </Link>
             <button
               type="button"
-              className="hidden md:inline-flex rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white"
+              className="hidden md:inline-flex rounded-lg p-1.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white cursor-pointer transition-colors"
               onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
               aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
@@ -4195,10 +4195,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               type="button"
               aria-label="Close sidebar"
               title="Close sidebar"
-              className="md:hidden p-1 text-neutral-400 hover:text-neutral-900"
+              className="md:hidden inline-flex items-center justify-center size-8 rounded-lg text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
               onClick={() => setSidebarOpen(false)}
             >
-              <X className="size-4" />
+              <X className="size-4.5" />
             </button>
           </div>
 
