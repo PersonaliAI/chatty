@@ -10,7 +10,15 @@ inspect.signature() at import time.
 import json
 import logging
 import os
+import hashlib
+import hmac
+import secrets
+from datetime import datetime, timezone
 from typing import Any, Optional, List, Dict
+
+from app.core.clients import supabase
+from app.core.db import run_db
+from app.services import woocommerce_service
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
@@ -229,6 +237,32 @@ async def delete_chatbot(bot_id: str) -> dict:
     return await bots_service.delete_bot(principal, bot_id)
 
 
+@mcp.tool()
+async def update_chatbot_instructions(bot_id: str, system_instructions: str) -> dict:
+    """Update the AI persona, guidelines, rules, and system prompt for a chatbot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    body = BotUpdateRequest(system_instructions=system_instructions)
+    return await bots_service.update_bot(principal, bot_id, body)
+
+
+@mcp.tool()
+async def get_chatbot_instructions(bot_id: str) -> dict:
+    """Inspect the current system instructions, guidelines, and prompt persona for a chatbot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    bot = await _oauth.require_bot_access(principal, bot_id)
+    return {
+        "bot_id": bot_id,
+        "bot_name": bot.get("name"),
+        "system_instructions": bot.get("system_instructions") or "No custom instructions set (using default Chatty customer service persona).",
+        "welcome_message": bot.get("welcome_message"),
+        "selected_model": bot.get("selected_model"),
+        "response_language": bot.get("response_language") or "auto",
+        "strict_mode": bool(bot.get("strict_mode", False)),
+    }
+
+
 # ===========================================================================
 # 2. CUSTOMIZER & DESIGN STUDIO (Styling, WCAG Audit, HTML Sandbox, SDKs)
 # ===========================================================================
@@ -300,6 +334,62 @@ async def generate_embed_code(bot_id: str, framework: str = "html_script") -> di
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
     return await mcp_design_service.generate_embed_code(principal, bot_id, framework)
+
+
+# ===========================================================================
+# 3. VISUAL FLOW BUILDER & AUTOMATIONS
+# ===========================================================================
+
+
+@mcp.tool()
+async def get_conversation_flow(bot_id: str) -> dict:
+    """Retrieve the visual conversation flow graph and automated decision tree for a bot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    await _oauth.require_bot_access(principal, bot_id)
+    res = await run_db(lambda: supabase.table("chatty_flows").select("*").eq("bot_id", bot_id).order("updated_at", desc=True).limit(1).execute())
+    flow = res.data[0] if res.data else None
+    if not flow:
+        return {"bot_id": bot_id, "has_flow": False, "message": "No visual flow created yet. Use update_conversation_flow to initialize one."}
+    return {
+        "bot_id": bot_id,
+        "has_flow": True,
+        "flow_id": flow.get("id"),
+        "name": flow.get("name"),
+        "is_enabled": flow.get("is_enabled", False),
+        "nodes_count": len(flow.get("published_data", {}).get("nodes", flow.get("draft_data", {}).get("nodes", []))),
+        "flow_data": flow.get("published_data") or flow.get("draft_data") or {},
+    }
+
+
+@mcp.tool()
+async def update_conversation_flow(bot_id: str, flow_data: dict, name: str = "Chatty automation", enable: bool = True) -> dict:
+    """Save and publish a visual conversation flow graph (nodes, triggers, messages) for a bot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    await _oauth.require_bot_access(principal, bot_id)
+    existing = await run_db(lambda: supabase.table("chatty_flows").select("id").eq("bot_id", bot_id).limit(1).execute())
+    now = datetime.now(timezone.utc).isoformat()
+    if existing.data:
+        flow_id = existing.data[0]["id"]
+        await run_db(lambda: supabase.table("chatty_flows").update({
+            "name": name,
+            "draft_data": flow_data,
+            "published_data": flow_data,
+            "is_enabled": enable,
+            "updated_at": now,
+        }).eq("id", flow_id).execute())
+    else:
+        await run_db(lambda: supabase.table("chatty_flows").insert({
+            "bot_id": bot_id,
+            "name": name,
+            "draft_data": flow_data,
+            "published_data": flow_data,
+            "is_enabled": enable,
+            "created_at": now,
+            "updated_at": now,
+        }).execute())
+    return {"bot_id": bot_id, "status": "published", "is_enabled": enable, "flow_name": name}
 
 
 # ===========================================================================
@@ -444,6 +534,66 @@ async def test_rag_retrieval(bot_id: str, query: str, top_k: int = 4) -> dict:
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "read")
     return await bots_service.test_rag_retrieval(principal, bot_id, query, top_k)
+
+
+@mcp.tool()
+async def get_knowledge_sync_status(bot_id: str) -> dict:
+    """Get total characters indexed, knowledge source breakdown (URLs, text, files), and RAG health."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    await _oauth.require_bot_access(principal, bot_id)
+    sources = await bots_service.list_knowledge_sources(principal, bot_id)
+    total_chars = sum(s.get("character_count") or len(s.get("content") or "") for s in sources)
+    types_count = {}
+    for s in sources:
+        stype = s.get("type", "unknown")
+        types_count[stype] = types_count.get(stype, 0) + 1
+    return {
+        "bot_id": bot_id,
+        "total_sources": len(sources),
+        "total_characters": total_chars,
+        "source_breakdown": types_count,
+        "status": "healthy" if len(sources) > 0 else "empty",
+        "recommendation": "Add website URLs or documents to train the assistant." if len(sources) == 0 else "Knowledge base active and searchable.",
+    }
+
+
+@mcp.tool()
+async def purge_bot_knowledge(bot_id: str, source_type: Optional[str] = None) -> dict:
+    """Purge knowledge sources for a bot (optionally filter by source_type: 'url', 'text', 'document')."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    await _oauth.require_bot_access(principal, bot_id)
+    sources = await bots_service.list_knowledge_sources(principal, bot_id)
+    deleted_count = 0
+    for s in sources:
+        if source_type is None or s.get("type") == source_type:
+            await bots_service.delete_knowledge_source(principal, bot_id, s.get("id"))
+            deleted_count += 1
+    return {"bot_id": bot_id, "deleted_count": deleted_count, "remaining_count": len(sources) - deleted_count}
+
+
+@mcp.tool()
+async def test_chatbot_reply(bot_id: str, message: str) -> dict:
+    """Simulate a visitor question to test the bot's RAG retrieval, citations, and reply matching."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    bot = await _oauth.require_bot_access(principal, bot_id)
+    from plugins.widget_brain import search_knowledge
+    ranked = await search_knowledge(bot_id, message)
+    citations = [
+        {"title": s.get("title") or s.get("name") or "Source", "url": s.get("url"), "snippet": s.get("content", "")[:300]}
+        for s in ranked[:4]
+    ]
+    return {
+        "bot_id": bot_id,
+        "bot_name": bot.get("name"),
+        "test_query": message,
+        "matched_sources_count": len(ranked),
+        "citations": citations,
+        "welcome_message": bot.get("welcome_message"),
+        "primary_model": bot.get("selected_model") or "gemini-2.5-flash",
+    }
 
 
 # ===========================================================================
@@ -929,6 +1079,159 @@ async def get_bot_performance_scorecard(bot_id: str, days: int = 30) -> dict:
         user_dict["auth_user_id"] = user_dict["user_id"]
     from app.routers.analytics import analytics_scorecard
     return await analytics_scorecard(bot_id=bot_id, days=days, user=user_dict)
+
+
+# ===========================================================================
+# 10b. E-COMMERCE & WOOCOMMERCE
+# ===========================================================================
+
+
+@mcp.tool()
+async def get_woocommerce_store_status(bot_id: str) -> dict:
+    """Inspect WooCommerce integration status, synced products count, and sync freshness."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "read")
+    await _oauth.require_bot_access(principal, bot_id)
+    integration = await woocommerce_service.get_integration(bot_id)
+    if not integration:
+        return {"bot_id": bot_id, "connected": False, "message": "No WooCommerce store connected."}
+    return {
+        "bot_id": bot_id,
+        "connected": True,
+        "store_url": integration.get("store_url"),
+        "product_count": integration.get("product_count", 0),
+        "sync_status": integration.get("sync_status", "idle"),
+        "sync_progress": integration.get("sync_progress", 100),
+        "last_sync_at": integration.get("last_sync_at"),
+    }
+
+
+@mcp.tool()
+async def configure_woocommerce(bot_id: str, store_url: str, consumer_key: str, consumer_secret: str) -> dict:
+    """Connect a WooCommerce store to the chatbot for automated product RAG catalog queries."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    await _oauth.require_bot_access(principal, bot_id)
+    clean_url = store_url.strip().rstrip("/")
+    await woocommerce_service.save_integration(
+        bot_id=bot_id,
+        store_url=clean_url,
+        consumer_key=consumer_key,
+        consumer_secret=consumer_secret,
+    )
+    return {"bot_id": bot_id, "status": "connected", "store_url": clean_url}
+
+
+@mcp.tool()
+async def sync_woocommerce_products(bot_id: str) -> dict:
+    """Trigger a catalog sync of WooCommerce products into the chatbot's knowledge base."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    await _oauth.require_bot_access(principal, bot_id)
+    integration = await woocommerce_service.get_integration(bot_id)
+    if not integration:
+        raise ValueError("No WooCommerce store configured for this bot.")
+    store_url = integration.get("store_url")
+    key = integration.get("consumer_key")
+    secret = integration.get("consumer_secret")
+    import asyncio
+    asyncio.create_task(woocommerce_service.run_woocommerce_sync_task(bot_id, store_url, key, secret))
+    return {"bot_id": bot_id, "status": "sync_started", "store_url": store_url}
+
+
+# ===========================================================================
+# 10c. MULTI-CHANNEL & ESCALATION (Slack & WhatsApp)
+# ===========================================================================
+
+
+@mcp.tool()
+async def configure_slack_escalation(bot_id: str, webhook_url: str, channel_name: str = "#support") -> dict:
+    """Configure a Slack incoming webhook to receive real-time notifications for human handoff or negative sentiment."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    await _oauth.require_bot_access(principal, bot_id)
+    row = {
+        "bot_id": bot_id,
+        "slack_webhook_url": webhook_url,
+        "slack_channel": channel_name,
+        "notify_on_escalation": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await run_db(lambda: supabase.table("chatty_bot_notifications").upsert(row, on_conflict="bot_id").execute())
+    return {"bot_id": bot_id, "slack_configured": True, "channel": channel_name}
+
+
+@mcp.tool()
+async def configure_whatsapp_integration(bot_id: str, phone_number_id: str, access_token: str) -> dict:
+    """Connect official WhatsApp Business Cloud API to this chatbot."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "write")
+    await _oauth.require_bot_access(principal, bot_id)
+    row = {
+        "bot_id": bot_id,
+        "phone_number_id": phone_number_id,
+        "access_token": access_token,
+        "is_active": True,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await run_db(lambda: supabase.table("chatty_whatsapp_integrations").upsert(row, on_conflict="bot_id").execute())
+    return {"bot_id": bot_id, "status": "configured", "phone_number_id": phone_number_id}
+
+
+# ===========================================================================
+# 10d. API KEY MANAGEMENT
+# ===========================================================================
+
+
+@mcp.tool()
+async def list_api_keys(bot_id: str) -> list:
+    """List active API keys (chatty_sk_...) for a bot with their usage stats and last-used dates."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    await _oauth.require_bot_access(principal, bot_id)
+    keys_res = await run_db(lambda: supabase.table("chatty_api_keys").select(
+        "id, name, key_prefix, scopes, allowed_ips, last_used_at, request_count, revoked, created_at"
+    ).eq("bot_id", bot_id).order("created_at", desc=True).execute())
+    return keys_res.data or []
+
+
+@mcp.tool()
+async def create_api_key(bot_id: str, name: str = "MCP API Key", scopes: Optional[List[str]] = None) -> dict:
+    """Create a new bot-scoped API key (chatty_sk_...). The raw key is returned once."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    bot = await _oauth.require_bot_access(principal, bot_id)
+    raw_key = f"chatty_sk_{secrets.token_hex(24)}"
+    prefix = raw_key[:16]
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    user_id = principal.get("user_id") or bot.get("user_id")
+    row = await run_db(lambda: supabase.table("chatty_api_keys").insert({
+        "bot_id": bot_id,
+        "user_id": user_id,
+        "name": name,
+        "key_prefix": prefix,
+        "key_hash": key_hash,
+        "scopes": scopes or ["chat", "read", "write"],
+    }).execute())
+    created = row.data[0] if row.data else {}
+    return {
+        "id": created.get("id"),
+        "name": name,
+        "api_key": raw_key,
+        "key_prefix": prefix,
+        "scopes": scopes or ["chat", "read", "write"],
+        "warning": "Save this key now - it will not be displayed again.",
+    }
+
+
+@mcp.tool()
+async def revoke_api_key(bot_id: str, key_id: str) -> dict:
+    """Revoke an API key immediately to deny further access."""
+    principal = await _current_principal()
+    _oauth.check_principal_scope(principal, "admin")
+    await _oauth.require_bot_access(principal, bot_id)
+    await run_db(lambda: supabase.table("chatty_api_keys").update({"revoked": True}).eq("id", key_id).eq("bot_id", bot_id).execute())
+    return {"key_id": key_id, "status": "revoked"}
 
 
 # ===========================================================================

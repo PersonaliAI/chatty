@@ -98,7 +98,7 @@ export const AGENTS: AgentConfig[] = [
       },
     ],
     samplePrompts: [
-      "Audit all 55 Chatty tools and tell me what my bot 'PriceShield' is missing.",
+      "Audit all 81 Chatty tools and tell me what my bot 'PriceShield' is missing.",
       "Analyze the widget styling contrast against WCAG AAA guidelines.",
       "Find all unanswered visitor questions and generate draft answers to add to knowledge.",
     ],
@@ -326,7 +326,7 @@ export const AGENTS: AgentConfig[] = [
       },
       {
         title: "Full Account Access",
-        desc: "Mint account-wide chatty_oat_... access tokens to programmatically automate all 55 tools.",
+        desc: "Mint account-wide chatty_oat_... access tokens to programmatically automate all 81 tools.",
       },
     ],
     samplePrompts: [
@@ -339,10 +339,10 @@ export const AGENTS: AgentConfig[] = [
 
 const TOOL_CATEGORIES = [
   {
-    name: "Bot Lifecycle",
-    count: 6,
-    tools: ["list_chatbots", "create_chatbot", "get_chatbot", "update_chatbot", "clone_chatbot", "delete_chatbot"],
-    desc: "Create, list, get, update, clone, and delete chatbots across your account.",
+    name: "Bot Lifecycle & Personas",
+    count: 8,
+    tools: ["list_chatbots", "create_chatbot", "get_chatbot", "update_chatbot", "clone_chatbot", "delete_chatbot", "update_chatbot_instructions", "get_chatbot_instructions"],
+    desc: "Create, inspect, clone, delete, and fine-tune system prompts, persona tone, and behavior guidelines across your account.",
   },
   {
     name: "Widget Customizer & Design Studio",
@@ -351,46 +351,76 @@ const TOOL_CATEGORIES = [
     desc: "Custom CSS palettes, launcher positions, WCAG contrast audits, and one-line embed script tags.",
   },
   {
-    name: "Knowledge Base & RAG Crawling",
-    count: 7,
-    tools: ["crawl_website_knowledge", "add_chatbot_knowledge", "upload_knowledge_document", "sync_cloud_storage", "list_knowledge_sources", "delete_knowledge_source", "test_rag_retrieval"],
-    desc: "Crawl full sitemaps or URLs, upload PDFs, sync cloud drives, and test semantic RAG retrieval.",
+    name: "Visual Flow Builder",
+    count: 2,
+    tools: ["get_conversation_flow", "update_conversation_flow"],
+    desc: "Inspect and update multi-path visual decision trees, conditional branches, triggers, and action nodes.",
   },
   {
-    name: "Help Center & Articles",
-    count: 7,
-    tools: ["list_help_center_articles", "get_help_center_article", "create_help_center_article", "update_help_center_article", "delete_help_center_article", "list_help_center_categories", "get_help_center_analytics"],
-    desc: "Publish, update, and categorize public Help Center articles with auto-generated SEO and deep links.",
+    name: "Proactive Marketing Campaigns",
+    count: 5,
+    tools: ["create_campaign", "list_campaigns", "update_campaign", "delete_campaign", "get_campaign_analytics"],
+    desc: "Targeted outbound greetings, scroll/exit-intent triggers, lead magnets, and real-time impression analytics.",
+  },
+  {
+    name: "Knowledge Base, RAG & Testing",
+    count: 10,
+    tools: ["add_chatbot_knowledge", "crawl_website_knowledge", "upload_knowledge_document", "sync_cloud_storage", "list_knowledge_sources", "delete_knowledge_source", "test_rag_retrieval", "get_knowledge_sync_status", "purge_bot_knowledge", "test_chatbot_reply"],
+    desc: "Crawl sitemaps, upload PDFs, sync cloud drives, purge outdated vectors, test RAG chunks, and run simulated dry-run replies.",
+  },
+  {
+    name: "Help Center & SEO Articles",
+    count: 10,
+    tools: ["list_help_center_categories", "create_help_center_category", "update_help_center_category", "delete_help_center_category", "list_help_center_articles", "get_help_center_article", "create_help_center_article", "update_help_center_article", "delete_help_center_article", "get_help_center_analytics"],
+    desc: "Publish, update, and categorize public Help Center articles with auto-generated SEO, deep links, and deflection analytics.",
   },
   {
     name: "Inbox, Live Chat & Takeover",
     count: 6,
     tools: ["list_conversations", "get_conversation_transcript", "human_agent_takeover", "send_agent_message", "add_conversation_internal_note", "list_conversation_notes"],
-    desc: "Monitor live visitor sessions, view transcripts, take over from AI, and send real-time agent messages.",
+    desc: "Monitor live visitor sessions, view transcripts, take over from AI, send real-time agent messages, and attach private team notes.",
   },
   {
-    name: "Leads, Calendar & Meetings",
-    count: 7,
-    tools: ["configure_lead_capture", "list_leads", "export_leads", "configure_calendar_integration", "list_meetings", "get_customer_identity_guide", "get_mailbox_logs"],
-    desc: "Automated qualification forms, CSV lead export, Google/Outlook calendar booking, and HMAC signed identity.",
+    name: "Leads, Calendar & Identity",
+    count: 8,
+    tools: ["get_customer_identity_guide", "configure_lead_capture", "list_leads", "export_leads", "get_mailbox_logs", "export_visitor_data", "configure_calendar_integration", "list_meetings"],
+    desc: "Automated qualification forms, CSV lead export, Google/Outlook calendar booking, visitor GDPR exports, and HMAC signed identity.",
   },
   {
     name: "Analytics & Self-Healing",
     count: 4,
     tools: ["analyze_chatbot", "discover_knowledge_gaps", "analyze_sentiment_trends", "get_feedback_and_csat"],
-    desc: "Discover unanswered visitor questions to self-heal knowledge, inspect CSAT scores and sentiment curves.",
+    desc: "Discover unanswered visitor questions to self-heal knowledge, inspect CSAT scores, sentiment curves, and conversation volume.",
   },
   {
-    name: "Security, BYOK & Team",
-    count: 10,
-    tools: ["configure_guardrails", "configure_byok", "manage_team_members", "configure_domain_allowlist", "configure_notifications", "create_webhook_subscription", "list_webhook_subscriptions", "get_audit_logs", "export_visitor_data", "get_bot_performance_scorecard"],
-    desc: "Bring your own OpenAI/Anthropic key, strict domain allowlists, RBAC team roles, webhooks, and GDPR export.",
+    name: "E-Commerce & WooCommerce",
+    count: 3,
+    tools: ["get_woocommerce_store_status", "configure_woocommerce", "sync_woocommerce_products"],
+    desc: "Connect WooCommerce REST APIs, sync catalog product feeds directly into bot knowledge, and query sync health.",
   },
   {
-    name: "Voice & Real-Time Agents",
+    name: "Multi-Channel & Escalation",
+    count: 2,
+    tools: ["configure_slack_escalation", "configure_whatsapp_integration"],
+    desc: "Route urgent tickets and live takeover notifications to Slack channels or WhatsApp Business phone numbers.",
+  },
+  {
+    name: "Security, API Keys & Team",
+    count: 14,
+    tools: ["configure_guardrails", "configure_byok", "manage_team_members", "configure_notifications", "create_webhook_subscription", "list_webhook_subscriptions", "delete_webhook_subscription", "configure_domain_allowlist", "get_audit_logs", "get_account_billing", "get_bot_performance_scorecard", "list_api_keys", "create_api_key", "revoke_api_key"],
+    desc: "Bring your own OpenAI/Anthropic key, domain allowlists, RBAC team roles, webhooks, audit trails, and manage programmatic API keys.",
+  },
+  {
+    name: "Voice & Real-Time LiveKit",
     count: 4,
     tools: ["get_voice_agent_config", "configure_voice_agent", "get_voice_agent_embed_code", "generate_claimable_demo_bot"],
-    desc: "Ultra-low-latency bidirectional voice agents with WebRTC, custom voice avatars, and demo builders.",
+    desc: "Ultra-low-latency bidirectional voice agents with WebRTC, custom voice avatars, audio visualizers, and instant demo builders.",
+  },
+  {
+    name: "Multimodal & Screenshots",
+    count: 1,
+    tools: ["get_dashboard_screenshots"],
+    desc: "Capture visual verification screenshots of your live bot widget, dashboard tabs, and conversation states for multimodal models.",
   },
 ];
 
@@ -489,7 +519,7 @@ export function McpHub({
             }}
           >
             <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            Model Context Protocol · 55 Live Production Tools · OAuth 2.0 PKCE
+            Model Context Protocol · 81 Live Production Tools · OAuth 2.0 PKCE
           </div>
 
           <h2
@@ -772,7 +802,7 @@ export function McpHub({
                 className="text-lg font-bold flex items-center gap-2"
                 style={{ fontFamily: "var(--font-heading)", color: "var(--color-text, #201e1d)" }}
               >
-                <Layers className="size-4" style={{ color: "var(--color-accent, #c67139)" }} /> 55 Production MCP Tools
+                <Layers className="size-4" style={{ color: "var(--color-accent, #c67139)" }} /> 81 Production MCP Tools
               </h3>
               <p
                 className="text-xs mt-1"
