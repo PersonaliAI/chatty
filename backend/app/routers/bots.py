@@ -15,7 +15,7 @@ from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, 
 from app.core.clients import supabase
 from app.core.config import MODEL_NAME
 from app.core.db import run_db
-from app.core.deps import require_user
+from app.core.deps import require_user, require_active_user
 from app.core.permissions import get_bot_role_and_permissions, verify_bot_permission
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
 from app.services.campaign_schedule import next_campaign_run_at
@@ -79,7 +79,7 @@ async def list_dashboard_campaigns(bot_id: str, user: dict[str, Any] = Depends(r
 async def create_dashboard_campaign(
     bot_id: str,
     body: CampaignCreateRequest,
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     await verify_bot_permission(bot_id, user, "settings")
     result = await run_db(lambda: supabase.table("chatty_campaigns").insert({
@@ -94,7 +94,7 @@ async def create_dashboard_campaign(
 async def suggest_dashboard_campaign(
     bot_id: str,
     body: CampaignSuggestRequest,
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     """Generate a validated campaign draft; saving remains an explicit action."""
     await verify_bot_permission(bot_id, user, "settings")
@@ -155,7 +155,7 @@ async def suggest_dashboard_campaign(
 async def suggest_campaign_audience(
     bot_id: str,
     body: CampaignSuggestRequest,
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     """Generate a conservative, explainable audience rule draft."""
     await verify_bot_permission(bot_id, user, "settings")
@@ -444,7 +444,7 @@ async def list_dashboard_bots(user: dict[str, Any] = Depends(require_user)):
 @router.post("/api/bots", status_code=201)
 async def create_dashboard_bot(
     body: dict[str, Any] = Body(...),
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     """Create a dashboard bot without exposing the public OAuth API."""
     name = str(body.get("name") or "").strip()
@@ -686,7 +686,7 @@ async def get_bot_sources(bot_id: str, user: dict[str, Any] = Depends(require_us
 async def create_bot_source(
     bot_id: str,
     body: dict[str, Any] = Body(...),
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     await verify_bot_permission(bot_id, user, "training")
     source = {

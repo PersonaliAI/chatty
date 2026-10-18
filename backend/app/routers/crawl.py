@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from app.core.clients import supabase
 from app.core.config import FUNCTION_SECRET
 from app.core.db import run_db
-from app.core.deps import require_user
+from app.core.deps import require_user, require_active_user
 from app.core.security import verify_function_secret
 from app.core import ssrf
 from app.core.ssrf import UnsafeURLError, assert_safe_url_async
@@ -48,7 +48,7 @@ def _normalize_url(u: str) -> str:
 
 @router.post("/api/crawl/discover")
 async def crawl_discover(
-    req: CrawlDiscoverRequest, user: dict[str, Any] = Depends(require_user)
+    req: CrawlDiscoverRequest, user: dict[str, Any] = Depends(require_active_user)
 ):
     """Discover all page URLs of a site via sitemap.xml (+ robots.txt), so the
     admin can tick which ones to crawl."""
@@ -162,7 +162,7 @@ async def crawl_discover(
 
 @router.post("/api/crawl/pages")
 async def crawl_pages(
-    req: CrawlPagesRequest, user: dict[str, Any] = Depends(require_user)
+    req: CrawlPagesRequest, user: dict[str, Any] = Depends(require_active_user)
 ):
     """Crawl the admin-selected URLs and index each as a knowledge source."""
     res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", req.bot_id).eq(

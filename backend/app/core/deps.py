@@ -85,6 +85,18 @@ def require_user(claims: dict[str, Any] = Depends(verify_bearer_jwt)) -> dict[st
     return get_user_by_auth_id(claims["sub"], email=claims.get("email"))
 
 
+async def require_active_user(user: dict[str, Any] = Depends(require_user)) -> dict[str, Any]:
+    """Dependency that ensures the authenticated user has an active 14-day trial or paid subscription."""
+    from app.services.chatty_quota_service import check_bot_owner_subscription
+    sub = await check_bot_owner_subscription(user, user.get("auth_user_id"))
+    if not sub.get("is_active"):
+        raise HTTPException(
+            status_code=402,
+            detail=f"Subscription inactive ({sub.get('status')}): {sub.get('reason') or 'Please upgrade your plan to access this feature.'}",
+        )
+    return user
+
+
 def get_monthly_token_usage(user_id: str) -> dict[str, Any]:
     """Return monthly token usage for a user. Defaults to 0 if not tracked."""
     return {"total_tokens": 0}

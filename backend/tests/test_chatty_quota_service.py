@@ -98,3 +98,37 @@ async def test_payment_failed_subscription_shows_offline():
     assert result["is_active"] is False
     assert result["status"] == "payment_failed"
     assert result["offline_message"] == OFFLINE_SUBSCRIPTION_INACTIVE_MESSAGE
+
+
+@pytest.mark.anyio
+async def test_require_active_user_rejects_expired_trial_with_402():
+    from app.core.deps import require_active_user
+    from fastapi import HTTPException
+
+    user = {
+        "email": "hacker@example.com",
+        "plan": "free",
+        "subscription_status": None,
+        "created_at": "2020-01-01T00:00:00Z",
+        "trial_started_at": "2020-01-01T00:00:00Z",
+        "auth_user_id": "hacker-123",
+    }
+    with pytest.raises(HTTPException) as exc_info:
+        await require_active_user(user)
+    assert exc_info.value.status_code == 402
+    assert "trial_expired" in exc_info.value.detail
+
+
+@pytest.mark.anyio
+async def test_require_active_user_allows_active_subscription():
+    from app.core.deps import require_active_user
+
+    user = {
+        "email": "customer@example.com",
+        "plan": "chatty_business",
+        "subscription_status": "active",
+        "created_at": "2020-01-01T00:00:00Z",
+        "auth_user_id": "customer-123",
+    }
+    result = await require_active_user(user)
+    assert result == user

@@ -14,7 +14,7 @@ from app.core.permissions import verify_bot_permission
 from app.core.clients import genai_client, supabase
 from app.core.config import FUNCTION_SECRET
 from app.core.db import run_db
-from app.core.deps import require_user
+from app.core.deps import require_user, require_active_user
 from app.core.security import verify_function_secret
 from app.core.uploads import read_upload_capped
 from app.adapters.redis_jobs import RedisJobQueue
@@ -78,7 +78,7 @@ async def documents_list(user: dict[str, Any] = Depends(require_user)):
 async def documents_index_folder(
     body: IndexFolderBody,
     background_tasks: BackgroundTasks,
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     source = (getattr(body, "source", None) or "gdrive").lower()
     if source == "onedrive":
@@ -211,7 +211,7 @@ async def execute_scheduled_drive_syncs(x_function_secret: Optional[str] = Heade
 async def documents_index_files(
     body: IndexFilesBody,
     background_tasks: BackgroundTasks,
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     if not user.get("google_access_token"):
         raise HTTPException(status_code=400, detail="Google not connected")
@@ -236,7 +236,7 @@ async def documents_index_files(
 async def documents_upload(
     file: UploadFile = File(...),
     bot_id: Optional[str] = Form(None),
-    user: dict[str, Any] = Depends(require_user),
+    user: dict[str, Any] = Depends(require_active_user),
 ):
     """Index a file uploaded directly through web chat (PDF/DOCX/TXT/MD).
 
