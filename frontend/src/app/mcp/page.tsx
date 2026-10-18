@@ -11,35 +11,52 @@ function McpPageContent() {
   const tabParam = (searchParams.get("tab") || "chatgpt") as AgentId;
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-[#f97316] selection:text-white">
+    <div
+      className="min-h-screen text-[var(--color-text)] selection:bg-[#c67139] selection:text-white"
+      style={{
+        background: "var(--color-bg, #f5ead8)",
+        color: "var(--color-text, #201e1d)",
+      }}
+    >
       {/* Top Navbar */}
-      <header className="border-b border-neutral-900 bg-neutral-950/80 backdrop-blur-md sticky top-0 z-40">
+      <header
+        className="border-b sticky top-0 z-40 backdrop-blur-md"
+        style={{
+          background: "color-mix(in srgb, var(--color-bg, #f5ead8) 90%, white 10%)",
+          borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
               href="/"
-              className="flex items-center gap-2 text-neutral-400 hover:text-white transition text-xs font-semibold"
+              className="flex items-center gap-2 hover:opacity-80 transition text-xs font-semibold"
+              style={{ color: "var(--color-text, #201e1d)" }}
             >
               <ArrowLeft className="size-4" />
               <span>Back to Chatty</span>
             </Link>
-            <span className="text-neutral-800">|</span>
+            <span className="opacity-30">|</span>
             <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full bg-[#f97316]" />
-              <span className="text-sm font-bold tracking-tight text-white">Chatty MCP</span>
+              <span className="size-2 rounded-full" style={{ background: "var(--color-accent, #c67139)" }} />
+              <span className="text-sm font-bold tracking-tight" style={{ fontFamily: "var(--font-heading)" }}>
+                Chatty MCP
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
-              className="px-3.5 py-1.5 rounded-full text-xs font-semibold text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
+              className="px-4 py-1.5 rounded-full text-xs font-semibold border transition hover:bg-black/5"
+              style={{ borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))", color: "var(--color-text, #201e1d)" }}
             >
               Dashboard
             </Link>
             <Link
               href="/signup?next=/oauth/consent"
-              className="px-4 py-1.5 rounded-full text-xs font-bold bg-[#f97316] text-white hover:bg-[#ea580c] transition shadow-md"
+              className="px-4 py-1.5 rounded-full text-xs font-bold text-white transition shadow-sm hover:brightness-105"
+              style={{ background: "var(--color-accent, #c67139)" }}
             >
               Sign up
             </Link>
@@ -53,17 +70,23 @@ function McpPageContent() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-900 bg-neutral-950 py-8 text-center text-xs text-neutral-500">
+      <footer
+        className="border-t py-8 text-center text-xs"
+        style={{
+          borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+          color: "color-mix(in srgb, var(--color-text, #201e1d) 65%, transparent)",
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p>© 2026 Chatty (PersonaliAI). All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <Link href="/privacy" className="hover:text-neutral-400 transition">
+            <Link href="/privacy" className="hover:opacity-80 transition">
               Privacy Policy
             </Link>
-            <Link href="/terms" className="hover:text-neutral-400 transition">
+            <Link href="/terms" className="hover:opacity-80 transition">
               Terms of Service
             </Link>
-            <Link href="/help" className="hover:text-neutral-400 transition">
+            <Link href="/help" className="hover:opacity-80 transition">
               Help Center
             </Link>
           </div>
