@@ -60,3 +60,14 @@ async def cron_detect_ended_sessions(x_function_secret: Optional[str] = Header(d
     FUNCTION_SECRET, same convention as the other /cron/* routes."""
     verify_function_secret(x_function_secret, FUNCTION_SECRET)
     return await notify.detect_and_fire_ended_sessions(supabase, idle_minutes=30)
+
+
+@router.post("/cron/trial-lifecycle")
+@router.post("/cron/billing-lifecycle")
+async def cron_trial_lifecycle(x_function_secret: Optional[str] = Header(default=None)):
+    """Scans all users and delivers trial ending soon and trial expired lifecycle emails.
+    Protected by FUNCTION_SECRET, same convention as the other /cron/* routes."""
+    verify_function_secret(x_function_secret, FUNCTION_SECRET)
+    from app.services.billing_email_service import run_trial_lifecycle_scan
+    return await run_trial_lifecycle_scan()
+

@@ -19,6 +19,7 @@ const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
+  preload: false,
 });
 
 // One additional font per widget design preset (see globals.css's "Assistant

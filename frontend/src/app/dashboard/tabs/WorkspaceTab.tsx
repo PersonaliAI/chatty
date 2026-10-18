@@ -620,7 +620,7 @@ export function WorkspaceTab({
                             {roleInfo.label}
                           </span>
                         </div>
-                        {m.name && <span className="text-[10px] text-neutral-400">{m.email}</span>}
+                        {m.name && <span className="text-[10px] text-neutral-400 truncate max-w-full block" title={m.email}>{m.email}</span>}
                       </div>
                     </div>
 

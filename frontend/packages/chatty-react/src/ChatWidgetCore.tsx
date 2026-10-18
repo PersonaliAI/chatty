@@ -1408,13 +1408,16 @@ function IdentifiedChatWidget({
           comment: csatComment,
         }),
       });
-      if (!res.ok) throw new Error("csat submit failed");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error((errData && errData.detail) || "Failed to submit feedback.");
+      }
       setCsatSubmitted(true);
       rememberCsatPrompt();
       showToast("Thank you for your feedback!", "success");
       setTimeout(() => { setShowCsat(false); notifyClose(); }, 1500);
-    } catch {
-      showToast("Failed to submit feedback.", "error");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to submit feedback.", "error");
     }
   };
 

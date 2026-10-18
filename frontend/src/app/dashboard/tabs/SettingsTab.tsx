@@ -995,7 +995,7 @@ export function SettingsTab({
                           const roleInfo = ROLE_INFO[m.role as ChattyTeamRole] || ROLE_INFO.agent;
                           return (
                             <div key={m.id} className="p-3.5 sm:p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-850 space-y-3">
-                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                   <div className="size-8 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800 shrink-0 flex items-center justify-center text-xs font-bold text-neutral-600 dark:text-neutral-300 select-none border border-neutral-200 dark:border-neutral-700">
                                     {m.avatar_url ? (
@@ -1007,22 +1007,22 @@ export function SettingsTab({
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100">{m.name || m.email}</span>
-                                      <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${roleInfo.badgeClasses}`}>
+                                      <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-[220px] sm:max-w-xs">{m.name || m.email}</span>
+                                      <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full shrink-0 ${roleInfo.badgeClasses}`}>
                                         {roleInfo.label}
                                       </span>
                                       {isSelf && (
-                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 shrink-0">
                                           You
                                         </span>
                                       )}
                                     </div>
-                                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 break-all select-all mt-0.5">
+                                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate max-w-full select-all mt-0.5" title={m.email}>
                                       {m.email}
                                     </div>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-1.5 flex-wrap self-start md:self-center shrink-0">
+                                <div className="flex items-center gap-1.5 flex-wrap self-start lg:self-center shrink-0">
                                   {canManageAvailability && (
                                     <button
                                       type="button"

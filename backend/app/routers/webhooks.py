@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -23,6 +24,7 @@ from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_
 from app.core.db import run_db
 from app.core.crypto import decrypt_secret
 from app.adapters.redis_jobs import RedisJobQueue
+from app.services import billing_email_service
 from app.services.chatty_quota_service import chatty_quota_exceeded, usage_units_for_message
 from app.services.widget_session_service import upsert_session as _upsert_session
 from app.services.whatsapp_service import (
@@ -1062,6 +1064,77 @@ async def webhook_lemonsqueezy(request: Request):
             await _handle_affiliate_subscription_ended(user_id, event_name)
         except Exception:
             logger.exception("Failed to update affiliate subscription state")
+
+    # Dispatch professional transactional billing emails for payment/subscription changes
+    if user_id:
+        try:
+            resolved_email = str(attributes.get("user_email") or attributes.get("customer_email") or "").strip().lower()
+            resolved_name = str(attributes.get("user_name") or attributes.get("customer_name") or "").strip()
+            if not resolved_email:
+                u_res = await run_db(lambda: supabase.table("users").select("email,display_name").eq("auth_user_id", user_id).limit(1).execute())
+                if u_res.data:
+                    resolved_email = str(u_res.data[0].get("email") or "").strip().lower()
+                    if not resolved_name:
+                        resolved_name = str(u_res.data[0].get("display_name") or "").strip()
+
+            if resolved_email and "@" in resolved_email:
+                urls = attributes.get("urls", {}) or {}
+                renews_str = str(attributes.get("renews_at") or attributes.get("ends_at") or "")
+                ends_str = str(attributes.get("ends_at") or attributes.get("renews_at") or "")
+                amount_str = str(attributes.get("total_formatted") or attributes.get("subtotal_formatted") or "")
+                receipt_link = str(urls.get("receipt") or attributes.get("receipt_url") or "")
+                update_link = str(urls.get("update_payment_method") or attributes.get("update_payment_method_url") or "")
+
+                if event_name in ("subscription_created", "order_created"):
+                    asyncio.create_task(billing_email_service.send_subscription_activated_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=plan_name,
+                        renews_at=renews_str,
+                    ))
+                elif event_name == "subscription_payment_success":
+                    asyncio.create_task(billing_email_service.send_payment_success_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=plan_name,
+                        amount_formatted=amount_str,
+                        renews_at=renews_str,
+                        receipt_url=receipt_link,
+                    ))
+                elif event_name in ("subscription_payment_failed", "subscription_unpaid"):
+                    asyncio.create_task(billing_email_service.send_payment_failed_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=plan_name,
+                        update_url=update_link,
+                    ))
+                elif event_name in ("subscription_cancelled", "subscription_expired"):
+                    asyncio.create_task(billing_email_service.send_subscription_cancelled_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=plan_name,
+                        ends_at=ends_str,
+                    ))
+                elif event_name == "subscription_paused":
+                    asyncio.create_task(billing_email_service.send_subscription_paused_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=plan_name,
+                    ))
+                elif event_name == "subscription_resumed":
+                    asyncio.create_task(billing_email_service.send_subscription_resumed_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=plan_name,
+                    ))
+        except Exception:
+            logger.exception("Failed to dispatch billing transactional email on %s", event_name)
 
     return {"status": "success"}
 

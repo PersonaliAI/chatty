@@ -1317,13 +1317,16 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
           comment: csatComment.trim() || null,
         }),
       });
-      if (!res.ok) throw new Error("csat submit failed");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error((errData && errData.detail) || "Failed to submit feedback.");
+      }
       setCsatSubmitted(true);
       rememberCsatPrompt();
       showToast(`Thanks - ${csatRating} star rating submitted.`, "success");
       setTimeout(() => { setShowCsat(false); try { window.parent?.postMessage({ type: "chatty:close" }, "*"); } catch {} }, 1200);
-    } catch {
-      showToast("Failed to submit feedback.", "error");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to submit feedback.", "error");
     } finally {
       setCsatSubmitting(false);
     }

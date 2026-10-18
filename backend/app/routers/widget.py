@@ -1487,12 +1487,16 @@ async def widget_csat(body: WidgetCsatRequest, request: Request):
     if not 1 <= body.rating <= 5:
         raise HTTPException(status_code=400, detail="rating must be between 1 and 5")
     try:
-        cooldown_since = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
         recent = await run_db(lambda: supabase.table("chatty_csat_feedback")
             .select("id").eq("bot_id", body.bot_id).eq("session_id", body.session_id)
-            .gte("created_at", cooldown_since).order("created_at", desc=True).limit(1).execute())
+            .order("created_at", desc=True).limit(1).execute())
         if recent.data:
-            raise HTTPException(status_code=429, detail="Feedback can be submitted once every 2 days")
+            existing_id = recent.data[0]["id"]
+            await run_db(lambda: supabase.table("chatty_csat_feedback").update({
+                "rating": body.rating,
+                "comment": (body.comment or "").strip() or None,
+            }).eq("id", existing_id).execute())
+            return {"ok": True, "updated": True}
         await run_db(lambda: supabase.table("chatty_csat_feedback").insert({
             "bot_id": body.bot_id,
             "session_id": body.session_id,
