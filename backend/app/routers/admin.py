@@ -923,6 +923,18 @@ async def inbox_session_viewers(bot_id: str, session_id: str, user: dict[str, An
     return {"viewers": viewers}
 
 
+@router.get("/api/admin/inbox/booking/active")
+async def admin_inbox_booking_active(
+    bot_id: str,
+    session_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Retrieve active scheduled meeting for an inbox session (dashboard operator access)."""
+    await _verify_session_inbox_access(bot_id, session_id, user)
+    from app.routers.widget import widget_booking_active
+    return await widget_booking_active(bot_id=bot_id, session_id=session_id)
+
+
 # In-memory storage for automation rules with database fallback
 _AUTOMATION_RULES: dict[str, list[dict[str, Any]]] = {}
 

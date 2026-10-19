@@ -1042,7 +1042,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         const d = await res.json();
         if (!controller.signal.aborted && activeSessionRef.current === sid) setMessages(d.messages || []);
       }
-      const bookingRes = await fetchBackend(`/api/widget/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sid)}`, { signal: controller.signal });
+      const bookingRes = await fetchBackend(`/api/admin/inbox/booking/active?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sid)}`, { signal: controller.signal });
       if (bookingRes.ok) {
         const booking = await bookingRes.json();
         if (!controller.signal.aborted && activeSessionRef.current === sid) {

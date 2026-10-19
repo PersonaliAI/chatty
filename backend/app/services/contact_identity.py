@@ -114,12 +114,47 @@ async def guard_widget_session(request: Request) -> None:
         elif "multipart/form-data" in content_type:
             form = await request.form()
             values.update({k: v for k, v in form.items() if isinstance(v, str)})
+    # Authenticated dashboard operators / bot owners bypass visitor credentials
+    auth_header = request.headers.get("authorization")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        try:
+            from app.core.deps import verify_supabase_jwt, get_user_by_auth_id
+            from app.core.permissions import verify_bot_permission
+            claims = verify_supabase_jwt(auth_header)
+            bot_id = str(values.get("bot_id", ""))
+            if bot_id and claims.get("sub"):
+                user = get_user_by_auth_id(claims["sub"], claims.get("email"))
+                await verify_bot_permission(bot_id, user, "inbox")
+                return
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     session = values.get("session_id")
-    if request.url.path in {"/api/widget/poll", "/api/widget/live", "/api/widget/booking/active"} and session and not str(session).startswith("ci-"):
+    if request.url.path in {"/api/widget/poll", "/api/widget/live"} and session and not str(session).startswith("ci-"):
         raise HTTPException(401, "Upgrade to a credential-backed widget session")
     if not isinstance(session, str) or not session.startswith("ci-"):
         return
-    row = await credential(str(values.get("bot_id", "")), request.headers.get("x-chatty-visitor", ""))
+
+    bot_id = str(values.get("bot_id", ""))
+    clean_bot_id = bot_id.replace("-", "").lower()
+    visitor_token = (
+        request.headers.get("x-chatty-visitor", "")
+        or request.cookies.get("chatty_visitor", "")
+        or (request.cookies.get(f"chatty_visitor_{clean_bot_id}", "") if clean_bot_id else "")
+    )
+
+    if request.url.path == "/api/widget/booking/active":
+        if not visitor_token:
+            return
+        try:
+            row = await credential(bot_id, visitor_token)
+        except HTTPException:
+            return
+    else:
+        row = await credential(bot_id, visitor_token)
+
     if session.endswith("-search"):
         session = session[:-7]
     if row["session_id"] != session:

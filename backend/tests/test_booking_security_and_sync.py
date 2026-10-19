@@ -540,3 +540,79 @@ async def test_widget_booking_cancel_with_provider_event_id():
         assert res["status"] == "cancelled"
 
 
+@pytest.mark.anyio
+async def test_admin_inbox_booking_active():
+    """Verify GET /api/admin/inbox/booking/active verifies session access and retrieves meeting."""
+    from app.routers.admin import admin_inbox_booking_active
+    with patch("app.routers.admin._verify_session_inbox_access", new_callable=AsyncMock) as mock_access, \
+         patch("app.routers.widget.run_db", new_callable=AsyncMock) as mock_db:
+
+        mock_leads = MagicMock(data=[{"id": "lead-1", "email": "visitor@test.com"}])
+        mock_meetings = MagicMock(data=[{
+            "id": "meet-inbox-1",
+            "bot_id": "bot-inbox-1",
+            "attendee_name": "Inbox Visitor",
+            "attendee_email": "visitor@test.com",
+            "start_time": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+            "end_time": (datetime.now(timezone.utc) + timedelta(days=1, minutes=30)).isoformat(),
+            "title": "Strategy Call",
+            "status": "scheduled",
+            "meeting_link": "https://meet.google.com/test",
+            "assigned_to_email": "agent@test.com",
+            "timezone": "UTC",
+        }])
+        mock_db.side_effect = [mock_leads, mock_meetings]
+
+        user = {"auth_user_id": "user-agent-1", "email": "agent@test.com"}
+        res = await admin_inbox_booking_active(bot_id="bot-inbox-1", session_id="ci-test-sess", user=user)
+        mock_access.assert_awaited_once_with("bot-inbox-1", "ci-test-sess", user)
+        assert res["has_active"] is True
+        assert res["meeting"]["id"] == "meet-inbox-1"
+
+
+@pytest.mark.anyio
+async def test_guard_widget_session_permits_bearer_dashboard_auth():
+    """Verify guard_widget_session allows dashboard users with valid Bearer JWT without visitor token."""
+    from starlette.requests import Request
+    from app.services.contact_identity import guard_widget_session
+
+    req = Request({
+        "type": "http",
+        "method": "GET",
+        "path": "/api/widget/booking/active",
+        "query_string": b"bot_id=bot-test-1&session_id=ci-802f9714-bad9-49b4-b81d-09a223ff0dc6",
+        "headers": [(b"authorization", b"Bearer valid-jwt-token")],
+    })
+
+    with patch("app.core.deps.verify_supabase_jwt") as mock_jwt, \
+         patch("app.core.deps.get_user_by_auth_id") as mock_user, \
+         patch("app.core.permissions.verify_bot_permission", new_callable=AsyncMock) as mock_perm:
+
+        mock_jwt.return_value = {"sub": "u-123", "email": "admin@test.com"}
+        mock_user.return_value = {"id": "u-123", "email": "admin@test.com"}
+        mock_perm.return_value = "owner"
+
+        # Should return without raising HTTPException
+        await guard_widget_session(req)
+        mock_perm.assert_awaited_once_with("bot-test-1", {"id": "u-123", "email": "admin@test.com"}, "inbox")
+
+
+@pytest.mark.anyio
+async def test_guard_widget_session_graceful_booking_active_without_visitor_token():
+    """Verify /api/widget/booking/active does not raise 401 when visitor token is absent."""
+    from starlette.requests import Request
+    from app.services.contact_identity import guard_widget_session
+
+    req = Request({
+        "type": "http",
+        "method": "GET",
+        "path": "/api/widget/booking/active",
+        "query_string": b"bot_id=bot-test-1&session_id=ci-802f9714-bad9-49b4-b81d-09a223ff0dc6",
+        "headers": [],
+    })
+
+    # Should not raise HTTPException(401)
+    await guard_widget_session(req)
+
+
+
