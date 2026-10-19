@@ -1134,7 +1134,8 @@ async def webhook_lemonsqueezy(request: Request):
                         plan_name=plan_name,
                     ))
         except Exception:
-            logger.exception("Failed to dispatch billing transactional email on %s", event_name)
+            clean_event = str(event_name or "").replace("\r", "").replace("\n", "")[:64]
+            logger.exception("Failed to dispatch billing transactional email on %s", clean_event)
 
     return {"status": "success"}
 

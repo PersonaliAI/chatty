@@ -202,8 +202,12 @@ export function formatMessagePreview(content?: string | null): string {
     return visitorParsed.cleanText;
   }
   if (visitorParsed.isSyntheticHidden) {
-    const offerMatch = raw.match(/^\[Calendar booking offered:\s*([\s\S]+?)\]$/i);
-    return offerMatch ? offerMatch[1].trim() : "Select a time slot to schedule your meeting";
+    const prefix = "[calendar booking offered:";
+    if (raw.toLowerCase().startsWith(prefix) && raw.endsWith("]")) {
+      const inner = raw.slice(prefix.length, -1).trim();
+      return inner || "Select a time slot to schedule your meeting";
+    }
+    return "Select a time slot to schedule your meeting";
   }
   const richParsed = parseRichContent(raw);
   return richParsed.cleanContent || "Conversation updated";

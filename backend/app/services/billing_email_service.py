@@ -172,11 +172,17 @@ def _render_base_email(
 # Outbound Delivery Engine
 # ---------------------------------------------------------------------------
 
+def _safe_log_str(val: Any, max_len: int = 120) -> str:
+    """Sanitize uncontrolled input before logging to prevent log injection (CWE-117)."""
+    return str(val or "").replace("\r", "").replace("\n", "").strip()[:max_len]
+
+
 async def _send_raw_email(to_email: str, subject: str, html_body: str) -> dict[str, Any]:
     """Delivers via Resend API with automatic OneSignal fallback."""
     clean_to = (to_email or "").strip().lower()
+    safe_to = _safe_log_str(clean_to)
     if not clean_to or "@" not in clean_to:
-        logger.warning("Invalid recipient email: %r", to_email)
+        logger.warning("Invalid recipient email: %s", _safe_log_str(to_email))
         return {"sent": False, "error": "invalid_email"}
 
     # 1. Primary: Resend API
@@ -196,9 +202,10 @@ async def _send_raw_email(to_email: str, subject: str, html_body: str) -> dict[s
                 resp = await client.post(_RESEND_URL, json=payload, headers=headers)
                 if resp.status_code < 300:
                     data = resp.json()
-                    logger.info("Billing email successfully delivered via Resend to %s (id: %s)", clean_to, data.get("id"))
+                    safe_id = _safe_log_str(data.get("id"))
+                    logger.info("Billing email successfully delivered via Resend to %s (id: %s)", safe_to, safe_id)
                     return {"sent": True, "provider": "resend", "id": data.get("id")}
-                logger.warning("Resend delivery failed (%d): %s", resp.status_code, resp.text[:300])
+                logger.warning("Resend delivery failed (%d): %s", resp.status_code, _safe_log_str(resp.text, 300))
         except Exception:
             logger.exception("Exception sending billing email via Resend")
 
@@ -220,13 +227,13 @@ async def _send_raw_email(to_email: str, subject: str, html_body: str) -> dict[s
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(_ONESIGNAL_URL, json=os_payload, headers=os_headers)
                 if resp.status_code < 300:
-                    logger.info("Billing email delivered via OneSignal to %s", clean_to)
+                    logger.info("Billing email delivered via OneSignal to %s", safe_to)
                     return {"sent": True, "provider": "onesignal"}
-                logger.warning("OneSignal delivery failed (%d): %s", resp.status_code, resp.text[:300])
+                logger.warning("OneSignal delivery failed (%d): %s", resp.status_code, _safe_log_str(resp.text, 300))
         except Exception:
             logger.exception("Exception sending billing email via OneSignal")
 
-    logger.error("No configured email provider succeeded for billing email to %s", clean_to)
+    logger.error("No configured email provider succeeded for billing email to %s", safe_to)
     return {"sent": False, "error": "delivery_failed"}
 
 
