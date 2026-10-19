@@ -18,6 +18,17 @@ interface FeedbackTabProps {
   setActiveTab: (tab: string) => void;
 }
 
+const CSAT_EMOJIS: Record<
+  number,
+  { emoji: string; label: string; textClass: string; bgClass: string; borderClass: string }
+> = {
+  5: { emoji: "🤩", label: "Delighted", textClass: "text-emerald-600 dark:text-emerald-400", bgClass: "bg-emerald-50 dark:bg-emerald-950/50", borderClass: "border-emerald-200 dark:border-emerald-800/50" },
+  4: { emoji: "🙂", label: "Satisfied", textClass: "text-teal-600 dark:text-teal-400", bgClass: "bg-teal-50 dark:bg-teal-950/50", borderClass: "border-teal-200 dark:border-teal-800/50" },
+  3: { emoji: "😐", label: "Neutral", textClass: "text-amber-600 dark:text-amber-400", bgClass: "bg-amber-50 dark:bg-amber-950/50", borderClass: "border-amber-200 dark:border-amber-800/50" },
+  2: { emoji: "😕", label: "Disappointed", textClass: "text-orange-600 dark:text-orange-400", bgClass: "bg-orange-50 dark:bg-orange-950/50", borderClass: "border-orange-200 dark:border-orange-800/50" },
+  1: { emoji: "😞", label: "Frustrated", textClass: "text-rose-600 dark:text-rose-400", bgClass: "bg-rose-50 dark:bg-rose-950/50", borderClass: "border-rose-200 dark:border-rose-800/50" },
+};
+
 export function FeedbackTab({
   csatFeedback,
   loadingLists,
@@ -50,18 +61,43 @@ export function FeedbackTab({
         <div className="space-y-3">
           {csatFeedback.map((f) => {
             const matchedLead = f.session_id ? leads.find((l) => l.session_id === f.session_id) : undefined;
+            const emojiConfig = CSAT_EMOJIS[f.rating] || CSAT_EMOJIS[5];
             return (
-              <div key={f.id} className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+              <div key={f.id} className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-sm">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-0.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <Star
-                        key={n}
-                        className={`size-3.5 ${n <= f.rating ? "fill-amber-400 text-amber-400" : "text-neutral-300 dark:text-neutral-700"}`}
-                      />
-                    ))}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`size-9 rounded-full ${emojiConfig.bgClass} border ${emojiConfig.borderClass} flex items-center justify-center shrink-0 text-lg shadow-sm`}
+                      title={`${emojiConfig.label} (${f.rating}/5 stars)`}
+                    >
+                      <span role="img" aria-label={emojiConfig.label}>
+                        {emojiConfig.emoji}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                          {matchedLead?.name || (f.session_id ? `Visitor #${f.session_id.slice(0, 6)}` : "Verified Visitor")}
+                        </span>
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                          • {emojiConfig.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-0.5 mt-0.5">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star
+                            key={n}
+                            className={`size-3 ${
+                              n <= f.rating
+                                ? "fill-amber-400 text-amber-400"
+                                : "text-neutral-300 dark:text-neutral-700"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0">
+                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 shrink-0 font-medium">
                     {new Date(f.created_at).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
