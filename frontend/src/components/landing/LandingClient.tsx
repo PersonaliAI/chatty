@@ -2398,165 +2398,296 @@ export default function LandingClient() {
       </main>
 
       {/* ==========================================
-          FOOTER (Firecrawl Precision Bordered Grid - Exact Match to Screenshot)
+          FOOTER (Firecrawl Precision Bordered Grid - Professional Architectural Standard)
           ========================================== */}
       <footer className="border-t border-zinc-200/80 bg-white">
         <div className="mx-auto max-w-7xl border-x border-zinc-200/80">
-          {/* Top 4-Column Grid: Platform, Comparisons 1, Comparisons 2, Ecosystem */}
+          {/* Top 4-Column Grid: Platform, Helpdesk Alternatives, Sales Alternatives, Resources */}
           <div className="grid grid-cols-1 md:grid-cols-4">
-            {/* Column 1: Platform & Capabilities */}
+            {/* Column 1: Platform & AI Engine */}
             <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
+              <div className="px-6 py-3.5 text-xs font-semibold tracking-wider text-zinc-500 uppercase border-b border-zinc-200/80 bg-zinc-50/70 flex items-center justify-between">
+                <span>Platform & AI Engine</span>
+              </div>
               <Link
                 href="#capabilities"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Grounded RAG & Vectors
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Grounded RAG & Vectors</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">PostgreSQL pgvector</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="#mcp"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                MCP Protocol Server
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">MCP Protocol Server</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">FastMCP 81 Native Endpoints</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="#code"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Developer API & SDK
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Developer API & SDK</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">TypeScript & Python Clients</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
-                href="#pricing"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                href="#capabilities"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Pricing Plans
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">WebRTC Voice Calling</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">LiveKit In-Browser Agent</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="/zoom"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Zoom Integration
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Zoom & Calendar Sync</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Google & Outlook Meeting Slots</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
-                href="https://docs.chatty.personaliai.com/guides/calendar-scheduling"
-                target="_blank"
-                rel="noreferrer"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
+                href="#pricing"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b md:border-b-0 border-zinc-200/80 flex items-center justify-between"
               >
-                Calendar & Booking Sync
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Pricing Plans</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Flat-Rate Zero Seat Tax</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
             </div>
 
-            {/* Column 2: Competitor Comparisons (A) */}
+            {/* Column 2: Helpdesk & Support Alternatives */}
             <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
+              <div className="px-6 py-3.5 text-xs font-semibold tracking-wider text-zinc-500 uppercase border-b border-zinc-200/80 bg-zinc-50/70 flex items-center justify-between">
+                <span>Helpdesk Alternatives</span>
+                <span className="text-[10px] font-mono text-zinc-600 bg-white px-1.5 py-0.5 rounded border border-zinc-200/80">Support</span>
+              </div>
               <Link
                 href="/compare"
-                className="px-6 py-4 text-sm font-semibold text-zinc-950 hover:text-[#c67139] transition-colors border-b border-zinc-200/80 bg-zinc-50/50"
+                className="group px-6 py-3 text-sm font-semibold text-zinc-950 hover:text-[#c67139] hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                All Comparisons →
+                <div>
+                  <div className="font-semibold text-zinc-900 group-hover:text-[#c67139] transition-colors">All Comparisons Hub →</div>
+                  <div className="text-[11px] font-normal text-zinc-400 group-hover:text-zinc-500">Feature & TCO Math Matrices</div>
+                </div>
+                <ArrowRight className="size-3 text-[#c67139] opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
               </Link>
               <Link
                 href="/compare/chatty-vs-intercom"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Chatty vs Intercom
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Intercom</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Fin AI $0.99 Resolution Tax</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="/compare/chatty-vs-zendesk"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Chatty vs Zendesk
-              </Link>
-              <Link
-                href="/compare/chatty-vs-crisp"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Chatty vs Crisp
-              </Link>
-              <Link
-                href="/compare/chatty-vs-chatbase"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
-              >
-                Chatty vs Chatbase
-              </Link>
-            </div>
-
-            {/* Column 3: Competitor Comparisons (B) & Benchmarks */}
-            <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
-              <Link
-                href="/compare/chatty-vs-tidio"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Chatty vs Tidio (Lyro)
-              </Link>
-              <Link
-                href="/compare/chatty-vs-gorgias"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Chatty vs Gorgias
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Zendesk</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Legacy Per-Seat PBX</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="/compare/chatty-vs-freshdesk"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Chatty vs Freshdesk
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Freshdesk</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Freddy AI Copilot Licensing</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
-                href="/compare/chatty-vs-drift"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                href="/compare/chatty-vs-crisp"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Chatty vs Drift
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Crisp</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Human Shared Live Chat</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="#roi"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b md:border-b-0 border-zinc-200/80 flex items-center justify-between"
               >
-                Deflection Benchmarks
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Deflection Benchmarks</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">78% Autonomous Resolution ROI</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+            </div>
+
+            {/* Column 3: Sales, E-Commerce & Conversational AI */}
+            <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
+              <div className="px-6 py-3.5 text-xs font-semibold tracking-wider text-zinc-500 uppercase border-b border-zinc-200/80 bg-zinc-50/70 flex items-center justify-between">
+                <span>Sales & CX Alternatives</span>
+                <span className="text-[10px] font-mono text-zinc-600 bg-white px-1.5 py-0.5 rounded border border-zinc-200/80">Growth</span>
+              </div>
+              <Link
+                href="/compare/chatty-vs-gorgias"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Gorgias</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">E-Commerce Ticket Quotas</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+              <Link
+                href="/compare/chatty-vs-tidio"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Tidio (Lyro)</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Strict 50-Chat Metered Caps</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+              <Link
+                href="/compare/chatty-vs-drift"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Drift</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Enterprise $30k/yr Lock-in</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+              <Link
+                href="/compare/chatty-vs-chatbase"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Chatty vs Chatbase</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Single-Purpose Document Bot</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+              <Link
+                href="#capabilities"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">WooCommerce 2-Way Sync</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Live Product & Inventory Engine</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+              <Link
+                href="#capabilities"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b md:border-b-0 border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Anti-Hallucination Guardrails</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Grounding Confidence Thresholds</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
             </div>
 
             {/* Column 4: Community, Ecosystem & Trust */}
             <div className="col-span-1 flex flex-col">
-              <Link
-                href="/affiliate"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Affiliates Program
-              </Link>
+              <div className="px-6 py-3.5 text-xs font-semibold tracking-wider text-zinc-500 uppercase border-b border-zinc-200/80 bg-zinc-50/70 flex items-center justify-between">
+                <span>Resources & Trust</span>
+              </div>
               <Link
                 href="https://docs.chatty.personaliai.com"
                 target="_blank"
                 rel="noreferrer"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Documentation
-              </Link>
-              <Link
-                href="/support"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Support Center
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Documentation</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Guides, Architecture & SDKs</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="https://github.com/PersonaliAI/chatty"
                 target="_blank"
                 rel="noreferrer"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                GitHub Repository
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">GitHub Repository</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Open-Source Docker & Self-Host</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+              <Link
+                href="/affiliate"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Affiliates Program</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">30% Lifetime Recurring Commission</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
+              <Link
+                href="/support"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Support Center</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Ticketing, SLAs & Priority Help</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
               <Link
                 href="/privacy"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                Security & Compliance
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Security & Compliance</div>
+                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">SOC2, GDPR & Encryption</div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
+              <a
+                href="https://status.personaliai.com"
+                target="_blank"
+                rel="noreferrer"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b md:border-b-0 border-zinc-200/80 flex items-center justify-between"
+              >
+                <div>
+                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Status & Uptime</div>
+                  <div className="text-[11px] text-[#2b7fff] font-medium flex items-center gap-1.5 mt-0.5">
+                    <span className="size-1.5 rounded-full bg-[#2b7fff] inline-block animate-pulse" />
+                    99.98% SLA All Systems Normal
+                  </div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </a>
             </div>
           </div>
 
           {/* 4-Cell Legal & Copyright Row */}
           <div className="grid grid-cols-2 md:grid-cols-4 border-t border-zinc-200/80">
             <div className="px-6 py-4 text-sm text-zinc-400 border-r border-b md:border-b-0 border-zinc-200/80 flex items-center">
-              © {new Date().getFullYear()} PersonaliAI
+              © {new Date().getFullYear()} PersonaliAI, Inc.
             </div>
             <Link
               href="/terms"
@@ -2574,24 +2705,27 @@ export default function LandingClient() {
               href="mailto:security@personaliai.com"
               className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors flex items-center"
             >
-              Report Abuse
+              Report Abuse & Security
             </Link>
           </div>
 
           {/* Status Bar Row (Blue live indicator matching Firecrawl) */}
           <div className="grid grid-cols-1 md:grid-cols-2 border-t border-zinc-200/80">
-            <div className="px-6 py-4 md:border-r border-zinc-200/80 flex items-center gap-2 text-sm text-[#2b7fff] font-medium">
+            <div className="px-6 py-3.5 md:border-r border-zinc-200/80 flex items-center gap-2.5 text-xs text-[#2b7fff] font-medium">
               <span className="size-2 rounded-full bg-[#2b7fff] inline-block animate-pulse" />
               <a
                 href="https://status.personaliai.com"
                 target="_blank"
                 rel="noreferrer"
-                className="hover:underline"
+                className="hover:underline flex items-center gap-1.5"
               >
-                All systems normal
+                <span>All core systems operational:</span>
+                <span className="text-zinc-500 font-normal">FastMCP 81 Server • Vector RAG Engine • WebRTC Voice</span>
               </a>
             </div>
-            <div className="hidden md:block px-6 py-4 bg-white" />
+            <div className="hidden md:flex px-6 py-3.5 bg-zinc-50/40 items-center justify-end text-xs text-zinc-400 font-mono">
+              RFC 7636 PKCE • RFC 7591 Dynamic Client Reg • Model Context Protocol
+            </div>
           </div>
         </div>
       </footer>
