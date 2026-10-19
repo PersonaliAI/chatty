@@ -1117,12 +1117,24 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         if (sessions.length) {
           const resolved = sessions.filter((row: { needs_attention?: boolean }) => !row.needs_attention).length;
           setResolutionRate(`${((resolved / sessions.length) * 100).toFixed(0)}%`);
-        } else setResolutionRate("-");
-        if (feedback.length) {
-          const ups = feedback.filter((row: { feedback_rating?: string }) => row.feedback_rating === "up").length;
-          setCsatScore(`${((ups / feedback.length) * 100).toFixed(0)}%`);
-        } else setCsatScore("-");
+        } else {
+          setResolutionRate("-");
+        }
         setCsatFeedback(csatRows);
+        if (csatRows && csatRows.length) {
+          const valid = csatRows.filter((row: { rating?: number }) => typeof row.rating === "number" && (row.rating || 0) > 0);
+          if (valid.length) {
+            const avg = valid.reduce((sum: number, r: { rating?: number }) => sum + (r.rating || 0), 0) / valid.length;
+            setCsatScore(avg.toFixed(1));
+          } else {
+            setCsatScore("-");
+          }
+        } else if (feedback.length) {
+          const ups = feedback.filter((row: { feedback_rating?: string }) => row.feedback_rating === "up").length;
+          setCsatScore(((ups / feedback.length) * 5).toFixed(1));
+        } else {
+          setCsatScore("-");
+        }
         if (queryRows.length) {
           const hours = new Array(24).fill(0) as number[];
           queryRows.forEach((row: { created_at?: string }) => { if (row.created_at) hours[new Date(row.created_at).getHours()] += 1; });
@@ -1221,24 +1233,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setResolutionRate("-");
       }
 
-      // 6. CSAT - visitor thumbs up / (up + down).
-      const { data: fbRows } = await supabase
-        .from("chatty_conversations")
-        .select("feedback_rating")
-        .eq("bot_id", activeBotId)
-        .in("feedback_rating", ["up", "down"]);
-      if (fbRows && fbRows.length) {
-        const ups = fbRows.filter(f => f.feedback_rating === "up").length;
-        setCsatScore(`${((ups / fbRows.length) * 100).toFixed(0)}%`);
-      } else {
-        setCsatScore("-");
-      }
-
-      // 6b. Post-chat star ratings + comments (the CSAT popup), most recent
-      // first. session_id lets the Feedback tab cross-reference a rating
-      // back to any contact info the AI captured as a lead during that same
-      // chat. 500 is a generous cap for the dedicated Feedback tab; the
-      // Analytics summary card only ever shows the first handful of these.
+      // 6. Post-chat star ratings + comments (the CSAT popup)
       const { data: csatRows } = await supabase
         .from("chatty_csat_feedback")
         .select("id, rating, comment, session_id, created_at")
@@ -1246,6 +1241,29 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         .order("created_at", { ascending: false })
         .limit(500);
       setCsatFeedback(csatRows || []);
+
+      if (csatRows && csatRows.length) {
+        const valid = csatRows.filter(r => typeof r.rating === "number" && r.rating > 0);
+        if (valid.length) {
+          const avg = valid.reduce((acc, r) => acc + r.rating, 0) / valid.length;
+          setCsatScore(avg.toFixed(1));
+        } else {
+          setCsatScore("-");
+        }
+      } else {
+        // Fallback to legacy thumbs up / (up + down)
+        const { data: fbRows } = await supabase
+          .from("chatty_conversations")
+          .select("feedback_rating")
+          .eq("bot_id", activeBotId)
+          .in("feedback_rating", ["up", "down"]);
+        if (fbRows && fbRows.length) {
+          const ups = fbRows.filter(f => f.feedback_rating === "up").length;
+          setCsatScore(((ups / fbRows.length) * 5).toFixed(1));
+        } else {
+          setCsatScore("-");
+        }
+      }
 
       // 7. Busiest hour of day (from the last-7-days user queries).
       if (queryData && queryData.length) {

@@ -161,7 +161,23 @@ export function HomeTab({
   const charCount = sources.length > 0 ? sources.reduce((acc, s) => acc + s.charCount, 0) : 186518;
   const leadCount = leads.length > 0 ? leads.length : 11;
   const resRateFormatted = resolutionRate && resolutionRate !== "0%" ? resolutionRate : "78%";
-  const csatDisplay = csatScore && csatScore !== "0.0" ? csatScore : "4.6";
+  // Real CSAT score computed directly from csatFeedback ratings, with fallback to csatScore
+  const calculatedCsat = useMemo(() => {
+    if (csatFeedback && csatFeedback.length > 0) {
+      const valid = csatFeedback.filter((f) => typeof f.rating === "number" && f.rating > 0);
+      if (valid.length > 0) {
+        return (valid.reduce((sum, f) => sum + f.rating, 0) / valid.length).toFixed(1);
+      }
+    }
+    if (csatScore && csatScore !== "-" && csatScore !== "0.0") {
+      if (csatScore.includes("%")) {
+        const pct = parseFloat(csatScore);
+        if (!isNaN(pct)) return ((pct / 100) * 5).toFixed(1);
+      }
+      return csatScore;
+    }
+    return totalSessions > 0 && csatFeedback.length === 0 ? "-" : "4.8";
+  }, [csatFeedback, csatScore, totalSessions]);
   const busyHourDisplay = busiestHour && busiestHour !== "-" ? busiestHour : "2:00 PM - 3:00 PM";
 
   return (
@@ -400,10 +416,14 @@ export function HomeTab({
                 CSAT
               </span>
               <h4 className="text-2xl font-bold mt-1 text-neutral-900 dark:text-neutral-100 tracking-tight">
-                {csatDisplay} <span className="text-base font-normal text-neutral-400">/ 5</span>
+                {calculatedCsat} <span className="text-base font-normal text-neutral-400">/ 5</span>
               </h4>
               <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1 block">
-                {csatFeedback.length > 0 ? `${csatFeedback.length} ratings recorded` : "31 ratings recorded"}
+                {csatFeedback.length > 0
+                  ? `${csatFeedback.length} ratings recorded`
+                  : totalSessions > 0
+                  ? "No ratings recorded yet"
+                  : "31 ratings recorded"}
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-500 dark:text-amber-400 border border-amber-100 dark:border-amber-800/40 shrink-0 shadow-sm">
@@ -417,7 +437,7 @@ export function HomeTab({
               <div
                 className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-500"
                 style={{
-                  width: `${(parseFloat(csatDisplay) || 4.6) * 20}%`,
+                  width: `${calculatedCsat === "-" ? 0 : Math.min(100, Math.max(0, (parseFloat(calculatedCsat) || 4.8) * 20))}%`,
                 }}
               />
             </div>
