@@ -88,55 +88,6 @@ function formatRelativeTime(dateString: string): string {
   }
 }
 
-// Logical Fallback Demo Data for when bot is newly launched
-const DEMO_FEEDBACK = [
-  {
-    id: "demo-1",
-    rating: 5,
-    comment: "Very helpful! Found the information I needed quickly.",
-    created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
-    userName: "Sarah Jenkins",
-    userCompany: "Acme Corp",
-    userEmail: "sarah.j@acmeflow.io",
-  },
-  {
-    id: "demo-2",
-    rating: 4,
-    comment: "Accurate and easy to use.",
-    created_at: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
-    userName: "David Chen",
-    userCompany: "Stripe Integrations",
-    userEmail: "david.c@payments.dev",
-  },
-  {
-    id: "demo-3",
-    rating: 5,
-    comment: "Great support chatbot.",
-    created_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-    userName: "Elena Rostova",
-    userCompany: "FinTech Global",
-    userEmail: "elena@fintechglobal.com",
-  },
-  {
-    id: "demo-4",
-    rating: 3,
-    comment: "Could be more detailed, but overall good.",
-    created_at: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-    userName: "Marcus Vance",
-    userCompany: "DevOps Solutions",
-    userEmail: "marcus@devops.co",
-  },
-  {
-    id: "demo-5",
-    rating: 5,
-    comment: "Helped me book a meeting. Works well!",
-    created_at: new Date(Date.now() - 72 * 3600 * 1000).toISOString(),
-    userName: "Chloe Bennett",
-    userCompany: "GrowthLabs",
-    userEmail: "chloe@growthlabs.io",
-  },
-];
-
 export function HomeTab({
   setActiveTab,
   totalSessions,
@@ -147,20 +98,21 @@ export function HomeTab({
   busiestHour,
   csatFeedback,
 }: HomeTabProps) {
-  // Use real feedback if present; otherwise provide rich demo feedback
+  // Use real feedback only
   const displayFeedback = useMemo(() => {
     if (csatFeedback && csatFeedback.length > 0) {
       return csatFeedback.slice(0, 5);
     }
-    return DEMO_FEEDBACK;
+    return [];
   }, [csatFeedback]);
 
-  // Derived metrics with fallback matching realistic dashboard state
-  const convCount = totalSessions > 0 ? totalSessions : 134;
-  const trainedActiveCount = sources.length > 0 ? sources.length : 52;
-  const charCount = sources.length > 0 ? sources.reduce((acc, s) => acc + s.charCount, 0) : 186518;
-  const leadCount = leads.length > 0 ? leads.length : 11;
-  const resRateFormatted = resolutionRate && resolutionRate !== "0%" ? resolutionRate : "78%";
+  // Derived metrics from real telemetry
+  const convCount = totalSessions || 0;
+  const trainedActiveCount = sources.length || 0;
+  const charCount = sources.reduce((acc, s) => acc + (s.charCount || 0), 0);
+  const leadCount = leads.length || 0;
+  const resRateFormatted = resolutionRate || "-";
+
   // Real CSAT score computed directly from csatFeedback ratings, with fallback to csatScore
   const calculatedCsat = useMemo(() => {
     if (csatFeedback && csatFeedback.length > 0) {
@@ -176,9 +128,10 @@ export function HomeTab({
       }
       return csatScore;
     }
-    return "4.8";
+    return "-";
   }, [csatFeedback, csatScore]);
-  const busyHourDisplay = busiestHour && busiestHour !== "-" ? busiestHour : "2:00 PM - 3:00 PM";
+
+  const busyHourDisplay = busiestHour && busiestHour !== "-" ? busiestHour : "-";
 
   return (
     <div className="max-w-5xl mx-auto w-full space-y-6 py-6 px-4 flex flex-col">
@@ -266,7 +219,7 @@ export function HomeTab({
                 {convCount}
               </h4>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 mt-1 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800/30 w-fit">
-                <TrendingUp className="size-3" /> +28% vs last 7 days
+                <TrendingUp className="size-3" /> Total visitor sessions
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/40 shrink-0 shadow-sm">
@@ -345,7 +298,7 @@ export function HomeTab({
                 {leadCount}
               </h4>
               <span className="text-[10px] text-[#f97316] font-semibold flex items-center gap-1 mt-1 bg-orange-50 dark:bg-orange-950/50 px-1.5 py-0.5 rounded-md border border-orange-100 dark:border-orange-800/30 w-fit">
-                <TrendingUp className="size-3" /> +83% vs last 7 days
+                <TrendingUp className="size-3" /> Captured contacts
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-[#f97316] border border-orange-100 dark:border-orange-800/40 shrink-0 group-hover:scale-105 transition-transform shadow-sm">
@@ -383,7 +336,7 @@ export function HomeTab({
                 {resRateFormatted}
               </h4>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 mt-1 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800/30 w-fit">
-                <TrendingUp className="size-3" /> +6% vs last 7 days
+                <TrendingUp className="size-3" /> Autonomous resolution
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/40 shrink-0 shadow-sm">
@@ -397,7 +350,7 @@ export function HomeTab({
               <div
                 className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
                 style={{
-                  width: resRateFormatted.includes("%") ? resRateFormatted : "78%",
+                  width: resRateFormatted.includes("%") ? resRateFormatted : "0%",
                 }}
               />
             </div>
@@ -421,7 +374,7 @@ export function HomeTab({
               <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1 block">
                 {csatFeedback.length > 0
                   ? `${csatFeedback.length} ratings recorded`
-                  : "31 ratings recorded"}
+                  : "0 ratings recorded"}
               </span>
             </div>
             <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-500 dark:text-amber-400 border border-amber-100 dark:border-amber-800/40 shrink-0 shadow-sm">
@@ -435,7 +388,7 @@ export function HomeTab({
               <div
                 className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-400 transition-all duration-500"
                 style={{
-                  width: `${calculatedCsat === "-" ? 0 : Math.min(100, Math.max(0, (parseFloat(calculatedCsat) || 4.8) * 20))}%`,
+                  width: `${calculatedCsat === "-" ? 0 : Math.min(100, Math.max(0, parseFloat(calculatedCsat) * 20))}%`,
                 }}
               />
             </div>
@@ -507,87 +460,97 @@ export function HomeTab({
           </button>
         </div>
 
-        <div className="space-y-3">
-          {displayFeedback.map((f: any) => {
-            const emojiConfig = CSAT_EMOJIS[f.rating] || CSAT_EMOJIS[5];
-            const matchedLead =
-              "userName" in f
-                ? null
-                : f.session_id && Array.isArray(leads)
-                ? leads.find((l: any) => l.session_id === f.session_id)
-                : null;
+        {displayFeedback.length > 0 ? (
+          <div className="space-y-3">
+            {displayFeedback.map((f: any) => {
+              const emojiConfig = CSAT_EMOJIS[f.rating] || CSAT_EMOJIS[5];
+              const matchedLead =
+                f.session_id && Array.isArray(leads)
+                  ? leads.find((l: any) => l.session_id === f.session_id)
+                  : null;
 
-            const displayName =
-              ("userName" in f ? f.userName : matchedLead?.name) ||
-              (f.session_id ? `Visitor #${f.session_id.slice(0, 6)}` : "Verified Visitor");
+              const displayName =
+                matchedLead?.name ||
+                (f.session_id ? `Visitor #${f.session_id.slice(0, 6)}` : "Verified Visitor");
 
-            const displayCompany = "userCompany" in f ? f.userCompany : matchedLead?.company;
-            const displayEmail = "userEmail" in f ? f.userEmail : matchedLead?.email;
-            const timeAgo = formatRelativeTime(f.created_at);
+              const displayCompany = matchedLead?.company;
+              const displayEmail = matchedLead?.email;
+              const timeAgo = formatRelativeTime(f.created_at);
 
-            return (
-              <div
-                key={f.id}
-                className="flex items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/40 dark:bg-neutral-950/30 hover:border-neutral-200 dark:hover:border-neutral-700/80 transition-all"
-              >
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  {/* Selected Rating Emoji from Feedback Form */}
-                  <div
-                    className={`size-9 rounded-full ${emojiConfig.bgClass} border ${emojiConfig.borderClass} flex items-center justify-center shrink-0 text-lg shadow-sm`}
-                    title={`${emojiConfig.label} (${f.rating}/5 stars)`}
-                  >
-                    <span role="img" aria-label={emojiConfig.label}>
-                      {emojiConfig.emoji}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    {/* User Details: Name, Company, Email */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">
-                        {displayName}
+              return (
+                <div
+                  key={f.id}
+                  className="flex items-start sm:items-center justify-between gap-3 p-3.5 rounded-xl border border-neutral-100 dark:border-neutral-800/80 bg-neutral-50/40 dark:bg-neutral-950/30 hover:border-neutral-200 dark:hover:border-neutral-700/80 transition-all"
+                >
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                    {/* Selected Rating Emoji from Feedback Form */}
+                    <div
+                      className={`size-9 rounded-full ${emojiConfig.bgClass} border ${emojiConfig.borderClass} flex items-center justify-center shrink-0 text-lg shadow-sm`}
+                      title={`${emojiConfig.label} (${f.rating}/5 stars)`}
+                    >
+                      <span role="img" aria-label={emojiConfig.label}>
+                        {emojiConfig.emoji}
                       </span>
-                      {displayCompany && (
-                        <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-200/80 dark:border-neutral-700">
-                          {displayCompany}
-                        </span>
-                      )}
-                      {displayEmail && (
-                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono hidden sm:inline">
-                          {displayEmail}
-                        </span>
-                      )}
                     </div>
 
-                    {/* Feedback Comment */}
-                    <p className="text-xs text-neutral-700 dark:text-neutral-300 mt-1 leading-relaxed">
-                      {f.comment || <span className="italic text-neutral-400">Quick star rating submitted</span>}
-                    </p>
-                  </div>
-                </div>
+                    <div className="min-w-0 flex-1">
+                      {/* User Details: Name, Company, Email */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">
+                          {displayName}
+                        </span>
+                        {displayCompany && (
+                          <span className="text-[10px] font-medium text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-200/80 dark:border-neutral-700">
+                            {displayCompany}
+                          </span>
+                        )}
+                        {displayEmail && (
+                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono hidden sm:inline">
+                            {displayEmail}
+                          </span>
+                        )}
+                      </div>
 
-                {/* Right side: Timestamp and Stars */}
-                <div className="flex flex-col items-end shrink-0 gap-1 pl-2">
-                  <div className="flex items-center gap-0.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <Star
-                        key={n}
-                        className={`size-3.5 ${
-                          n <= f.rating
-                            ? "fill-amber-400 text-amber-400"
-                            : "text-neutral-300 dark:text-neutral-700"
-                        }`}
-                      />
-                    ))}
+                      {/* Feedback Comment */}
+                      <p className="text-xs text-neutral-700 dark:text-neutral-300 mt-1 leading-relaxed">
+                        {f.comment || <span className="italic text-neutral-400">Quick star rating submitted</span>}
+                      </p>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
-                    {timeAgo}
-                  </span>
+
+                  {/* Right side: Timestamp and Stars */}
+                  <div className="flex flex-col items-end shrink-0 gap-1 pl-2">
+                    <div className="flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Star
+                          key={n}
+                          className={`size-3.5 ${
+                            n <= f.rating
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-neutral-300 dark:text-neutral-700"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-medium">
+                      {timeAgo}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center bg-neutral-50/50 dark:bg-neutral-950/20 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800">
+            <Star className="size-6 text-neutral-300 dark:text-neutral-700" />
+            <p className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+              No ratings or feedback recorded yet
+            </p>
+            <p className="text-[11px] text-neutral-400 dark:text-neutral-500 max-w-sm">
+              Visitor star ratings and comments will appear here automatically when visitors rate conversations in the chat widget.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
