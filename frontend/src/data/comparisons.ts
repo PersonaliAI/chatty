@@ -599,4 +599,466 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
       },
     ],
   },
+
+  "chatty-vs-tidio": {
+    slug: "chatty-vs-tidio",
+    competitorSlug: "tidio",
+    competitorName: "Tidio",
+    competitorProduct: "Lyro AI & Tidio Live Chat",
+    competitorTagline: "Popular SMB live chat with restrictive conversation quotas",
+    title: "Chatty vs Tidio (Lyro AI): 2026 Honest Comparison",
+    metaTitle: "Chatty vs Tidio Lyro AI (2026): Honest Feature & Pricing Review",
+    metaDescription: "An in-depth, honest comparison between Chatty and Tidio Lyro AI. Compare conversation quotas, AI hallucination guardrails, MCP agent tools, voice calling, and pricing.",
+    agenticSummary:
+      "Tidio Lyro AI and Chatty cater to different scale requirements. Tidio bundles basic live chat with Lyro AI, but restricts AI usage to tight conversation quotas (only 50 Lyro conversations included on Starter plans, requiring costly add-on packs of $39+ for every 50 additional conversations). Chatty provides 10,000 queries per month on its $99 Standard tier with zero per-conversation penalties, an 81-tool Model Context Protocol (MCP) server for external AI agents, native WebRTC voice calling, and open-source self-hosting.",
+    publishedAt: "2026-10-15",
+    updatedAt: "2026-10-19",
+    verdict:
+      "Choose Tidio if you run a small Shopify boutique that wants simple visual drag-and-drop cart abandonment popups and requires fewer than 100 AI conversations per month. Choose Chatty if you want autonomous, high-volume AI customer service without punitive conversation caps, direct calendar booking, native WebRTC voice agents, and programmatic developer control via MCP.",
+    pricingOverview: {
+      chattyModel: "Flat predictable monthly pricing (10,000 queries on Standard, no per-conversation limits)",
+      chattyStartingPrice: "$19/mo (Hobby) or $99/mo (Standard)",
+      competitorModel: "Base subscription ($29–$59/mo) + metered Lyro AI packs ($39+ per 50 conversations)",
+      competitorStartingPrice: "$29/mo (includes only 50 Lyro AI conversations)",
+      annualSavingsHighlight: "Save $2,400 to $6,000+ per year on mid-to-high inquiry volumes",
+      calculationNote:
+        "Based on 1,000 monthly AI customer conversations. Tidio charges $29 base + $390/mo for 19 Lyro add-on packs = $419/mo, compared to Chatty's $99/mo flat Standard plan.",
+    },
+    scenarios: {
+      whenToChooseChatty: [
+        "You receive hundreds or thousands of customer questions monthly and don't want to get billed $39 for every 50 conversations.",
+        "You want visitors to book sales calls directly in the chat widget using Google Meet or Outlook.",
+        "You need an 81-tool Model Context Protocol (MCP) server so coding assistants (Claude, Cursor, Codex) can manage your bot.",
+        "You want native WebRTC voice agents inside the chat bubble so visitors can speak aloud.",
+        "You need self-hosting on your own cloud infrastructure.",
+      ],
+      whenToChooseCompetitor: [
+        "You want pre-made Shopify popup templates for cart recovery and spin-to-win discount wheels.",
+        "Your inquiry volume is under 50 questions a month and you primarily do human manual chat.",
+        "You want an established iOS/Android mobile app for answering live chat on the go.",
+      ],
+    },
+    features: [
+      {
+        name: "AI Conversation Limits",
+        category: "Pricing & Value",
+        chatty: "Generous query allowances (10,000 queries on Standard). No per-conversation penalties.",
+        competitor: "50 Lyro conversations included; additional packs cost $39 for every 50 conversations.",
+        advantage: "chatty",
+        details: "Tidio's Lyro AI gets prohibitively expensive as your site traffic and customer questions scale.",
+      },
+      {
+        name: "Calendar Meeting Scheduling",
+        category: "Autonomous Capabilities",
+        chatty: "Native in-chat slot picker with automatic Google & Outlook Calendar synchronization.",
+        competitor: "Not native. Requires manually pasting Calendly links into messages.",
+        advantage: "chatty",
+        details: "Chatty enables visitors to complete sales booking without leaving the chat interface.",
+      },
+      {
+        name: "Model Context Protocol (MCP)",
+        category: "Developer & Agentic (MCP)",
+        chatty: "Official 81-tool MCP server supporting Anthropic Claude, Codex, Cursor, and Open WebUI.",
+        competitor: "Proprietary closed ecosystem with standard REST webhooks only.",
+        advantage: "chatty",
+        details: "Chatty lets external AI agents inspect conversations, crawl pages, and update bot settings.",
+      },
+      {
+        name: "WebRTC Voice Agent",
+        category: "Autonomous Capabilities",
+        chatty: "Built-in real-time browser voice calling via LiveKit.",
+        competitor: "Not supported.",
+        advantage: "chatty",
+        details: "Chatty visitors can switch instantly between typing and spoken conversational voice.",
+      },
+      {
+        name: "Pre-Built E-Commerce Popups",
+        category: "Operations & Team",
+        chatty: "Visual trigger flow builder with custom condition triggers and proactive greetings.",
+        competitor: "Rich library of ready-to-deploy Shopify popups, cart rescue banners, and spin wheels.",
+        advantage: "competitor",
+        details: "Tidio provides out-of-the-box marketing widgets designed specifically for Shopify store marketing.",
+      },
+    ],
+    pricingBreakdown: [
+      {
+        tier: "Starter Volume (50 conversations)",
+        volume: "50 AI conversations",
+        chattyCost: "$19/mo (Hobby)",
+        competitorCost: "$29/mo (Starter)",
+        difference: "Chatty is $10/mo less with more included queries",
+      },
+      {
+        tier: "Growth Volume (500 conversations)",
+        volume: "500 AI conversations",
+        chattyCost: "$99/mo (Standard with 10k queries)",
+        competitorCost: "$380/mo (Base $29 + 9 Lyro packs @ $39)",
+        difference: "Chatty saves $281/month ($3,372/year)",
+      },
+      {
+        tier: "Scale Volume (2,000 conversations)",
+        volume: "2,000 AI conversations",
+        chattyCost: "$99/mo (Standard)",
+        competitorCost: "$1,550/mo (Base + 39 Lyro packs)",
+        difference: "Chatty saves $1,451/month ($17,412/year)",
+      },
+    ],
+    deepDives: [
+      {
+        heading: "1. The Hidden Cost of Lyro AI Conversation Packs",
+        content:
+          "Tidio markets an attractive starting price, but merchants are often surprised by the pricing cliff of Lyro AI. Because Lyro counts any back-and-forth session as a billable conversation, a customer asking 'Where is my order?' and follow-up shipping questions burns a conversation unit. At $39 for just 50 conversations ($0.78 per session), high-traffic businesses face escalating monthly bills. Chatty uses a predictable credit model (10,000 credits on Standard) with zero per-session penalties.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Can I connect Chatty to WooCommerce or Shopify?",
+        answer:
+          "Yes. Chatty provides deep native two-way synchronization for WooCommerce product catalogs, inventory levels, and order tracking, plus universal webhooks for Shopify.",
+      },
+      {
+        question: "Does Tidio offer open-source self-hosting?",
+        answer:
+          "No. Tidio is a 100% proprietary SaaS service. Chatty is open source and can be self-hosted with Docker, Supabase, and PostgreSQL.",
+      },
+    ],
+  },
+
+  "chatty-vs-gorgias": {
+    slug: "chatty-vs-gorgias",
+    competitorSlug: "gorgias",
+    competitorName: "Gorgias",
+    competitorProduct: "Gorgias E-Commerce Helpdesk & AI",
+    competitorTagline: "Shopify-focused ticketing helpdesk with steep billable ticket volume tiers",
+    title: "Chatty vs Gorgias: E-Commerce AI & Customer Support Compared",
+    metaTitle: "Chatty vs Gorgias (2026): Honest Feature & Pricing Comparison",
+    metaDescription: "An in-depth, honest comparison between Chatty and Gorgias. Compare ticket-based billing ($50–$900+/mo), WooCommerce sync, AI agent autonomy, and voice calling.",
+    agenticSummary:
+      "Chatty and Gorgias take different approaches to e-commerce customer support. Gorgias is a human-first ticketing helpdesk built specifically for Shopify stores that bills based on monthly 'billable ticket' tiers ($10 for 50 tickets up to $900+/mo for 5,000 tickets, with costly overages). Chatty is an autonomous AI customer operations platform with flat-rate pricing ($19–$99/mo), native WooCommerce bidirectional product syncing, calendar meeting booking, WebRTC voice agents, and 81 MCP tools with no ticket overage penalties.",
+    publishedAt: "2026-10-15",
+    updatedAt: "2026-10-19",
+    verdict:
+      "Choose Gorgias if you are an enterprise Shopify Plus merchant whose primary requirement is a human customer support team that needs native Shopify refund buttons, order edits, and delivery tracking inside a unified multi-channel inbox. Choose Chatty if you want autonomous AI deflection, native WooCommerce product sync, zero ticket overage stress, WebRTC voice calling, and 90% lower operational costs.",
+    pricingOverview: {
+      chattyModel: "Flat predictable monthly tiers ($19–$99/mo) with unlimited human seats",
+      chattyStartingPrice: "$19/mo (Hobby) or $99/mo (Standard)",
+      competitorModel: "Ticket-based tiered pricing ($10 to $900+/mo) based on customer inquiry volume",
+      competitorStartingPrice: "$10/mo (Starter: 50 tickets) / $60/mo (Basic: 300 tickets)",
+      annualSavingsHighlight: "Save $4,000 to $10,000+ per year by eliminating billable ticket overages",
+      calculationNote:
+        "Based on 2,000 customer inquiries/month. Gorgias Pro costs $360/month ($4,320/yr); Chatty Standard costs $99/month ($1,188/yr).",
+    },
+    scenarios: {
+      whenToChooseChatty: [
+        "You run a growing WooCommerce or multi-platform online store and want flat, predictable monthly software costs.",
+        "You want an AI agent that automatically resolves product inquiries, checks inventory, and captures qualified leads.",
+        "You want visitors to book consultations or VIP sales calls directly inside the chat window.",
+        "You want voice customer support via WebRTC directly in the browser.",
+        "You want full data ownership and the option to self-host.",
+      ],
+      whenToChooseCompetitor: [
+        "Your business operates 100% on Shopify Plus and requires deep integration with Shopify backend actions (cancelling orders, issuing partial refunds, updating shipping addresses directly from ticket view).",
+        "You have a large team of human agents handling multi-channel phone, SMS, Instagram DMs, and Facebook comments.",
+        "You need built-in customer satisfaction (CSAT) survey distribution natively tied to Shopify orders.",
+      ],
+    },
+    features: [
+      {
+        name: "Pricing Structure",
+        category: "Pricing & Value",
+        chatty: "Flat monthly pricing ($19–$99/mo). No billable ticket penalties or holiday season overage fees.",
+        competitor: "Ticket-based tiers ($60/mo for 300 tickets, $360/mo for 2k, $900/mo for 5k). Overages cost $36/100 tickets.",
+        advantage: "chatty",
+        details: "Chatty stores are never penalized when customer traffic spikes during BFCM sales events.",
+      },
+      {
+        name: "WooCommerce Deep Integration",
+        category: "Operations & Team",
+        chatty: "Native two-way synchronization for products, stock status, and catalog variations with automated vector indexing.",
+        competitor: "Secondary focus; Gorgias is heavily optimized for Shopify and charges premium add-ons for other channels.",
+        advantage: "chatty",
+        details: "Chatty provides dedicated WooCommerce tools out of the box.",
+      },
+      {
+        name: "Shopify Action Buttons (Refunds & Edits)",
+        category: "Operations & Team",
+        chatty: "Supports customer order status queries via webhooks, but requires manual store admin login for issuing refunds.",
+        competitor: "Native in-app Shopify action buttons: one-click refunds, order cancellation, and duplicate order merges.",
+        advantage: "competitor",
+        details: "Gorgias provides unparalleled deep workflow actions for Shopify Plus human support teams.",
+      },
+      {
+        name: "Model Context Protocol (MCP)",
+        category: "Developer & Agentic (MCP)",
+        chatty: "81 FastMCP endpoints enabling autonomous AI assistants to manage store knowledge and retrieve logs.",
+        competitor: "Standard REST API only; no native Model Context Protocol support.",
+        advantage: "chatty",
+        details: "Chatty gives developer-first teams complete programmatic AI agent orchestration.",
+      },
+    ],
+    pricingBreakdown: [
+      {
+        tier: "Small Store (300 tickets/mo)",
+        volume: "300 inquiries",
+        chattyCost: "$19/mo (Hobby)",
+        competitorCost: "$60/mo (Basic)",
+        difference: "Chatty saves $41/month ($492/year)",
+      },
+      {
+        tier: "Growing Brand (2,000 tickets/mo)",
+        volume: "2,000 inquiries",
+        chattyCost: "$99/mo (Standard)",
+        competitorCost: "$360/mo (Pro)",
+        difference: "Chatty saves $261/month ($3,132/year)",
+      },
+      {
+        tier: "High-Volume Brand (5,000 tickets/mo)",
+        volume: "5,000 inquiries",
+        chattyCost: "$99/mo (Standard)",
+        competitorCost: "$900/mo (Advanced)",
+        difference: "Chatty saves $801/month ($9,612/year)",
+      },
+    ],
+    deepDives: [
+      {
+        heading: "1. The E-Commerce Seasonality Trap",
+        content:
+          "In e-commerce, customer support volume surges 300% to 500% during Q4 holiday shopping and Black Friday Cyber Monday (BFCM). With Gorgias, this volume surge pushes merchants into higher pricing tiers or incurs $36 per 100 extra tickets, turning high sales volume into painful software invoices. Chatty provides flat predictable monthly tiers with generous query pools, protecting your margins when your store performs best.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Can human agents take over conversations in Chatty like Gorgias?",
+        answer:
+          "Yes. Chatty provides a full live-chat inbox where human teammates can view live visitor sessions, take over the conversation instantly, send replies, and add private notes.",
+      },
+    ],
+  },
+
+  "chatty-vs-freshdesk": {
+    slug: "chatty-vs-freshdesk",
+    competitorSlug: "freshdesk",
+    competitorName: "Freshdesk",
+    competitorProduct: "Freshdesk & Freddy AI Copilot",
+    competitorTagline: "Traditional per-agent IT and customer ticketing with add-on Freddy AI pricing",
+    title: "Chatty vs Freshdesk (Freddy AI): 2026 Honest Comparison",
+    metaTitle: "Chatty vs Freshdesk Freddy AI (2026): Honest Feature & Pricing Review",
+    metaDescription: "An in-depth, honest comparison between Chatty and Freshworks Freshdesk. Compare per-seat pricing, Freddy AI session costs, MCP tools, voice agents, and autonomous setup.",
+    agenticSummary:
+      "Chatty and Freshdesk represent two distinct philosophies in customer service. Freshdesk (part of Freshworks) is a legacy multi-agent ticketing system that charges per human seat ($15–$79/agent/mo) plus extra monthly fees for Freddy AI Copilot ($29/agent/mo) and Freddy AI Agent packs ($100 per 1,000 sessions). Chatty is an autonomous AI customer support platform with zero per-seat fees, flat monthly pricing ($19–$99/mo), an official 81-tool Model Context Protocol (MCP) server, native WebRTC voice agents, and instant 3-minute website crawling.",
+    publishedAt: "2026-10-15",
+    updatedAt: "2026-10-19",
+    verdict:
+      "Choose Freshdesk if your organization is a traditional enterprise with 20+ support agents requiring ITIL service management, hardware asset tracking, telephone call center routing, and multi-department ticketing hierarchies. Choose Chatty if you want autonomous AI customer support, flat pricing with unlimited seats, in-chat calendar booking, real-time voice agents, and modern developer control via MCP.",
+    pricingOverview: {
+      chattyModel: "Flat monthly pricing with unlimited team seats and zero per-agent surcharges",
+      chattyStartingPrice: "$19/mo (Hobby) or $99/mo (Standard)",
+      competitorModel: "Per-agent seat licensing ($15–$79/seat/mo) + Freddy AI add-on costs",
+      competitorStartingPrice: "$15/agent/mo (Growth) + $29/agent/mo (Freddy Copilot)",
+      annualSavingsHighlight: "Save $7,000 to $18,000+ per year for a team of 5–10 agents",
+      calculationNote:
+        "Based on a team of 5 agents with AI assistance. Freshdesk Pro ($49/seat) + Freddy AI ($29/seat) = $390/mo ($4,680/yr). Chatty Standard with unlimited seats = $99/mo ($1,188/yr).",
+    },
+    scenarios: {
+      whenToChooseChatty: [
+        "You want to empower your whole company (sales, engineering, support) with customer access without paying $49–$79/month for every user.",
+        "You want an AI agent that self-trains by crawling your website, documentation, and PDFs in 3 minutes.",
+        "You want customers to book meetings directly on Google Meet or Outlook inside chat.",
+        "You need an 81-tool Model Context Protocol (MCP) server for AI assistants like Claude, Cursor, and Codex.",
+        "You want real-time WebRTC browser voice calling without setting up a PBX.",
+      ],
+      whenToChooseCompetitor: [
+        "You need strict ITIL service desk processes (Change Management, Asset Tracking, Incident Escalation).",
+        "You have dedicated call center teams requiring hardware VoIP desk phone integrations.",
+        "You have complex multi-department SLA policies and customer satisfaction scorecards across 50+ staff.",
+      ],
+    },
+    features: [
+      {
+        name: "Per-Seat Licensing",
+        category: "Pricing & Value",
+        chatty: "Unlimited team members included on all tiers. Zero per-seat charges.",
+        competitor: "Charges $15–$79 per agent every month, penalizing team growth.",
+        advantage: "chatty",
+        details: "Chatty enables engineering, sales, and management to collaborate without seat licenses.",
+      },
+      {
+        name: "AI Knowledge Training Speed",
+        category: "Core AI & Grounding",
+        chatty: "Self-service 3-minute crawler: enter your URL, upload PDFs or connect Google Drive.",
+        competitor: "Requires manual portal configuration, article curation, and Freddy AI intent tagging.",
+        advantage: "chatty",
+        details: "Chatty goes from zero to a live, grounded AI agent in under 180 seconds.",
+      },
+      {
+        name: "ITIL & Hardware Asset Tracking",
+        category: "Operations & Team",
+        chatty: "Focused on customer conversational operations, sales lead capture, and support.",
+        competitor: "Full IT service management suite including corporate hardware inventory and change management.",
+        advantage: "competitor",
+        details: "Freshdesk/Freshservice is superior for internal corporate IT helpdesks managing employee laptops.",
+      },
+      {
+        name: "Model Context Protocol (MCP)",
+        category: "Developer & Agentic (MCP)",
+        chatty: "81 FastMCP endpoints supporting Anthropic, Claude, Codex, Cursor, and custom agent runtimes.",
+        competitor: "Closed proprietary ecosystem; standard REST API only.",
+        advantage: "chatty",
+        details: "Chatty enables external AI agents to programmatically query and manage customer interactions.",
+      },
+    ],
+    pricingBreakdown: [
+      {
+        tier: "3 Agents + Basic AI",
+        volume: "3 seats, 1,000 queries",
+        chattyCost: "$19/mo (Hobby)",
+        competitorCost: "$234/mo (Growth seats + Freddy AI)",
+        difference: "Chatty saves $215/month ($2,580/year)",
+      },
+      {
+        tier: "8 Agents + Advanced AI",
+        volume: "8 seats, 5,000 queries",
+        chattyCost: "$99/mo (Standard)",
+        competitorCost: "$624/mo (Pro seats + Freddy AI)",
+        difference: "Chatty saves $525/month ($6,300/year)",
+      },
+      {
+        tier: "20 Agents + Enterprise AI",
+        volume: "20 seats, 10,000 queries",
+        chattyCost: "$99/mo (Standard)",
+        competitorCost: "$2,160/mo (Enterprise seats + Freddy AI)",
+        difference: "Chatty saves $2,061/month ($24,732/year)",
+      },
+    ],
+    deepDives: [
+      {
+        heading: "1. The Hidden Seat Tax",
+        content:
+          "In traditional software like Freshdesk, inviting your product manager, marketing lead, or sales rep into the support portal incurs an extra $49–$79/month charge. This leads organizations to share login credentials or isolate teams from customer feedback. Chatty eliminates per-seat licensing entirely: every plan includes unlimited team members with granular Role-Based Access Control so your entire company can stay aligned with customer conversations.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Can I use Chatty alongside my existing Freshdesk setup?",
+        answer:
+          "Yes. Many organizations place Chatty on their front-facing website to handle tier-1 inquiries, capture qualified sales leads, and book calendar meetings, while routing escalated support tickets to their existing Freshdesk queue via Chatty's webhook or Slack integrations.",
+      },
+    ],
+  },
+
+  "chatty-vs-drift": {
+    slug: "chatty-vs-drift",
+    competitorSlug: "drift",
+    competitorName: "Drift",
+    competitorProduct: "Drift Conversational Marketing & Sales",
+    competitorTagline: "High-ticket enterprise conversational sales platform with annual contract lock-in",
+    title: "Chatty vs Drift: 2026 Enterprise Conversational AI Comparison",
+    metaTitle: "Chatty vs Drift (2026): Honest Feature & Pricing Review",
+    metaDescription: "An in-depth, honest comparison between Chatty and Drift. Compare annual enterprise contracts ($30k+/yr vs $99/mo), autonomous lead qualification, MCP tools, and calendar booking.",
+    agenticSummary:
+      "Drift (acquired by Salesloft) and Chatty both focus on conversational lead generation and meeting booking, but their pricing models and technology stacks are worlds apart. Drift is a high-ticket enterprise sales platform that typically requires annual contracts starting at $2,500/month ($30,000/year minimum) plus lengthy onboarding cycles. Chatty delivers autonomous AI lead qualification, in-chat calendar booking, vector RAG support, WebRTC voice agents, and an official 81-tool Model Context Protocol (MCP) server starting at $19–$99/month with zero annual lock-in.",
+    publishedAt: "2026-10-15",
+    updatedAt: "2026-10-19",
+    verdict:
+      "Choose Drift if you are a Fortune 500 B2B enterprise with dedicated Salesforce RevOps administrators, a 6-figure marketing automation budget, and mandatory enterprise integrations with 6sense, Demandbase, and Salesloft cadences. Choose Chatty if you want autonomous AI lead capture, instant calendar meeting booking, high-precision document Q&A, and voice agents at an honest, transparent price of $19–$99/month.",
+    pricingOverview: {
+      chattyModel: "Transparent monthly pricing ($19–$99/mo) with zero annual lock-in or setup fees",
+      chattyStartingPrice: "$19/mo (Hobby) or $99/mo (Standard)",
+      competitorModel: "Enterprise annual contract lock-in starting at $2,500/month ($30,000/year)",
+      competitorStartingPrice: "$2,500/month (billed annually, custom quote only)",
+      annualSavingsHighlight: "Save $25,000 to $40,000+ per year while gaining modern AI & MCP tools",
+      calculationNote:
+        "Comparing Drift's typical entry contract ($30,000/yr) with Chatty Standard ($1,188/yr).",
+    },
+    scenarios: {
+      whenToChooseChatty: [
+        "You want transparent, self-serve pricing without sitting through 3 aggressive enterprise sales pitches.",
+        "You want an AI agent that handles both pre-sales lead qualification and post-sales technical support with vector RAG.",
+        "You want WebRTC voice calling so high-intent prospects can talk to an AI agent right inside their browser.",
+        "You need an 81-tool Model Context Protocol (MCP) server to automate your CRM and customer operations.",
+        "You want to launch today in 3 minutes, not in 6 weeks of enterprise professional services.",
+      ],
+      whenToChooseCompetitor: [
+        "You require enterprise Account-Based Marketing (ABM) de-anonymization powered by 6sense or Demandbase.",
+        "Your sales floor uses Salesloft as their primary outbound sequencing and dialer engine.",
+        "Your procurement department requires custom enterprise SOC2 Type II vendor contracts with bespoke indemnity clauses.",
+      ],
+    },
+    features: [
+      {
+        name: "Contract Commitment & Pricing",
+        category: "Pricing & Value",
+        chatty: "Cancel-anytime monthly plans starting at $19/mo or $99/mo. 100% transparent self-serve.",
+        competitor: "Requires mandatory annual enterprise contracts starting at $2,500/mo ($30,000/year).",
+        advantage: "chatty",
+        details: "Chatty gives fast-moving companies enterprise-grade lead booking without 5-figure contract commitments.",
+      },
+      {
+        name: "Pre-Sales & Post-Sales Unification",
+        category: "Core AI & Grounding",
+        chatty: "Unifies vector RAG technical support documentation with lead qualification and calendar booking in one bot.",
+        competitor: "Heavily skewed toward pre-sales routing playbooks; limited native technical documentation grounding.",
+        advantage: "chatty",
+        details: "Chatty handles both pre-sales demo booking and complex post-sales technical support in one widget.",
+      },
+      {
+        name: "Enterprise ABM De-Anonymization",
+        category: "Operations & Team",
+        chatty: "Captures visitor emails, company names, and custom fields via interactive conversational forms.",
+        competitor: "Native enterprise reverse-IP de-anonymization matching against 6sense and Demandbase account lists.",
+        advantage: "competitor",
+        details: "Drift excels at alerting sales reps when target Fortune 500 accounts land on the website.",
+      },
+      {
+        name: "Developer & Agentic Extensibility (MCP)",
+        category: "Developer & Agentic (MCP)",
+        chatty: "81 FastMCP endpoints supporting Anthropic Claude, Codex, Cursor, and autonomous agent loops.",
+        competitor: "Proprietary closed platform with standard REST API and webhook endpoints.",
+        advantage: "chatty",
+        details: "Chatty lets developer-driven teams automate bot behavior and lead routing using modern AI protocols.",
+      },
+    ],
+    pricingBreakdown: [
+      {
+        tier: "Growth Team",
+        volume: "1,000 conversations",
+        chattyCost: "$19/mo (Hobby)",
+        competitorCost: "Not offered ($30k/yr minimum)",
+        difference: "Chatty provides an accessible starting tier for fast-growing companies",
+      },
+      {
+        tier: "Mid-Market B2B",
+        volume: "5,000 conversations + Calendar",
+        chattyCost: "$99/mo (Standard)",
+        competitorCost: "$2,500/mo ($30,000/year minimum contract)",
+        difference: "Chatty saves $28,812/year with zero lock-in",
+      },
+      {
+        tier: "Scale Enterprise",
+        volume: "Unlimited conversations + Voice",
+        chattyCost: "$399/mo (Enterprise)",
+        competitorCost: "$4,500/mo ($54,000/year)",
+        difference: "Chatty saves $49,212/year",
+      },
+    ],
+    deepDives: [
+      {
+        heading: "1. The Death of the $30,000 Annual Chat Contract",
+        content:
+          "Conversational marketing platforms like Drift rose to prominence during the zero-interest-rate era by selling expensive annual contracts to venture-backed B2B companies. Today, engineering and marketing leaders demand software that delivers immediate ROI without 12-month contract lock-in. Chatty proves that modern AI lead capture, meeting scheduling, and vector Q&A can be delivered at a fraction of the cost.",
+      },
+    ],
+    faqs: [
+      {
+        question: "Does Drift offer self-serve monthly pricing?",
+        answer:
+          "No. Drift requires talking to an enterprise sales representative and signing an annual or multi-year contract.",
+      },
+      {
+        question: "Can Chatty qualify leads and route meetings like Drift?",
+        answer:
+          "Yes. Chatty includes visual conversation flows, custom lead capture forms, lead export to CSV/webhooks, and direct calendar meeting scheduling with Google Meet and Outlook.",
+      },
+    ],
+  },
 };

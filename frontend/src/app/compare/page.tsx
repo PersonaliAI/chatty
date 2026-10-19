@@ -18,14 +18,14 @@ import { COMPARISONS } from "@/data/comparisons";
 export const metadata: Metadata = {
   title: "Chatty vs Competitors (2026): Honest Comparisons, Pricing & Architecture",
   description:
-    "Honest, in-depth technical comparisons between Chatty and leading customer AI platforms: Intercom Fin, Zendesk AI, Crisp, and Chatbase. Real pricing math, MCP tools, voice agents, and open-source self-hosting.",
+    "Honest, in-depth technical comparisons between Chatty and leading customer AI platforms: Intercom Fin, Zendesk AI, Crisp, Chatbase, Tidio, Gorgias, Freshdesk, and Drift. Real pricing math, MCP tools, voice agents, and open-source self-hosting.",
   alternates: {
     canonical: "https://chatty.personaliai.com/compare",
   },
   openGraph: {
     title: "Chatty vs Competitors (2026): Honest Comparisons, Pricing & Architecture",
     description:
-      "Unbiased technical comparisons between Chatty and top platforms: Intercom Fin, Zendesk AI, Crisp, and Chatbase. Zero resolution tax, 81 MCP tools, and WebRTC voice.",
+      "Unbiased technical comparisons between Chatty and top platforms: Intercom, Zendesk, Crisp, Chatbase, Tidio, Gorgias, Freshdesk, and Drift. Zero resolution tax, 81 MCP tools, and WebRTC voice.",
     url: "https://chatty.personaliai.com/compare",
     siteName: "Chatty by PersonaliAI",
     type: "website",
@@ -33,7 +33,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Chatty vs Competitors (2026): Honest Comparisons",
-    description: "Honest technical comparisons with Intercom, Zendesk, Crisp, and Chatbase. Compare real costs, MCP tool access, and autonomous features.",
+    description:
+      "Honest technical comparisons with Intercom, Zendesk, Crisp, Chatbase, Tidio, Gorgias, Freshdesk, and Drift. Compare real costs, MCP tool access, and autonomous features.",
   },
 };
 

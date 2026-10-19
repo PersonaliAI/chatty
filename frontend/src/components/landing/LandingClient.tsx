@@ -2402,9 +2402,9 @@ export default function LandingClient() {
           ========================================== */}
       <footer className="border-t border-zinc-200/80 bg-white">
         <div className="mx-auto max-w-7xl border-x border-zinc-200/80">
-          {/* Top 3-Column Grid: Left Column, Open Center Space, Right Column */}
+          {/* Top 4-Column Grid: Platform, Comparisons 1, Comparisons 2, Ecosystem */}
           <div className="grid grid-cols-1 md:grid-cols-4">
-            {/* Left Column (Capabilities & Developer Surfaces) */}
+            {/* Column 1: Platform & Capabilities */}
             <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
               <Link
                 href="#capabilities"
@@ -2446,30 +2446,13 @@ export default function LandingClient() {
               </Link>
             </div>
 
-            {/* Center Column: Open Architectural Negative Space (Firecrawl Style) */}
-            <div className="col-span-2 hidden md:block border-r border-zinc-200/80 bg-white" />
-
-            {/* Right Column (Community, Ecosystem & Trust) */}
-            <div className="col-span-1 flex flex-col">
-              <Link
-                href="/affiliates"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Affiliates Program
-              </Link>
-              <Link
-                href="https://docs.chatty.personaliai.com"
-                target="_blank"
-                rel="noreferrer"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
-              >
-                Documentation
-              </Link>
+            {/* Column 2: Competitor Comparisons (A) */}
+            <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
               <Link
                 href="/compare"
-                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80 font-medium"
+                className="px-6 py-4 text-sm font-semibold text-zinc-950 hover:text-[#c67139] transition-colors border-b border-zinc-200/80 bg-zinc-50/50"
               >
-                Comparisons Overview
+                All Comparisons →
               </Link>
               <Link
                 href="/compare/chatty-vs-intercom"
@@ -2484,10 +2467,68 @@ export default function LandingClient() {
                 Chatty vs Zendesk
               </Link>
               <Link
-                href="#roi"
+                href="/compare/chatty-vs-crisp"
                 className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
               >
+                Chatty vs Crisp
+              </Link>
+              <Link
+                href="/compare/chatty-vs-chatbase"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
+              >
+                Chatty vs Chatbase
+              </Link>
+            </div>
+
+            {/* Column 3: Competitor Comparisons (B) & Benchmarks */}
+            <div className="col-span-1 md:border-r border-zinc-200/80 flex flex-col">
+              <Link
+                href="/compare/chatty-vs-tidio"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Chatty vs Tidio (Lyro)
+              </Link>
+              <Link
+                href="/compare/chatty-vs-gorgias"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Chatty vs Gorgias
+              </Link>
+              <Link
+                href="/compare/chatty-vs-freshdesk"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Chatty vs Freshdesk
+              </Link>
+              <Link
+                href="/compare/chatty-vs-drift"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Chatty vs Drift
+              </Link>
+              <Link
+                href="#roi"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b md:border-b-0 border-zinc-200/80"
+              >
                 Deflection Benchmarks
+              </Link>
+            </div>
+
+            {/* Column 4: Community, Ecosystem & Trust */}
+            <div className="col-span-1 flex flex-col">
+              <Link
+                href="/affiliate"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Affiliates Program
+              </Link>
+              <Link
+                href="https://docs.chatty.personaliai.com"
+                target="_blank"
+                rel="noreferrer"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Documentation
               </Link>
               <Link
                 href="/support"
