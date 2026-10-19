@@ -757,8 +757,8 @@ export default function Home() {
       {/* Footer */}
       {/* Footer */}
       <footer className="max-w-[1200px] mx-auto px-5 sm:px-9 pb-10 sm:pb-12">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 pb-9 border-b" style={{ borderColor: "var(--color-divider)" }}>
-          <div className="col-span-2 sm:col-span-1">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 pb-9 border-b" style={{ borderColor: "var(--color-divider)" }}>
+          <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <span className="flex items-center gap-2.5 text-[17px]" style={{ fontFamily: "var(--font-heading)" }}>
               <Image src="/favicon.png" alt="Chatty" width={26} height={26} className="size-[26px] object-contain shrink-0" />
               Chatty
@@ -769,7 +769,7 @@ export default function Home() {
             <span className="inline-block mt-3.5 text-[11px] tracking-wide uppercase" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>By PersonaliAI</span>
           </div>
           <div>
-            <p className="text-xs tracking-wide uppercase mb-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Product</p>
+            <p className="text-xs tracking-wide uppercase mb-3.5 font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Product</p>
             <div className="flex flex-col gap-2.5 text-sm">
               <Link href="#features">Features</Link>
               <Link href="#pricing">Pricing</Link>
@@ -780,7 +780,19 @@ export default function Home() {
             </div>
           </div>
           <div>
-            <p className="text-xs tracking-wide uppercase mb-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Company</p>
+            <p className="text-xs tracking-wide uppercase mb-3.5 font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Compare</p>
+            <div className="flex flex-col gap-2.5 text-sm">
+              <Link href="/compare/chatty-vs-intercom" className="hover:opacity-80 transition-opacity">vs Intercom</Link>
+              <Link href="/compare/chatty-vs-zendesk" className="hover:opacity-80 transition-opacity">vs Zendesk</Link>
+              <Link href="/compare/chatty-vs-crisp" className="hover:opacity-80 transition-opacity">vs Crisp</Link>
+              <Link href="/compare/chatty-vs-chatbase" className="hover:opacity-80 transition-opacity">vs Chatbase</Link>
+              <Link href="/compare/chatty-vs-tidio" className="hover:opacity-80 transition-opacity">vs Tidio</Link>
+              <Link href="/compare/chatty-vs-gorgias" className="hover:opacity-80 transition-opacity">vs Gorgias</Link>
+              <Link href="/compare" className="font-medium text-[#c67139] hover:opacity-80 transition-opacity">All comparisons &rarr;</Link>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs tracking-wide uppercase mb-3.5 font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Company</p>
             <div className="flex flex-col gap-2.5 text-sm">
               <Link href="/privacy">Privacy</Link>
               <Link href="/terms">Terms</Link>
@@ -788,7 +800,7 @@ export default function Home() {
             </div>
           </div>
           <div>
-            <p className="text-xs tracking-wide uppercase mb-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Connect</p>
+            <p className="text-xs tracking-wide uppercase mb-3.5 font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Connect</p>
             <div className="flex flex-col gap-2.5 text-sm">
               <a href="https://github.com/PersonaliAI/chatty" target="_blank" rel="noopener noreferrer">GitHub</a>
               <Link href="/dashboard">Log in</Link>
