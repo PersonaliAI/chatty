@@ -2466,7 +2466,19 @@ export default function LandingClient() {
                 Documentation
               </Link>
               <Link
-                href="#architecture"
+                href="/compare"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80 font-medium"
+              >
+                Comparisons Overview
+              </Link>
+              <Link
+                href="/compare/chatty-vs-intercom"
+                className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
+              >
+                Chatty vs Intercom
+              </Link>
+              <Link
+                href="/compare/chatty-vs-zendesk"
                 className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-b border-zinc-200/80"
               >
                 Chatty vs Zendesk
