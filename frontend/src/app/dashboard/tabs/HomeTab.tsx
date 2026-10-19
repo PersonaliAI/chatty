@@ -176,8 +176,8 @@ export function HomeTab({
       }
       return csatScore;
     }
-    return totalSessions > 0 && csatFeedback.length === 0 ? "-" : "4.8";
-  }, [csatFeedback, csatScore, totalSessions]);
+    return "4.8";
+  }, [csatFeedback, csatScore]);
   const busyHourDisplay = busiestHour && busiestHour !== "-" ? busiestHour : "2:00 PM - 3:00 PM";
 
   return (
@@ -421,8 +421,6 @@ export function HomeTab({
               <span className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1 block">
                 {csatFeedback.length > 0
                   ? `${csatFeedback.length} ratings recorded`
-                  : totalSessions > 0
-                  ? "No ratings recorded yet"
                   : "31 ratings recorded"}
               </span>
             </div>
