@@ -1570,10 +1570,12 @@ function IdentifiedChatWidget({
     }
   };
 
-  // Keep internal sessionId in sync when activeSessionId updates (e.g. starting a new conversation)
+  // Keep internal sessionId in sync ONLY when activeSessionId genuinely updates from parent (e.g. new conversation)
+  const prevActiveSessionIdRef = useRef(activeSessionId);
   useEffect(() => {
     if (!activeSessionId) return;
-    if (activeSessionId !== sessionId) {
+    if (prevActiveSessionIdRef.current !== activeSessionId) {
+      prevActiveSessionIdRef.current = activeSessionId;
       setSessionId(activeSessionId);
       try {
         localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, activeSessionId);
@@ -1588,7 +1590,7 @@ function IdentifiedChatWidget({
       setChatView("conversation");
       setTab("messages");
     }
-  }, [activeSessionId, botId, hostKey, welcomeMsg, sessionId]);
+  }, [activeSessionId, botId, hostKey, welcomeMsg]);
 
   // Keep the explicit follow-up address across widget reloads for this bot,
   // host, and visitor session. It remains scoped to the host and is never
@@ -1729,14 +1731,16 @@ function IdentifiedChatWidget({
     } catch {}
   }, [botId, sessionId, calendarSchedulingEnabled]);
 
-  // Transcript restoration is server-backed below; never hydrate message
-  // content from browser storage because it may contain visitor PII.
-  useEffect(() => {
-    let alive = true;
-    void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
-      .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
-      .then(body => {
-        if (!alive || !body.messages?.length) return;
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const loadMessagesForSession = useCallback(async (targetSession: string) => {
+    if (!botId || !targetSession) return;
+    setLoadingHistory(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(targetSession)}`);
+      if (!response.ok) throw new Error("History unavailable");
+      const body = await response.json();
+      if (body.messages && body.messages.length > 0) {
         const hydrated = dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg);
         const hasEmailMsg = hydrated.some((m: Message) => typeof m.content === "string" && (m.content.includes("[EMAIL_CAPTURED:") || m.content.startsWith("[Offline Support Ticket]")));
         if (hasEmailMsg) {
@@ -1749,10 +1753,33 @@ function IdentifiedChatWidget({
         }
         setMessages(hydrated);
         void fetchActiveMeeting();
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [botId, sessionId, fetch, welcomeMsg, fetchActiveMeeting]);
+      } else {
+        setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+      }
+    } catch {
+      setMessages(prev => (prev.length > 0 ? prev : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]));
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [botId, fetch, welcomeMsg, fetchActiveMeeting]);
+
+  useEffect(() => {
+    void loadMessagesForSession(sessionId);
+  }, [sessionId, loadMessagesForSession]);
+
+  const selectConversation = useCallback((targetSession: string) => {
+    if (!targetSession) return;
+    setChatView("conversation");
+    setTab("messages");
+    if (targetSession === sessionId && messages.length > 0) {
+      return;
+    }
+    setSessionId(targetSession);
+    try {
+      localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, targetSession);
+    } catch {}
+    void loadMessagesForSession(targetSession);
+  }, [sessionId, messages.length, botId, hostKey, loadMessagesForSession]);
 
   useEffect(() => {
     fetchActiveMeeting();
@@ -3267,7 +3294,7 @@ function IdentifiedChatWidget({
                   <div className="p-4 flex-1">
                     <VisitorHistory
                       identity={identity}
-                      onSelect={session => { setMessages([]); setSessionId(session); setChatView("conversation"); }}
+                      onSelect={selectConversation}
                       onNew={() => { setMessages([]); setChatView("conversation"); void identity.newConversation().catch(() => showToast("Could not start a conversation", "error")); }}
                     />
                   </div>

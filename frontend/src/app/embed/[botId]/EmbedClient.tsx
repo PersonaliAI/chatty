@@ -1466,10 +1466,12 @@ function IdentifiedEmbedClient({
     return s;
   });
 
-  // Keep internal sessionId in sync when activeSessionId updates (e.g. starting a new conversation)
+  // Keep internal sessionId in sync ONLY when activeSessionId genuinely updates from parent (e.g. starting a new conversation)
+  const prevActiveSessionIdRef = useRef(activeSessionId);
   useEffect(() => {
     if (!activeSessionId) return;
-    if (activeSessionId !== sessionId) {
+    if (prevActiveSessionIdRef.current !== activeSessionId) {
+      prevActiveSessionIdRef.current = activeSessionId;
       setSessionId(activeSessionId);
       try {
         localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, activeSessionId);
@@ -1483,7 +1485,7 @@ function IdentifiedEmbedClient({
       setChatView("chat");
       setTab("messages");
     }
-  }, [activeSessionId, botId, hostKey, welcomeMsg, sessionId]);
+  }, [activeSessionId, botId, hostKey, welcomeMsg]);
 
   // Server-managed proactive campaigns. The API performs the security and
   // date/device/URL filtering; the widget only schedules the selected web
@@ -1720,12 +1722,16 @@ function IdentifiedEmbedClient({
       }).catch(() => {});
     return () => { alive = false; };
   }, [botId, fetch]);
-  useEffect(() => {
-    let alive = true;
-    void fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(sessionId)}`)
-      .then(async response => { if (!response.ok) throw new Error("History unavailable"); return response.json(); })
-      .then(body => {
-        if (!alive || !body.messages?.length) return;
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const loadMessagesForSession = useCallback(async (targetSession: string) => {
+    if (!botId || !targetSession) return;
+    setLoadingHistory(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/widget/identity/messages?bot_id=${encodeURIComponent(botId)}&session_id=${encodeURIComponent(targetSession)}`);
+      if (!response.ok) throw new Error("History unavailable");
+      const body = await response.json();
+      if (body.messages && body.messages.length > 0) {
         const hydrated = dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg);
         const hasEmailMsg = hydrated.some((m: Message) => typeof m.content === "string" && (m.content.includes("[EMAIL_CAPTURED:") || m.content.startsWith("[Offline Support Ticket]")));
         if (hasEmailMsg) {
@@ -1738,18 +1744,33 @@ function IdentifiedEmbedClient({
         }
         setMessages(hydrated);
         void fetchActiveMeeting();
-      }).catch(() => {});
-    return () => { alive = false; };
-  }, [botId, sessionId, fetch, welcomeMsg, fetchActiveMeeting]);
-  const switchConversation = (targetSessionId: string) => {
+      } else {
+        setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+      }
+    } catch {
+      setMessages(prev => (prev.length > 0 ? prev : [{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]));
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [botId, fetch, welcomeMsg, fetchActiveMeeting]);
+
+  useEffect(() => {
+    void loadMessagesForSession(sessionId);
+  }, [sessionId, loadMessagesForSession]);
+
+  const switchConversation = useCallback((targetSessionId: string) => {
+    if (!targetSessionId) return;
+    setChatView("chat");
+    setTab("messages");
+    if (targetSessionId === sessionId && messages.length > 0) {
+      return;
+    }
     setSessionId(targetSessionId);
     try {
       localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, targetSessionId);
     } catch {}
-    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
-    setChatView("chat");
-    setTab("messages");
-  };
+    void loadMessagesForSession(targetSessionId);
+  }, [sessionId, messages.length, botId, hostKey, loadMessagesForSession]);
 
   const [clearingChat, setClearingChat] = useState(false);
 

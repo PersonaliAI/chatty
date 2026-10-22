@@ -103,7 +103,7 @@
   // no error, so the widget never appears. Bump this on every release that
   // Bump this whenever the widget shell or embedded chat surface changes so
   // customer sites do not keep loading a stale cached voice UI bundle.
-  var ASSET_VERSION = "2026-10-22.v1-smooth-session-reset";
+  var ASSET_VERSION = "2026-10-22.v2-conversation-history-fix";
 
   // Preconnect to origin for fast asset loading
   try {
