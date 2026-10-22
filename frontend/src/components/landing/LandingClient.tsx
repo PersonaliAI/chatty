@@ -2141,16 +2141,16 @@ export default function LandingClient() {
                   {/* Verified Standards Logos from Logo.dev */}
                   <div className="pt-4 flex flex-wrap items-center gap-4 border-t border-blue-800/60 mt-6">
                     <span className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider">
-                      Verified Standards:
+                      Official Standards:
                     </span>
                     <div className="flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-white">
-                        <img src="/logos/gdpr-logo.png" alt="GDPR.eu Logo" className="size-4.5 object-contain rounded" />
-                        <span className="font-semibold text-[11px]">GDPR.eu</span>
+                        <img src="/logos/europa-logo.png" alt="European Union Emblem" className="size-4.5 object-contain rounded" />
+                        <span className="font-semibold text-[11px]">EU GDPR (2016/679)</span>
                       </div>
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-white">
-                        <img src="/logos/europa-logo.png" alt="European Union Logo" className="size-4.5 object-contain rounded" />
-                        <span className="font-semibold text-[11px]">European Union</span>
+                        <img src="/logos/europa-logo.png" alt="EDPB Framework" className="size-4.5 object-contain rounded" />
+                        <span className="font-semibold text-[11px]">EDPB Framework</span>
                       </div>
                       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-white">
                         <img src="/logos/soc2-aicpa-logo.png" alt="AICPA SOC 2 Logo" className="size-4.5 object-contain rounded" />
