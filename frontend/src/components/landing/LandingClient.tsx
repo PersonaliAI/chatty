@@ -2137,6 +2137,31 @@ export default function LandingClient() {
                       <span>Privacy Policy & Subprocessors</span>
                     </Link>
                   </div>
+
+                  {/* Verified Standards Logos from Logo.dev */}
+                  <div className="pt-4 flex flex-wrap items-center gap-4 border-t border-blue-800/60 mt-6">
+                    <span className="text-[11px] font-semibold text-blue-300 uppercase tracking-wider">
+                      Verified Standards:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-white">
+                        <img src="/logos/gdpr-logo.png" alt="GDPR.eu Logo" className="size-4.5 object-contain rounded" />
+                        <span className="font-semibold text-[11px]">GDPR.eu</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-white">
+                        <img src="/logos/europa-logo.png" alt="European Union Logo" className="size-4.5 object-contain rounded" />
+                        <span className="font-semibold text-[11px]">European Union</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-white">
+                        <img src="/logos/soc2-aicpa-logo.png" alt="AICPA SOC 2 Logo" className="size-4.5 object-contain rounded" />
+                        <span className="font-semibold text-[11px]">SOC 2 (AICPA)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 backdrop-blur-sm border border-white/15 text-xs text-white">
+                        <img src="/logos/iso-logo.png" alt="ISO Logo" className="size-4.5 object-contain rounded" />
+                        <span className="font-semibold text-[11px]">ISO 27001</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="lg:col-span-4 flex flex-col items-center justify-center text-center">
