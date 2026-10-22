@@ -59,24 +59,25 @@
     <path d="M -0.4 2.8 L 0.4 2.8 L 0.6 4.8 L -0.6 4.8 Z" fill="#002244"/>
   </g>
 
-  <!-- Right Side: Bold, Clean Typography (Zero Overlap Guaranteed) -->
-  <!-- Line 1: GDPR + COMPLIANT Pill -->
-  <text x="66" y="27" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" font-size="17" letter-spacing="1.2" fill="#FFFFFF">
+  <!-- Right Side: Bold, Clean Typography -->
+  <!-- Line 1: GDPR + COMPLIANT Pill with Balanced Padding -->
+  <text x="64" y="27" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" font-size="17" letter-spacing="1.2" fill="#FFFFFF">
     GDPR
   </text>
   
-  <!-- COMPLIANT Pill Badge -->
-  <g transform="translate(128, 12)">
-    <rect x="0" y="0" width="92" height="20" rx="10" fill="url(#emeraldPill)" stroke="#34D399" stroke-width="1"/>
-    <!-- Checkmark inside pill -->
-    <path d="M 11 10.5 L 14.5 14 L 21 7" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="54" y="14" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="800" font-size="9.5" letter-spacing="1" fill="#FFFFFF">
+  <!-- COMPLIANT Pill Badge (Balanced: 10px left pad, 7.5px icon-to-text gap, 11px right pad) -->
+  <g transform="translate(122, 11)">
+    <rect x="0" y="0" width="98" height="21" rx="10.5" fill="url(#emeraldPill)" stroke="#34D399" stroke-width="0.9"/>
+    <!-- Checkmark: centered vertically, ends at x=18 -->
+    <path d="M 9.5 11 L 13 14.5 L 18 9" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Text: starts at x=25.5 (7.5px clean gap after checkmark tip) -->
+    <text x="25.5" y="14.5" text-anchor="start" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="800" font-size="9" letter-spacing="0.8" fill="#FFFFFF">
       COMPLIANT
     </text>
   </g>
 
-  <!-- Line 2: Regulation Citation (Standalone, No Collisions) -->
-  <text x="66" y="46" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="700" font-size="9.5" letter-spacing="0.8" fill="#93C5FD">
+  <!-- Line 2: Regulation Citation (Clean, Standalone) -->
+  <text x="64" y="46" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="700" font-size="9.5" letter-spacing="0.8" fill="#93C5FD">
     REGULATION (EU) 2016/679
   </text>
 </svg>
