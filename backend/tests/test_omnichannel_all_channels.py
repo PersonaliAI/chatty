@@ -119,7 +119,7 @@ def test_instagram_send_outbound(monkeypatch):
     assert success is True
     assert len(sent_requests) == 1
     url, headers, body = sent_requests[0]
-    assert "https://graph.facebook.com" in url
+    assert url.startswith("https://graph.facebook.com/")
     assert headers["Authorization"] == "Bearer test_token_123"
     assert body["recipient"]["id"] == "ig_user_123"
     assert body["message"]["text"] == "Shipping to Canada is $15 with tracking."
@@ -282,7 +282,7 @@ def test_sms_send_outbound(monkeypatch):
     assert res is True
     assert len(sent_requests) == 1
     url, data, auth = sent_requests[0]
-    assert "api.twilio.com" in url
+    assert url.startswith("https://api.twilio.com/")
     assert data["To"] == "+15551234567"
     assert data["From"] == "+15559876543"
     assert data["Body"] == "Hello from Chatty SMS support!"

@@ -9,7 +9,8 @@ import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
-from urllib.parse import urlencode
+import re
+from urllib.parse import quote, urlencode
 
 import httpx
 import jwt
@@ -221,10 +222,13 @@ async def telegram_test(bot_id: str, bot_token: Optional[str] = None, user: dict
         token = decrypt_secret((bot_res.data[0].get("telegram_bot_token") or "").strip())
     if not token:
         raise HTTPException(status_code=400, detail="Provide or save a Telegram Bot Token first")
+    if not re.match(r"^[0-9]{5,16}:[A-Za-z0-9_-]{5,80}$", token):
+        raise HTTPException(status_code=400, detail="Invalid Telegram Bot Token format")
 
     try:
+        safe_token = quote(token, safe=":")
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            resp = await client.get(f"https://api.telegram.org/bot{safe_token}/getMe")
         data = resp.json() if resp.status_code == 200 else {}
         if not data.get("ok"):
             err_desc = data.get("description", "Telegram rejected this bot token")
@@ -272,14 +276,15 @@ async def sms_test(
 
     if not sid or not token:
         raise HTTPException(status_code=400, detail="Provide or save Twilio Account SID and Auth Token first")
-    if not sid.startswith("AC"):
-        raise HTTPException(status_code=400, detail="Twilio Account SID must start with 'AC'")
+    if not re.match(r"^AC[a-zA-Z0-9_]{10,64}$", sid):
+        raise HTTPException(status_code=400, detail="Twilio Account SID must start with 'AC' and contain 10-64 alphanumeric characters")
 
     try:
+        safe_sid = quote(sid, safe="")
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
-                f"https://api.twilio.com/2010-04-01/Accounts/{sid}.json",
-                auth=(sid, token),
+                f"https://api.twilio.com/2010-04-01/Accounts/{safe_sid}.json",
+                auth=(safe_sid, token),
             )
         if resp.status_code >= 400:
             raise HTTPException(status_code=400, detail="Twilio authentication failed (invalid Account SID or Auth Token)")
@@ -323,11 +328,14 @@ async def instagram_test(
 
     if not pid or not token:
         raise HTTPException(status_code=400, detail="Provide or save Meta Page ID and Access Token first")
+    if not re.match(r"^[0-9a-zA-Z_]{1,64}$", pid):
+        raise HTTPException(status_code=400, detail="Meta Page ID must be alphanumeric (up to 64 characters)")
 
     try:
+        safe_pid = quote(pid, safe="")
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
-                f"https://graph.facebook.com/v21.0/{pid}",
+                f"https://graph.facebook.com/v21.0/{safe_pid}",
                 params={"fields": "id,name"},
                 headers={"Authorization": f"Bearer {token}"},
             )

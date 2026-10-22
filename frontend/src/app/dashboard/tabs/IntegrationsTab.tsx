@@ -733,7 +733,7 @@ export function IntegrationsTab({
         },
         {
           label: "Or add the script via your child theme's functions.php:",
-          code: `add_action('wp_footer', function() {\n    echo '${embedScriptCode.replace(/'/g, "\\'")}';\n});`,
+          code: `add_action('wp_footer', function() {\n?>\n${embedScriptCode}\n<?php\n});`,
         },
       ],
     },

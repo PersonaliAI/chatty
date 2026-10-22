@@ -10,7 +10,7 @@ import asyncio
 import email.utils
 import hmac
 import logging
-import re
+from html.parser import HTMLParser
 from typing import Any, Optional
 
 import httpx
@@ -20,6 +20,24 @@ from app.services.omnichannel.models import ChannelType, InboundMessage
 logger = logging.getLogger("chatty.omnichannel.email")
 
 RESEND_EMAILS_URL = "https://api.resend.com/emails"
+
+
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+
+def _strip_html(html_str: str) -> str:
+    try:
+        parser = _HTMLTextExtractor()
+        parser.feed(html_str)
+        return " ".join("".join(parser.parts).split()).strip()
+    except Exception:
+        return html_str
 
 
 def verify_email_webhook_secret(token_header: str, expected_secret: str) -> bool:
@@ -42,7 +60,8 @@ def clean_email_body(text: str) -> str:
         # Common email quote indicators
         if stripped.startswith(">"):
             continue
-        if re.match(r"^On\s+.*,\s+.*wrote:$", stripped, re.IGNORECASE):
+        lower_line = stripped.lower()
+        if lower_line.startswith("on ") and lower_line.endswith("wrote:"):
             break
         if stripped in ("--", "---", "________________________________"):
             break
@@ -69,9 +88,9 @@ def normalize_email_message(payload: dict[str, Any]) -> Optional[InboundMessage]
     subject = str(payload.get("subject") or "Support Request").strip()
     raw_text = str(payload.get("text") or payload.get("plain") or "").strip()
 
-    # If no plain text, fall back to simple html tag strip
+    # If no plain text, fall back to safe html tag strip
     if not raw_text and payload.get("html"):
-        raw_text = re.sub(r"<[^>]+>", " ", str(payload["html"])).strip()
+        raw_text = _strip_html(str(payload["html"]))
 
     body_text = clean_email_body(raw_text)
     full_text = f"Subject: {subject}\n\n{body_text}" if subject else body_text

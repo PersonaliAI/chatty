@@ -12,7 +12,7 @@ pytz==2025.2
 tzdata==2025.2
 PyJWT[crypto]==2.15.0
 python-multipart==0.0.31
-pypdf==6.19.0
+pypdf>=6.20.1
 python-docx==1.2.0
 openpyxl==3.1.5
 markitdown[pptx]==0.1.7
@@ -20,7 +20,7 @@ cryptography==50.0.0
 croniter==6.2.2
 redis==5.3.1
 PyYAML==6.0.3
-Pillow==12.3.0
+Pillow>=13.0.0
 litellm==1.98.0
 
 # MCP (Model Context Protocol) server — Developer API's /mcp endpoint,
