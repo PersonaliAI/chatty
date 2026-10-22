@@ -22,6 +22,7 @@ Supabase project.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![CI](https://github.com/PersonaliAI/chatty/actions/workflows/ci.yml/badge.svg)](https://github.com/PersonaliAI/chatty/actions/workflows/ci.yml)
+[![GDPR Compliant](https://img.shields.io/badge/GDPR-100%25%20Compliant-003399?logo=shield&logoColor=ffcc00)](#-gdpr--enterprise-data-privacy)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
@@ -29,7 +30,7 @@ Supabase project.
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Performance Scorecard](docs/SCORECARD.md) · [Flow Builder](https://docs.chatty.personaliai.com/guides/flow-integrations) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Secure customer identity](docs/INBOX_IDENTITY_SETUP.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](docs/AI_CODING_PLUGINS.md) · [Community Traction](docs/traction.md)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Data Processing (DPA)](frontend/src/app/(legal)/dpa/page.tsx) · [Sub-processors](frontend/src/app/(legal)/subprocessors/page.tsx) · [Performance Scorecard](docs/SCORECARD.md) · [Flow Builder](https://docs.chatty.personaliai.com/guides/flow-integrations) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Secure customer identity](docs/INBOX_IDENTITY_SETUP.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](docs/AI_CODING_PLUGINS.md) · [Community Traction](docs/traction.md)
 
 <br />
 <br />
@@ -70,6 +71,7 @@ Supabase project.
 - [MCP Server & AI Coding Plugins (Claude, Cursor, Codex)](docs/AI_CODING_PLUGINS.md)
 - [Environment Variable Reference](#environment-variable-reference)
 - [Testing & CI](#-testing--ci)
+- [GDPR & Enterprise Data Privacy](#-gdpr--enterprise-data-privacy)
 - [Security](#-security)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -618,6 +620,26 @@ python -m pytest tests/ -q
 ```
 
 `.github/dependabot.yml` watches pip/npm/Docker/GitHub Actions dependencies weekly.
+
+## 🇪🇺 GDPR & Enterprise Data Privacy
+
+Chatty is built for enterprise-grade compliance with the **EU General Data Protection Regulation (Regulation (EU) 2016/679)** and the **ePrivacy Directive (Directive 2002/58/EC)**:
+
+* **Automated Data Loss Prevention (DLP):** Real-time PII scrubber (`backend/app/services/pii_service.py`) automatically detects and redacts Luhn-verified credit card numbers, US Social Security numbers, exposed API/Bearer tokens, and ISO 7064 MOD 97-10 European IBAN bank accounts across the web widget and all omnichannel streams (WhatsApp, Instagram, Telegram, SMS, Email).
+* **Right to Erasure (RTBF / Art. 17):**
+  - **Cascading Contact Erasure:** Administrative endpoint `DELETE /api/admin/inbox/contacts/{id}` executes PostgreSQL stored procedure `chatty_erase_contact()`, wiping conversation history, leads, sessions, and contact records.
+  - **Self-Service Visitor Erasure:** Website visitors can independently erase their own session data and local storage directly within the live chat widget via the trash action.
+  - **Cascade Delete on Bot Removal:** Deleting a bot (`DELETE /api/bots/{id}`) automatically cascades deletion across all 15+ child tables in PostgreSQL.
+* **Storage Limitation & Automated Retention (Art. 5(1)(e)):** Automated 90-day retention cutoff for unadopted anonymous conversations via `cron.py`, with per-bot configurable retention periods and an authenticated on-demand purge API (`POST /api/bots/{id}/retention/purge`).
+* **Cryptographic Isolation & Multi-Tenant RLS (Art. 32):**
+  - **Encryption at Rest:** Sensitive BYOK API keys, OAuth tokens, and visitor identity signing keys are encrypted at rest with Fernet (authenticated AES-128-CBC + HMAC-SHA256).
+  - **Encryption in Transit:** Mandatory TLS 1.3 encryption across all APIs and webhooks.
+  - **Database Tenant Isolation:** Supabase Row-Level Security (RLS) policies isolate workspace data strictly by user ID and verified team membership.
+  - **Webhook Authentication:** Cryptographic HMAC signature verification across all omnichannel providers (Meta Graph API, Twilio, Telegram).
+* **Zero AI Foundation Model Training Guarantee:** Customer conversation turns and uploaded training documents are processed strictly in transient memory for real-time inference and are **never** used to train public foundation models (Google Vertex AI / OpenAI enterprise terms).
+* **Binding Legal Agreements:**
+  - Published [Data Processing Addendum (DPA)](frontend/src/app/(legal)/dpa/page.tsx) incorporating European Commission Standard Contractual Clauses (SCCs).
+  - Public [Sub-processor Registry](frontend/src/app/(legal)/subprocessors/page.tsx) with international transfer safeguards and SOC 2 / ISO 27001 certifications.
 
 ## 🔒 Security
 

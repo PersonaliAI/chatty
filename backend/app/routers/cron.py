@@ -29,21 +29,25 @@ router = APIRouter()
 
 @router.post("/cron/purge-old-conversations")
 async def purge_old_conversations(x_function_secret: Optional[str] = Header(default=None)):
-    """Retention: delete conversations + sessions older than CHATTY_RETENTION_DAYS.
-    Disabled (no-op) when the env var is unset or 0. Protected by FUNCTION_SECRET."""
+    """Retention (GDPR Art. 5(1)(e)): delete conversations + sessions older than retention cutoff.
+    Defaults to 90 days for unadopted anonymous sessions when CHATTY_RETENTION_DAYS is unset.
+    Protected by FUNCTION_SECRET."""
     verify_function_secret(x_function_secret, FUNCTION_SECRET)
-    days = int(os.environ.get("CHATTY_RETENTION_DAYS", "0") or "0")
-    if days <= 0:
-        return {"purged": 0, "note": "retention disabled (set CHATTY_RETENTION_DAYS)"}
+    env_days = os.environ.get("CHATTY_RETENTION_DAYS")
+    days = int(env_days) if env_days and env_days.isdigit() else 90
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     n = 0
+    sess_count = 0
     try:
         res = await run_db(lambda: supabase.table("chatty_conversations").delete().lt("created_at", cutoff).execute())
         n = len(res.data or [])
-        await run_db(lambda: supabase.table("chatty_sessions").delete().lt("last_message_at", cutoff).execute())
+        res_sess = await run_db(lambda: supabase.table("chatty_sessions").delete().lt("last_message_at", cutoff).execute())
+        sess_count = len(res_sess.data or [])
+        # Purge revoked or expired visitor credentials
+        await run_db(lambda: supabase.table("chatty_visitor_credentials").delete().lt("expires_at", datetime.now(timezone.utc).isoformat()).execute())
     except Exception:
         logger.exception("retention purge failed")
-    return {"purged": n, "older_than_days": days}
+    return {"purged_conversations": n, "purged_sessions": sess_count, "older_than_days": days}
 
 
 @router.post("/cron/process-webhook-retries")

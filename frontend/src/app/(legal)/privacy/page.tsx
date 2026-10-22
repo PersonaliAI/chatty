@@ -91,38 +91,82 @@ export default function PrivacyPage() {
       </UL>
       <P>We do not sell your personal information or use connected-account data for advertising.</P>
 
-      <H2>Data sharing</H2>
+      <H2>GDPR Legal Bases for Processing (Article 6)</H2>
       <P>
-        We share data only with subprocessors that help us run the Service (for example, our cloud hosting,
-        database, and email-delivery providers) and only as needed to provide it. We may disclose information
-        where required by law. We do not share Zoom data with any third party other than as needed to deliver
-        the meeting links you request.
+        If you are located in the European Economic Area (EEA), United Kingdom, or Switzerland, our legal bases
+        for processing your Personal Data include:
+      </P>
+      <UL>
+        <li><strong>Performance of a Contract (Art. 6(1)(b)):</strong> To provide the Chatty Service, manage customer accounts, execute appointment bookings, and deliver customer support.</li>
+        <li><strong>Legitimate Interests (Art. 6(1)(f)):</strong> To secure our systems, prevent fraud, scrub sensitive PII, ensure service stability, and provide business communication tools.</li>
+        <li><strong>Consent (Art. 6(1)(a)):</strong> For proactive promotional marketing campaigns across SMS, email, and WhatsApp, which strictly require prior affirmative opt-in.</li>
+        <li><strong>Legal Compliance (Art. 6(1)(c)):</strong> To comply with mandatory statutory and regulatory tax, billing, and accounting obligations.</li>
+      </UL>
+
+      <H2>Data Minimisation &amp; Automated PII Redaction (Article 25)</H2>
+      <P>
+        In accordance with Privacy by Design standards, Chatty includes an automated Data Loss Prevention (DLP) engine
+        that scans incoming customer messages across chat widgets and omnichannel pipelines (WhatsApp, Instagram, Telegram, SMS, Email).
+        Payment cards (Luhn MOD-10 algorithm), Social Security numbers, and bank account numbers (ISO 7064 IBAN MOD-97) are
+        automatically redacted prior to prompt synthesis or persistent database storage.
       </P>
 
-      <H2>Data retention &amp; deletion</H2>
+      <H2>Sub-processors &amp; Cross-Border Transfers (Articles 28, 44–49)</H2>
       <P>
-        We retain data for as long as your account is active. You may disconnect any integration at any time
-        from your dashboard, which deletes the stored OAuth tokens for that provider. If you remove the Chatty
-        app from the Zoom Marketplace, we delete the associated Zoom tokens and account email. You may request
-        deletion of your entire account and associated data by contacting <Mail user="privacy" />.
+        We share data only with verified sub-processors necessary to deliver the Service (cloud database, LLM inference,
+        and messaging carriers). All sub-processors are vetted for SOC 2 Type II or ISO 27001 certifications.
+        Transfers outside the EEA are governed by the European Commission&rsquo;s Standard Contractual Clauses (SCCs)
+        or the EU-U.S. Data Privacy Framework (DPF).
+      </P>
+      <P>
+        View our full, binding <a href="/dpa" className="font-medium text-[#f95721] hover:underline">Data Processing Addendum (DPA)</a> and
+        regularly updated <a href="/subprocessors" className="font-medium text-[#f95721] hover:underline">Sub-processor Registry</a>.
       </P>
 
-      <H2>Your rights</H2>
+      <H2>Data Retention &amp; Storage Limitation (Article 5(1)(e))</H2>
       <P>
-        Depending on your location, you may have the right to access, correct, export, or delete your personal
-        information, and to object to or restrict certain processing. To exercise these rights, contact
-        {" "}<Mail user="privacy" />. We will respond within the timeframe required by applicable law.
+        We retain personal data only for as long as necessary to fulfill the purposes for which it was collected.
+        Account owners can configure automated data retention periods (e.g. 30, 60, or 90 days) for their bots,
+        or trigger an on-demand retention purge in dashboard settings. Deleting a bot immediately cascades deletion
+        across all conversational history, leads, session notes, and knowledge base embeddings.
       </P>
 
-      <H2>Security</H2>
+      <H2>Your Data Subject Rights Under GDPR (Articles 12–23)</H2>
       <P>
-        We use encryption in transit and at rest, access controls, and reputable infrastructure providers to
-        protect your data. No method of transmission or storage is completely secure, but we work to protect
-        your information using industry-standard safeguards.
+        Under European data protection laws, data subjects have comprehensive rights regarding their personal data:
+      </P>
+      <UL>
+        <li><strong>Right of Access (Art. 15):</strong> You may request a complete export of all personal data held about you.</li>
+        <li><strong>Right to Rectification (Art. 16):</strong> You may correct inaccurate or incomplete personal data.</li>
+        <li><strong>Right to Erasure / &ldquo;Right to be Forgotten&rdquo; (Art. 17):</strong> You may request permanent deletion of your data. Website visitors can also trigger instant self-service data erasure directly within the chat widget via the trash icon.</li>
+        <li><strong>Right to Restriction of Processing (Art. 18):</strong> You may request temporary suspension of automated AI responses.</li>
+        <li><strong>Right to Data Portability (Art. 20):</strong> You may receive your data in a structured, machine-readable format (JSON/CSV).</li>
+        <li><strong>Right to Object (Art. 21):</strong> You may object to marketing communications at any time. All marketing emails include one-click cryptographic unsubscribe links.</li>
+      </UL>
+      <P>
+        To exercise any of these rights, contact our Data Protection team at <Mail user="privacy" />.
+        You also have the right to lodge a complaint with an EU supervisory authority in your Member State.
       </P>
 
-      <H2>Contact</H2>
-      <P>Questions about this policy? Email <Mail user="privacy" />.</P>
+      <H2>Cookies &amp; Local Storage (ePrivacy Directive)</H2>
+      <P>
+        The Chatty embed widget uses strictly necessary terminal storage (<code>localStorage</code> and an HttpOnly session capability token)
+        solely to preserve conversational continuity during an active chat session initiated by the user. Chatty does not use
+        third-party advertising cookies or cross-site tracking pixels.
+      </P>
+
+      <H2>Security Measures (Article 32)</H2>
+      <P>
+        We implement rigorous safeguards including symmetric Fernet / AES-256 encryption at rest for credentials,
+        TLS 1.3 encryption in transit, multi-tenant Row-Level Security (RLS) isolation in PostgreSQL, and HMAC signature
+        verification across all webhook integrations.
+      </P>
+
+      <H2>Contact &amp; Data Protection Officer</H2>
+      <P>
+        For inquiries regarding our GDPR compliance, DPA execution, or to reach our Data Protection Officer, email{" "}
+        <Mail user="privacy" />.
+      </P>
     </>
   );
 }

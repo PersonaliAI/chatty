@@ -392,6 +392,13 @@ SENSITIVE_BOT_COLUMNS = {
     "whatsapp_access_token",
     "whatsapp_app_secret",
     "whatsapp_verify_token",
+    "instagram_access_token",
+    "instagram_app_secret",
+    "instagram_verify_token",
+    "telegram_bot_token",
+    "telegram_secret_token",
+    "twilio_auth_token",
+    "email_webhook_secret",
     "voice_stt_byok_key_encrypted",
     "voice_llm_byok_key_encrypted",
     "voice_tts_byok_key_encrypted",
@@ -403,6 +410,10 @@ def _sanitize_bot_dict(bot: dict[str, Any], role: str = "owner") -> dict[str, An
     sanitized = {k: v for k, v in bot.items() if k not in SENSITIVE_BOT_COLUMNS}
     sanitized["has_byok"] = bool(bot.get("byok_api_key_encrypted") or bot.get("byok_keys"))
     sanitized["whatsapp_configured"] = bool(bot.get("whatsapp_access_token"))
+    sanitized["instagram_configured"] = bool(bot.get("instagram_access_token"))
+    sanitized["telegram_configured"] = bool(bot.get("telegram_bot_token"))
+    sanitized["sms_configured"] = bool(bot.get("twilio_auth_token") and bot.get("twilio_phone_number"))
+    sanitized["email_configured"] = bool(bot.get("email_support_address"))
     if role != "owner":
         sanitized.pop("claim_token", None)
     return sanitized
@@ -493,6 +504,41 @@ async def delete_dashboard_bot(bot_id: str, user: dict[str, Any] = Depends(requi
     return {"ok": True}
 
 
+@router.post("/api/bots/{bot_id}/retention/purge")
+async def purge_bot_retention_data(
+    bot_id: str,
+    body: dict[str, Any] = Body(default={}),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """GDPR Art. 5(1)(e) Storage Limitation: on-demand retention purge for bot conversations and sessions."""
+    await verify_bot_permission(bot_id, user, "settings")
+    days = int(body.get("days") or 90)
+    if days < 1:
+        raise HTTPException(status_code=400, detail="Retention days must be at least 1")
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    # Delete conversations older than cutoff
+    res_conv = await run_db(lambda: supabase.table("chatty_conversations").delete()
+        .eq("bot_id", bot_id).lt("created_at", cutoff).execute())
+    purged_convs = len(res_conv.data or [])
+    # Delete sessions older than cutoff
+    res_sess = await run_db(lambda: supabase.table("chatty_sessions").delete()
+        .eq("bot_id", bot_id).lt("last_message_at", cutoff).execute())
+    purged_sessions = len(res_sess.data or [])
+    from app.routers.admin import _write_admin_audit_log
+    await _write_admin_audit_log(
+        bot_id,
+        "retention_purge_executed",
+        f"Purged data older than {days} days ({purged_convs} messages, {purged_sessions} sessions)",
+        user,
+    )
+    return {
+        "success": True,
+        "purged_messages": purged_convs,
+        "purged_sessions": purged_sessions,
+        "older_than_days": days,
+    }
+
+
 _DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
     "name", "welcome_message", "conversation_starters", "teaser_message", "primary_color",
     "color_scheme", "widget_style", "font_family", "font_size_percent", "panel_size",
@@ -512,11 +558,15 @@ _DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
     "microsoft_connected_account_id", "microsoft_calendar_id", "microsoft_calendar_name",
     "whatsapp_enabled", "whatsapp_phone_number_id", "whatsapp_waba_id", "whatsapp_access_token",
     "whatsapp_verify_token", "whatsapp_app_secret", "whatsapp_quick_replies", "onboarding_step",
+    "instagram_enabled", "instagram_page_id", "instagram_access_token", "instagram_verify_token", "instagram_app_secret",
+    "telegram_enabled", "telegram_bot_token", "telegram_secret_token", "telegram_bot_username",
+    "sms_enabled", "twilio_account_sid", "twilio_auth_token", "twilio_phone_number",
+    "email_channel_enabled", "email_support_address", "email_webhook_secret", "email_auto_reply_mode",
     "onboarding_completed", "lead_fields", "lead_capture_enabled", "lead_required_fields",
     "voice_enabled", "voice_mode", "voice_expression_enabled", "voice_visualizer",
     "voice_agent_name", "voice_llm_provider", "voice_llm_model", "voice_stt_provider",
     "voice_stt_model", "voice_stt_language", "voice_tts_provider", "voice_tts_model",
-    "voice_tts_voice", "voice_max_duration_minutes",
+    "voice_tts_voice", "voice_max_duration_minutes", "data_retention_days",
 })
 
 
@@ -551,9 +601,23 @@ async def update_dashboard_bot(
     if updates.get("webhook_url"):
         await assert_safe_url_async(updates["webhook_url"])
 
-    result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq(
-        "id", bot_id
-    ).execute())
+    try:
+        result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq(
+            "id", bot_id
+        ).execute())
+    except Exception as exc:
+        err_msg = str(exc).lower()
+        if "could not find" in err_msg or "column" in err_msg:
+            # Fallback for pending migrations on remote instance: drop newly added omnichannel fields and save core fields
+            omni_prefixes = ("instagram_", "telegram_", "sms_", "twilio_", "email_")
+            safe_updates = {k: v for k, v in updates.items() if not any(k.startswith(p) for p in omni_prefixes)}
+            if safe_updates:
+                result = await run_db(lambda: supabase.table("chatty_bots").update(safe_updates).eq("id", bot_id).execute())
+            else:
+                result = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
+        else:
+            raise
+
     updated = result.data[0] if result.data else None
     if not updated:
         raise HTTPException(status_code=404, detail="Bot not found")

@@ -205,6 +205,178 @@ async def whatsapp_test(bot_id: str, user: dict[str, Any] = Depends(require_user
         raise HTTPException(status_code=502, detail="Could not reach Meta to test the WhatsApp connection")
 
 
+@router.post("/api/integrations/telegram/test")
+async def telegram_test(bot_id: str, bot_token: Optional[str] = None, user: dict[str, Any] = Depends(require_user)):
+    """Validate a Telegram bot token against Telegram Bot API (getMe)."""
+    token = (bot_token or "").strip()
+    if not token:
+        bot_res = await run_db(lambda: supabase.table("chatty_bots")
+            .select("id,telegram_bot_token")
+            .eq("id", bot_id)
+            .eq("user_id", user["auth_user_id"])
+            .limit(1)
+            .execute())
+        if not bot_res.data:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        token = decrypt_secret((bot_res.data[0].get("telegram_bot_token") or "").strip())
+    if not token:
+        raise HTTPException(status_code=400, detail="Provide or save a Telegram Bot Token first")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+        data = resp.json() if resp.status_code == 200 else {}
+        if not data.get("ok"):
+            err_desc = data.get("description", "Telegram rejected this bot token")
+            raise HTTPException(status_code=400, detail=f"Telegram error: {err_desc}")
+        result = data.get("result", {})
+        username = result.get("username", "")
+        return {
+            "ok": True,
+            "username": username,
+            "first_name": result.get("first_name", ""),
+            "message": f"Telegram Bot @{username} is valid and reachable",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Telegram bot test failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Telegram Bot API")
+
+
+@router.post("/api/integrations/sms/test")
+async def sms_test(
+    bot_id: str,
+    account_sid: Optional[str] = None,
+    auth_token: Optional[str] = None,
+    phone_number: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Validate Twilio credentials against Twilio REST API."""
+    sid = (account_sid or "").strip()
+    token = (auth_token or "").strip()
+    phone = (phone_number or "").strip()
+    if not sid or not token:
+        bot_res = await run_db(lambda: supabase.table("chatty_bots")
+            .select("id,twilio_account_sid,twilio_auth_token,twilio_phone_number")
+            .eq("id", bot_id)
+            .eq("user_id", user["auth_user_id"])
+            .limit(1)
+            .execute())
+        if not bot_res.data:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        b = bot_res.data[0]
+        sid = sid or (b.get("twilio_account_sid") or "").strip()
+        token = token or decrypt_secret((b.get("twilio_auth_token") or "").strip())
+        phone = phone or (b.get("twilio_phone_number") or "").strip()
+
+    if not sid or not token:
+        raise HTTPException(status_code=400, detail="Provide or save Twilio Account SID and Auth Token first")
+    if not sid.startswith("AC"):
+        raise HTTPException(status_code=400, detail="Twilio Account SID must start with 'AC'")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"https://api.twilio.com/2010-04-01/Accounts/{sid}.json",
+                auth=(sid, token),
+            )
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=400, detail="Twilio authentication failed (invalid Account SID or Auth Token)")
+        data = resp.json()
+        return {
+            "ok": True,
+            "friendly_name": data.get("friendly_name", "Twilio Account"),
+            "status": data.get("status", "active"),
+            "phone_number": phone,
+            "message": f"Twilio account '{data.get('friendly_name')}' verified successfully",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Twilio SMS test failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Twilio API")
+
+
+@router.post("/api/integrations/instagram/test")
+async def instagram_test(
+    bot_id: str,
+    page_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Validate Instagram/Messenger credentials against Meta Graph API."""
+    pid = (page_id or "").strip()
+    token = (access_token or "").strip()
+    if not pid or not token:
+        bot_res = await run_db(lambda: supabase.table("chatty_bots")
+            .select("id,instagram_page_id,instagram_access_token")
+            .eq("id", bot_id)
+            .eq("user_id", user["auth_user_id"])
+            .limit(1)
+            .execute())
+        if not bot_res.data:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        b = bot_res.data[0]
+        pid = pid or (b.get("instagram_page_id") or "").strip()
+        token = token or decrypt_secret((b.get("instagram_access_token") or "").strip())
+
+    if not pid or not token:
+        raise HTTPException(status_code=400, detail="Provide or save Meta Page ID and Access Token first")
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"https://graph.facebook.com/v21.0/{pid}",
+                params={"fields": "id,name"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        data = resp.json() if resp.status_code == 200 else {}
+        if resp.status_code >= 400 or "error" in data:
+            err_msg = data.get("error", {}).get("message", "Meta Graph API rejected credentials")
+            raise HTTPException(status_code=400, detail=f"Meta error: {err_msg[:200]}")
+        return {
+            "ok": True,
+            "page_id": data.get("id", pid),
+            "name": data.get("name", "Meta Page"),
+            "message": f"Meta Page '{data.get('name', pid)}' connected successfully",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Instagram test failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Meta Graph API")
+
+
+@router.post("/api/integrations/email/test")
+async def email_test(
+    bot_id: str,
+    support_address: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Validate inbound email support routing address."""
+    addr = (support_address or "").strip().lower()
+    if not addr:
+        bot_res = await run_db(lambda: supabase.table("chatty_bots")
+            .select("id,email_support_address")
+            .eq("id", bot_id)
+            .eq("user_id", user["auth_user_id"])
+            .limit(1)
+            .execute())
+        if not bot_res.data:
+            raise HTTPException(status_code=404, detail="Bot not found")
+        addr = (bot_res.data[0].get("email_support_address") or "").strip().lower()
+
+    if not addr or "@" not in addr or "." not in addr.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Provide a valid support email address (e.g. support@yourcompany.com)")
+
+    return {
+        "ok": True,
+        "support_address": addr,
+        "message": f"Two-way email routing active for {addr}",
+    }
+
+
 @router.post("/api/integrations/whatsapp/disconnect")
 async def whatsapp_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Disable WhatsApp and remove the bot's stored Meta credentials."""

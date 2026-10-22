@@ -132,10 +132,9 @@ async def generate_claimable_bot(
     bot_id = created["id"]
     if req.target_url:
         await assert_safe_url_async(req.target_url)
-        if isinstance(background_tasks, BackgroundTasks):
-            background_tasks.add_task(_crawl_demo_target_site, bot_id, req.target_url)
-        else:
-            asyncio.create_task(_crawl_demo_target_site(bot_id, req.target_url))
+        # Always schedule as an asyncio task so background crawl runs concurrently
+        # across both FastAPI HTTP requests and programmatic FastMCP tool calls
+        asyncio.create_task(_crawl_demo_target_site(bot_id, req.target_url))
 
     base_frontend = (FRONTEND_URL or "https://chatty.personaliai.com").rstrip("/")
     claim_url = f"{base_frontend}/claim/{claim_token}"

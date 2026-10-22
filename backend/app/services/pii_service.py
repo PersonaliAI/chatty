@@ -39,6 +39,36 @@ _API_SECRET_REGEX = re.compile(
     re.IGNORECASE,
 )
 
+# Regex for candidate International Bank Account Numbers (IBAN)
+# 2-letter ISO country code, 2 check digits, followed by 11 to 30 alphanumeric characters
+_IBAN_REGEX = re.compile(
+    r"\b[A-Za-z]{2}[0-9]{2}(?:[ -]?[0-9A-Za-z]{4}){2,7}(?:[ -]?[0-9A-Za-z]{1,4})?\b"
+)
+
+
+def is_iban_valid(candidate: str) -> bool:
+    """Verifies candidate IBAN against official ISO 7064 MOD 97-10 algorithm."""
+    clean = re.sub(r"[\s-]", "", candidate).upper()
+    if len(clean) < 14 or len(clean) > 34:
+        return False
+    if not (clean[:2].isalpha() and clean[2:4].isdigit()):
+        return False
+    # Move the first 4 characters to the end
+    rearranged = clean[4:] + clean[:4]
+    # Convert letters to digits: A=10, B=11, ... Z=35
+    digits = []
+    for char in rearranged:
+        if char.isdigit():
+            digits.append(char)
+        elif char.isalpha():
+            digits.append(str(ord(char) - 55))
+        else:
+            return False
+    try:
+        return int("".join(digits)) % 97 == 1
+    except (ValueError, OverflowError):
+        return False
+
 
 def is_luhn_valid(candidate: str) -> bool:
     """Verifies candidate card number against official MOD 10 Luhn checksum algorithm."""
@@ -111,6 +141,18 @@ def scrub_pii(text: str) -> str:
             start, end = m.span()
             scrubbed = scrubbed[:start] + replacement + scrubbed[end:]
 
+    # 4. Redact ISO 7064-valid International Bank Account Numbers (IBAN)
+    iban_matches = list(_IBAN_REGEX.finditer(scrubbed))
+    for m in reversed(iban_matches):
+        candidate_raw = m.group(0)
+        clean_iban = re.sub(r"[\s-]", "", candidate_raw).upper()
+        if is_iban_valid(clean_iban):
+            country = clean_iban[:2]
+            last4 = clean_iban[-4:]
+            replacement = f"[REDACTED_IBAN:{country}***{last4}]"
+            start, end = m.span()
+            scrubbed = scrubbed[:start] + replacement + scrubbed[end:]
+
     return scrubbed
 
 
@@ -123,5 +165,9 @@ def contains_pii(text: str) -> bool:
     for m in _CARD_CANDIDATE_REGEX.finditer(text):
         digits_only = "".join(c for c in m.group(0) if c.isdigit())
         if 13 <= len(digits_only) <= 19 and is_luhn_valid(digits_only):
+            return True
+    for m in _IBAN_REGEX.finditer(text):
+        clean_iban = re.sub(r"[\s-]", "", m.group(0)).upper()
+        if is_iban_valid(clean_iban):
             return True
     return False

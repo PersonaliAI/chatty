@@ -77,6 +77,7 @@ const featuresList: Feature[] = [
   { title: "Leads", desc: "Collect name, email, phone number of the chat visitor." },
   { title: "Bulk", desc: "Bulk operations to handle any amount of training." },
   { title: "Notifications", desc: "Receive email & webhook updates with recent conversations." },
+  { title: "GDPR & Privacy First", desc: "Enterprise data privacy: automated PII scrubbing (cards, SSN, IBAN), visitor right to erasure, and zero AI foundation training." },
 ];
 
 const faqs = [
@@ -488,6 +489,50 @@ export default function Home() {
             </button>
           </div>
           <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
+
+          {/* Trust & GDPR Compliance Badges */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-7 mt-8 pt-6 max-w-[850px] mx-auto border-t" style={{ borderColor: "var(--color-divider)" }}>
+            <Link
+              href="/dpa"
+              className="inline-flex items-center gap-2 text-xs font-medium hover:opacity-85 transition-opacity"
+              style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}
+            >
+              <span className="size-6 rounded-full bg-[#003399] flex items-center justify-center text-[#ffcc00] shrink-0 shadow-xs">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="size-3.5">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+              </span>
+              <span className="font-semibold text-zinc-900">GDPR Compliant</span>
+              <span className="text-[11px] opacity-75">(EU &amp; UK)</span>
+            </Link>
+
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
+
+            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
+              <span className="size-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+              <span>Zero AI Training Guarantee</span>
+            </div>
+
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
+
+            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3.5 text-zinc-700">
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>AES-256 Encrypted</span>
+            </div>
+
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
+
+            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3.5 text-zinc-700">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              <span>SOC 2 Aligned</span>
+            </div>
+          </div>
         </section>
 
         {/* Pricing */}
@@ -794,8 +839,10 @@ export default function Home() {
           <div>
             <p className="text-xs tracking-wide uppercase mb-3.5 font-semibold" style={{ color: "color-mix(in srgb, var(--color-text) 55%, transparent)" }}>Company</p>
             <div className="flex flex-col gap-2.5 text-sm">
-              <Link href="/privacy">Privacy</Link>
-              <Link href="/terms">Terms</Link>
+              <Link href="/privacy">Privacy Policy</Link>
+              <Link href="/terms">Terms of Service</Link>
+              <Link href="/dpa">Data Processing (DPA)</Link>
+              <Link href="/subprocessors">Sub-processors</Link>
               <Link href="/dashboard">Dashboard</Link>
             </div>
           </div>

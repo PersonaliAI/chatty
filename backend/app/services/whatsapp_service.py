@@ -259,6 +259,93 @@ async def dispatch_whatsapp_booking_confirmation(
     )
 
 
+async def dispatch_whatsapp_booking_rescheduled(
+    bot: dict[str, Any],
+    phone: str,
+    formatted_time: str,
+    meeting_link: str,
+    attendee_email: str,
+    attendee_name: str | None = None,
+) -> bool:
+    """Format and deliver an appointment rescheduling update via WhatsApp."""
+    phone_number_id = (
+        (bot.get("whatsapp_phone_number_id") or "").strip()
+        or WHATSAPP_PHONE_NUMBER_ID
+    )
+    access_token = (
+        decrypt_secret((bot.get("whatsapp_access_token") or "").strip())
+        or WHATSAPP_ACCESS_TOKEN
+    )
+
+    if not (phone_number_id and access_token):
+        logger.warning(
+            "Cannot send WhatsApp booking reschedule notice: missing credentials for bot %s",
+            bot.get("id"),
+        )
+        return False
+
+    name_greeting = f"Hi {attendee_name.strip()},\n\n" if attendee_name and attendee_name.strip() else ""
+
+    text = (
+        f"🗓️ *Appointment Rescheduled*\n\n"
+        f"{name_greeting}"
+        f"Your appointment has been successfully rescheduled to:\n"
+        f"📅 *{formatted_time}*\n\n"
+        f"🔗 *Meeting Link:* {meeting_link}\n\n"
+        f"An updated calendar invitation has been sent to *{attendee_email}*.\n"
+        f"See you then!"
+    )
+
+    return await send_whatsapp_message(
+        phone_number_id=phone_number_id,
+        to=phone,
+        text=text,
+        access_token=access_token,
+    )
+
+
+async def dispatch_whatsapp_booking_cancelled(
+    bot: dict[str, Any],
+    phone: str,
+    formatted_time: str,
+    attendee_name: str | None = None,
+    reason: str | None = None,
+) -> bool:
+    """Format and deliver an appointment cancellation notice via WhatsApp."""
+    phone_number_id = (
+        (bot.get("whatsapp_phone_number_id") or "").strip()
+        or WHATSAPP_PHONE_NUMBER_ID
+    )
+    access_token = (
+        decrypt_secret((bot.get("whatsapp_access_token") or "").strip())
+        or WHATSAPP_ACCESS_TOKEN
+    )
+
+    if not (phone_number_id and access_token):
+        logger.warning(
+            "Cannot send WhatsApp booking cancellation notice: missing credentials for bot %s",
+            bot.get("id"),
+        )
+        return False
+
+    name_greeting = f"Hi {attendee_name.strip()},\n\n" if attendee_name and attendee_name.strip() else ""
+    reason_note = f"\n*Reason:* {reason.strip()}\n" if reason and reason.strip() else ""
+
+    text = (
+        f"❌ *Appointment Cancelled*\n\n"
+        f"{name_greeting}"
+        f"Your appointment previously scheduled for *{formatted_time}* has been cancelled.{reason_note}\n\n"
+        f"If you'd like to book another time, reply to this message anytime and we'll be glad to help!"
+    )
+
+    return await send_whatsapp_message(
+        phone_number_id=phone_number_id,
+        to=phone,
+        text=text,
+        access_token=access_token,
+    )
+
+
 WHATSAPP_SERVICE_WINDOW_SECONDS = 24 * 3600  # 24 hours per Meta Business Messaging Policy
 
 DEFAULT_APPROVED_TEMPLATES: list[dict[str, Any]] = [

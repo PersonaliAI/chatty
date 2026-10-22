@@ -76,6 +76,8 @@ from app.services.widget_session_service import (
 )
 from app.services.whatsapp_service import (
     dispatch_whatsapp_booking_confirmation,
+    dispatch_whatsapp_booking_rescheduled,
+    dispatch_whatsapp_booking_cancelled,
     get_bot_whatsapp_secret,
     verify_whatsapp_booking_signature,
 )
@@ -99,6 +101,7 @@ from plugins import notifications as notify
 from app.services.campaign_runtime import campaign_is_active_now
 from app.services.campaign_audience import campaign_audience_matches
 from app.services.flow_runtime import run_widget_flow
+from app.services.pii_service import scrub_pii
 
 # Bridged helpers still living in main.py (Phase 2 leaves these in place to
 # avoid a large, risky helper-extraction pass alongside the route split).
@@ -553,10 +556,10 @@ async def widget_chat(
 ):
     bot_id = body.bot_id
     session_id = body.session_id
-    text = body.text
+    text = scrub_pii(body.text)
     usage_units = usage_units_for_message(text)
     visitor_timezone = body.visitor_timezone
-    visitor_name = (body.visitor_name or "").strip()[:120] or None
+    visitor_name = scrub_pii((body.visitor_name or "").strip()[:120]) or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
     if visitor_email and not _is_valid_email(visitor_email):
         raise HTTPException(status_code=400, detail="visitor_email must be a valid email address")
@@ -862,10 +865,10 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     """
     bot_id = body.bot_id
     session_id = body.session_id
-    text = body.text
+    text = scrub_pii(body.text)
     usage_units = usage_units_for_message(text)
     visitor_timezone = body.visitor_timezone
-    visitor_name = (body.visitor_name or "").strip()[:120] or None
+    visitor_name = scrub_pii((body.visitor_name or "").strip()[:120]) or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
     if visitor_email and not _is_valid_email(visitor_email):
         raise HTTPException(status_code=400, detail="visitor_email must be a valid email address")
@@ -2897,6 +2900,36 @@ async def widget_booking_reschedule(
         except Exception:
             logger.exception("Failed to record reschedule in chatty_conversations")
 
+    # If the booking originated from WhatsApp (wa:<phone>), dispatch WhatsApp reschedule notice
+    if body.session_id and body.session_id.startswith("wa:"):
+        wa_phone = body.session_id[3:].strip()
+        secret = get_bot_whatsapp_secret(bot)
+        sig_valid = False
+        if body.t and body.sig:
+            sig_valid = verify_whatsapp_booking_signature(
+                bot_id=body.bot_id,
+                phone=wa_phone,
+                timestamp=body.t,
+                signature=body.sig,
+                secret=secret,
+            )
+        else:
+            sig_valid = True
+
+        if sig_valid:
+            try:
+                await dispatch_whatsapp_booking_rescheduled(
+                    bot=bot,
+                    phone=wa_phone,
+                    formatted_time=formatted_time,
+                    meeting_link=meeting_link,
+                    attendee_email=visitor_email,
+                    attendee_name=meeting.get("attendee_name") or "Guest",
+                )
+                logger.info("WhatsApp booking reschedule notice sent")
+            except Exception:
+                logger.exception("Failed to dispatch WhatsApp booking reschedule notice")
+
     return {
         "success": True,
         "meeting_id": meeting["id"],
@@ -3000,6 +3033,35 @@ async def widget_booking_cancel(
             }).execute())
         except Exception:
             logger.exception("Failed to record cancellation in chatty_conversations")
+
+    # If the booking originated from WhatsApp (wa:<phone>), dispatch WhatsApp cancellation notice
+    if body.session_id and body.session_id.startswith("wa:"):
+        wa_phone = body.session_id[3:].strip()
+        secret = get_bot_whatsapp_secret(bot)
+        sig_valid = False
+        if body.t and body.sig:
+            sig_valid = verify_whatsapp_booking_signature(
+                bot_id=body.bot_id,
+                phone=wa_phone,
+                timestamp=body.t,
+                signature=body.sig,
+                secret=secret,
+            )
+        else:
+            sig_valid = True
+
+        if sig_valid:
+            try:
+                await dispatch_whatsapp_booking_cancelled(
+                    bot=bot,
+                    phone=wa_phone,
+                    formatted_time=formatted_time,
+                    attendee_name=meeting.get("attendee_name") or "Guest",
+                    reason=body.reason,
+                )
+                logger.info("WhatsApp booking cancellation notice sent")
+            except Exception:
+                logger.exception("Failed to dispatch WhatsApp booking cancellation notice")
 
     return {
         "success": True,

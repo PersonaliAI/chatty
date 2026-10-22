@@ -10,7 +10,9 @@
     "ip-address": "10.7.2",
     "@grpc/grpc-js": "1.13.6",
     "moment": "2.31.0",
-    "undici": "7.30.0"
+    "undici": "7.30.0",
+    "markdown-it": "^14.3.3",
+    "hono": "^4.13.13"
   },
   "scripts": {
     "dev": "next dev",

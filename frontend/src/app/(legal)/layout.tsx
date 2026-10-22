@@ -14,10 +14,12 @@ export default function LegalLayout({
             <Image src="/favicon.png" alt="Chatty Logo" width={28} height={28} className="object-contain" priority />
             <span className="font-display font-bold text-lg text-zinc-950">Chatty</span>
           </Link>
-          <nav className="flex items-center gap-6 text-xs font-semibold text-zinc-600">
+          <nav className="flex items-center gap-5 text-xs font-semibold text-zinc-600">
             <Link href="/" className="hover:text-zinc-950 transition-colors">Home</Link>
             <Link href="/privacy" className="hover:text-[#f95721] transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-[#f95721] transition-colors">Terms</Link>
+            <Link href="/dpa" className="hover:text-[#f95721] transition-colors">DPA</Link>
+            <Link href="/subprocessors" className="hover:text-[#f95721] transition-colors">Sub-processors</Link>
             <Link href="/support" className="hover:text-[#f95721] transition-colors">Support</Link>
             <Link
               href="/signup"
@@ -38,10 +40,12 @@ export default function LegalLayout({
       <footer className="border-t border-zinc-200 bg-zinc-50 py-8 text-xs text-zinc-500">
         <div className="mx-auto max-w-4xl px-6 flex flex-wrap items-center justify-between gap-4">
           <span>© {new Date().getFullYear()} PersonaliAI. All rights reserved.</span>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <Link href="/" className="hover:text-zinc-900">Chatty Home</Link>
             <Link href="/privacy" className="hover:text-zinc-900">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-zinc-900">Terms of Service</Link>
+            <Link href="/dpa" className="hover:text-zinc-900">DPA (GDPR Art. 28)</Link>
+            <Link href="/subprocessors" className="hover:text-zinc-900">Sub-processors</Link>
             <Link href="/support" className="hover:text-zinc-900">Support</Link>
           </div>
         </div>

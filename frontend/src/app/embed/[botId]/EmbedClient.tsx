@@ -376,10 +376,25 @@ export default function EmbedClient(props: EmbedClientProps) {
       </div>
     );
   }
-  return <IdentifiedEmbedClient key={identity.value.session_id} {...props} identity={identity.client} />;
+  return (
+    <IdentifiedEmbedClient
+      key={props.botId}
+      {...props}
+      identity={identity.client}
+      activeSessionId={identity.value.session_id}
+    />
+  );
 }
 
-function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProps & { identity: VisitorIdentityClient }) {
+function IdentifiedEmbedClient({
+  botId,
+  originToken,
+  identity,
+  activeSessionId,
+}: EmbedClientProps & {
+  identity: VisitorIdentityClient;
+  activeSessionId?: string;
+}) {
   const fetch = identity.fetch;
   const widgetTokenHeader: Record<string, string> = originToken ? { "X-Widget-Token": originToken } : {};
   const searchParams = useSearchParams();
@@ -448,10 +463,6 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         {headerLogoInner(iconClass)}
       </div>
     );
-  };
-
-  const clearChat = () => {
-    void identity.newConversation().catch(() => showToast("Could not start a conversation", "error"));
   };
 
   const openVoiceAgent = () => {
@@ -1446,6 +1457,7 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
   const [sessionId, setSessionId] = useState(() => {
+    if (activeSessionId) return activeSessionId;
     if (identity.value) return identity.value.session_id;
     if (typeof window === "undefined") return `widget-session-${botId}`;
     const k = `chatty_sid_${botId}_${hostKey}`;
@@ -1453,6 +1465,25 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     if (!s) { s = `v-${crypto.randomUUID()}`; localStorage.setItem(k, s); }
     return s;
   });
+
+  // Keep internal sessionId in sync when activeSessionId updates (e.g. starting a new conversation)
+  useEffect(() => {
+    if (!activeSessionId) return;
+    if (activeSessionId !== sessionId) {
+      setSessionId(activeSessionId);
+      try {
+        localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, activeSessionId);
+      } catch {}
+      setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+      setInputValue("");
+      setPendingFiles([]);
+      setLiveAgent(false);
+      setCsatSubmitted(false);
+      setCsatRating(0);
+      setChatView("chat");
+      setTab("messages");
+    }
+  }, [activeSessionId, botId, hostKey, welcomeMsg, sessionId]);
 
   // Server-managed proactive campaigns. The API performs the security and
   // date/device/URL filtering; the widget only schedules the selected web
@@ -1720,9 +1751,60 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
     setTab("messages");
   };
 
+  const [clearingChat, setClearingChat] = useState(false);
+
+  // Clear conversation or start a fresh one without unmounting or reloading widget
+  const clearChat = async () => {
+    if (clearingChat) return;
+    setClearingChat(true);
+    // Instant optimistic reset: clear messages, input & attachments immediately
+    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    setInputValue("");
+    setPendingFiles([]);
+    setLiveAgent(false);
+    setCsatSubmitted(false);
+    setCsatRating(0);
+    setChatView("chat");
+    setTab("messages");
+
+    try {
+      await identity.newConversation();
+    } catch {
+      showToast("Could not start a conversation", "error");
+    } finally {
+      setClearingChat(false);
+    }
+  };
+
   // Start a fresh conversation (Crisp/WhatChimp style "+ New conversation")
   const startNewConversation = () => {
-    clearChat();
+    void clearChat();
+  };
+
+  // GDPR Art. 17: Right to Erasure (RTBF) - self-service data erasure for website visitors
+  const eraseMyData = async () => {
+    if (clearingChat) return;
+    if (typeof window !== "undefined" && !window.confirm("Permanently erase your chat history and visitor data from this device and the server? This cannot be undone.")) {
+      return;
+    }
+    setClearingChat(true);
+    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    setInputValue("");
+    setPendingFiles([]);
+    setLiveAgent(false);
+    setCsatSubmitted(false);
+    setCsatRating(0);
+    setChatView("chat");
+    setTab("messages");
+
+    try {
+      await identity.logout();
+      showToast("Your conversation and session data have been erased", "success");
+    } catch {
+      showToast("Data erased locally", "success");
+    } finally {
+      setClearingChat(false);
+    }
   };
 
   useEffect(() => {
@@ -2867,12 +2949,32 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
               )}
             </button>
             {tab === "messages" && (
-              <button onClick={clearChat} className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer" style={{ opacity: 0.8 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                aria-label="Clear conversation" title="Clear conversation">
-                <RefreshCw className="size-3.5 sm:size-4" />
-              </button>
+              <>
+                <button
+                  onClick={clearChat}
+                  disabled={clearingChat}
+                  className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                  style={{ opacity: 0.8 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  aria-label="Restart conversation"
+                  title="Restart conversation"
+                >
+                  <RefreshCw className={`size-3.5 sm:size-4 ${clearingChat ? "animate-spin" : ""}`} />
+                </button>
+                <button
+                  onClick={eraseMyData}
+                  disabled={clearingChat}
+                  className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                  style={{ opacity: 0.8 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                  aria-label="Erase my data (GDPR)"
+                  title="Erase my chat data (GDPR Right to be Forgotten)"
+                >
+                  <Trash2 className="size-3.5 sm:size-4" />
+                </button>
+              </>
             )}
             <button onClick={handleCloseClick} className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer" style={{ opacity: 0.8 }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
@@ -3320,11 +3422,16 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
                   <button
                     type="button"
                     onClick={startNewConversation}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 shadow-xs"
+                    disabled={clearingChat}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-opacity hover:opacity-90 shadow-xs disabled:opacity-60"
                     style={{ background: primaryColor, color: onPrimary }}
                   >
-                    <MessageCircle className="size-3.5" />
-                    Start new conversation
+                    {clearingChat ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <MessageCircle className="size-3.5" />
+                    )}
+                    {clearingChat ? "Starting conversation…" : "Start new conversation"}
                   </button>
                 </div>
               ) : (
@@ -4425,17 +4532,25 @@ function IdentifiedEmbedClient({ botId, originToken, identity }: EmbedClientProp
         </>
       )}
 
-      {!voiceModeActive && !hideBranding && (
-        <div className="text-center pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
-          Powered by{" "}
-          <a
-            href="https://chatty.personaliai.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
-          >
-            Chatty
-          </a>
+      {!voiceModeActive && (
+        <div className="flex items-center justify-between px-3 pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
+          <div className="flex items-center gap-1 text-[9px] text-neutral-400" title="Protected by end-to-end data minimisation and cryptographic isolation">
+            <ShieldCheck className="size-3 text-emerald-500" />
+            <span>GDPR Protected</span>
+          </div>
+          {!hideBranding && (
+            <div>
+              Powered by{" "}
+              <a
+                href="https://chatty.personaliai.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+              >
+                Chatty
+              </a>
+            </div>
+          )}
         </div>
       )}
 

@@ -45,3 +45,9 @@ firebase-debug.log
 *gcp-key*.json
 gcp-key.json
 *.key.json
+
+# Scratch files and temporary scripts
+scratch_*
+*.tmp
+sync_doneas_bot.py
+format_articles_via_mcp.mjs

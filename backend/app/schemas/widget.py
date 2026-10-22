@@ -122,6 +122,8 @@ class WidgetBookingRescheduleRequest(BaseModel):
     new_start_time: str
     new_end_time: str
     visitor_timezone: Optional[str] = "UTC"
+    t: Optional[str] = None
+    sig: Optional[str] = None
 
 
 class WidgetBookingCancelRequest(BaseModel):
@@ -130,4 +132,5 @@ class WidgetBookingCancelRequest(BaseModel):
     meeting_id: str
     attendee_email: str
     reason: Optional[str] = None
-
+    t: Optional[str] = None
+    sig: Optional[str] = None

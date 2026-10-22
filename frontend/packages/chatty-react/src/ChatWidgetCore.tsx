@@ -584,7 +584,14 @@ export default function ChatWidgetCore(props: ChatWidgetCoreProps) {
       </div>
     );
   }
-  return <IdentifiedChatWidget key={identity.value.session_id} {...props} identity={identity.client} />;
+  return (
+    <IdentifiedChatWidget
+      key={props.botId}
+      {...props}
+      identity={identity.client}
+      activeSessionId={identity.value.session_id}
+    />
+  );
 }
 
 function IdentifiedChatWidget({
@@ -616,7 +623,8 @@ function IdentifiedChatWidget({
   mode = "chat",
   initialVoiceOpen,
   identity,
-}: ChatWidgetCoreProps & { identity: VisitorIdentityClient }) {
+  activeSessionId,
+}: ChatWidgetCoreProps & { identity: VisitorIdentityClient; activeSessionId?: string }) {
   const fetch = identity.fetch;
   // Auto-verify our own origin when the caller didn't supply a token at all
   // (a same-realm mount has no server-captured Referer for anyone else to
@@ -695,10 +703,6 @@ function IdentifiedChatWidget({
         {headerLogoInner(iconClass)}
       </div>
     );
-  };
-
-  const clearChat = () => {
-    void identity.newConversation().catch(() => showToast("Could not start a conversation", "error"));
   };
 
   const [loading, setLoading] = useState(true);
@@ -1532,6 +1536,7 @@ function IdentifiedChatWidget({
 
   // Persistent per-visitor session id (survives reloads, unique per visitor)
   const [sessionId, setSessionId] = useState(() => {
+    if (activeSessionId) return activeSessionId;
     if (identity.value) return identity.value.session_id;
     if (typeof window === "undefined") return `widget-session-${botId}`;
     const k = `chatty_sid_${botId}_${hostKey}`;
@@ -1539,6 +1544,51 @@ function IdentifiedChatWidget({
     if (!s) { s = `v-${crypto.randomUUID()}`; localStorage.setItem(k, s); }
     return s;
   });
+
+  const [clearingChat, setClearingChat] = useState(false);
+
+  // Clear conversation or start a fresh one without unmounting or reloading widget
+  const clearChat = async () => {
+    if (clearingChat) return;
+    setClearingChat(true);
+    setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+    setInputValue("");
+    setPendingFiles([]);
+    setLiveAgent(false);
+    setCsatSubmitted(false);
+    setCsatRating(0);
+    setCsatComment("");
+    setChatView("conversation");
+    setTab("messages");
+
+    try {
+      await identity.newConversation();
+    } catch {
+      showToast("Could not start a conversation", "error");
+    } finally {
+      setClearingChat(false);
+    }
+  };
+
+  // Keep internal sessionId in sync when activeSessionId updates (e.g. starting a new conversation)
+  useEffect(() => {
+    if (!activeSessionId) return;
+    if (activeSessionId !== sessionId) {
+      setSessionId(activeSessionId);
+      try {
+        localStorage.setItem(`chatty_sid_${botId}_${hostKey}`, activeSessionId);
+      } catch {}
+      setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
+      setInputValue("");
+      setPendingFiles([]);
+      setLiveAgent(false);
+      setCsatSubmitted(false);
+      setCsatRating(0);
+      setCsatComment("");
+      setChatView("conversation");
+      setTab("messages");
+    }
+  }, [activeSessionId, botId, hostKey, welcomeMsg, sessionId]);
 
   // Keep the explicit follow-up address across widget reloads for this bot,
   // host, and visitor session. It remains scoped to the host and is never
@@ -2849,11 +2899,17 @@ function IdentifiedChatWidget({
               )}
             </button>
             {tab === "messages" && (
-              <button onClick={clearChat} className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer" style={{ opacity: 0.8 }}
+              <button
+                onClick={clearChat}
+                disabled={clearingChat}
+                className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                style={{ opacity: 0.8 }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                aria-label="Clear conversation" title="Clear conversation">
-                <RefreshCw className="size-3.5 sm:size-4" />
+                aria-label="Clear conversation"
+                title="Clear conversation"
+              >
+                <RefreshCw className={`size-3.5 sm:size-4 ${clearingChat ? "animate-spin" : ""}`} />
               </button>
             )}
             <button onClick={handleCloseClick} className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer" style={{ opacity: 0.8 }}

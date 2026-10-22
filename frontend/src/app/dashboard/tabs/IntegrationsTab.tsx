@@ -1,7 +1,6 @@
 "use client";
 
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
-
 import React, { useState } from "react";
 import {
   Check,
@@ -20,6 +19,8 @@ import {
   ShieldCheck,
   MessageSquare,
   Loader2,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 
 const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
@@ -29,7 +30,7 @@ const logoUrl = (domain: string) =>
 
 function PlatformIcon({ domain, label }: { domain: string; label: string }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
+    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL with fallback
     <img
       src={logoUrl(domain)}
       alt={label}
@@ -43,7 +44,7 @@ function PlatformIcon({ domain, label }: { domain: string; label: string }) {
 
 function MobilePlatformIcon({ domain, label }: { domain: string; label: string }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL (not in next/image's allowlist) with its own onError fallback
+    // eslint-disable-next-line @next/next/no-img-element -- external img.logo.dev URL with fallback
     <img
       src={logoUrl(domain)}
       alt={label}
@@ -54,6 +55,59 @@ function MobilePlatformIcon({ domain, label }: { domain: string; label: string }
     />
   );
 }
+
+/* -------------------------------------------------------------------------- */
+/* Channel SVG Icons for Brand Authenticity                                   */
+/* -------------------------------------------------------------------------- */
+
+function WhatsAppBrandIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.53 7.34C9.36 7.34 9.09 7.4 8.87 7.65C8.65 7.89 8.02 8.48 8.02 9.7C8.02 10.92 8.91 12.1 9.03 12.26C9.16 12.43 10.74 14.86 13.17 15.91C13.75 16.16 14.2 16.31 14.55 16.42C15.13 16.61 15.66 16.58 16.08 16.52C16.55 16.45 17.53 15.93 17.73 15.35C17.94 14.78 17.94 14.29 17.88 14.18C17.82 14.07 17.65 14.01 17.4 13.88C17.14 13.76 15.89 13.14 15.66 13.06C15.43 12.97 15.26 12.93 15.09 13.18C14.93 13.43 14.44 14.01 14.29 14.18C14.14 14.36 14 14.38 13.74 14.25C13.49 14.13 12.68 13.86 11.72 13.01C10.97 12.34 10.46 11.52 10.32 11.27C10.17 11.02 10.3 10.88 10.43 10.76C10.54 10.65 10.68 10.47 10.81 10.32C10.94 10.17 10.98 10.07 11.07 9.89C11.15 9.72 11.11 9.57 11.05 9.45C10.98 9.32 10.43 7.97 10.2 7.42C9.98 6.89 9.75 6.96 9.53 7.34Z" />
+    </svg>
+  );
+}
+
+function InstagramBrandIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
+function TelegramBrandIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
+    </svg>
+  );
+}
+
+function SmsBrandIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      <path d="M8 9h8" />
+      <path d="M8 13h5" />
+    </svg>
+  );
+}
+
+function EmailBrandIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="20" height="16" x="2" y="4" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Component Props                                                            */
+/* -------------------------------------------------------------------------- */
 
 interface IntegrationsTabProps {
   embedPlatform: string | null;
@@ -72,7 +126,8 @@ interface IntegrationsTabProps {
   setAllowedDomains: (d: string[]) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handleInputChange: (setter: (v: any) => void, val: any) => void;
-  // WhatsApp Business Channel
+
+  // 1. WhatsApp Business Channel
   whatsappEnabled?: boolean;
   setWhatsappEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
   whatsappPhoneNumberId?: string;
@@ -87,6 +142,49 @@ interface IntegrationsTabProps {
   setWhatsappAppSecret?: (v: string) => void;
   whatsappQuickReplies?: string[];
   setWhatsappQuickReplies?: (v: string[]) => void;
+
+  // 2. Instagram DM & Facebook Messenger Channel
+  instagramEnabled?: boolean;
+  setInstagramEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  instagramPageId?: string;
+  setInstagramPageId?: (v: string) => void;
+  instagramAccessToken?: string;
+  setInstagramAccessToken?: (v: string) => void;
+  instagramVerifyToken?: string;
+  setInstagramVerifyToken?: (v: string) => void;
+  instagramAppSecret?: string;
+  setInstagramAppSecret?: (v: string) => void;
+
+  // 3. Telegram Bot Channel
+  telegramEnabled?: boolean;
+  setTelegramEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  telegramBotToken?: string;
+  setTelegramBotToken?: (v: string) => void;
+  telegramSecretToken?: string;
+  setTelegramSecretToken?: (v: string) => void;
+  telegramBotUsername?: string;
+  setTelegramBotUsername?: (v: string) => void;
+
+  // 4. Twilio SMS Channel
+  smsEnabled?: boolean;
+  setSmsEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  twilioAccountSid?: string;
+  setTwilioAccountSid?: (v: string) => void;
+  twilioAuthToken?: string;
+  setTwilioAuthToken?: (v: string) => void;
+  twilioPhoneNumber?: string;
+  setTwilioPhoneNumber?: (v: string) => void;
+
+  // 5. Two-Way Support Email Channel
+  emailChannelEnabled?: boolean;
+  setEmailChannelEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  emailSupportAddress?: string;
+  setEmailSupportAddress?: (v: string) => void;
+  emailWebhookSecret?: string;
+  setEmailWebhookSecret?: (v: string) => void;
+  emailAutoReplyMode?: "instant_ai" | "draft_copilot";
+  setEmailAutoReplyMode?: (v: "instant_ai" | "draft_copilot") => void;
+
   showToast?: (msg: string, type?: "success" | "error" | "info") => void;
   authToken?: string;
 }
@@ -107,6 +205,7 @@ export function IntegrationsTab({
   allowedDomains,
   setAllowedDomains,
   handleInputChange,
+  // WhatsApp
   whatsappEnabled = false,
   setWhatsappEnabled,
   whatsappPhoneNumberId = "",
@@ -121,51 +220,150 @@ export function IntegrationsTab({
   setWhatsappAppSecret,
   whatsappQuickReplies = [],
   setWhatsappQuickReplies,
+  // Instagram
+  instagramEnabled = false,
+  setInstagramEnabled,
+  instagramPageId = "",
+  setInstagramPageId,
+  instagramAccessToken = "",
+  setInstagramAccessToken,
+  instagramVerifyToken = "",
+  setInstagramVerifyToken,
+  instagramAppSecret = "",
+  setInstagramAppSecret,
+  // Telegram
+  telegramEnabled = false,
+  setTelegramEnabled,
+  telegramBotToken = "",
+  setTelegramBotToken,
+  telegramSecretToken = "",
+  setTelegramSecretToken,
+  telegramBotUsername = "",
+  setTelegramBotUsername,
+  // SMS
+  smsEnabled = false,
+  setSmsEnabled,
+  twilioAccountSid = "",
+  setTwilioAccountSid,
+  twilioAuthToken = "",
+  setTwilioAuthToken,
+  twilioPhoneNumber = "",
+  setTwilioPhoneNumber,
+  // Email
+  emailChannelEnabled = false,
+  setEmailChannelEnabled,
+  emailSupportAddress = "",
+  setEmailSupportAddress,
+  emailWebhookSecret = "",
+  setEmailWebhookSecret,
+  emailAutoReplyMode = "instant_ai",
+  setEmailAutoReplyMode,
   showToast,
   authToken = "",
 }: IntegrationsTabProps) {
-  const [showToken, setShowToken] = useState(false);
   const { confirm, confirmationDialog } = useConfirmDialog();
-  const [showSecret, setShowSecret] = useState(false);
-  const [showSetupGuide, setShowSetupGuide] = useState(false);
-  const [newQuickReply, setNewQuickReply] = useState("");
+
+  // Active Omnichannel Channel Tab
+  type OmnichannelChannelKey = "whatsapp" | "instagram" | "telegram" | "sms" | "email";
+  const [activeChannel, setActiveChannel] = useState<OmnichannelChannelKey>("whatsapp");
+
+  // Show/Hide Secrets
+  const [showWaToken, setShowWaToken] = useState(false);
+  const [showWaSecret, setShowWaSecret] = useState(false);
+  const [showIgToken, setShowIgToken] = useState(false);
+  const [showIgSecret, setShowIgSecret] = useState(false);
+  const [showTgToken, setShowTgToken] = useState(false);
+  const [showTgSecret, setShowTgSecret] = useState(false);
+  const [showSmsToken, setShowSmsToken] = useState(false);
+  const [showEmailSecret, setShowEmailSecret] = useState(false);
+
+  // Setup Guides Collapse
+  const [showWaGuide, setShowWaGuide] = useState(false);
+  const [showIgGuide, setShowIgGuide] = useState(false);
+  const [showTgGuide, setShowTgGuide] = useState(false);
+  const [showSmsGuide, setShowSmsGuide] = useState(false);
+  const [showEmailGuide, setShowEmailGuide] = useState(false);
+
+  // Copied URLs / Snippets
   const [copiedWaUrl, setCopiedWaUrl] = useState(false);
+  const [copiedIgUrl, setCopiedIgUrl] = useState(false);
+  const [copiedTgUrl, setCopiedTgUrl] = useState(false);
+  const [copiedTgCurl, setCopiedTgCurl] = useState(false);
+  const [copiedSmsUrl, setCopiedSmsUrl] = useState(false);
+  const [copiedEmailUrl, setCopiedEmailUrl] = useState(false);
+  const [copiedVoiceSnippet, setCopiedVoiceSnippet] = useState<string | null>(null);
+
+  // Test / Connect Progress Spinners
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
   const [deauthorizingWhatsApp, setDeauthorizingWhatsApp] = useState(false);
-  const [copiedVoiceSnippet, setCopiedVoiceSnippet] = useState<string | null>(null);
+  const [testingInstagram, setTestingInstagram] = useState(false);
+  const [testingTelegram, setTestingTelegram] = useState(false);
+  const [testingSms, setTestingSms] = useState(false);
+  const [testingEmail, setTestingEmail] = useState(false);
+
+  // WhatsApp Quick Reply input
+  const [newQuickReply, setNewQuickReply] = useState("");
+
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
+
+  // Webhook URLs
+  const WA_CALLBACK_URL = `${backendUrl}/webhook/whatsapp`;
+  const IG_CALLBACK_URL = `${backendUrl}/webhook/instagram`;
+  const TG_CALLBACK_URL = `${backendUrl}/webhook/telegram${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
+  const SMS_CALLBACK_URL = `${backendUrl}/webhook/twilio/sms${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
+  const EMAIL_CALLBACK_URL = `${backendUrl}/webhook/email/inbound${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
+
+  /* -------------------------------------------------------------------------- */
+  /* Connection States Calculation                                             */
+  /* -------------------------------------------------------------------------- */
+  const isWaConnected = Boolean(whatsappEnabled && whatsappPhoneNumberId && whatsappAccessToken);
+  const isWaConfigured = Boolean(whatsappPhoneNumberId || whatsappAccessToken);
+
+  const isIgConnected = Boolean(instagramEnabled && instagramPageId && instagramAccessToken);
+  const isIgConfigured = Boolean(instagramPageId || instagramAccessToken);
+
+  const isTgConnected = Boolean(telegramEnabled && telegramBotToken);
+  const isTgConfigured = Boolean(telegramBotToken);
+
+  const isSmsConnected = Boolean(smsEnabled && twilioAccountSid && twilioAuthToken && twilioPhoneNumber);
+  const isSmsConfigured = Boolean(twilioAccountSid || twilioPhoneNumber);
+
+  const isEmailConnected = Boolean(emailChannelEnabled && emailSupportAddress);
+  const isEmailConfigured = Boolean(emailSupportAddress);
+
+  const activeChannelsCount = [isWaConnected, isIgConnected, isTgConnected, isSmsConnected, isEmailConnected].filter(Boolean).length;
+
+  /* -------------------------------------------------------------------------- */
+  /* Copy & Secret Helpers                                                      */
+  /* -------------------------------------------------------------------------- */
+  const copyText = (text: string, setter: (v: boolean) => void, toastMsg: string) => {
+    navigator.clipboard?.writeText(text);
+    setter(true);
+    setTimeout(() => setter(false), 2000);
+    showToast?.(toastMsg, "success");
+  };
 
   const handleCopyVoice = (code: string, id: string) => {
     navigator.clipboard?.writeText(code);
     setCopiedVoiceSnippet(id);
     setTimeout(() => setCopiedVoiceSnippet(null), 2000);
-    if (showToast) showToast("Snippet copied to clipboard", "success");
+    showToast?.("Snippet copied to clipboard", "success");
   };
 
-  const WA_CALLBACK_URL = "https://api.chatty.personaliai.com/webhook/whatsapp";
+  const generateSecret = (prefix: string) =>
+    `${prefix}_` + Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12);
 
-  const handleCopyWaUrl = () => {
-    navigator.clipboard?.writeText(WA_CALLBACK_URL);
-    setCopiedWaUrl(true);
-    setTimeout(() => setCopiedWaUrl(false), 2000);
-    if (showToast) showToast("Callback URL copied to clipboard", "success");
-  };
-
-  const handleGenerateVerifyToken = () => {
-    const randomSecret = "wa_" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    if (setWhatsappVerifyToken) {
-      handleInputChange(setWhatsappVerifyToken, randomSecret);
-      if (showToast) showToast("Generated new Webhook Verify Token", "info");
-    }
-  };
-
+  /* -------------------------------------------------------------------------- */
+  /* WhatsApp Actions                                                           */
+  /* -------------------------------------------------------------------------- */
   const handleAddQuickReply = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = newQuickReply.trim();
     if (!trimmed || !setWhatsappQuickReplies) return;
     if (whatsappQuickReplies.length >= 3) {
-      if (showToast) showToast("Meta allows maximum 3 quick-reply buttons per message", "error");
+      showToast?.("Meta allows maximum 3 quick-reply buttons per message", "error");
       return;
     }
     if (!whatsappQuickReplies.includes(trimmed)) {
@@ -182,9 +380,6 @@ export function IntegrationsTab({
     );
   };
 
-  const isWaConnected = whatsappEnabled && !!whatsappPhoneNumberId && !!whatsappAccessToken;
-  const isWaConfigured = !!whatsappPhoneNumberId || !!whatsappAccessToken;
-
   const handleConnectWhatsApp = async () => {
     if (!botId || !authToken) {
       showToast?.("Your session is still loading. Please try again.", "error");
@@ -192,10 +387,13 @@ export function IntegrationsTab({
     }
     setConnectingWhatsApp(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/start?bot_id=${encodeURIComponent(botId)}&redirect_path=${encodeURIComponent("/dashboard?tab=integrations")}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${authToken}` },
-      });
+      const response = await fetch(
+        `${backendUrl}/api/integrations/whatsapp/start?bot_id=${encodeURIComponent(botId)}&redirect_path=${encodeURIComponent("/dashboard?tab=integrations")}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.url) throw new Error(data.detail || "Could not start Meta connection");
       window.location.assign(data.url);
@@ -212,7 +410,7 @@ export function IntegrationsTab({
     }
     setTestingWhatsApp(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/test?bot_id=${encodeURIComponent(botId)}`, {
+      const response = await fetch(`${backendUrl}/api/integrations/whatsapp/test?bot_id=${encodeURIComponent(botId)}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
       });
@@ -228,10 +426,10 @@ export function IntegrationsTab({
 
   const handleDisconnectWhatsApp = async () => {
     if (!botId || !authToken || disconnectingWhatsApp) return;
-    if (!await confirm("Disconnect WhatsApp from this bot and remove its saved Meta credentials?")) return;
+    if (!(await confirm("Disconnect WhatsApp from this bot and remove its saved Meta credentials?"))) return;
     setDisconnectingWhatsApp(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/disconnect?bot_id=${encodeURIComponent(botId)}`, {
+      const response = await fetch(`${backendUrl}/api/integrations/whatsapp/disconnect?bot_id=${encodeURIComponent(botId)}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
       });
@@ -254,10 +452,15 @@ export function IntegrationsTab({
 
   const handleDeauthorizeWhatsApp = async () => {
     if (!botId || !authToken || deauthorizingWhatsApp) return;
-    if (!await confirm("Revoke Chatty's Meta authorization and disconnect WhatsApp? This affects this app's access and cannot be undone automatically.")) return;
+    if (
+      !(await confirm(
+        "Revoke Chatty's Meta authorization and disconnect WhatsApp? This affects this app's access and cannot be undone automatically."
+      ))
+    )
+      return;
     setDeauthorizingWhatsApp(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com"}/api/integrations/whatsapp/deauthorize?bot_id=${encodeURIComponent(botId)}`, {
+      const response = await fetch(`${backendUrl}/api/integrations/whatsapp/deauthorize?bot_id=${encodeURIComponent(botId)}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
       });
@@ -278,7 +481,117 @@ export function IntegrationsTab({
     }
   };
 
-  const platforms: { id: string; label: string; icon: React.ReactNode; badge?: string }[] = [
+  /* -------------------------------------------------------------------------- */
+  /* Instagram & Messenger Actions                                              */
+  /* -------------------------------------------------------------------------- */
+  const handleTestInstagram = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingInstagram(true);
+    try {
+      const params = new URLSearchParams({ bot_id: botId });
+      if (instagramPageId) params.append("page_id", instagramPageId);
+      if (instagramAccessToken) params.append("access_token", instagramAccessToken);
+      const res = await fetch(`${backendUrl}/api/integrations/instagram/test?${params.toString()}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Instagram connection test failed");
+      showToast?.(data.message || "Instagram DM connection verified", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Instagram connection test failed", "error");
+    } finally {
+      setTestingInstagram(false);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* Telegram Bot Actions                                                       */
+  /* -------------------------------------------------------------------------- */
+  const handleTestTelegram = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingTelegram(true);
+    try {
+      const params = new URLSearchParams({ bot_id: botId });
+      if (telegramBotToken) params.append("bot_token", telegramBotToken);
+      const res = await fetch(`${backendUrl}/api/integrations/telegram/test?${params.toString()}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Telegram connection test failed");
+      showToast?.(data.message || "Telegram Bot verified successfully", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Telegram connection test failed", "error");
+    } finally {
+      setTestingTelegram(false);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* Twilio SMS Actions                                                         */
+  /* -------------------------------------------------------------------------- */
+  const handleTestSms = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingSms(true);
+    try {
+      const params = new URLSearchParams({ bot_id: botId });
+      if (twilioAccountSid) params.append("account_sid", twilioAccountSid);
+      if (twilioAuthToken) params.append("auth_token", twilioAuthToken);
+      if (twilioPhoneNumber) params.append("phone_number", twilioPhoneNumber);
+      const res = await fetch(`${backendUrl}/api/integrations/sms/test?${params.toString()}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Twilio SMS test failed");
+      showToast?.(data.message || "Twilio account verified successfully", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Twilio SMS test failed", "error");
+    } finally {
+      setTestingSms(false);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* Two-Way Email Actions                                                      */
+  /* -------------------------------------------------------------------------- */
+  const handleTestEmail = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingEmail(true);
+    try {
+      const params = new URLSearchParams({ bot_id: botId });
+      if (emailSupportAddress) params.append("support_address", emailSupportAddress);
+      const res = await fetch(`${backendUrl}/api/integrations/email/test?${params.toString()}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Email inbound routing test failed");
+      showToast?.(data.message || "Email routing active", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Email test failed", "error");
+    } finally {
+      setTestingEmail(false);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* Embed Platforms Catalog                                                    */
+  /* -------------------------------------------------------------------------- */
+  const platforms = [
     { id: "html", label: "HTML", icon: <PlatformIcon domain="w3.org" label="HTML" /> },
     { id: "react", label: "React / Next.js", icon: <PlatformIcon domain="react.dev" label="React" /> },
     { id: "wordpress", label: "WordPress", icon: <PlatformIcon domain="wordpress.org" label="WordPress" />, badge: "Official" },
@@ -350,159 +663,172 @@ export function IntegrationsTab({
       },
       steps: [
         {
-          label:
-            "Method 1 (Recommended - Official Plugin): In your WordPress admin, navigate to Plugins → Add New Plugin, search for \"PersonaliAI Customer Support Chatbot\", and click Install Now followed by Activate.",
+          label: "Install directly from your WordPress Admin Dashboard:",
+          note: "Navigate to Plugins → Add New → Search for 'PersonaliAI' → Click 'Install Now' and 'Activate'.",
+        },
+        {
+          label: "Alternatively, download the official plugin from WordPress.org repository:",
           link: {
-            label: "WordPress.org Plugin Directory: personaliai-customer-support-chatbot",
+            label: "wordpress.org/plugins/personaliai-customer-support-chatbot",
             url: "https://wordpress.org/plugins/personaliai-customer-support-chatbot",
           },
-          note: "Note: Search indexing across WordPress.org can take up to 72 hours following directory approval. You can also download the ZIP package directly from WordPress.org and upload via Plugins → Add New → Upload Plugin.",
         },
         {
-          label:
-            "In your WordPress sidebar, open Settings → PersonaliAI Chatbot and enter your Bot ID:",
+          label: "Enter your Bot ID in WordPress Admin → Settings → PersonaliAI Chatbot:",
           code: botId || "YOUR_BOT_ID",
-          note: "Click Save Changes. Your chatbot will immediately appear live across your WordPress site with zero code editing required.",
         },
         {
-          label:
-            "Method 2 (Manual Theme Snippet - Alternative without plugin): Paste this hook into your active theme's functions.php:",
-          code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');`,
-          note: "Alternatively, paste the script snippet into the WPCode / Insert Headers and Footers plugin footer field.",
+          label: "Click Save. The AI chatbot is immediately live on your entire WordPress site.",
         },
       ],
     },
     shopify: {
       title: "Add to Shopify",
       steps: [
-        { label: "In your Shopify admin go to Online Store → Themes → Edit code." },
-        { label: "Open layout/theme.liquid and paste the snippet just before </body>:", code: embedScriptCode },
-        { label: "Click Save.", note: "The widget will appear on all storefront pages." },
+        {
+          label: "Go to Online Store → Themes in your Shopify admin.",
+        },
+        {
+          label: "Click '...' next to your active theme and select 'Edit code'.",
+        },
+        {
+          label: "Open layout/theme.liquid.",
+        },
+        {
+          label: "Paste the snippet right above the closing </body> tag:",
+          code: embedScriptCode,
+        },
+        {
+          label: "Click Save.",
+        },
       ],
     },
     prestashop: {
       title: "Add to Prestashop",
       steps: [
-        { label: "Go to Modules → Module Manager → search for Custom HTML." },
         {
-          label: "If unavailable, edit your active theme's footer.tpl and paste just before </body>:",
-          code: embedScriptCode,
+          label: "Connect to your FTP or file manager.",
         },
         {
-          label: "Clear the Prestashop cache under Advanced Parameters → Performance.",
-          note: "Requires FTP access to edit templates directly.",
+          label: "Navigate to /themes/your-theme/templates/_partials/javascript.tpl (or footer.tpl in 1.6).",
+        },
+        {
+          label: "Paste the snippet inside a {literal} block at the bottom:",
+          code: `{literal}\n${embedScriptCode}\n{/literal}`,
+        },
+        {
+          label: "Clear Prestashop cache in Advanced Parameters → Performance.",
         },
       ],
     },
     woocommerce: {
-      title: "Add to WooCommerce (WordPress)",
-      badge: "Official Plugin Ready",
-      actionLink: {
-        label: "View on WordPress.org",
-        url: "https://wordpress.org/plugins/personaliai-customer-support-chatbot",
-      },
+      title: "Add to WooCommerce",
       steps: [
         {
-          label:
-            "Method 1 (Recommended - Official Plugin): Install the official PersonaliAI Customer Support Chatbot plugin directly from WordPress.org:",
+          label: "Install the official WordPress plugin (recommended):",
           link: {
-            label: "WordPress.org: PersonaliAI Customer Support Chatbot",
+            label: "Official WordPress.org Plugin",
             url: "https://wordpress.org/plugins/personaliai-customer-support-chatbot",
           },
-          note: "Fully compatible with WooCommerce product catalog pages, cart, and checkout.",
         },
         {
-          label:
-            "In your WordPress sidebar, open Settings → PersonaliAI Chatbot and enter your Bot ID:",
-          code: botId || "YOUR_BOT_ID",
-          note: "Save Changes. The chatbot will assist shoppers with pre-sale questions, FAQs, and lead capture automatically.",
-        },
-        {
-          label:
-            "Method 2 (Manual Theme Snippet): Or add directly to Appearance → Theme File Editor → functions.php:",
-          code: `function chatty_widget() { ?>\n${embedScriptCode}\n<?php }\nadd_action('wp_footer', 'chatty_widget');`,
-          note: "No WooCommerce-specific coding required.",
+          label: "Or add the script via your child theme's functions.php:",
+          code: `add_action('wp_footer', function() {\n    echo '${embedScriptCode.replace(/'/g, "\\'")}';\n});`,
         },
       ],
     },
     whmcs: {
       title: "Add to WHMCS",
       steps: [
-        { label: "Navigate to your WHMCS template folder: /templates/<your-theme>/footer.tpl" },
-        { label: "Paste the snippet just before </body>:", code: embedScriptCode },
         {
-          label: "Save and clear the WHMCS template cache.",
-          note: "Make sure to replace <your-theme> with your active template name.",
+          label: "Navigate to /templates/{your_active_template}/footer.tpl in your WHMCS installation.",
+        },
+        {
+          label: "Paste the snippet before the closing </body> tag:",
+          code: embedScriptCode,
+        },
+        {
+          label: "Save and clear template cache in Setup → General Settings.",
         },
       ],
     },
     adobe: {
-      title: "Add to Adobe Commerce (Magento)",
+      title: "Add to Adobe Commerce / Magento 2",
       steps: [
-        { label: "In your Magento admin go to Content → Configuration → Edit your store view." },
         {
-          label:
-            "Under HTML Head → Scripts and Style Sheets, or use a CMS Block / Widget. Alternatively edit app/design/frontend/<Vendor>/<theme>/Magento_Theme/layout/default.xml and add a block referencing a custom .phtml containing:",
+          label: "In Admin, go to Content → Design → Configuration.",
+        },
+        {
+          label: "Edit your current theme/store view.",
+        },
+        {
+          label: "Scroll to HTML Head → Miscellaneous Scripts, or Footer → Miscellaneous HTML.",
+        },
+        {
+          label: "Paste the snippet:",
           code: embedScriptCode,
         },
-        { label: "Run bin/magento cache:flush after saving.", note: "Using a CMS Static Block is the no-deploy option." },
+        {
+          label: "Save Configuration and flush Cache (System → Cache Management).",
+        },
       ],
     },
     iframe: {
-      title: "Inline In-Page Embed",
+      title: "Direct Iframe Embed",
       steps: [
         {
-          label: "Paste this embed code wherever you want a full in-page chat window:",
+          label: "Embed the chat window directly inside an existing section or page:",
           code: embedIframeCode,
-        },
-        {
-          label: "Adjust width and height attributes to fit your layout.",
-          note: "The inline embed renders directly in-page without the floating launcher button.",
         },
       ],
     },
   };
 
-  const selected = embedPlatform ? platformInstructions[embedPlatform] : null;
+  const selectedPlatform = embedPlatform ? platformInstructions[embedPlatform] : null;
 
+  /* -------------------------------------------------------------------------- */
+  /* Mobile SDKs Catalog                                                        */
+  /* -------------------------------------------------------------------------- */
   const mobilePlatforms = [
-    { id: "ios", label: "iOS SDK", icon: <MobilePlatformIcon domain="apple.com" label="iOS" /> },
-    { id: "android", label: "Android SDK", icon: <MobilePlatformIcon domain="android.com" label="Android" /> },
-    {
-      id: "react-native",
-      label: "React Native SDK",
-      icon: <MobilePlatformIcon domain="reactnative.dev" label="React Native" />,
-    },
+    { id: "ios", label: "iOS (Swift)", icon: <MobilePlatformIcon domain="apple.com" label="iOS" /> },
+    { id: "android", label: "Android (Kotlin)", icon: <MobilePlatformIcon domain="android.com" label="Android" /> },
+    { id: "react-native", label: "React Native", icon: <MobilePlatformIcon domain="reactnative.dev" label="React Native" /> },
   ];
 
   const mobileInstructions: Record<
     string,
-    { title: string; steps: { label: string; code?: string; note?: string }[] }
+    {
+      title: string;
+      steps: {
+        label: string;
+        code?: string;
+        note?: string;
+      }[];
+    }
   > = {
     ios: {
-      title: "iOS SDK (Swift Package, SwiftUI)",
+      title: "iOS SDK (Swift, SwiftUI)",
       steps: [
         {
-          label: "In Xcode: File → Add Package Dependencies, paste the URL below and select version 1.0.8:",
+          label: "Add the package dependency in Xcode (File → Add Package Dependencies):",
           code: `https://github.com/PersonaliAI/chatty-ios-sdk`,
         },
         {
-          label: "Add a floating launcher anywhere in your view hierarchy:",
-          code: `import ChattySDK\n\nstruct RootView: View {\n    var body: some View {\n        ContentView()\n            .overlay(ChattyLauncher(botId: "${botId || "YOUR_BOT_ID"}"))\n    }\n}`,
+          label: "Import and mount the launcher in your SwiftUI view hierarchy:",
+          code: `import SwiftUI\nimport ChattySDK\n\nstruct ContentView: View {\n    var body: some View {\n        ZStack {\n            // your existing app view\n            ChattyLauncher(botId: "${botId || "YOUR_BOT_ID"}")\n        }\n    }\n}`,
         },
         {
-          label: "Or embed a full-screen chat screen directly:",
+          label: "Or present the chat view directly in your own navigation stack:",
           code: `ChattyChatView(botId: "${botId || "YOUR_BOT_ID"}")`,
         },
-        { label: "Renders a fully native SwiftUI chat UI - no WebView.", note: "Requires iOS 15+." },
+        { label: "Renders 100% native SwiftUI components - zero WebViews.", note: "Requires iOS 15+." },
       ],
     },
     android: {
       title: "Android SDK (Kotlin, Jetpack Compose)",
       steps: [
         {
-          label:
-            "Add JitPack as a repository, then the dependency (Maven Central also has it, but lags behind at 1.0.0):",
+          label: "Add JitPack as a repository, then the dependency:",
           code: `// settings.gradle.kts\ndependencyResolutionManagement {\n    repositories {\n        maven { url = uri("https://jitpack.io") }\n    }\n}\n\n// app/build.gradle.kts\ndependencies {\n    implementation("com.github.PersonaliAI:chatty-android-sdk:v1.0.8")\n}`,
         },
         {
@@ -542,34 +868,1487 @@ export function IntegrationsTab({
   const mobileSelected = embedMobilePlatform ? mobileInstructions[embedMobilePlatform] : null;
 
   return (
-    <div className="max-w-4xl mx-auto w-full py-6 px-4 flex flex-col gap-6">
+    <div className="max-w-5xl mx-auto w-full py-6 px-4 flex flex-col gap-6">
       {confirmationDialog}
-      <nav className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center gap-1.5 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95" aria-label="Integration sections">
-        {[
-          { id: "whatsapp", label: "WhatsApp" },
-          { id: "voice", label: "LiveKit voice" },
-          { id: "embed", label: "Embed & SDKs" },
-          { id: "domains", label: "Security" },
-        ].map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => document.getElementById(`integration-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="min-h-9 flex-1 rounded-xl px-3 py-2 text-[11px] font-bold text-neutral-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:text-neutral-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 sm:flex-none"
-          >
-            {item.label}
-          </button>
-        ))}
+
+      {/* Sticky Navigation Bar */}
+      <nav
+        className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center justify-between gap-1.5 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95"
+        aria-label="Integration sections"
+      >
+        <div className="flex flex-wrap items-center gap-1.5 flex-1">
+          {[
+            { id: "omnichannel", label: "Omnichannel Messaging", badge: "5 Channels" },
+            { id: "voice", label: "LiveKit Voice" },
+            { id: "embed", label: "Embed & SDKs" },
+            { id: "domains", label: "Domain Security" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() =>
+                document.getElementById(`integration-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+              className="inline-flex items-center gap-1.5 min-h-9 rounded-xl px-3.5 py-2 text-xs font-bold text-neutral-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:text-neutral-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 cursor-pointer"
+            >
+              <span>{item.label}</span>
+              {item.badge && (
+                <span className="rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 text-[9px] font-extrabold px-1.5 py-0.5">
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="hidden sm:flex items-center gap-2 px-3 text-xs text-neutral-500 dark:text-neutral-400">
+          <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="font-medium">{activeChannelsCount} active channel{activeChannelsCount === 1 ? "" : "s"}</span>
+        </div>
       </nav>
 
-            <div id="integration-voice" className="order-1 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-violet-200/80 dark:border-violet-900/60 rounded-2xl space-y-5 shadow-sm">
+      {/* ==================================================================== */}
+      {/* SECTION 1: OMNICHANNEL MESSAGING HUB                                 */}
+      {/* ==================================================================== */}
+      <div
+        id="integration-omnichannel"
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-7 shadow-sm"
+      >
+        {/* Hub Executive Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-neutral-100 dark:border-neutral-800/80">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex size-9 items-center justify-center rounded-xl bg-orange-500/10 text-[#f97316] border border-orange-500/20 shadow-xs">
+                <Sparkles className="size-5" />
+              </span>
+              <div>
+                <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                  Omnichannel Messaging Hub
+                  <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 border border-emerald-500/20">
+                    Industrial Grade
+                  </span>
+                </h2>
+              </div>
+            </div>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              Connect your AI agent across the 5 essential global messaging channels. Delivers instant autonomous answers,
+              in-chat calendar bookings, verified HMAC security, CRM contact persistence, and live human takeover.
+            </p>
+          </div>
+
+          {/* Quick Stats Pill */}
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto shrink-0">
+            <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 p-2.5 px-3.5 flex items-center gap-3 text-xs">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-bold">Active Channels</div>
+                <div className="text-sm font-extrabold text-neutral-900 dark:text-neutral-100">{activeChannelsCount} of 5 Live</div>
+              </div>
+              <div className="size-7 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold">
+                ✓
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 5 Channel Switcher Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* 1. WhatsApp */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("whatsapp")}
+            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+              activeChannel === "whatsapp"
+                ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20"
+                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="size-8 rounded-xl bg-[#25D366]/10 text-[#25D366] flex items-center justify-center">
+                <WhatsAppBrandIcon className="size-5" />
+              </div>
+              {isWaConnected ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+              ) : isWaConfigured ? (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                  Configured
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                  Off
+                </span>
+              )}
+            </div>
+            <div className="mt-3">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">WhatsApp</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">Europe & LATAM</div>
+            </div>
+            <div className="mt-2 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">90%+ Open Rates</div>
+          </button>
+
+          {/* 2. Instagram & Messenger */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("instagram")}
+            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+              activeChannel === "instagram"
+                ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 shadow-xs ring-2 ring-pink-500/20"
+                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="size-8 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center">
+                <InstagramBrandIcon className="size-5" />
+              </div>
+              {isIgConnected ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+              ) : isIgConfigured ? (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                  Configured
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                  Off
+                </span>
+              )}
+            </div>
+            <div className="mt-3">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Instagram & Messenger</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">D2C & Creators</div>
+            </div>
+            <div className="mt-2 text-[9px] font-semibold text-pink-700 dark:text-pink-400">Inbound Buyer DMs</div>
+          </button>
+
+          {/* 3. Telegram */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("telegram")}
+            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+              activeChannel === "telegram"
+                ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 shadow-xs ring-2 ring-sky-500/20"
+                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="size-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                <TelegramBrandIcon className="size-5" />
+              </div>
+              {isTgConnected ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+              ) : isTgConfigured ? (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                  Configured
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                  Off
+                </span>
+              )}
+            </div>
+            <div className="mt-3">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Telegram Bot</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">Tech & Startups</div>
+            </div>
+            <div className="mt-2 text-[9px] font-semibold text-sky-700 dark:text-sky-400">Zero-Verification Bot</div>
+          </button>
+
+          {/* 4. Twilio SMS */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("sms")}
+            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+              activeChannel === "sms"
+                ? "border-red-500 bg-red-50/50 dark:bg-red-950/20 shadow-xs ring-2 ring-red-500/20"
+                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="size-8 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center">
+                <SmsBrandIcon className="size-5" />
+              </div>
+              {isSmsConnected ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+              ) : isSmsConfigured ? (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                  Configured
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                  Off
+                </span>
+              )}
+            </div>
+            <div className="mt-3">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Two-Way SMS</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">US & Canada</div>
+            </div>
+            <div className="mt-2 text-[9px] font-semibold text-red-700 dark:text-red-400">High Conversion SMS</div>
+          </button>
+
+          {/* 5. Support Email */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("email")}
+            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+              activeChannel === "email"
+                ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-xs ring-2 ring-blue-500/20"
+                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="size-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                <EmailBrandIcon className="size-5" />
+              </div>
+              {isEmailConnected ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+              ) : isEmailConfigured ? (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                  Configured
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                  Off
+                </span>
+              )}
+            </div>
+            <div className="mt-3">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Support Email</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">B2B SaaS & Services</div>
+            </div>
+            <div className="mt-2 text-[9px] font-semibold text-blue-700 dark:text-blue-400">Threaded Forwarding</div>
+          </button>
+        </div>
+
+        {/* ------------------------------------------------------------------ */}
+        {/* ACTIVE CHANNEL WORKSPACE                                           */}
+        {/* ------------------------------------------------------------------ */}
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 p-5 sm:p-6 space-y-6">
+          {/* ================================================================ */}
+          {/* CHANNEL 1: WHATSAPP BUSINESS                                     */}
+          {/* ================================================================ */}
+          {activeChannel === "whatsapp" && (
+            <div className="space-y-6">
+              {/* Channel Header with Status & Toggle */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-[#25D366]/10 text-[#25D366] flex items-center justify-center shrink-0 border border-[#25D366]/20">
+                    <WhatsAppBrandIcon className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        WhatsApp Business (Meta Cloud API)
+                      </h3>
+                      {isWaConnected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live &bull; Connected
+                        </span>
+                      ) : isWaConfigured ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Configured (Disabled)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                          Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Dominant channel in Europe, LATAM, APAC, South Asia, and Africa. Delivers 90%+ open rates with multimedia, voice audio transcription, and interactive buttons.
+                    </p>
+                  </div>
+                </div>
+
+                {setWhatsappEnabled && (
+                  <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Enable WhatsApp integration"
+                      checked={whatsappEnabled}
+                      onChange={(e) => handleInputChange(setWhatsappEnabled, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-emerald-500"></div>
+                    <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      {whatsappEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* Meta Quick Connect Banner */}
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
+                  <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 mt-0.5">
+                    Authorize your WhatsApp Business Account. Chatty sets up the phone number and webhook automatically.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleTestWhatsApp}
+                    disabled={testingWhatsApp || !botId || !whatsappPhoneNumberId || !whatsappAccessToken}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/70 disabled:opacity-50 cursor-pointer"
+                  >
+                    {testingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {testingWhatsApp ? "Testing…" : "Test connection"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConnectWhatsApp}
+                    disabled={connectingWhatsApp || !botId}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1fbd5a] disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+                    {connectingWhatsApp ? "Connecting…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
+                  </button>
+                  {isWaConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectWhatsApp}
+                      disabled={disconnectingWhatsApp}
+                      className="inline-flex items-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+                    >
+                      {disconnectingWhatsApp ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Webhook Callback Banner */}
+              <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-emerald-500" /> Meta Webhook Callback URL
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(WA_CALLBACK_URL, setCopiedWaUrl, "WhatsApp Callback URL copied")}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                  >
+                    {copiedWaUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    {copiedWaUrl ? "Copied!" : "Copy URL"}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {WA_CALLBACK_URL}
+                </p>
+                <p className="text-[10px] text-neutral-400">
+                  Paste this into Meta Developer Dashboard &rarr; <b>WhatsApp &rarr; Configuration &rarr; Webhook Callback URL</b>.
+                </p>
+              </div>
+
+              {/* Credentials Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Phone Number ID */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Phone Number ID</span>
+                    <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={whatsappPhoneNumberId}
+                    onChange={(e) => setWhatsappPhoneNumberId && handleInputChange(setWhatsappPhoneNumberId, e.target.value)}
+                    placeholder="e.g. 104859239849201"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">15-digit identifier from Meta WhatsApp API Setup screen.</p>
+                </div>
+
+                {/* WABA ID */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    WhatsApp Business Account ID (WABA)
+                  </label>
+                  <input
+                    type="text"
+                    value={whatsappWabaId}
+                    onChange={(e) => setWhatsappWabaId && handleInputChange(setWhatsappWabaId, e.target.value)}
+                    placeholder="e.g. 192847291039485"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Business Account ID from Meta Business Manager.</p>
+                </div>
+
+                {/* Access Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Permanent Access Token</span>
+                    <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showWaToken ? "text" : "password"}
+                      value={whatsappAccessToken}
+                      onChange={(e) => setWhatsappAccessToken && handleInputChange(setWhatsappAccessToken, e.target.value)}
+                      placeholder="EAA..."
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWaToken(!showWaToken)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showWaToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">System user token with <code>whatsapp_business_messaging</code>.</p>
+                </div>
+
+                {/* Webhook Verify Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Webhook Verify Token</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = generateSecret("wa");
+                        if (setWhatsappVerifyToken) handleInputChange(setWhatsappVerifyToken, token);
+                        showToast?.("Generated new WhatsApp Verify Token", "info");
+                      }}
+                      className="text-[10px] text-orange-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="size-2.5" /> Generate Secret
+                    </button>
+                  </label>
+                  <input
+                    type="text"
+                    value={whatsappVerifyToken}
+                    onChange={(e) => setWhatsappVerifyToken && handleInputChange(setWhatsappVerifyToken, e.target.value)}
+                    placeholder="e.g. chatty_wa_secret_12345"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Secret string entered in Meta webhook verification modal.</p>
+                </div>
+
+                {/* Meta App Secret */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Key className="size-3.5 text-emerald-500" /> Meta App Secret (HMAC-SHA256 Verification)
+                    </span>
+                    <span className="text-[10px] text-neutral-400">Recommended for security</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showWaSecret ? "text" : "password"}
+                      value={whatsappAppSecret}
+                      onChange={(e) => setWhatsappAppSecret && handleInputChange(setWhatsappAppSecret, e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWaSecret(!showWaSecret)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showWaSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    From Meta App Dashboard &rarr; <b>App settings &rarr; Basic &rarr; App secret</b>. Cryptographically validates the <code>X-Hub-Signature-256</code> header.
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick-Reply Buttons */}
+              <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                    <MessageSquare className="size-3.5 text-orange-500" /> Interactive Quick-Reply Buttons (Optional)
+                  </label>
+                  <span className="text-[10px] text-neutral-400">Max 3 buttons (Meta limit)</span>
+                </div>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Attach one-tap buttons below AI answers on WhatsApp (e.g. <i>&ldquo;Book a Call&rdquo;</i>, <i>&ldquo;Talk to Human&rdquo;</i>, <i>&ldquo;Pricing&rdquo;</i>).
+                </p>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {whatsappQuickReplies.map((btn) => (
+                    <span
+                      key={btn}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-800 dark:text-neutral-200 shadow-2xs"
+                    >
+                      {btn}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveQuickReply(btn)}
+                        className="text-neutral-400 hover:text-red-500 cursor-pointer"
+                        title="Remove button"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {whatsappQuickReplies.length < 3 && (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newQuickReply}
+                        onChange={(e) => setNewQuickReply(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddQuickReply();
+                          }
+                        }}
+                        placeholder="Button label..."
+                        maxLength={20}
+                        className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-xs focus:outline-none w-32"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddQuickReply}
+                        disabled={!newQuickReply.trim()}
+                        className="px-2.5 py-1 rounded-lg bg-orange-600 text-white text-xs font-medium hover:bg-orange-700 disabled:opacity-40 cursor-pointer"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Setup Guide Accordion */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => setShowWaGuide(!showWaGuide)}
+                  className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+                >
+                  <span>Step-by-Step Meta Developer Portal Setup Guide</span>
+                  {showWaGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </button>
+                {showWaGuide && (
+                  <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">1</span>
+                      <div><b>Create a Meta App</b>: Go to <a href="https://developers.facebook.com/" target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline">developers.facebook.com</a> &rarr; My Apps &rarr; Create App &rarr; select <b>Other &rarr; Business</b>.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">2</span>
+                      <div><b>Add WhatsApp</b>: Under Add products to your app, click <b>Set up</b> on the WhatsApp card.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">3</span>
+                      <div><b>Configure Webhook</b>: Navigate to <b>WhatsApp &rarr; Configuration &rarr; Webhook &rarr; Edit</b>. Paste the <b>Callback URL</b> and <b>Verify Token</b> above, then click <b>Verify and Save</b>.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">4</span>
+                      <div><b>Subscribe to Messages</b>: Under Webhook fields, click <b>Subscribe</b> next to <code>messages</code>.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">5</span>
+                      <div><b>Save Changes</b>: Click the &quot;Save Changes&quot; button in the bottom floating bar to persist your settings.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* CHANNEL 2: INSTAGRAM DM & MESSENGER                              */}
+          {/* ================================================================ */}
+          {activeChannel === "instagram" && (
+            <div className="space-y-6">
+              {/* Channel Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center shrink-0 border border-pink-500/20">
+                    <InstagramBrandIcon className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        Instagram DM &amp; Facebook Messenger (Meta Graph API)
+                      </h3>
+                      {isIgConnected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live &bull; Connected
+                        </span>
+                      ) : isIgConfigured ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Configured (Disabled)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                          Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Direct customer messaging for D2C brands, creators, fashion, clinics, and agencies. Converts inbound buyer inquiries (&ldquo;how much?&rdquo;, &ldquo;is this in stock?&rdquo;) and stories replies automatically.
+                    </p>
+                  </div>
+                </div>
+
+                {setInstagramEnabled && (
+                  <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Enable Instagram DM integration"
+                      checked={instagramEnabled}
+                      onChange={(e) => handleInputChange(setInstagramEnabled, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-pink-600"></div>
+                    <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      {instagramEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* Value Proposition Callout */}
+              <div className="p-4 rounded-xl bg-pink-50/70 dark:bg-pink-950/20 border border-pink-200 dark:border-pink-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-pink-900 dark:text-pink-200 flex items-center gap-1.5">
+                    <span>Meta Graph API v21.0 Webhook Handler</span>
+                  </div>
+                  <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
+                    Supports both Instagram Direct Messages (IGSID) and Facebook Messenger Page (PSID) conversations with cryptographic HMAC-SHA256 signature validation.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestInstagram}
+                  disabled={testingInstagram || !botId || !instagramPageId || !instagramAccessToken}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-pink-300 dark:border-pink-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-pink-700 dark:text-pink-300 hover:bg-pink-100/70 disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  {testingInstagram ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                  {testingInstagram ? "Testing…" : "Test connection"}
+                </button>
+              </div>
+
+              {/* Webhook Callback Banner */}
+              <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-pink-500" /> Meta Webhook Callback URL (Instagram &amp; Messenger)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(IG_CALLBACK_URL, setCopiedIgUrl, "Instagram Callback URL copied")}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                  >
+                    {copiedIgUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    {copiedIgUrl ? "Copied!" : "Copy URL"}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {IG_CALLBACK_URL}
+                </p>
+                <p className="text-[10px] text-neutral-400">
+                  Paste this into Meta Developer Dashboard &rarr; <b>Instagram &rarr; Webhooks Callback URL</b> or <b>Messenger &rarr; Webhooks</b>.
+                </p>
+              </div>
+
+              {/* Credentials Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Page ID / Instagram Account ID */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Meta Page ID / Instagram Account ID</span>
+                    <span className="text-[10px] text-pink-600 dark:text-pink-400 font-bold">Required</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={instagramPageId}
+                    onChange={(e) => setInstagramPageId && handleInputChange(setInstagramPageId, e.target.value)}
+                    placeholder="e.g. 102938475610293"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Numeric Facebook Page ID or Instagram Business Account ID.</p>
+                </div>
+
+                {/* Webhook Verify Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Webhook Verify Token</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = generateSecret("ig");
+                        if (setInstagramVerifyToken) handleInputChange(setInstagramVerifyToken, token);
+                        showToast?.("Generated new Instagram Verify Token", "info");
+                      }}
+                      className="text-[10px] text-pink-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="size-2.5" /> Generate Secret
+                    </button>
+                  </label>
+                  <input
+                    type="text"
+                    value={instagramVerifyToken}
+                    onChange={(e) => setInstagramVerifyToken && handleInputChange(setInstagramVerifyToken, e.target.value)}
+                    placeholder="e.g. chatty_ig_secret_98765"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Verification string entered in Meta webhook setup modal.</p>
+                </div>
+
+                {/* Page Access Token */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Page Access Token (Permanent)</span>
+                    <span className="text-[10px] text-pink-600 dark:text-pink-400 font-bold">Required</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showIgToken ? "text" : "password"}
+                      value={instagramAccessToken}
+                      onChange={(e) => setInstagramAccessToken && handleInputChange(setInstagramAccessToken, e.target.value)}
+                      placeholder="EAA..."
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowIgToken(!showIgToken)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showIgToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    Requires <code>pages_messaging</code> and <code>instagram_manage_messages</code> permissions.
+                  </p>
+                </div>
+
+                {/* Meta App Secret */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Key className="size-3.5 text-pink-500" /> Meta App Secret (HMAC-SHA256 Verification)
+                    </span>
+                    <span className="text-[10px] text-neutral-400">Recommended for security</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showIgSecret ? "text" : "password"}
+                      value={instagramAppSecret}
+                      onChange={(e) => setInstagramAppSecret && handleInputChange(setInstagramAppSecret, e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowIgSecret(!showIgSecret)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showIgSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    From Meta App Dashboard &rarr; <b>App settings &rarr; Basic &rarr; App secret</b>. Validates the <code>X-Hub-Signature-256</code> header.
+                  </p>
+                </div>
+              </div>
+
+              {/* Setup Guide Accordion */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => setShowIgGuide(!showIgGuide)}
+                  className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+                >
+                  <span>Step-by-Step Instagram DM &amp; Messenger Meta Setup Guide</span>
+                  {showIgGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </button>
+                {showIgGuide && (
+                  <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-pink-500 text-white text-[10px] font-bold">1</span>
+                      <div><b>Link Instagram Account</b>: In your Facebook Page settings, ensure your Professional Instagram account is connected to your Page.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-pink-500 text-white text-[10px] font-bold">2</span>
+                      <div><b>Enable Connected Tools</b>: In Instagram app &rarr; Settings &rarr; Messages and story replies &rarr; Message controls &rarr; Allow access to messages.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-pink-500 text-white text-[10px] font-bold">3</span>
+                      <div><b>Configure Webhook</b>: In Meta Developer Portal &rarr; Instagram &rarr; Webhooks, paste the <b>Callback URL</b> and <b>Verify Token</b> from above. Subscribe to <code>messages</code>.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-pink-500 text-white text-[10px] font-bold">4</span>
+                      <div><b>Save Changes</b>: Click the &quot;Save Changes&quot; button in the bottom floating bar to persist your settings.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* CHANNEL 3: TELEGRAM BOT                                          */}
+          {/* ================================================================ */}
+          {activeChannel === "telegram" && (
+            <div className="space-y-6">
+              {/* Channel Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/20">
+                    <TelegramBrandIcon className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        Telegram Bot (Telegram Bot API 7.0+)
+                      </h3>
+                      {isTgConnected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live &bull; Connected
+                        </span>
+                      ) : isTgConfigured ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Configured (Disabled)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                          Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Zero phone verification hurdles. Popular with developer tools, crypto, tech startups, and digital products. Takes less than 2 minutes to create via @BotFather.
+                    </p>
+                  </div>
+                </div>
+
+                {setTelegramEnabled && (
+                  <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Enable Telegram bot integration"
+                      checked={telegramEnabled}
+                      onChange={(e) => handleInputChange(setTelegramEnabled, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-sky-500"></div>
+                    <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      {telegramEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* Callout & Test Button */}
+              <div className="p-4 rounded-xl bg-sky-50/70 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-sky-900 dark:text-sky-200 flex items-center gap-1.5">
+                    <span>Inline Keyboard CTAs &amp; Audio Transcripts</span>
+                  </div>
+                  <p className="text-[11px] text-sky-800/80 dark:text-sky-300/80">
+                    Automatically injects <i>&ldquo;📅 Book Appointment&rdquo;</i> buttons directly below answers with HMAC-signed scheduling links.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {telegramBotUsername && (
+                    <a
+                      href={`https://t.me/${telegramBotUsername.replace(/^@/, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 dark:border-sky-700 bg-white/80 dark:bg-neutral-900/60 px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-100/70"
+                    >
+                      <ExternalLink className="size-3.5" />
+                      <span>Open t.me</span>
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleTestTelegram}
+                    disabled={testingTelegram || !botId || !telegramBotToken}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {testingTelegram ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {testingTelegram ? "Validating…" : "Test Bot Token"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Webhook Callback Banner */}
+              <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-sky-500" /> Telegram Webhook URL
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(TG_CALLBACK_URL, setCopiedTgUrl, "Telegram Webhook URL copied")}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                  >
+                    {copiedTgUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    {copiedTgUrl ? "Copied!" : "Copy URL"}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {TG_CALLBACK_URL}
+                </p>
+              </div>
+
+              {/* Credentials Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Bot Token */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Telegram Bot Token</span>
+                    <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">Required</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showTgToken ? "text" : "password"}
+                      value={telegramBotToken}
+                      onChange={(e) => setTelegramBotToken && handleInputChange(setTelegramBotToken, e.target.value)}
+                      placeholder="e.g. 123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTgToken(!showTgToken)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showTgToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">Created via Telegram&apos;s official <code>@BotFather</code>.</p>
+                </div>
+
+                {/* Secret Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Webhook Secret Token (X-Telegram-Bot-Api-Secret-Token)</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = generateSecret("tg");
+                        if (setTelegramSecretToken) handleInputChange(setTelegramSecretToken, token);
+                        showToast?.("Generated new Telegram Secret Token", "info");
+                      }}
+                      className="text-[10px] text-sky-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="size-2.5" /> Generate Secret
+                    </button>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showTgSecret ? "text" : "password"}
+                      value={telegramSecretToken}
+                      onChange={(e) => setTelegramSecretToken && handleInputChange(setTelegramSecretToken, e.target.value)}
+                      placeholder="e.g. tg_secret_string"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTgSecret(!showTgSecret)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showTgSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">Cryptographically authenticates incoming requests from Telegram.</p>
+                </div>
+
+                {/* Bot Username */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    Bot Username (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={telegramBotUsername}
+                    onChange={(e) => setTelegramBotUsername && handleInputChange(setTelegramBotUsername, e.target.value)}
+                    placeholder="e.g. @MySupportBot"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Used for direct <code>t.me/...</code> deep link previews.</p>
+                </div>
+              </div>
+
+              {/* 1-Click SetWebhook Command */}
+              {telegramBotToken && (
+                <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                      Quick Webhook Registration Command (cURL)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const curl = `curl -F "url=${TG_CALLBACK_URL}" ${telegramSecretToken ? `-F "secret_token=${telegramSecretToken}" ` : ""}https://api.telegram.org/bot${telegramBotToken}/setWebhook`;
+                        copyText(curl, setCopiedTgCurl, "cURL command copied to clipboard");
+                      }}
+                      className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                    >
+                      {copiedTgCurl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                      {copiedTgCurl ? "Copied!" : "Copy cURL"}
+                    </button>
+                  </div>
+                  <pre className="p-2.5 rounded-lg bg-neutral-950 text-neutral-200 text-[11px] font-mono overflow-x-auto leading-relaxed">
+                    {`curl -F "url=${TG_CALLBACK_URL}" ${telegramSecretToken ? `-F "secret_token=${telegramSecretToken}" ` : ""}https://api.telegram.org/bot${telegramBotToken}/setWebhook`}
+                  </pre>
+                </div>
+              )}
+
+              {/* Setup Guide Accordion */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => setShowTgGuide(!showTgGuide)}
+                  className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+                >
+                  <span>Step-by-Step Telegram @BotFather Setup Guide</span>
+                  {showTgGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </button>
+                {showTgGuide && (
+                  <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white text-[10px] font-bold">1</span>
+                      <div><b>Open @BotFather</b>: In Telegram, search for <code>@BotFather</code> and send <code>/newbot</code>.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white text-[10px] font-bold">2</span>
+                      <div><b>Name Your Bot</b>: Choose a display name (e.g. &ldquo;Acme Support&rdquo;) and a username ending in <code>bot</code> (e.g. <code>acme_support_bot</code>).</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white text-[10px] font-bold">3</span>
+                      <div><b>Copy HTTP API Token</b>: BotFather will reply with your API token. Paste it into the <b>Telegram Bot Token</b> field above.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white text-[10px] font-bold">4</span>
+                      <div><b>Run Webhook cURL</b>: Run the 1-click cURL snippet above in your terminal, or click Test Bot Token.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* CHANNEL 4: TWO-WAY SMS (TWILIO)                                  */}
+          {/* ================================================================ */}
+          {activeChannel === "sms" && (
+            <div className="space-y-6">
+              {/* Channel Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0 border border-red-500/20">
+                    <SmsBrandIcon className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        Two-Way SMS (Twilio / Bird Gateway)
+                      </h3>
+                      {isSmsConnected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live &bull; Connected
+                        </span>
+                      ) : isSmsConfigured ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Configured (Disabled)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                          Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Carrier-grade SMS messaging for US &amp; Canada. In North America, SMS remains the highest-converting channel for real estate, home services, local clinics, and B2C services.
+                    </p>
+                  </div>
+                </div>
+
+                {setSmsEnabled && (
+                  <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Enable SMS integration"
+                      checked={smsEnabled}
+                      onChange={(e) => handleInputChange(setSmsEnabled, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-red-600"></div>
+                    <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      {smsEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* TCPA Compliance Banner */}
+              <div className="p-4 rounded-xl bg-red-50/70 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-red-900 dark:text-red-200 flex items-center gap-1.5">
+                    <CheckCircle2 className="size-3.5 text-red-600" />
+                    <span>TCPA &amp; CTIA Regulatory Compliance Built-in</span>
+                  </div>
+                  <p className="text-[11px] text-red-800/80 dark:text-red-300/80">
+                    Automated opt-out recognition (<code>STOP</code>, <code>UNSUBSCRIBE</code>, <code>CANCEL</code>) and opt-in restoration (<code>START</code>) with 1,600-character multi-part GSM-7 concatenation.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestSms}
+                  disabled={testingSms || !botId || !twilioAccountSid || !twilioAuthToken}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-300 dark:border-red-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-red-700 dark:text-red-300 hover:bg-red-100/70 disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  {testingSms ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                  {testingSms ? "Testing…" : "Verify Twilio Account"}
+                </button>
+              </div>
+
+              {/* Webhook Callback Banner */}
+              <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-red-500" /> Twilio Inbound Messaging Webhook URL
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(SMS_CALLBACK_URL, setCopiedSmsUrl, "Twilio SMS Callback URL copied")}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                  >
+                    {copiedSmsUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    {copiedSmsUrl ? "Copied!" : "Copy URL"}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {SMS_CALLBACK_URL}
+                </p>
+                <p className="text-[10px] text-neutral-400">
+                  In Twilio Console &rarr; <b>Phone Numbers &rarr; Active Numbers &rarr; Messaging &rarr; A Message Comes In</b>, paste this URL and set HTTP POST.
+                </p>
+              </div>
+
+              {/* Credentials Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Account SID */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Twilio Account SID</span>
+                    <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">Required</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={twilioAccountSid}
+                    onChange={(e) => setTwilioAccountSid && handleInputChange(setTwilioAccountSid, e.target.value)}
+                    placeholder="e.g. ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Begins with &ldquo;AC&rdquo;, from your Twilio Console dashboard.</p>
+                </div>
+
+                {/* Twilio Phone Number */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Twilio Phone Number (E.164)</span>
+                    <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">Required</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={twilioPhoneNumber}
+                    onChange={(e) => setTwilioPhoneNumber && handleInputChange(setTwilioPhoneNumber, e.target.value)}
+                    placeholder="e.g. +14155552671"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Your Twilio SMS-enabled phone number with country code.</p>
+                </div>
+
+                {/* Auth Token */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Twilio Auth Token (HMAC-SHA1 Verification)</span>
+                    <span className="text-[10px] text-red-600 dark:text-red-400 font-bold">Required</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showSmsToken ? "text" : "password"}
+                      value={twilioAuthToken}
+                      onChange={(e) => setTwilioAuthToken && handleInputChange(setTwilioAuthToken, e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSmsToken(!showSmsToken)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showSmsToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    Used to authenticate outbound Twilio REST requests and verify incoming <code>X-Twilio-Signature</code> signatures.
+                  </p>
+                </div>
+              </div>
+
+              {/* Setup Guide Accordion */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => setShowSmsGuide(!showSmsGuide)}
+                  className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+                >
+                  <span>Step-by-Step Twilio Console Setup Guide</span>
+                  {showSmsGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </button>
+                {showSmsGuide && (
+                  <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">1</span>
+                      <div><b>Get a Phone Number</b>: In Twilio Console &rarr; Phone Numbers &rarr; Manage &rarr; Buy a number with SMS capabilities.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">2</span>
+                      <div><b>Configure Messaging Webhook</b>: Click your phone number &rarr; Configure &rarr; Under &quot;A Message Comes In&quot;, select <b>Webhook</b> and paste the Webhook URL above. Select <b>HTTP POST</b>.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold">3</span>
+                      <div><b>Paste Credentials</b>: Copy Account SID and Auth Token from your Twilio Console home screen into the fields above.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* CHANNEL 5: TWO-WAY SUPPORT EMAIL                                 */}
+          {/* ================================================================ */}
+          {activeChannel === "email" && (
+            <div className="space-y-6">
+              {/* Channel Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+                    <EmailBrandIcon className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        Two-Way Support Email (Inbound Forwarding)
+                      </h3>
+                      {isEmailConnected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live &bull; Connected
+                        </span>
+                      ) : isEmailConfigured ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Configured (Disabled)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                          Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      The default B2B customer support channel. When an inquiry comes to support@yourdomain.com, Chatty drafts or sends the AI response with full RFC-822 email threading.
+                    </p>
+                  </div>
+                </div>
+
+                {setEmailChannelEnabled && (
+                  <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Enable email support integration"
+                      checked={emailChannelEnabled}
+                      onChange={(e) => handleInputChange(setEmailChannelEnabled, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
+                    <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      {emailChannelEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* Response Mode Selector & Test */}
+              <div className="p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-blue-900 dark:text-blue-200 flex items-center gap-1.5">
+                    <span>Smart Threaded Reply &amp; Quoted-Text Stripping</span>
+                  </div>
+                  <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
+                    Automatically preserves <code>In-Reply-To</code> and <code>References</code> headers while stripping nested history so customers see clean answers.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestEmail}
+                  disabled={testingEmail || !botId || !emailSupportAddress}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-100/70 disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  {testingEmail ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                  {testingEmail ? "Verifying…" : "Validate Routing"}
+                </button>
+              </div>
+
+              {/* Webhook Callback Banner */}
+              <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-blue-500" /> Inbound Email Webhook Endpoint
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(EMAIL_CALLBACK_URL, setCopiedEmailUrl, "Email Inbound URL copied")}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                  >
+                    {copiedEmailUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    {copiedEmailUrl ? "Copied!" : "Copy Endpoint"}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {EMAIL_CALLBACK_URL}
+                </p>
+                <p className="text-[10px] text-neutral-400">
+                  Target for Resend Inbound, Postmark Inbound Webhook, Cloudflare Email Routing Worker, or SendGrid Inbound Parse.
+                </p>
+              </div>
+
+              {/* Settings Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Support Address */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Customer Support Email Address</span>
+                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Required</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={emailSupportAddress}
+                    onChange={(e) => setEmailSupportAddress && handleInputChange(setEmailSupportAddress, e.target.value)}
+                    placeholder="e.g. support@yourcompany.com"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">The public support address your customers send emails to.</p>
+                </div>
+
+                {/* AI Response Mode */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    AI Response Mode
+                  </label>
+                  <select
+                    value={emailAutoReplyMode}
+                    onChange={(e) =>
+                      setEmailAutoReplyMode &&
+                      handleInputChange(setEmailAutoReplyMode, e.target.value as "instant_ai" | "draft_copilot")
+                    }
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-400 cursor-pointer"
+                  >
+                    <option value="instant_ai">Instant Autonomous AI Auto-Reply (Direct Send)</option>
+                    <option value="draft_copilot">AI Draft Co-Pilot (Helpdesk / Agent Review)</option>
+                  </select>
+                  <p className="text-[10px] text-neutral-400">
+                    Autonomous replies immediately; Co-Pilot leaves drafts for your agents to review.
+                  </p>
+                </div>
+
+                {/* Secret Token */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Inbound Webhook Secret Token (Authorization Header / X-Webhook-Secret)</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = generateSecret("em");
+                        if (setEmailWebhookSecret) handleInputChange(setEmailWebhookSecret, token);
+                        showToast?.("Generated new Email Webhook Secret", "info");
+                      }}
+                      className="text-[10px] text-blue-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="size-2.5" /> Generate Secret
+                    </button>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showEmailSecret ? "text" : "password"}
+                      value={emailWebhookSecret}
+                      onChange={(e) => setEmailWebhookSecret && handleInputChange(setEmailWebhookSecret, e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEmailSecret(!showEmailSecret)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showEmailSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    Used to authenticate webhook requests from your email delivery service (Resend, Postmark, SendGrid).
+                  </p>
+                </div>
+              </div>
+
+              {/* Setup Guide Accordion */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => setShowEmailGuide(!showEmailGuide)}
+                  className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+                >
+                  <span>Step-by-Step Email Forwarding &amp; Webhook Setup Guide</span>
+                  {showEmailGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </button>
+                {showEmailGuide && (
+                  <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800">
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white text-[10px] font-bold">1</span>
+                      <div><b>Resend / Postmark Inbound</b>: In your email provider dashboard, navigate to Inbound Webhooks and paste the <b>Inbound Email Webhook Endpoint</b> above.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white text-[10px] font-bold">2</span>
+                      <div><b>Configure MX Records</b>: Point your inbound subdomain (e.g. <code>inbound.yourcompany.com</code>) to your inbound email parser.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-500 text-white text-[10px] font-bold">3</span>
+                      <div><b>Forwarding Rule</b>: In Google Workspace or Microsoft 365, set an auto-forward rule from <code>support@yourcompany.com</code> to your inbound parser address.</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ==================================================================== */}
+      {/* SECTION 2: LIVEKIT VOICE AGENT                                       */}
+      {/* ==================================================================== */}
+      <div
+        id="integration-voice"
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-violet-200/80 dark:border-violet-900/60 rounded-3xl space-y-6 shadow-sm"
+      >
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold flex items-center gap-2">
-              <span className="inline-flex size-7 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">🎙️</span>
+              <span className="inline-flex size-7 items-center justify-center rounded-lg bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+                🎙️
+              </span>
               Voice Agent Integration
             </h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-2xl">
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-2xl leading-relaxed">
               Embed a dedicated AI voice assistant on your website. Connects visitors instantly to real-time speech with dynamic audio visualizers, meeting scheduling, product photos, and smooth voice interaction.
             </p>
           </div>
@@ -579,12 +2358,14 @@ export function IntegrationsTab({
         </div>
 
         {/* Option 1: Dedicated Script Tag */}
-        <div className="rounded-xl border border-violet-200/80 dark:border-violet-900/70 bg-violet-50/40 dark:bg-violet-950/20 p-4 space-y-3">
+        <div className="rounded-2xl border border-violet-200/80 dark:border-violet-900/70 bg-violet-50/40 dark:bg-violet-950/20 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
                 <span>Option 1: Dedicated Voice Script Tag (No-Code Embed)</span>
-                <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-[9px] font-bold px-2 py-0.5">Recommended</span>
+                <span className="rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-[9px] font-bold px-2 py-0.5">
+                  Recommended
+                </span>
               </div>
               <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
                 Paste this script before the closing <code>&lt;/body&gt;</code> tag. Adds a floating voice launcher orb to your site that opens straight into the voice assistant.
@@ -600,13 +2381,13 @@ export function IntegrationsTab({
 ></script>`}</pre>
             <button
               type="button"
-              onClick={() => handleCopyVoice(`<script
-  src="https://chatty.personaliai.com/widget.js"
-  data-id="${botId || "YOUR_BOT_ID"}"
-  data-mode="voice"
-  defer
-></script>`, "script")}
-              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors"
+              onClick={() =>
+                handleCopyVoice(
+                  `<script\n  src="https://chatty.personaliai.com/widget.js"\n  data-id="${botId || "YOUR_BOT_ID"}"\n  data-mode="voice"\n  defer\n></script>`,
+                  "script"
+                )
+              }
+              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors cursor-pointer"
             >
               {copiedVoiceSnippet === "script" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
               {copiedVoiceSnippet === "script" ? "Copied!" : "Copy"}
@@ -619,7 +2400,7 @@ export function IntegrationsTab({
             </div>
             <div className="rounded-lg bg-white/70 dark:bg-neutral-900/70 p-2 border border-neutral-200/60 dark:border-neutral-800">
               <strong className="block font-semibold text-neutral-800 dark:text-neutral-200">data-display=&quot;modal&quot;</strong>
-              <span>Centered popup dialog with backdrop blur (like Chatty demo).</span>
+              <span>Centered popup dialog with backdrop blur.</span>
             </div>
             <div className="rounded-lg bg-white/70 dark:bg-neutral-900/70 p-2 border border-neutral-200/60 dark:border-neutral-800">
               <strong className="block font-semibold text-neutral-800 dark:text-neutral-200">data-launcher=&quot;none&quot;</strong>
@@ -629,12 +2410,14 @@ export function IntegrationsTab({
         </div>
 
         {/* Option 2: Custom Website Button Trigger */}
-        <div className="rounded-xl border border-cyan-200/80 dark:border-cyan-900/70 bg-cyan-50/40 dark:bg-cyan-950/20 p-4 space-y-3">
+        <div className="rounded-2xl border border-cyan-200/80 dark:border-cyan-900/70 bg-cyan-50/40 dark:bg-cyan-950/20 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
                 <span>Option 2: Trigger from Any Custom Website Button (JavaScript API)</span>
-                <span className="rounded-full bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 text-[9px] font-bold px-2 py-0.5">Custom CTA</span>
+                <span className="rounded-full bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 text-[9px] font-bold px-2 py-0.5">
+                  Custom CTA
+                </span>
               </div>
               <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
                 Attach the voice assistant to any existing button, banner, or navigation link on your website using <code>window.Chatty.openVoice()</code>.
@@ -648,52 +2431,16 @@ export function IntegrationsTab({
 </button>`}</pre>
             <button
               type="button"
-              onClick={() => handleCopyVoice(`<!-- Custom button anywhere on your site -->
-<button onclick="window.Chatty.openVoice()">
-  🎙️ Talk with Voice AI
-</button>`, "btn")}
-              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors"
+              onClick={() =>
+                handleCopyVoice(
+                  `<!-- Custom button anywhere on your site -->\n<button onclick="window.Chatty.openVoice()">\n  🎙️ Talk with Voice AI\n</button>`,
+                  "btn"
+                )
+              }
+              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors cursor-pointer"
             >
               {copiedVoiceSnippet === "btn" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
               {copiedVoiceSnippet === "btn" ? "Copied!" : "Copy"}
-            </button>
-          </div>
-        </div>
-
-        {/* Option 3: Inline Container Embed */}
-        <div className="rounded-xl border border-orange-200/80 dark:border-orange-900/70 bg-orange-50/40 dark:bg-orange-950/20 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-bold text-neutral-800 dark:text-neutral-100 flex items-center gap-2">
-                <span>Option 3: Inline Container / Iframe Embed</span>
-                <span className="rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 text-[9px] font-bold px-2 py-0.5">Sidebar / Section</span>
-              </div>
-              <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
-                Embed the voice interface directly inside a webpage section, sidebar, or custom modal without floating bubbles.
-              </p>
-            </div>
-          </div>
-          <div className="relative">
-            <pre className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-200 leading-relaxed">{`<iframe
-  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?voice=only"
-  allow="microphone"
-  width="100%"
-  height="720"
-  style="border: none; border-radius: 24px; max-width: 520px;"
-></iframe>`}</pre>
-            <button
-              type="button"
-              onClick={() => handleCopyVoice(`<iframe
-  src="https://chatty.personaliai.com/embed/${botId || "YOUR_BOT_ID"}?voice=only"
-  allow="microphone"
-  width="100%"
-  height="720"
-  style="border: none; border-radius: 24px; max-width: 520px;"
-></iframe>`, "iframe")}
-              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors"
-            >
-              {copiedVoiceSnippet === "iframe" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
-              {copiedVoiceSnippet === "iframe" ? "Copied!" : "Copy"}
             </button>
           </div>
         </div>
@@ -702,25 +2449,33 @@ export function IntegrationsTab({
         <div className="flex flex-wrap gap-2 text-[10px] text-neutral-500 dark:text-neutral-400 pt-1">
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Official LiveKit controls</span>
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">5 Audio visualizers</span>
-          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Real-time transcript & images</span>
+          <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Real-time transcript &amp; images</span>
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">In-call meeting booking</span>
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Smooth adaptive interruption</span>
         </div>
       </div>
 
-<div id="integration-embed" className="order-2 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-        <h3 className="text-sm font-bold">Embed Chatbot</h3>
-        <p className="text-xs text-neutral-400 mt-1">
-          Select your website builder to get tailored installation instructions.
-        </p>
+      {/* ==================================================================== */}
+      {/* SECTION 3: EMBED CHATBOT & CMS INTEGRATIONS                          */}
+      {/* ==================================================================== */}
+      <div
+        id="integration-embed"
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+      >
+        <div>
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Embed Chatbot on Websites</h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            Select your website builder or platform to get tailored installation instructions.
+          </p>
+        </div>
 
-        {/* Platform selector */}
-        <div className="mt-5 grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+        {/* Platform Selector Grid */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
           {platforms.map((p) => (
             <button
               key={p.id}
               onClick={() => setEmbedPlatform(embedPlatform === p.id ? null : p.id)}
-              className={`relative flex flex-col items-center gap-2 p-3 rounded-xl border text-center transition-all cursor-pointer ${
+              className={`relative flex flex-col items-center gap-2 p-3 rounded-2xl border text-center transition-all cursor-pointer ${
                 embedPlatform === p.id
                   ? "border-[#f97316] bg-orange-50 dark:bg-orange-950/20"
                   : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
@@ -739,27 +2494,27 @@ export function IntegrationsTab({
           ))}
         </div>
 
-        {/* Instructions */}
-        {selected && (
-          <div className="mt-5 space-y-4">
+        {/* Selected Platform Instructions */}
+        {selectedPlatform && (
+          <div className="mt-5 space-y-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 p-4 border border-neutral-200 dark:border-neutral-800">
             <div className="flex max-sm:flex-col max-sm:items-start items-center justify-between max-sm:gap-3">
               <div className="flex items-center gap-2">
-                <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selected.title}</h4>
-                {selected.badge && (
+                <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{selectedPlatform.title}</h4>
+                {selectedPlatform.badge && (
                   <span className="px-2 py-0.5 text-[9px] font-semibold rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/80">
-                    {selected.badge}
+                    {selectedPlatform.badge}
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-3">
-                {selected.actionLink && (
+                {selectedPlatform.actionLink && (
                   <a
-                    href={selected.actionLink.url}
+                    href={selectedPlatform.actionLink.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[11px] font-medium text-[#f97316] hover:underline"
                   >
-                    <span>{selected.actionLink.label}</span>
+                    <span>{selectedPlatform.actionLink.label}</span>
                     <ExternalLink className="size-3" />
                   </a>
                 )}
@@ -771,7 +2526,7 @@ export function IntegrationsTab({
                 </button>
               </div>
             </div>
-            {selected.steps.map((step, i) => (
+            {selectedPlatform.steps.map((step, i) => (
               <div key={i} className="space-y-1.5">
                 <p className="text-xs text-neutral-600 dark:text-neutral-400">
                   <span className="inline-flex size-4 items-center justify-center rounded-full bg-[#f97316] text-white text-[9px] font-bold mr-1.5">
@@ -794,14 +2549,14 @@ export function IntegrationsTab({
                 )}
                 {step.code && (
                   <div className="relative">
-                    <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
+                    <pre className="p-4 rounded-xl bg-neutral-900 border border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-200 leading-relaxed">
                       {step.code}
                     </pre>
                     <button
                       onClick={() => copyToClipboard(step.code!, "script")}
-                      className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer bg-white dark:bg-neutral-900 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
+                      className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer bg-neutral-800 px-2 py-1 rounded-md border border-neutral-700"
                     >
-                      {copiedScript ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
+                      {copiedScript ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
                       {copiedScript ? "Copied!" : "Copy"}
                     </button>
                   </div>
@@ -815,35 +2570,39 @@ export function IntegrationsTab({
         )}
       </div>
 
-      {/* Mobile SDKs */}
-      <div id="integration-mobile" className="order-3 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-        <h3 className="text-sm font-bold">Embed the widget within your mobile app</h3>
-        <p className="text-xs text-neutral-400 mt-1 leading-relaxed max-w-xl">
-          Enhance and personalize your user experience by integrating the Chatty SDK into your app. Whether you&apos;re using
-          iOS, Android, or React Native, the Chatty SDK renders a fully native chat UI - no WebView - talking directly to
-          your bot&apos;s API.
-        </p>
-        <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300 mt-5 mb-2.5">Select your option:</p>
+      {/* ==================================================================== */}
+      {/* SECTION 4: MOBILE APP SDKS (IOS / ANDROID / REACT NATIVE)            */}
+      {/* ==================================================================== */}
+      <div
+        id="integration-mobile"
+        className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+      >
+        <div>
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Embed within Mobile Apps (Native SDKs)</h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed max-w-xl">
+            Integrate the Chatty SDK into your native app. Renders real native UI components - zero WebViews - talking directly to your bot&apos;s API.
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {mobilePlatforms.map((p) => (
             <button
               key={p.id}
               onClick={() => setEmbedMobilePlatform(embedMobilePlatform === p.id ? null : p.id)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`flex items-center gap-2.5 p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                 embedMobilePlatform === p.id
                   ? "border-[#f97316] bg-orange-50 dark:bg-orange-950/20"
                   : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
               }`}
             >
               {p.icon}
-              <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{p.label}</span>
+              <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">{p.label}</span>
             </button>
           ))}
         </div>
 
         {mobileSelected && (
-          <div className="mt-5 space-y-4">
+          <div className="mt-5 space-y-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 p-4 border border-neutral-200 dark:border-neutral-800">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-neutral-800 dark:text-neutral-200">{mobileSelected.title}</h4>
               <button
@@ -863,14 +2622,14 @@ export function IntegrationsTab({
                 </p>
                 {step.code && (
                   <div className="relative">
-                    <pre className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-700 dark:text-neutral-350 leading-relaxed">
+                    <pre className="p-4 rounded-xl bg-neutral-900 border border-neutral-800 overflow-x-auto text-[10px] font-mono text-neutral-200 leading-relaxed">
                       {step.code}
                     </pre>
                     <button
                       onClick={() => copyToClipboard(step.code!, "mobile")}
-                      className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer bg-white dark:bg-neutral-900 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
+                      className="absolute top-2 right-2 inline-flex items-center gap-1 text-[10px] text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer bg-neutral-800 px-2 py-1 rounded-md border border-neutral-700"
                     >
-                      {copiedMobile ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
+                      {copiedMobile ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
                       {copiedMobile ? "Copied!" : "Copy"}
                     </button>
                   </div>
@@ -884,355 +2643,22 @@ export function IntegrationsTab({
         )}
       </div>
 
-      {/* WhatsApp Business Channel (Meta Cloud API) */}
-      <div id="integration-whatsapp" className="order-1 scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-emerald-200/80 dark:border-emerald-900/60 rounded-2xl space-y-6 shadow-sm">
-        {/* Header with status badge and toggle switch */}
-        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${whatsappEnabled ? "border-b border-neutral-100 dark:border-neutral-800 pb-5" : ""}`}>
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
-              <svg viewBox="0 0 24 24" className="size-6 fill-current">
-                <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15C10.56 20.15 9.11 19.76 7.85 19L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 15 3.8 13.47 3.8 11.91C3.81 7.37 7.5 3.67 12.05 3.67M9.53 7.34C9.36 7.34 9.09 7.4 8.87 7.65C8.65 7.89 8.02 8.48 8.02 9.7C8.02 10.92 8.91 12.1 9.03 12.26C9.16 12.43 10.74 14.86 13.17 15.91C13.75 16.16 14.2 16.31 14.55 16.42C15.13 16.61 15.66 16.58 16.08 16.52C16.55 16.45 17.53 15.93 17.73 15.35C17.94 14.78 17.94 14.29 17.88 14.18C17.82 14.07 17.65 14.01 17.4 13.88C17.14 13.76 15.89 13.14 15.66 13.06C15.43 12.97 15.26 12.93 15.09 13.18C14.93 13.43 14.44 14.01 14.29 14.18C14.14 14.36 14 14.38 13.74 14.25C13.49 14.13 12.68 13.86 11.72 13.01C10.97 12.34 10.46 11.52 10.32 11.27C10.17 11.02 10.3 10.88 10.43 10.76C10.54 10.65 10.68 10.47 10.81 10.32C10.94 10.17 10.98 10.07 11.07 9.89C11.15 9.72 11.11 9.57 11.05 9.45C10.98 9.32 10.43 7.97 10.2 7.42C9.98 6.89 9.75 6.96 9.53 7.34Z" />
-              </svg>
-            </div>
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h3 className="min-w-0 text-sm font-bold text-neutral-900 dark:text-neutral-100 break-words">
-                  WhatsApp Business Integration
-                </h3>
-                {isWaConnected ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 dark:bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Live &bull; Connected
-                  </span>
-                ) : isWaConfigured ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 dark:bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                    Configured (Disabled)
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 text-[10px] font-semibold text-neutral-500 border border-neutral-200 dark:border-neutral-700">
-                    Not Configured
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed break-words">
-                Connect your official Meta WhatsApp Business phone number. Customers receive instant AI answers, and can send text, voice clips, photos, and documents.
-              </p>
-            </div>
-          </div>
-          {setWhatsappEnabled && (
-            <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
-              <input
-                type="checkbox"
-                role="switch"
-                aria-label="Enable WhatsApp integration"
-                checked={whatsappEnabled}
-                onChange={(e) => handleInputChange(setWhatsappEnabled, e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-emerald-500"></div>
-              <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                {whatsappEnabled ? "Enabled" : "Disabled"}
-              </span>
-            </label>
-          )}
-        </div>
-
-        {whatsappEnabled && (
-        <>
-        <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
-            <p className="text-[11px] text-emerald-800/70 dark:text-emerald-300/70 mt-0.5">Authorize your Business Account and phone number. Chatty will configure the webhook automatically.</p>
-          </div>
-          <div className="dashboard-action-bar flex flex-wrap items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleTestWhatsApp}
-              disabled={testingWhatsApp || !botId || !whatsappPhoneNumberId || !whatsappAccessToken}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 disabled:opacity-60 transition-colors"
-            >
-              {testingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-              {testingWhatsApp ? "Testing…" : "Test connection"}
-            </button>
-            <button
-              type="button"
-              onClick={handleConnectWhatsApp}
-              disabled={connectingWhatsApp || !botId}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#1fbd5a] disabled:opacity-60 transition-colors"
-            >
-              {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
-              {connectingWhatsApp ? "Opening Meta…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
-            </button>
-            {isWaConfigured && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleDisconnectWhatsApp}
-                  disabled={disconnectingWhatsApp || deauthorizingWhatsApp}
-                  className="inline-flex items-center justify-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 disabled:opacity-60 transition-colors"
-                >
-                  {disconnectingWhatsApp ? "Disconnecting…" : "Disconnect"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeauthorizeWhatsApp}
-                  disabled={deauthorizingWhatsApp || disconnectingWhatsApp}
-                  className="inline-flex items-center justify-center rounded-lg border border-red-400 dark:border-red-800 bg-red-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
-                >
-                  {deauthorizingWhatsApp ? "Revoking…" : "Revoke Meta access"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Webhook Callback URL banner */}
-        <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-              <ShieldCheck className="size-3 text-emerald-500" /> Meta Webhook Callback URL
-            </span>
-            <button
-              onClick={handleCopyWaUrl}
-              className="inline-flex items-center gap-1 text-[10px] font-medium text-neutral-600 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition"
-            >
-              {copiedWaUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-              {copiedWaUrl ? "Copied!" : "Copy URL"}
-            </button>
-          </div>
-          <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
-            {WA_CALLBACK_URL}
-          </p>
-          <p className="text-[10px] text-neutral-400">
-            Paste this URL into Meta Developer Dashboard &rarr; <b>WhatsApp &rarr; Configuration &rarr; Webhook Callback URL</b>.
+      {/* ==================================================================== */}
+      {/* SECTION 5: DOMAIN SECURITY (ALLOWED DOMAINS)                         */}
+      {/* ==================================================================== */}
+      <div
+        id="integration-domains"
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-4 shadow-sm"
+      >
+        <div>
+          <h3 className="text-sm font-bold flex items-center gap-2 text-neutral-900 dark:text-neutral-100">
+            <ShieldAlert className="size-4 text-[#f97316]" /> Allowed Domains Security
+          </h3>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 leading-relaxed">
+            Restrict where this widget can run. Leave empty to allow <b>any</b> website. Add domains to lock the
+            assistant to only your sites - requests from other domains are rejected.
           </p>
         </div>
-
-        {/* Credentials Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-          {/* Phone Number ID */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
-              <span>Phone Number ID</span>
-              <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
-            </label>
-            <input
-              type="text"
-              value={whatsappPhoneNumberId}
-              onChange={(e) => setWhatsappPhoneNumberId && handleInputChange(setWhatsappPhoneNumberId, e.target.value)}
-              placeholder="e.g. 104859239849201"
-              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-            />
-            <p className="text-[10px] text-neutral-400">15-digit identifier from Meta WhatsApp API Setup screen.</p>
-          </div>
-
-          {/* WABA ID */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 break-words">
-              WhatsApp Business Account ID (WABA)
-            </label>
-            <input
-              type="text"
-              value={whatsappWabaId}
-              onChange={(e) => setWhatsappWabaId && handleInputChange(setWhatsappWabaId, e.target.value)}
-              placeholder="e.g. 192847291039485"
-              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-            />
-            <p className="text-[10px] text-neutral-400">Your Business Account ID from Meta Business Manager.</p>
-          </div>
-
-          {/* Access Token */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
-              <span>Permanent Access Token</span>
-              <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showToken ? "text" : "password"}
-                value={whatsappAccessToken}
-                onChange={(e) => setWhatsappAccessToken && handleInputChange(setWhatsappAccessToken, e.target.value)}
-                placeholder="EAA..."
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-              />
-              <button
-                type="button"
-                onClick={() => setShowToken(!showToken)}
-                className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
-              >
-                {showToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-              </button>
-            </div>
-            <p className="text-[10px] text-neutral-400">System User permanent token with <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">whatsapp_business_messaging</code>.</p>
-          </div>
-
-          {/* Webhook Verify Token */}
-          <div className="space-y-1.5">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
-              <span>Webhook Verify Token</span>
-              <button
-                type="button"
-                onClick={handleGenerateVerifyToken}
-                className="text-[10px] text-[#f97316] hover:underline font-medium flex items-center gap-1"
-              >
-                <Sparkles className="size-2.5" /> Generate Secret
-              </button>
-            </label>
-            <input
-              type="text"
-              value={whatsappVerifyToken}
-              onChange={(e) => setWhatsappVerifyToken && handleInputChange(setWhatsappVerifyToken, e.target.value)}
-              placeholder="e.g. chatty_wa_secret_12345"
-              className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-            />
-            <p className="text-[10px] text-neutral-400">Secret string entered in Meta webhook verification modal.</p>
-          </div>
-
-          {/* Meta App Secret */}
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex flex-wrap items-center justify-between gap-1">
-              <span className="flex items-center gap-1">
-                <Key className="size-3.5 text-emerald-500" /> Meta App Secret (HMAC-SHA256 Verification)
-              </span>
-              <span className="text-[10px] text-neutral-400">Recommended for security</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showSecret ? "text" : "password"}
-                value={whatsappAppSecret}
-                onChange={(e) => setWhatsappAppSecret && handleInputChange(setWhatsappAppSecret, e.target.value)}
-                placeholder="••••••••••••••••••••••••••••••••"
-                className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSecret(!showSecret)}
-                className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200"
-              >
-                {showSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-              </button>
-            </div>
-            <p className="text-[10px] text-neutral-400">
-              From Meta App Dashboard &rarr; <b>App settings &rarr; Basic &rarr; App secret</b>. Used to cryptographically verify the <code className="text-[10px] bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded">X-Hub-Signature-256</code> header.
-            </p>
-          </div>
-        </div>
-
-        {/* Quick-Reply Buttons */}
-        <div className="p-4 rounded-xl bg-neutral-50/70 dark:bg-neutral-950/70 border border-neutral-200 dark:border-neutral-800 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
-              <MessageSquare className="size-3.5 text-[#f97316]" /> Interactive Quick-Reply Buttons (Optional)
-            </label>
-            <span className="text-[10px] text-neutral-400">Max 3 buttons (Meta limit)</span>
-          </div>
-          <p className="text-[11px] text-neutral-400 leading-relaxed">
-            Attach interactive quick-reply buttons below AI replies on WhatsApp for one-tap navigation (e.g. <i>&ldquo;Book a Call&rdquo;</i>, <i>&ldquo;Talk to Human&rdquo;</i>, <i>&ldquo;Pricing&rdquo;</i>).
-          </p>
-          <div className="flex flex-wrap gap-2 items-center">
-            {whatsappQuickReplies.map((btn) => (
-              <span
-                key={btn}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-700 dark:text-neutral-200 shadow-2xs"
-              >
-                {btn}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveQuickReply(btn)}
-                  className="text-neutral-400 hover:text-red-500 transition"
-                  title="Remove button"
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            ))}
-            {whatsappQuickReplies.length < 3 && (
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="text"
-                  value={newQuickReply}
-                  onChange={(e) => setNewQuickReply(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddQuickReply();
-                    }
-                  }}
-                  placeholder="Button label..."
-                  maxLength={20}
-                  className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-xs focus:outline-none w-32 focus:border-neutral-400"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddQuickReply}
-                  disabled={!newQuickReply.trim()}
-                  className="px-2.5 py-1 rounded-lg bg-[#f97316] text-white text-xs font-medium hover:opacity-90 disabled:opacity-40 transition"
-                >
-                  Add
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Collapsible Setup Checklist */}
-        <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setShowSetupGuide(!showSetupGuide)}
-            className="w-full flex items-center justify-between p-3.5 bg-neutral-50 dark:bg-neutral-950 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition"
-          >
-            <span>Step-by-Step Meta Developer Portal Guide</span>
-            {showSetupGuide ? <ChevronUp className="size-4 text-neutral-400" /> : <ChevronDown className="size-4 text-neutral-400" />}
-          </button>
-          {showSetupGuide && (
-            <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 bg-white dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800">
-              <div className="flex items-start gap-2.5">
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">1</span>
-                <div>
-                  <b>Create a Meta App</b>: Go to <a href="https://developers.facebook.com/" target="_blank" rel="noopener noreferrer" className="text-[#f97316] hover:underline">developers.facebook.com</a> &rarr; My Apps &rarr; Create App &rarr; select <b>Other &rarr; Business</b>.
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">2</span>
-                <div>
-                  <b>Add WhatsApp</b>: Under Add products to your app, click <b>Set up</b> on the WhatsApp card.
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">3</span>
-                <div>
-                  <b>Configure Webhook</b>: Navigate to <b>WhatsApp &rarr; Configuration &rarr; Webhook &rarr; Edit</b>. Paste the <b>Callback URL</b> and <b>Verify Token</b> from above, then click <b>Verify and Save</b>.
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">4</span>
-                <div>
-                  <b>Subscribe to Messages</b>: Under Webhook fields, click <b>Subscribe</b> next to <code className="bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px]">messages</code>.
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#f97316] text-white text-[10px] font-bold">5</span>
-                <div>
-                  <b>System User Token</b>: In Meta Business Settings &rarr; Users &rarr; System Users, generate a permanent token with <code className="bg-neutral-100 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px]">whatsapp_business_messaging</code> and paste it into the <b>Permanent Access Token</b> field above. Click <b>Save Changes</b> below.
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        </>
-        )}
-      </div>
-
-      {/* Security: Allowed Domains */}
-      <div id="integration-domains" className="scroll-mt-24 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
-        <h3 className="text-sm font-bold flex items-center gap-2">
-          <ShieldAlert className="size-4 text-[#f97316]" /> Allowed Domains
-        </h3>
-        <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
-          Restrict where this widget can run. Leave empty to allow <b>any</b> website. Add domains to lock the
-          assistant to only your sites - requests from other domains are rejected.
-        </p>
 
         <form
           onSubmit={(e) => {
@@ -1249,25 +2675,25 @@ export function IntegrationsTab({
             }
             setNewDomain("");
           }}
-          className="flex gap-2 mt-4"
+          className="flex gap-2 pt-2"
         >
           <input
             type="text"
             value={newDomain}
             onChange={(e) => setNewDomain(e.target.value)}
             placeholder="example.com"
-            className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-350 dark:focus:border-neutral-700"
+            className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-neutral-400"
           />
           <button
             type="submit"
             disabled={!newDomain.trim()}
-            className="px-4 py-2 bg-[#f97316] text-white rounded-lg text-xs font-semibold hover:opacity-90 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+            className="px-4 py-2 bg-[#f97316] text-white rounded-xl text-xs font-semibold hover:bg-orange-600 cursor-pointer disabled:opacity-40 flex items-center gap-1.5 shadow-xs"
           >
-            <Plus className="size-3.5" /> Add
+            <Plus className="size-3.5" /> Add Domain
           </button>
         </form>
 
-        <div className="dashboard-action-bar flex flex-wrap gap-2 mt-3">
+        <div className="flex flex-wrap gap-2 pt-2">
           {allowedDomains.length === 0 ? (
             <span className="text-[11px] text-neutral-400 flex items-center gap-1.5">
               <Globe className="size-3.5" /> Open to all domains (no restriction)
@@ -1276,10 +2702,11 @@ export function IntegrationsTab({
             allowedDomains.map((d) => (
               <span
                 key={d}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[11px] font-medium text-neutral-700 dark:text-neutral-300"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700"
               >
                 {d}
                 <button
+                  type="button"
                   onClick={() => handleInputChange(setAllowedDomains, allowedDomains.filter((x) => x !== d))}
                   className="text-neutral-400 hover:text-red-500 cursor-pointer"
                 >
@@ -1290,8 +2717,8 @@ export function IntegrationsTab({
           )}
         </div>
         {allowedDomains.length > 0 && (
-          <p className="text-[10px] text-neutral-400 mt-3">
-            Remember to click <b>Save Changes</b> to apply.
+          <p className="text-[10px] text-neutral-400 pt-1">
+            Click <b>Save Changes</b> in the bottom bar to apply domain restrictions.
           </p>
         )}
       </div>

@@ -63,3 +63,22 @@ def test_contains_pii():
     assert contains_pii("Visa card 4532015112830366") is True
     assert contains_pii("My SSN is 123-45-6789") is True
     assert contains_pii(f"Token: {'sk'}_{'live'}_abcdef1234567890abcdef1234") is True
+    assert contains_pii("Send payout to DE89370400440532013000 please") is True
+
+
+def test_is_iban_valid():
+    from app.services.pii_service import is_iban_valid
+    # Authentic test IBANs (valid ISO 7064 MOD 97)
+    assert is_iban_valid("DE89 3704 0044 0532 0130 00") is True
+    assert is_iban_valid("GB29 NWBK 6016 1331 9268 19") is True
+    # Invalid IBANs (corrupt check digits)
+    assert is_iban_valid("DE89 3704 0044 0532 0130 01") is False
+    assert is_iban_valid("INVALID_STRING_TOO_SHORT") is False
+
+
+def test_scrub_iban():
+    text = "Please transfer the funds to IBAN DE89 3704 0044 0532 0130 00 tomorrow."
+    scrubbed = scrub_pii(text)
+    assert "DE89" not in scrubbed
+    assert "[REDACTED_IBAN:DE***3000]" in scrubbed
+

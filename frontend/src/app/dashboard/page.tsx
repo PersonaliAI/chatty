@@ -523,6 +523,31 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   const [whatsappAppSecret, setWhatsappAppSecret] = useState("");
   const [whatsappQuickReplies, setWhatsappQuickReplies] = useState<string[]>([]);
 
+  // Omnichannel: Instagram DM & Messenger
+  const [instagramEnabled, setInstagramEnabled] = useState(false);
+  const [instagramPageId, setInstagramPageId] = useState("");
+  const [instagramAccessToken, setInstagramAccessToken] = useState("");
+  const [instagramVerifyToken, setInstagramVerifyToken] = useState("");
+  const [instagramAppSecret, setInstagramAppSecret] = useState("");
+
+  // Omnichannel: Telegram Bot
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramSecretToken, setTelegramSecretToken] = useState("");
+  const [telegramBotUsername, setTelegramBotUsername] = useState("");
+
+  // Omnichannel: Twilio SMS
+  const [smsEnabled, setSmsEnabled] = useState(false);
+  const [twilioAccountSid, setTwilioAccountSid] = useState("");
+  const [twilioAuthToken, setTwilioAuthToken] = useState("");
+  const [twilioPhoneNumber, setTwilioPhoneNumber] = useState("");
+
+  // Omnichannel: Two-Way Support Email
+  const [emailChannelEnabled, setEmailChannelEnabled] = useState(false);
+  const [emailSupportAddress, setEmailSupportAddress] = useState("");
+  const [emailWebhookSecret, setEmailWebhookSecret] = useState("");
+  const [emailAutoReplyMode, setEmailAutoReplyMode] = useState<"instant_ai" | "draft_copilot">("instant_ai");
+
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
   const [driveMaxFiles, setDriveMaxFiles] = useState(50);
@@ -1505,7 +1530,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setBookingLimitOneActive(activeBot.booking_limit_one_active || false);
         setBookingRequireBusinessEmail(activeBot.booking_require_business_email || false);
 
-        // WhatsApp Business Channel
+        // Omnichannel Messaging Channels
         setWhatsappEnabled(Boolean(activeBot.whatsapp_enabled));
         setWhatsappPhoneNumberId(String(activeBot.whatsapp_phone_number_id || ""));
         setWhatsappWabaId(String(activeBot.whatsapp_waba_id || ""));
@@ -1513,6 +1538,28 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setWhatsappVerifyToken(String(activeBot.whatsapp_verify_token || ""));
         setWhatsappAppSecret(String(activeBot.whatsapp_app_secret || ""));
         setWhatsappQuickReplies(Array.isArray(activeBot.whatsapp_quick_replies) ? activeBot.whatsapp_quick_replies : []);
+
+        const botAny = activeBot as Record<string, unknown>;
+        setInstagramEnabled(Boolean(botAny.instagram_enabled));
+        setInstagramPageId(String(botAny.instagram_page_id || ""));
+        setInstagramAccessToken(String(botAny.instagram_access_token || ""));
+        setInstagramVerifyToken(String(botAny.instagram_verify_token || ""));
+        setInstagramAppSecret(String(botAny.instagram_app_secret || ""));
+
+        setTelegramEnabled(Boolean(botAny.telegram_enabled));
+        setTelegramBotToken(String(botAny.telegram_bot_token || ""));
+        setTelegramSecretToken(String(botAny.telegram_secret_token || ""));
+        setTelegramBotUsername(String(botAny.telegram_bot_username || ""));
+
+        setSmsEnabled(Boolean(botAny.sms_enabled));
+        setTwilioAccountSid(String(botAny.twilio_account_sid || ""));
+        setTwilioAuthToken(String(botAny.twilio_auth_token || ""));
+        setTwilioPhoneNumber(String(botAny.twilio_phone_number || ""));
+
+        setEmailChannelEnabled(Boolean(botAny.email_channel_enabled));
+        setEmailSupportAddress(String(botAny.email_support_address || ""));
+        setEmailWebhookSecret(String(botAny.email_webhook_secret || ""));
+        setEmailAutoReplyMode((botAny.email_auto_reply_mode as "instant_ai" | "draft_copilot") || "instant_ai");
 
         // When active bot belongs to another workspace owner (shared bot),
         // resolve and manage the workspace owner's billing, quotas, and subscription tier
@@ -1711,6 +1758,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setMaxWeeklyMeetings(selected.max_weekly_meetings ?? 0);
       setAllowedDomains(selected.allowed_domains || []);
       setNotificationEmails(String(selected.notification_emails || ""));
+      // Omnichannel Messaging Channels
       setWhatsappEnabled(Boolean(selected.whatsapp_enabled));
       setWhatsappPhoneNumberId(String(selected.whatsapp_phone_number_id || ""));
       setWhatsappWabaId(String(selected.whatsapp_waba_id || ""));
@@ -1718,6 +1766,28 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setWhatsappVerifyToken(String(selected.whatsapp_verify_token || ""));
       setWhatsappAppSecret(String(selected.whatsapp_app_secret || ""));
       setWhatsappQuickReplies(Array.isArray(selected.whatsapp_quick_replies) ? selected.whatsapp_quick_replies : []);
+
+      const selAny = selected as Record<string, unknown>;
+      setInstagramEnabled(Boolean(selAny.instagram_enabled));
+      setInstagramPageId(String(selAny.instagram_page_id || ""));
+      setInstagramAccessToken(String(selAny.instagram_access_token || ""));
+      setInstagramVerifyToken(String(selAny.instagram_verify_token || ""));
+      setInstagramAppSecret(String(selAny.instagram_app_secret || ""));
+
+      setTelegramEnabled(Boolean(selAny.telegram_enabled));
+      setTelegramBotToken(String(selAny.telegram_bot_token || ""));
+      setTelegramSecretToken(String(selAny.telegram_secret_token || ""));
+      setTelegramBotUsername(String(selAny.telegram_bot_username || ""));
+
+      setSmsEnabled(Boolean(selAny.sms_enabled));
+      setTwilioAccountSid(String(selAny.twilio_account_sid || ""));
+      setTwilioAuthToken(String(selAny.twilio_auth_token || ""));
+      setTwilioPhoneNumber(String(selAny.twilio_phone_number || ""));
+
+      setEmailChannelEnabled(Boolean(selAny.email_channel_enabled));
+      setEmailSupportAddress(String(selAny.email_support_address || ""));
+      setEmailWebhookSecret(String(selAny.email_webhook_secret || ""));
+      setEmailAutoReplyMode((selAny.email_auto_reply_mode as "instant_ai" | "draft_copilot") || "instant_ai");
       setOnboardingStep(selected.onboarding_step || 0);
       setOnboardingCompleted(selected.onboarding_completed || false);
       setLeadFields(selected.lead_fields || ["name", "email", "phone"]);
@@ -2866,6 +2936,23 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           whatsapp_verify_token: whatsappVerifyToken.trim() || null,
           whatsapp_app_secret: whatsappAppSecret.trim() || null,
           whatsapp_quick_replies: whatsappQuickReplies,
+          instagram_enabled: instagramEnabled,
+          instagram_page_id: instagramPageId.trim() || null,
+          instagram_access_token: instagramAccessToken.trim() || null,
+          instagram_verify_token: instagramVerifyToken.trim() || null,
+          instagram_app_secret: instagramAppSecret.trim() || null,
+          telegram_enabled: telegramEnabled,
+          telegram_bot_token: telegramBotToken.trim() || null,
+          telegram_secret_token: telegramSecretToken.trim() || null,
+          telegram_bot_username: telegramBotUsername.trim() || null,
+          sms_enabled: smsEnabled,
+          twilio_account_sid: twilioAccountSid.trim() || null,
+          twilio_auth_token: twilioAuthToken.trim() || null,
+          twilio_phone_number: twilioPhoneNumber.trim() || null,
+          email_channel_enabled: emailChannelEnabled,
+          email_support_address: emailSupportAddress.trim() || null,
+          email_webhook_secret: emailWebhookSecret.trim() || null,
+          email_auto_reply_mode: emailAutoReplyMode,
           updated_at: new Date().toISOString()
       };
 
@@ -5116,6 +5203,40 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setWhatsappAppSecret={setWhatsappAppSecret}
               whatsappQuickReplies={whatsappQuickReplies}
               setWhatsappQuickReplies={setWhatsappQuickReplies}
+              instagramEnabled={instagramEnabled}
+              setInstagramEnabled={setInstagramEnabled}
+              instagramPageId={instagramPageId}
+              setInstagramPageId={setInstagramPageId}
+              instagramAccessToken={instagramAccessToken}
+              setInstagramAccessToken={setInstagramAccessToken}
+              instagramVerifyToken={instagramVerifyToken}
+              setInstagramVerifyToken={setInstagramVerifyToken}
+              instagramAppSecret={instagramAppSecret}
+              setInstagramAppSecret={setInstagramAppSecret}
+              telegramEnabled={telegramEnabled}
+              setTelegramEnabled={setTelegramEnabled}
+              telegramBotToken={telegramBotToken}
+              setTelegramBotToken={setTelegramBotToken}
+              telegramSecretToken={telegramSecretToken}
+              setTelegramSecretToken={setTelegramSecretToken}
+              telegramBotUsername={telegramBotUsername}
+              setTelegramBotUsername={setTelegramBotUsername}
+              smsEnabled={smsEnabled}
+              setSmsEnabled={setSmsEnabled}
+              twilioAccountSid={twilioAccountSid}
+              setTwilioAccountSid={setTwilioAccountSid}
+              twilioAuthToken={twilioAuthToken}
+              setTwilioAuthToken={setTwilioAuthToken}
+              twilioPhoneNumber={twilioPhoneNumber}
+              setTwilioPhoneNumber={setTwilioPhoneNumber}
+              emailChannelEnabled={emailChannelEnabled}
+              setEmailChannelEnabled={setEmailChannelEnabled}
+              emailSupportAddress={emailSupportAddress}
+              setEmailSupportAddress={setEmailSupportAddress}
+              emailWebhookSecret={emailWebhookSecret}
+              setEmailWebhookSecret={setEmailWebhookSecret}
+              emailAutoReplyMode={emailAutoReplyMode}
+              setEmailAutoReplyMode={setEmailAutoReplyMode}
               showToast={showToast}
               authToken={authToken}
             />
