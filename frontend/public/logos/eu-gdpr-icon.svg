@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="100%" height="100%">
+  <defs>
+    <!-- EU Flag Blue Gradient -->
+    <linearGradient id="euBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#003399"/>
+      <stop offset="100%" stop-color="#002266"/>
+    </linearGradient>
+    <!-- Solid Gold Gradient -->
+    <linearGradient id="euGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FFCC00"/>
+    </linearGradient>
+    <!-- Star definition (size 3) -->
+    <g id="star">
+      <polygon points="0,-2.5 0.77,-0.77 2.5,-0.77 1.1,0.3 1.5,2 0,1 -1.5,2 -1.1,0.3 -2.5,-0.77 -0.77,-0.77" fill="url(#euGold)"/>
+    </g>
+  </defs>
+
+  <!-- Circular Base -->
+  <circle cx="20" cy="20" r="19" fill="url(#euBlue)" stroke="#3b82f6" stroke-width="1.2"/>
+  <circle cx="20" cy="20" r="17.2" fill="none" stroke="url(#euGold)" stroke-width="0.8" opacity="0.7"/>
+
+  <!-- 12 European Union Stars in a Circle (Radius 13.5) -->
+  <g transform="translate(20, 20)">
+    <use href="#star" transform="translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(30) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(60) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(90) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(120) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(150) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(180) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(210) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(240) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(270) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(300) translate(0, -13.5)"/>
+    <use href="#star" transform="rotate(330) translate(0, -13.5)"/>
+
+    <!-- Center Security Shield with Padlock (Bold & Clean at small sizes) -->
+    <path d="M 0 -6.5 C 4 -6.5 7 -5.5 7 -2 C 7 3.5 3.5 7 0 9 C -3.5 7 -7 3.5 -7 -2 C -7 -5.5 -4 -6.5 0 -6.5 Z" fill="#001f5c" stroke="url(#euGold)" stroke-width="1.2"/>
+    <!-- Padlock Shackle -->
+    <path d="M -2.2 -0.8 L -2.2 -3.2 C -2.2 -4.4 2.2 -4.4 2.2 -3.2 L 2.2 -0.8" fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round"/>
+    <!-- Padlock Body -->
+    <rect x="-3.5" y="-0.8" width="7" height="5.5" rx="1.2" fill="url(#euGold)"/>
+    <circle cx="0" cy="1.6" r="0.8" fill="#002244"/>
+  </g>
+</svg>

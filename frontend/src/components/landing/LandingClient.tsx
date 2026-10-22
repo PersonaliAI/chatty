@@ -1540,15 +1540,16 @@ export default function LandingClient() {
                 <Check className="size-4 text-emerald-600" /> 2-minute embed script
               </span>
               <Link
-                href="/privacy"
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200/80 transition-colors"
+                href="/dpa"
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/90 hover:bg-blue-100 border border-blue-200/90 transition-all group"
                 title="GDPR Compliant - Regulation (EU) 2016/679"
               >
                 <img
-                  src="/logos/gdpr-badge.svg"
-                  alt="Official GDPR Compliance Badge"
-                  className="h-5 w-auto"
+                  src="/logos/eu-gdpr-icon.svg"
+                  alt="Official EU GDPR Compliance Emblem"
+                  className="size-5 object-contain shrink-0 group-hover:scale-110 transition-transform"
                 />
+                <span className="font-bold text-blue-950 text-xs tracking-tight">GDPR Compliant</span>
               </Link>
             </div>
           </div>
@@ -2839,29 +2840,33 @@ export default function LandingClient() {
           </div>
 
           {/* Dedicated GDPR Compliance Trust Bar */}
-          <div className="border-t border-zinc-200/80 bg-gradient-to-r from-blue-50/60 via-zinc-50 to-blue-50/40 px-6 py-3 flex flex-wrap items-center justify-between gap-4 text-xs">
-            <div className="flex items-center gap-3">
-              <img
-                src="/logos/gdpr-badge.svg"
-                alt="GDPR Compliant Badge"
-                className="h-6 w-auto shrink-0"
-              />
-              <span className="text-zinc-700 font-medium">
-                Chatty operates in full compliance with European Union <strong className="font-semibold text-zinc-900">Regulation (EU) 2016/679 (GDPR)</strong>.
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center gap-4 text-xs">
-              <Link href="/dpa" className="font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2">
-                Download DPA & SCCs
+          <div className="border-t border-zinc-200/80 bg-gradient-to-r from-blue-50/60 via-zinc-50 to-blue-50/40 px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 text-xs">
+            <div className="flex items-center gap-4">
+              <Link href="/dpa" className="shrink-0 hover:scale-[1.02] transition-transform drop-shadow-sm">
+                <img
+                  src="/logos/gdpr-official-badge.svg"
+                  alt="Official European Union GDPR Compliance Badge"
+                  className="h-12 sm:h-14 w-auto shrink-0"
+                />
               </Link>
-              <span className="text-zinc-300">•</span>
-              <Link href="/subprocessors" className="text-zinc-600 hover:text-zinc-900">
+              <div className="space-y-0.5">
+                <p className="font-bold text-zinc-900 text-sm">EU Data Protection Guaranteed</p>
+                <p className="text-zinc-600 font-medium">
+                  Chatty operates in full compliance with European Union <strong className="font-semibold text-zinc-900">Regulation (EU) 2016/679 (GDPR)</strong>.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
+              <Link href="/dpa" className="px-3.5 py-1.5 rounded-lg bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200 transition-colors font-semibold shadow-2xs">
+                Download DPA &amp; SCCs
+              </Link>
+              <Link href="/subprocessors" className="text-zinc-600 hover:text-zinc-900 hover:underline">
                 Subprocessors Directory
               </Link>
               <span className="text-zinc-300">•</span>
-              <span className="inline-flex items-center gap-1.5 text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              <span className="inline-flex items-center gap-1.5 text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
                 <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Automated PII Scrubbing & Right to Erasure Active
+                Automated PII Scrubbing Active
               </span>
             </div>
           </div>

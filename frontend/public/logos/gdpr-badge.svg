@@ -1,53 +1,78 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 60" width="100%" height="100%">
   <defs>
-    <linearGradient id="badgeBg" x1="0%" y1="0%" x2="100%" y2="0%">
+    <!-- Background Pill Gradient -->
+    <linearGradient id="badgeBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0b1b3d"/>
-      <stop offset="100%" stop-color="#002b66"/>
+      <stop offset="50%" stop-color="#002b66"/>
+      <stop offset="100%" stop-color="#001a40"/>
     </linearGradient>
-    <linearGradient id="goldGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+
+    <!-- Metallic Gold -->
+    <linearGradient id="goldGradLg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#FFE066"/>
-      <stop offset="100%" stop-color="#FFCC00"/>
+      <stop offset="50%" stop-color="#FFCC00"/>
+      <stop offset="100%" stop-color="#E5A800"/>
     </linearGradient>
-    <g id="starSmall">
-      <polygon points="0,-2.6 0.78,-0.78 2.6,-0.78 1.17,0.35 1.65,2.08 0,0.95 -1.65,2.08 -1.17,0.35 -2.6,-0.78 -0.78,-0.78" fill="url(#goldGrad2)"/>
+
+    <!-- Star definition (size 3) -->
+    <g id="starLg">
+      <polygon points="0,-2.6 0.8,-0.8 2.6,-0.8 1.15,0.35 1.6,2.05 0,0.95 -1.6,2.05 -1.15,0.35 -2.6,-0.8 -0.8,-0.8" fill="url(#goldGradLg)"/>
     </g>
   </defs>
 
-  <!-- Background Pill -->
-  <rect x="1" y="1" width="198" height="46" rx="23" fill="url(#badgeBg)" stroke="#2563eb" stroke-width="1.2"/>
-  <rect x="2.5" y="2.5" width="195" height="43" rx="21.5" fill="none" stroke="url(#goldGrad2)" stroke-width="0.8" opacity="0.6"/>
+  <!-- Outer Rounded Capsule with Rim -->
+  <rect x="1.5" y="1.5" width="257" height="57" rx="28.5" fill="url(#badgeBgGrad)" stroke="#3b82f6" stroke-width="1.5"/>
+  <rect x="3" y="3" width="254" height="54" rx="27" fill="none" stroke="url(#goldGradLg)" stroke-width="1" opacity="0.65"/>
 
-  <!-- Left Icon Emblem: Exact 12 European Union Stars Circle (Radius 11) -->
-  <g transform="translate(24, 24)">
-    <circle cx="0" cy="0" r="16" fill="#003399" stroke="#3b82f6" stroke-width="1"/>
-    <!-- 12 EU Stars at 30 degree increments -->
-    <use href="#starSmall" transform="translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(30) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(60) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(90) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(120) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(150) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(180) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(210) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(240) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(270) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(300) translate(0, -11)"/>
-    <use href="#starSmall" transform="rotate(330) translate(0, -11)"/>
-    <!-- Center Security Lock in Gold -->
-    <path d="M -2.5 -0.5 L -2.5 -3.5 C -2.5 -4.8 2.5 -4.8 2.5 -3.5 L 2.5 -0.5" fill="none" stroke="url(#goldGrad2)" stroke-width="1.2" stroke-linecap="round"/>
-    <rect x="-4" y="-0.5" width="8" height="6.5" rx="1.5" fill="url(#goldGrad2)"/>
-    <circle cx="0" cy="2.2" r="0.9" fill="#002244"/>
+  <!-- Left Side: Official EU 12-Star Crest Seal (Radius 22, center at x=31, y=30) -->
+  <g transform="translate(31, 30)">
+    <circle cx="0" cy="0" r="21" fill="#003399" stroke="#60a5fa" stroke-width="1.2"/>
+    <circle cx="0" cy="0" r="19" fill="none" stroke="url(#goldGradLg)" stroke-width="0.9" opacity="0.8"/>
+
+    <!-- 12 EU Stars Ring (Radius 14) -->
+    <use href="#starLg" transform="translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(30) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(60) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(90) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(120) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(150) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(180) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(210) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(240) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(270) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(300) translate(0, -14)"/>
+    <use href="#starLg" transform="rotate(330) translate(0, -14)"/>
+
+    <!-- Center Security Shield -->
+    <path d="M 0 -7 C 4.5 -7 8 -5.8 8 -2 C 8 4 4 8 0 10 C -4 8 -8 4 -8 -2 C -8 -5.8 -4.5 -7 0 -7 Z" fill="#0c234b" stroke="url(#goldGradLg)" stroke-width="1.3"/>
+    <!-- Padlock inside shield -->
+    <path d="M -2.5 -1.2 L -2.5 -3.8 C -2.5 -5.2 2.5 -5.2 2.5 -3.8 L 2.5 -1.2" fill="none" stroke="#FFFFFF" stroke-width="1.3" stroke-linecap="round"/>
+    <rect x="-4" y="-1.2" width="8" height="6.5" rx="1.5" fill="url(#goldGradLg)"/>
+    <circle cx="0" cy="1.6" r="1" fill="#002244"/>
   </g>
 
-  <!-- Typography -->
-  <text x="48" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="14" letter-spacing="1.5" fill="#FFFFFF">
+  <!-- Right Side: Bold, Highly Legible Typography -->
+  <!-- Line 1: GDPR + COMPLIANT Pill -->
+  <text x="62" y="27" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="18" letter-spacing="1.5" fill="#FFFFFF">
     GDPR
   </text>
-  <rect x="94" y="9" width="70" height="15" rx="7.5" fill="#10B981"/>
-  <text x="129" y="20" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="8.5" letter-spacing="1" fill="#FFFFFF">
-    COMPLIANT
-  </text>
-  <text x="48" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="7.5" letter-spacing="0.5" fill="#93C5FD">
+  
+  <!-- COMPLIANT Pill Badge -->
+  <g transform="translate(126, 12)">
+    <rect x="0" y="0" width="94" height="20" rx="10" fill="#10B981" stroke="#059669" stroke-width="1"/>
+    <!-- Checkmark inside pill -->
+    <path d="M 12 10.5 L 16 14 L 23 6.5" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="56" y="14" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="10" letter-spacing="1.2" fill="#FFFFFF">
+      COMPLIANT
+    </text>
+  </g>
+
+  <!-- Line 2: Regulation Citation (Clear, Highly Readable) -->
+  <text x="62" y="46" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="10" letter-spacing="1" fill="#93C5FD">
     REGULATION (EU) 2016/679
+  </text>
+  <circle cx="218" cy="43" r="2" fill="#38BDF8"/>
+  <text x="225" y="46" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="600" font-size="9" letter-spacing="0.8" fill="#60A5FA">
+    VERIFIED
   </text>
 </svg>

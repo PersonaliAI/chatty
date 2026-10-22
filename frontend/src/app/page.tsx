@@ -494,18 +494,17 @@ export default function Home() {
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-7 mt-8 pt-6 max-w-[850px] mx-auto border-t" style={{ borderColor: "var(--color-divider)" }}>
             <Link
               href="/dpa"
-              className="inline-flex items-center gap-2 text-xs font-medium hover:opacity-85 transition-opacity group"
-              style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}
+              className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-blue-50/80 hover:bg-blue-100 border border-blue-200/90 transition-all shadow-2xs group"
             >
               <Image
-                src="/logos/gdpr-compliant.svg"
+                src="/logos/eu-gdpr-icon.svg"
                 alt="Official European Union GDPR Compliance Emblem"
-                width={22}
-                height={22}
-                className="size-[22px] object-contain shrink-0 group-hover:scale-105 transition-transform"
+                width={28}
+                height={28}
+                className="size-7 object-contain shrink-0 group-hover:scale-110 transition-transform drop-shadow-xs"
               />
-              <span className="font-semibold text-zinc-900">GDPR Compliant</span>
-              <span className="text-[11px] opacity-75">(EU &amp; UK)</span>
+              <span className="font-bold text-blue-950 text-xs tracking-tight">GDPR Compliant</span>
+              <span className="text-[11px] text-blue-700 font-medium">(EU &amp; UK)</span>
             </Link>
 
             <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
@@ -876,34 +875,57 @@ export default function Home() {
 
         {/* GDPR Compliance Footer Strip */}
         <div
-          className="mt-8 pt-6 pb-2 border-t flex flex-wrap items-center justify-between gap-4 text-xs"
+          className="mt-10 pt-8 pb-4 border-t flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 text-xs"
           style={{ borderColor: "var(--color-divider)" }}
         >
-          <div className="flex items-center gap-3">
-            <Link href="/dpa" className="shrink-0 hover:opacity-90 transition-opacity">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
+            <Link
+              href="/dpa"
+              className="shrink-0 hover:scale-[1.03] transition-transform drop-shadow-md"
+              title="Official European Union GDPR Compliance (Regulation EU 2016/679)"
+            >
               <Image
-                src="/logos/gdpr-badge.svg"
-                alt="Official GDPR Compliance Badge"
-                width={160}
-                height={38}
-                className="h-7 w-auto object-contain"
+                src="/logos/gdpr-official-badge.svg"
+                alt="Official European Union GDPR Compliance Badge"
+                width={260}
+                height={60}
+                className="h-14 sm:h-16 w-auto object-contain"
+                priority
               />
             </Link>
-            <span style={{ color: "color-mix(in srgb, var(--color-text) 80%, transparent)" }}>
-              Chatty is fully compliant with European Union <strong className="font-semibold text-zinc-900">Regulation (EU) 2016/679 (GDPR)</strong>.
-            </span>
+            <div className="space-y-1 max-w-xl">
+              <div className="flex items-center gap-2">
+                <p className="font-bold text-zinc-900 text-sm tracking-tight">
+                  EU &amp; UK Data Protection Guaranteed
+                </p>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  VERIFIED
+                </span>
+              </div>
+              <p className="text-[12.5px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 75%, transparent)" }}>
+                Chatty operates in strict compliance with European Union <strong className="font-semibold text-zinc-900">Regulation (EU) 2016/679 (GDPR)</strong>. Built-in DPA, standard contractual clauses (SCCs), automated PII scrubbing, and zero unauthorized AI model training.
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3.5 text-xs">
-            <Link href="/dpa" className="font-medium hover:underline underline-offset-2" style={{ color: "var(--color-accent-700)" }}>
-              Data Processing Addendum (DPA)
+          <div className="flex flex-wrap items-center gap-3 text-xs font-medium shrink-0">
+            <Link
+              href="/dpa"
+              className="px-4 py-2 rounded-lg bg-blue-50 text-blue-900 hover:bg-blue-100 border border-blue-200 transition-colors shadow-2xs font-semibold"
+            >
+              Download DPA &amp; SCCs
+            </Link>
+            <Link
+              href="/subprocessors"
+              className="hover:underline underline-offset-2 px-2 py-1 text-zinc-700 hover:text-zinc-950 font-medium"
+            >
+              Subprocessors
             </Link>
             <span className="opacity-40">•</span>
-            <Link href="/subprocessors" className="hover:underline underline-offset-2" style={{ color: "color-mix(in srgb, var(--color-text) 75%, transparent)" }}>
-              Subprocessors Directory
-            </Link>
-            <span className="opacity-40">•</span>
-            <Link href="/privacy" className="hover:underline underline-offset-2" style={{ color: "color-mix(in srgb, var(--color-text) 75%, transparent)" }}>
-              Privacy &amp; PII Safeguards
+            <Link
+              href="/privacy"
+              className="hover:underline underline-offset-2 px-2 py-1 text-zinc-700 hover:text-zinc-950 font-medium"
+            >
+              Privacy Safeguards
             </Link>
           </div>
         </div>
