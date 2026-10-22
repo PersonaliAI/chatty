@@ -42,6 +42,16 @@ def test_resolve_gemini_model_uses_vertex_for_gemma_and_vertex_flag(monkeypatch)
     assert ai_client.resolve_gemini_model("gemma-2-9b-it") == "vertex_ai/gemma-2-9b-it"
 
 
+def test_resolve_gemini_model_uses_google_ai_studio_for_gemma_4(monkeypatch):
+    monkeypatch.setattr(ai_client, "GEMINI_API_KEY", "fake-key")
+    monkeypatch.setattr(ai_client, "USE_VERTEX_AI", True)  # Even with vertex enabled
+    monkeypatch.setattr(ai_client, "OPENROUTER_API_KEY", "fake-or-key")
+    assert ai_client.resolve_gemini_model("gemma-4-31b") == "gemini/gemma-4-31b-it"
+    assert ai_client.resolve_gemini_model("gemma-4-31b-it") == "gemini/gemma-4-31b-it"
+    assert ai_client.resolve_gemini_model("gemma-4-26b-a4b") == "gemini/gemma-4-26b-a4b-it"
+
+
+
 def test_resolve_gemini_model_passes_through_already_prefixed_names(monkeypatch):
     monkeypatch.setattr(ai_client, "GEMINI_API_KEY", "fake-key")
     assert ai_client.resolve_gemini_model("vertex_ai/gemini-2.5-flash") == "vertex_ai/gemini-2.5-flash"

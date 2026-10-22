@@ -62,6 +62,7 @@ from app.services.chatty_quota_service import (
     WHITELABEL_PLANS,
     chatty_quota_exceeded,
     check_bot_owner_subscription,
+    is_builtin_google_model,
     plan_for,
     usage_units_for_message,
 )
@@ -557,7 +558,6 @@ async def widget_chat(
     bot_id = body.bot_id
     session_id = body.session_id
     text = scrub_pii(body.text)
-    usage_units = usage_units_for_message(text)
     visitor_timezone = body.visitor_timezone
     visitor_name = scrub_pii((body.visitor_name or "").strip()[:120]) or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
@@ -575,6 +575,9 @@ async def widget_chat(
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
+    bot_model = bot.get("selected_model")
+    has_byok = bool(not is_builtin_google_model(bot_model) and bot.get("byok_api_key_encrypted"))
+    usage_units = usage_units_for_message(text, model=bot_model, is_byok=has_byok)
 
     # --- Rate limit per bot + IP - unverified-origin traffic gets a much
     # tighter tier instead of an outright 403 (see _widget_rate_limit_or_429).
@@ -866,7 +869,6 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     bot_id = body.bot_id
     session_id = body.session_id
     text = scrub_pii(body.text)
-    usage_units = usage_units_for_message(text)
     visitor_timezone = body.visitor_timezone
     visitor_name = scrub_pii((body.visitor_name or "").strip()[:120]) or None
     visitor_email = (body.visitor_email or "").strip().lower()[:160] or None
@@ -882,6 +884,9 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
+    bot_model = bot.get("selected_model")
+    has_byok = bool(not is_builtin_google_model(bot_model) and bot.get("byok_api_key_encrypted"))
+    usage_units = usage_units_for_message(text, model=bot_model, is_byok=has_byok)
 
     ip = _client_ip(request)
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
@@ -1364,7 +1369,9 @@ async def widget_chat_media(
             media_type="",
             ai_paused=True,
         )
-    usage_units = usage_units_for_message(text, has_media=True)
+    bot_model = bot.get("selected_model")
+    has_byok = bool(not is_builtin_google_model(bot_model) and bot.get("byok_api_key_encrypted"))
+    usage_units = usage_units_for_message(text, has_media=True, model=bot_model, is_byok=has_byok)
 
     # Quota gate BEFORE the storage write - an owner who's already out of
     # quota shouldn't also pay for storage on an upload the model will never

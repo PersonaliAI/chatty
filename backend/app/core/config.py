@@ -46,7 +46,7 @@ SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "").strip()
 MODEL_NAME = (
     os.environ.get("KIN_MODEL")
     or os.environ.get("GEMMA_MODEL")
-    or "gemini-2.5-flash-lite"
+    or "gemma-4-31b-it"
 )
 
 FUNCTION_SECRET = os.environ.get("FUNCTION_SECRET", "")
@@ -166,7 +166,7 @@ GEMINI_FALLBACK_MODELS: list[str] = [
         # The flash-lite models carry a 500 RPD quota vs 20 RPD on gemini-2.5-flash
         # on Google AI Studio free tier. Prioritizing flash-lite prevents hitting
         # the 20 RPD quota lockouts.
-        "gemini-2.5-flash-lite,gemini-3.1-flash-lite,gemini-3.5-flash-lite,gemini-2.5-flash",
+        "gemini-3.8-flash,gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite",
     ).split(",") if m.strip()
 ]
 # Back-compat: some call sites/log messages still refer to a single fallback name.

@@ -197,19 +197,29 @@ def resolve_gemini_model(name: str) -> str:
     strings (any provider) pass through unchanged."""
     if name.startswith(("openrouter/", "openai/", "anthropic/", "vertex_ai/", "gemini/")):
         return name
+    clean = name.strip()
+    if clean in ("gemma", "gemma-4-31b", "gemma-4-31b-it"):
+        clean = "gemma-4-31b-it"
+    elif clean in ("gemma-4-26b-a4b", "gemma-4-26b-a4b-it"):
+        clean = "gemma-4-26b-a4b-it"
+
+    # Gemma 4 is hosted on Google AI Studio; route directly via generative language API
+    if "gemma-4" in clean.lower():
+        return f"gemini/{clean}"
+
     openrouter_key = os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY
     if openrouter_key and (
         name.startswith("google/gemma")
         or (not USE_VERTEX_AI and "gemma" in name.lower())
         or os.environ.get("USE_OPENROUTER", "").strip().lower() in ("1", "true", "yes")
     ):
-        clean = name if name.startswith("google/") else f"google/{name}"
-        return f"openrouter/{clean}"
-    if "/" in name:
-        return name
+        clean_or = clean if clean.startswith("google/") else f"google/{clean}"
+        return f"openrouter/{clean_or}"
+    if "/" in clean:
+        return clean
     if USE_VERTEX_AI or not GEMINI_API_KEY:
-        return f"vertex_ai/{name}"
-    return f"gemini/{name}"
+        return f"vertex_ai/{clean}"
+    return f"gemini/{clean}"
 
 
 def resolve_byok_model(provider: str, model: str) -> str:

@@ -382,7 +382,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     }
   }, [logoUrl]);
   const [showWizard, setShowWizard] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("gemini");
+  const [selectedModel, setSelectedModel] = useState("gemma-4-31b");
   // BYOK - bring-your-own-key for non-Gemini models. The key itself is never
   // round-tripped to the client; only `byokConfigured` reflects whether one is set.
   const [byokProvider, setByokProvider] = useState("");
@@ -1478,7 +1478,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setAvatarUrl(activeBot.avatar_url || null);
         setAvatarIconLibrarySelection(null); // not persisted - a freshly-loaded bot has no known icon/color to resume editing
         setLogoUrl(activeBot.logo_url || null);
-        setSelectedModel(activeBot.selected_model || "gemini");
+        setSelectedModel(activeBot.selected_model || "gemma-4-31b");
         setSystemInstructions(activeBot.system_instructions || "");
         setStrictMode(activeBot.strict_mode ?? true);
         setAnswerMode(activeBot.answer_mode || "strict");
@@ -1721,7 +1721,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setAvatarUrl(selected.avatar_url || null);
       setAvatarIconLibrarySelection(null); // not persisted - a freshly-loaded bot has no known icon/color to resume editing
       setLogoUrl(selected.logo_url || null);
-      setSelectedModel(selected.selected_model || "gemini");
+      setSelectedModel(selected.selected_model || "gemma-4-31b");
       setSystemInstructions(selected.system_instructions || "");
       setStrictMode(selected.strict_mode ?? true);
       setAnswerMode(selected.answer_mode || "strict");

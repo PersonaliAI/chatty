@@ -110,7 +110,7 @@ async def create_bot(principal: dict[str, Any], body: BotCreateRequest) -> dict[
         "name": body.name,
         "welcome_message": body.welcome_message or "Hello! How can I help you today?",
         "system_instructions": body.system_instructions,
-        "selected_model": body.selected_model or "gemini-2.5-flash",
+        "selected_model": body.selected_model or "gemma-4-31b",
         "primary_color": body.primary_color or "#f97316",
         "response_language": body.response_language,
     }

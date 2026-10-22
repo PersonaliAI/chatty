@@ -51,7 +51,7 @@ class GenerateClaimBotRequest(BaseModel):
     welcome_message: Optional[str] = None
     suggested_prompts: Optional[List[str]] = None
     system_instructions: Optional[str] = None
-    model: Optional[str] = "gemini-2.5-flash"
+    model: Optional[str] = "gemma-4-31b"
 
 
 
@@ -114,7 +114,7 @@ async def generate_claimable_bot(
         "name": f"{req.target_name} Assistant",
         "welcome_message": welcome,
         "system_instructions": system_inst,
-        "selected_model": req.model or "gemini-2.5-flash",
+        "selected_model": req.model or "gemma-4-31b",
         "primary_color": req.primary_color or "#0f172a",
         "claim_token": claim_token,
         "claim_status": "unclaimed",

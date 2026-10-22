@@ -146,7 +146,8 @@ class OmnichannelPipeline:
         """Process an inbound message across any supported channel."""
         bot_id = bot["id"]
         session_id = message.session_id
-        usage_units = usage_units_for_message(message.text, has_media=message.has_media)
+        bot_model = bot.get("selected_model")
+        usage_units = usage_units_for_message(message.text, has_media=message.has_media, model=bot_model)
 
         # 1. Channel Compliance (e.g., SMS TCPA STOP/START Opt-Out)
         if message.channel == ChannelType.SMS:

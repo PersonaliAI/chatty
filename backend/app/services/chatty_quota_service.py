@@ -33,13 +33,84 @@ WHITELABEL_PLANS = {"pro", "executive", "chatty_business"}
 # consume more credits because they cause materially more provider work.
 MAX_MESSAGE_CREDITS = 8
 
+# Model credit weighting: Multipliers against base message units
+MODEL_CREDIT_MULTIPLIERS: dict[str, float] = {
+    # Gemma 4 (Google AI Studio) - Default, ultra fast and lightweight (1 credit/msg)
+    "gemma": 1.0,
+    "gemma-4-31b": 1.0,
+    "gemma-4-31b-it": 1.0,
+    "gemma-4-26b-a4b": 1.0,
+    "gemma-4-26b-a4b-it": 1.0,
+    "gemma-3-27b-it": 1.0,
 
-def usage_units_for_message(text: str | None, *, has_media: bool = False) -> int:
-    """Return server-calculated AI credits for one visitor request."""
+    # Gemini 2.5 family
+    "gemini-2.5-flash-lite": 1.0,
+    "gemini-2.5-flash": 1.0,
+    "gemini-2.5-pro": 3.0,
+
+    # Gemini 3.x family
+    "gemini-3.5-flash": 1.5,
+    "gemini-3.8-flash": 2.0,
+    "gemini-3.1-pro-preview": 3.0,
+    "gemini-3-flash-preview": 1.5,
+    "gemini": 1.0,
+}
+
+BUILTIN_GOOGLE_MODELS: frozenset[str] = frozenset({
+    "gemma",
+    "gemma-4-31b",
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b",
+    "gemma-4-26b-a4b-it",
+    "gemma-3-27b-it",
+    "gemini",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-3.5-flash",
+    "gemini-3.8-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview",
+})
+
+
+def is_builtin_google_model(model: str | None) -> bool:
+    """Return True if model is natively hosted and covered by Chatty plan credits."""
+    if not model:
+        return True
+    m = model.strip().lower()
+    return m in BUILTIN_GOOGLE_MODELS or m.startswith("gemini-") or m.startswith("gemma-")
+
+
+def get_model_credit_multiplier(model: str | None, *, is_byok: bool = False) -> float:
+    """Return usage unit multiplier for the chosen model."""
+    if is_byok or not model:
+        return 1.0
+    clean = model.strip().lower()
+    return MODEL_CREDIT_MULTIPLIERS.get(clean, 1.0)
+
+
+def usage_units_for_message(
+    text: str | None,
+    *,
+    has_media: bool = False,
+    model: str | None = None,
+    is_byok: bool = False,
+) -> int:
+    """Return server-calculated AI credits for one visitor request.
+    
+    Credits scale with message length, multimodal media, and the computational
+    weight of the selected foundation model. BYOK requests consume standard base
+    credits (1 unit) for Chatty's RAG/orchestration infrastructure while model
+    inference is paid directly by the tenant's own key.
+    """
     chars = len((text or "").strip())
     units = max(1, math.ceil(chars / 4000))
     if has_media:
         units += 3
+    if not is_byok and model:
+        multiplier = get_model_credit_multiplier(model, is_byok=is_byok)
+        units = max(1, math.ceil(units * multiplier))
     return min(MAX_MESSAGE_CREDITS, units)
 
 

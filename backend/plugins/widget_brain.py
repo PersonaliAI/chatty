@@ -1030,21 +1030,22 @@ async def run_widget_assistant(
         f"(Internal - never share: Bot ID {bot_id})"
     )
 
-    # 4b. Non-Gemini models route through the owner's own BYOK key. Agentic tool-calling
-    # (lead capture, calendar booking) is Gemini-only for now - a BYOK reply is still
+    # 4b. Non-Google models route through the owner's own BYOK key. Agentic tool-calling
+    # (lead capture, calendar booking) is Gemini/Gemma native - a BYOK reply is still
     # knowledge-grounded since `knowledge_context` is already baked into system_instruction
-    # as plain text above. Falls through to Gemini on any failure or missing key.
-    selected_model = bot.get("selected_model") or "gemini"
+    # as plain text above. Falls through to Gemini/Gemma on any failure or missing key.
+    from app.services.chatty_quota_service import is_builtin_google_model
+    selected_model = (bot.get("selected_model") or "gemma-4-31b").strip()
     byok_provider = bot.get("byok_provider")
     byok_key_enc = bot.get("byok_api_key_encrypted")
-    if selected_model != "gemini" and byok_provider and byok_key_enc:
+    if not is_builtin_google_model(selected_model) and byok_provider and byok_key_enc:
         api_key: Optional[str] = None
         try:
             api_key = llm_providers.decrypt_api_key(byok_key_enc)
             byok_reply = await llm_providers.generate_simple_reply(
                 provider=byok_provider,
                 api_key=api_key,
-                model=bot.get("byok_model"),
+                model=bot.get("byok_model") or selected_model,
                 system_prompt=system_instruction,
                 history=[{"role": h.get("role"), "content": h.get("content", "")} for h in history],
                 user_text=text,
@@ -1125,10 +1126,11 @@ async def run_widget_assistant(
     booking_correction_attempted = False
     called_tools_this_turn: set[str] = set()
 
-    # Audio attachments use the low-latency model; ordinary text uses the default.
+    # Audio attachments use the low-latency model; ordinary text uses the bot's configured model or default.
     is_audio_req = bool(media_bytes and media_mime and media_mime.startswith("audio/"))
+    target_model = selected_model if (selected_model and selected_model not in ("gemini", "default")) else MODEL_NAME
     primary_model = ai_client.resolve_gemini_model(
-        os.environ.get("GEMMA_MODEL") if is_audio_req and os.environ.get("GEMMA_MODEL") else MODEL_NAME
+        os.environ.get("GEMMA_MODEL") if is_audio_req and os.environ.get("GEMMA_MODEL") else target_model
     )
     fallback_models = [ai_client.resolve_gemini_model(m) for m in GEMINI_FALLBACK_MODELS]
     generation_temperature = 0.2

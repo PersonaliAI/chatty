@@ -132,3 +132,37 @@ async def test_require_active_user_allows_active_subscription():
     }
     result = await require_active_user(user)
     assert result == user
+
+
+def test_model_credit_multipliers_and_weights():
+    from app.services.chatty_quota_service import is_builtin_google_model
+
+    # Gemma 4 31B (Default) costs 1 credit
+    assert usage_units_for_message("Hello there", model="gemma-4-31b") == 1
+    assert usage_units_for_message("Hello there", model="gemma-4-31b-it") == 1
+
+    # Gemini 2.5 Flash costs 1 credit
+    assert usage_units_for_message("Hello there", model="gemini-2.5-flash") == 1
+
+    # Gemini 3.5 Flash costs 1.5x (ceil(1 * 1.5) = 2 credits)
+    assert usage_units_for_message("Hello there", model="gemini-3.5-flash") == 2
+
+    # Gemini 3.8 Flash costs 2x credits
+    assert usage_units_for_message("Hello there", model="gemini-3.8-flash") == 2
+
+    # Gemini Pro costs 3x credits
+    assert usage_units_for_message("Hello there", model="gemini-2.5-pro") == 3
+
+    # BYOK model requests only consume base credits (1 unit) for Chatty orchestration
+    assert usage_units_for_message("Hello there", model="gpt-5-turbo", is_byok=True) == 1
+    assert usage_units_for_message("Hello there", model="claude-3-7-sonnet", is_byok=True) == 1
+
+    # Builtin Google models classification
+    assert is_builtin_google_model("gemma-4-31b") is True
+    assert is_builtin_google_model("gemini-3.8-flash") is True
+    assert is_builtin_google_model("gemini-3.5-flash") is True
+    assert is_builtin_google_model("gemini") is True
+    assert is_builtin_google_model("gpt-5-turbo") is False
+    assert is_builtin_google_model("claude-3-7-sonnet") is False
+    assert is_builtin_google_model("meta-llama/llama-3.3-70b-instruct") is False
+

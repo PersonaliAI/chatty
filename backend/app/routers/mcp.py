@@ -599,7 +599,7 @@ async def test_chatbot_reply(bot_id: str, message: str) -> dict:
         "matched_sources_count": len(source_refs),
         "citations": citations,
         "welcome_message": bot.get("welcome_message"),
-        "primary_model": bot.get("selected_model") or "gemini-2.5-flash",
+        "primary_model": bot.get("selected_model") or "gemma-4-31b",
     }
 
 
