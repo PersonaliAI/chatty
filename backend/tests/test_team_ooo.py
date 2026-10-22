@@ -150,11 +150,12 @@ def test_router_set_and_clear_ooo(monkeypatch):
     monkeypatch.setattr(team, "_authorize_availability_access", AsyncMock(return_value={"id": "m-1", "email": "alice@example.com"}))
 
     # 1. Set OOO
+    now = datetime.now(timezone.utc)
     req = OutOfOfficeRequest(
         bot_id="bot-1",
         clear=False,
-        ooo_start=(NOW - timedelta(hours=1)).isoformat(),
-        ooo_end=(NOW + timedelta(days=5)).isoformat(),
+        ooo_start=(now - timedelta(hours=1)).isoformat(),
+        ooo_end=(now + timedelta(days=5)).isoformat(),
         ooo_reason="Holiday",
     )
     res = asyncio.run(team.set_out_of_office("m-1", req, user))

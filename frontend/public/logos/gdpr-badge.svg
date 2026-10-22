@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" width="100%" height="100%">
+  <defs>
+    <linearGradient id="badgeBg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0b1b3d"/>
+      <stop offset="100%" stop-color="#122b5e"/>
+    </linearGradient>
+    <linearGradient id="goldGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FFCC00"/>
+    </linearGradient>
+    <g id="starSmall">
+      <polygon points="0,-3 0.9,-0.9 3,-0.9 1.35,0.4 1.9,2.4 0,1.1 -1.9,2.4 -1.35,0.4 -3,-0.9 -0.9,-0.9" fill="url(#goldGrad2)"/>
+    </g>
+  </defs>
+
+  <!-- Background Pill -->
+  <rect x="1" y="1" width="198" height="46" rx="23" fill="url(#badgeBg)" stroke="#2563eb" stroke-width="1.2"/>
+  <rect x="2.5" y="2.5" width="195" height="43" rx="21.5" fill="none" stroke="url(#goldGrad2)" stroke-width="0.8" opacity="0.6"/>
+
+  <!-- Left Icon Emblem (EU Stars Circle) -->
+  <g transform="translate(24, 24)">
+    <circle cx="0" cy="0" r="16" fill="#002b66" stroke="#3b82f6" stroke-width="1"/>
+    <!-- 8 EU Stars ring -->
+    <use href="#starSmall" transform="translate(0, -11)"/>
+    <use href="#starSmall" transform="rotate(45) translate(0, -11)"/>
+    <use href="#starSmall" transform="rotate(90) translate(0, -11)"/>
+    <use href="#starSmall" transform="rotate(135) translate(0, -11)"/>
+    <use href="#starSmall" transform="rotate(180) translate(0, -11)"/>
+    <use href="#starSmall" transform="rotate(225) translate(0, -11)"/>
+    <use href="#starSmall" transform="rotate(270) translate(0, -11)"/>
+    <use href="#starSmall" transform="rotate(315) translate(0, -11)"/>
+    <!-- Inner Lock -->
+    <path d="M -3 -1 L -3 -4 C -3 -5.5 3 -5.5 3 -4 L 3 -1" fill="none" stroke="url(#goldGrad2)" stroke-width="1.2" stroke-linecap="round"/>
+    <rect x="-4.5" y="-1" width="9" height="7" rx="1.5" fill="url(#goldGrad2)"/>
+    <circle cx="0" cy="2" r="1" fill="#002b66"/>
+  </g>
+
+  <!-- Typography -->
+  <text x="48" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="14" letter-spacing="1.5" fill="#FFFFFF">
+    GDPR
+  </text>
+  <rect x="94" y="9" width="70" height="15" rx="7.5" fill="#10B981"/>
+  <text x="129" y="20" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="8.5" letter-spacing="1" fill="#FFFFFF">
+    COMPLIANT
+  </text>
+  <text x="48" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="7.5" letter-spacing="0.5" fill="#93C5FD">
+    EU REGULATION (EU) 2016/679
+  </text>
+</svg>

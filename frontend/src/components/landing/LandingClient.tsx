@@ -1528,7 +1528,7 @@ export default function LandingClient() {
             {/* Trust Badges Row */}
             <div
               ref={heroBadgesRef}
-              className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs font-medium text-zinc-500"
+              className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs font-medium text-zinc-500"
             >
               <span className="flex items-center gap-1.5">
                 <Check className="size-4 text-emerald-600" /> No credit card required
@@ -1539,9 +1539,17 @@ export default function LandingClient() {
               <span className="flex items-center gap-1.5">
                 <Check className="size-4 text-emerald-600" /> 2-minute embed script
               </span>
-              <span className="flex items-center gap-1.5">
-                <Check className="size-4 text-emerald-600" /> Google & Outlook calendar sync
-              </span>
+              <Link
+                href="/privacy"
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-50 hover:bg-blue-100 border border-blue-200/80 transition-colors"
+                title="GDPR Compliant - Regulation (EU) 2016/679"
+              >
+                <img
+                  src="/logos/gdpr-badge.svg"
+                  alt="Official GDPR Compliance Badge"
+                  className="h-5 w-auto"
+                />
+              </Link>
             </div>
           </div>
         </section>
@@ -2089,6 +2097,61 @@ export default function LandingClient() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </section>
+
+        {/* ==========================================
+            ENTERPRISE SECURITY & GDPR COMPLIANCE
+            ========================================== */}
+        <section id="gdpr-compliance" className="py-16 bg-gradient-to-b from-white to-zinc-50/80 border-b border-zinc-200/80">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="rounded-3xl border border-blue-200/80 bg-gradient-to-br from-blue-950 via-[#0b1b3d] to-[#002b66] p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
+              <div className="absolute -right-20 -top-20 size-96 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+                <div className="lg:col-span-8 space-y-4">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-200 text-xs font-semibold tracking-wide uppercase">
+                    <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                    EU Regulation (EU) 2016/679
+                  </div>
+                  <h3 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                    Fully GDPR Compliant & Enterprise Ready
+                  </h3>
+                  <p className="text-zinc-300 text-sm sm:text-base leading-relaxed max-w-2xl">
+                    Deploy AI customer support with peace of mind. Chatty features built-in automated PII scrubbing (credit cards, IBANs, API keys), automated 90-day retention purges, customer self-serve Right to Erasure, and a legally binding Data Processing Addendum (DPA) with Standard Contractual Clauses (SCCs).
+                  </p>
+
+                  <div className="pt-2 flex flex-wrap gap-3">
+                    <Link
+                      href="/dpa"
+                      className="inline-flex items-center gap-2 rounded-xl bg-white text-zinc-950 hover:bg-zinc-100 px-4 py-2.5 text-xs font-bold transition-all shadow-sm"
+                    >
+                      <span>Read Data Processing Addendum (DPA)</span>
+                      <ArrowRight className="size-3.5" />
+                    </Link>
+                    <Link
+                      href="/privacy"
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-900/60 hover:bg-blue-800/60 border border-blue-400/30 text-blue-100 px-4 py-2.5 text-xs font-medium transition-all"
+                    >
+                      <span>Privacy Policy & Subprocessors</span>
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-4 flex flex-col items-center justify-center text-center">
+                  <div className="relative group">
+                    <img
+                      src="/logos/gdpr-compliant.svg"
+                      alt="Official EU GDPR Compliance Emblem"
+                      className="size-36 sm:size-44 object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.4)] transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
+                  <span className="mt-3 text-xs font-semibold text-blue-200 tracking-wider uppercase">
+                    Official EU Standard Compliant
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -2660,9 +2723,21 @@ export default function LandingClient() {
                 href="/privacy"
                 className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
               >
-                <div>
-                  <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors">Security & Compliance</div>
-                  <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">SOC2, GDPR & Encryption</div>
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/logos/gdpr-compliant.svg"
+                    alt="Official EU GDPR Compliance Emblem"
+                    className="size-7 object-contain shrink-0"
+                  />
+                  <div>
+                    <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors flex items-center gap-1.5">
+                      Security & Compliance
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                        GDPR Compliant
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Regulation (EU) 2016/679 • SOC2 • AES-256</div>
+                  </div>
                 </div>
                 <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
