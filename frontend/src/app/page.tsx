@@ -887,7 +887,7 @@ export default function Home() {
               <Image
                 src="/logos/gdpr-official-badge.svg"
                 alt="Official European Union GDPR Compliance Badge"
-                width={260}
+                width={280}
                 height={60}
                 className="h-14 sm:h-16 w-auto object-contain"
                 priority
