@@ -580,16 +580,23 @@ async def test_chatbot_reply(bot_id: str, message: str) -> dict:
     _oauth.check_principal_scope(principal, "read")
     bot = await _oauth.require_bot_access(principal, bot_id)
     from plugins.widget_brain import search_knowledge
-    ranked = await search_knowledge(bot_id, message)
+    user = principal.get("user") or {}
+    ctx, source_refs = await search_knowledge(
+        bot_id=bot_id,
+        owner_user=user,
+        bot=bot,
+        query=message,
+        translate_query=False,
+    )
     citations = [
-        {"title": s.get("title") or s.get("name") or "Source", "url": s.get("url"), "snippet": s.get("content", "")[:300]}
-        for s in ranked[:4]
+        {"title": s.get("name") or "Source", "url": s.get("url"), "snippet": (s.get("snippet") or "")[:300]}
+        for s in (source_refs or [])[:4]
     ]
     return {
         "bot_id": bot_id,
         "bot_name": bot.get("name"),
         "test_query": message,
-        "matched_sources_count": len(ranked),
+        "matched_sources_count": len(source_refs),
         "citations": citations,
         "welcome_message": bot.get("welcome_message"),
         "primary_model": bot.get("selected_model") or "gemini-2.5-flash",

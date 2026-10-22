@@ -796,7 +796,7 @@ async def analytics_scorecard(
 
     # 1. Sessions
     sessions_res = await run_db(lambda: supabase.table("chatty_sessions")
-        .select("id, created_at, lead_id, meeting_id")
+        .select("id, created_at")
         .eq("bot_id", bot_id)
         .gte("created_at", _iso(from_dt))
         .execute())

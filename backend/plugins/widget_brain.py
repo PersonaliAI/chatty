@@ -1524,8 +1524,17 @@ def _score_source_candidate(s: dict, q_tokens: set[str]) -> int:
     if not matched_toks:
         return 0
     diversity_boost = (len(matched_toks) ** 2) * 8
-    title_boost = sum(15 for tok in q_tokens if tok in name_words or tok in name_lower)
-    return term_score + diversity_boost + title_boost
+    title_boost = sum(25 for tok in q_tokens if tok in name_words or tok in name_lower)
+
+    # Penalize legal/policy pages if query is not asking for legal/policy
+    is_legal = any(p in name_lower for p in ("/privacy", "/terms", "/dpa", "/subprocessors", "/cookie"))
+    wants_legal = any(tok in q_tokens for tok in ("privacy", "gdpr", "terms", "dpa", "policy", "legal", "compliance", "subprocessor"))
+    legal_penalty = -40 if is_legal and not wants_legal else 0
+
+    # Boost deep documentation and guide pages over generic root landing pages
+    doc_boost = 20 if ("/docs" in name_lower or "docs." in name_lower or "/guides/" in name_lower or "/api" in name_lower) else 0
+
+    return max(0, term_score + diversity_boost + title_boost + legal_penalty + doc_boost)
 
 
 def _choose_sources(query: str, sources: list[dict], max_sources: int = 6) -> tuple[list[dict], set]:
