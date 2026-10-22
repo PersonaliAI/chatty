@@ -2766,6 +2766,28 @@ export default function LandingClient() {
                 </div>
                 <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
               </Link>
+              <Link
+                href="/dpa"
+                className="group px-6 py-3 text-sm text-zinc-600 hover:text-zinc-950 hover:bg-zinc-50/70 transition-all border-b border-zinc-200/80 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/logos/europa-logo.png"
+                    alt="European Union GDPR"
+                    className="size-6 object-contain rounded shrink-0"
+                  />
+                  <div>
+                    <div className="font-medium text-zinc-800 group-hover:text-zinc-950 transition-colors flex items-center gap-1.5">
+                      GDPR Compliance & DPA
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        EU Ready
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-zinc-400 group-hover:text-zinc-500">Standard Contractual Clauses (SCCs)</div>
+                  </div>
+                </div>
+                <ArrowRight className="size-3 text-zinc-300 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-hover:text-[#c67139] transition-all" />
+              </Link>
               <a
                 href="https://status.personaliai.com"
                 target="_blank"
@@ -2784,8 +2806,8 @@ export default function LandingClient() {
             </div>
           </div>
 
-          {/* 4-Cell Legal & Copyright Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 border-t border-zinc-200/80">
+          {/* 5-Cell Legal, Compliance & Copyright Row */}
+          <div className="grid grid-cols-2 md:grid-cols-5 border-t border-zinc-200/80">
             <div className="px-6 py-4 text-sm text-zinc-400 border-r border-b md:border-b-0 border-zinc-200/80 flex items-center">
               © {new Date().getFullYear()} PersonaliAI, Inc.
             </div>
@@ -2797,9 +2819,16 @@ export default function LandingClient() {
             </Link>
             <Link
               href="/privacy"
-              className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-r border-zinc-200/80 flex items-center"
+              className="px-6 py-4 text-sm text-zinc-600 hover:text-zinc-950 transition-colors border-r border-b md:border-b-0 border-zinc-200/80 flex items-center"
             >
               Privacy Policy
+            </Link>
+            <Link
+              href="/dpa"
+              className="px-6 py-4 text-sm text-blue-700 hover:text-blue-900 font-semibold transition-colors border-r border-b md:border-b-0 border-zinc-200/80 flex items-center gap-1.5"
+            >
+              <span className="size-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+              GDPR & DPA
             </Link>
             <Link
               href="mailto:security@personaliai.com"
@@ -2807,6 +2836,34 @@ export default function LandingClient() {
             >
               Report Abuse & Security
             </Link>
+          </div>
+
+          {/* Dedicated GDPR Compliance Trust Bar */}
+          <div className="border-t border-zinc-200/80 bg-gradient-to-r from-blue-50/60 via-zinc-50 to-blue-50/40 px-6 py-3 flex flex-wrap items-center justify-between gap-4 text-xs">
+            <div className="flex items-center gap-3">
+              <img
+                src="/logos/gdpr-badge.svg"
+                alt="GDPR Compliant Badge"
+                className="h-6 w-auto shrink-0"
+              />
+              <span className="text-zinc-700 font-medium">
+                Chatty operates in full compliance with European Union <strong className="font-semibold text-zinc-900">Regulation (EU) 2016/679 (GDPR)</strong>.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-4 text-xs">
+              <Link href="/dpa" className="font-semibold text-blue-700 hover:text-blue-900 underline underline-offset-2">
+                Download DPA & SCCs
+              </Link>
+              <span className="text-zinc-300">•</span>
+              <Link href="/subprocessors" className="text-zinc-600 hover:text-zinc-900">
+                Subprocessors Directory
+              </Link>
+              <span className="text-zinc-300">•</span>
+              <span className="inline-flex items-center gap-1.5 text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Automated PII Scrubbing & Right to Erasure Active
+              </span>
+            </div>
           </div>
 
           {/* Status Bar Row (Blue live indicator matching Firecrawl) */}
