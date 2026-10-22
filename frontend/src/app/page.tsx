@@ -893,17 +893,21 @@ export default function Home() {
                 priority
               />
             </Link>
-            <div className="space-y-1 max-w-xl">
+            <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <p className="font-bold text-zinc-900 text-sm tracking-tight">
-                  EU &amp; UK Data Protection Guaranteed
+                  EU &amp; UK Data Protection
                 </p>
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                   VERIFIED
                 </span>
               </div>
-              <p className="text-[12.5px] leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 75%, transparent)" }}>
-                Chatty operates in strict compliance with European Union <strong className="font-semibold text-zinc-900">Regulation (EU) 2016/679 (GDPR)</strong>. Built-in DPA, standard contractual clauses (SCCs), automated PII scrubbing, and zero unauthorized AI model training.
+              <p className="text-xs font-medium text-zinc-600 flex flex-wrap items-center gap-x-2">
+                <span>Automated PII scrubbing</span>
+                <span className="text-zinc-400">•</span>
+                <span>Built-in DPA &amp; SCCs</span>
+                <span className="text-zinc-400">•</span>
+                <span>Zero AI training</span>
               </p>
             </div>
           </div>
