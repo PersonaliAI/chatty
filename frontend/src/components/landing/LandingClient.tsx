@@ -2844,7 +2844,7 @@ export default function LandingClient() {
             <div className="flex items-center gap-4">
               <Link href="/dpa" className="shrink-0 hover:scale-[1.02] transition-transform drop-shadow-sm">
                 <img
-                  src="/logos/gdpr-official-badge.svg"
+                  src="/logos/gdpr-official-badge-v2.svg"
                   alt="Official European Union GDPR Compliance Badge"
                   className="h-12 sm:h-14 w-auto shrink-0"
                 />

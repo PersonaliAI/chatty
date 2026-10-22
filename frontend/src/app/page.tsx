@@ -885,7 +885,7 @@ export default function Home() {
               title="Official European Union GDPR Compliance (Regulation EU 2016/679)"
             >
               <Image
-                src="/logos/gdpr-official-badge.svg"
+                src="/logos/gdpr-official-badge-v2.svg"
                 alt="Official European Union GDPR Compliance Badge"
                 width={280}
                 height={60}
