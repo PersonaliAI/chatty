@@ -364,11 +364,14 @@ export default function EmbedClient(props: EmbedClientProps) {
       <div
         role="status"
         aria-live="polite"
+        className="w-full h-full min-h-[100dvh] flex items-center justify-center p-6 text-sm"
         style={{
-          boxSizing: "border-box", minHeight: 96, width: "100%", display: "flex", alignItems: "center",
-          justifyContent: "center", gap: 10, padding: "24px", borderRadius: 16,
-          background: "#fffaf5", border: "1px solid #f1e6db", color: "#6b5c50",
-          fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: 14, lineHeight: 1.4,
+          boxSizing: "border-box",
+          background: "#fffaf5",
+          border: "1px solid #f1e6db",
+          color: "#6b5c50",
+          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          lineHeight: 1.4,
         }}
       >
         <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: identity.error ? "#c56a42" : "#f97316", boxShadow: identity.error ? "none" : "0 0 0 4px rgba(249,115,22,.12)" }} />
@@ -818,12 +821,66 @@ function IdentifiedEmbedClient({
   const [offlineSubmitted, setOfflineSubmitted] = useState(false);
 
   const [agentTyping, setAgentTyping] = useState(false);
-  // Told by widget.js (postMessage) whenever it switches the panel between
-  // the fixed-size desktop popup and mobile-fullscreen - see the message
-  // listener below. Defaults to false (rounded), which is also correct for
-  // the dashboard's own preview iframe, which never goes through widget.js
-  // and so never sends this message.
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Auto-detect fullscreen mode for direct mobile views, mobile WebViews (Flutter / React Native / Android / iOS),
+  // or explicit query parameters (?fullscreen=true, ?native=true, ?platform=...).
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const sp = new URLSearchParams(window.location.search);
+    if (
+      sp.get("fullscreen") === "true" ||
+      sp.get("fullscreen") === "1" ||
+      sp.get("native") === "true" ||
+      sp.get("standalone") === "true" ||
+      Boolean(sp.get("platform")) ||
+      Boolean(sp.get("safeArea")) ||
+      Boolean(sp.get("statusBar"))
+    ) {
+      return true;
+    }
+    // Standalone top-level window (not embedded inside an iframe)
+    if (window.self === window.top) return true;
+    // Mobile viewports default to full-screen
+    if (window.innerWidth <= 640) return true;
+    return false;
+  });
+
+  // Track dynamic visual viewport height to maintain vertical responsiveness
+  // when virtual on-screen keyboards (iOS / Android / Flutter / React Native) open or resize.
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  // Safe area insets (top and bottom) for mobile status bars, camera cutouts / notches, and home indicator bars.
+  const [safeAreaTop, setSafeAreaTop] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const sp = new URLSearchParams(window.location.search);
+    const topParam = sp.get("topInset") || sp.get("safeAreaTop") || sp.get("statusBarHeight");
+    if (topParam) {
+      const parsed = parseInt(topParam, 10);
+      if (!Number.isNaN(parsed) && parsed >= 0) return parsed;
+    }
+    if (sp.get("statusBar") === "true" || sp.get("statusBar") === "1") return 40;
+    if (sp.get("safeArea") === "true" || sp.get("safeArea") === "1") return 44;
+    const platform = (sp.get("platform") || "").toLowerCase();
+    if (platform === "flutter" || platform === "react-native" || platform === "android" || platform === "ios") {
+      return 44;
+    }
+    return 0;
+  });
+
+  const [safeAreaBottom, setSafeAreaBottom] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const sp = new URLSearchParams(window.location.search);
+    const bottomParam = sp.get("bottomInset") || sp.get("safeAreaBottom");
+    if (bottomParam) {
+      const parsed = parseInt(bottomParam, 10);
+      if (!Number.isNaN(parsed) && parsed >= 0) return parsed;
+    }
+    if (sp.get("safeArea") === "true" || sp.get("safeArea") === "1") return 24;
+    const platform = (sp.get("platform") || "").toLowerCase();
+    if (platform === "flutter" || platform === "react-native" || platform === "ios") {
+      return 24;
+    }
+    return 0;
+  });
 
   // Browser Push Notifications (OneSignal / Native Web Push)
   // Initial value read lazily (not via an effect + setState) so the browser's
@@ -845,16 +902,56 @@ function IdentifiedEmbedClient({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleMessage = (e: MessageEvent) => {
-      // The embed can be hosted on any customer domain, so the parent's
-      // origin isn't known ahead of time - restrict to messages that
-      // actually came from our own parent frame instead.
-      if (e.source !== window.parent) return;
-      if (e.data && e.data.type === "chatty-notification-status") {
-        setPushGranted(!!e.data.granted);
+
+    const updateDimensions = () => {
+      if (window.visualViewport) {
+        setViewportHeight(window.visualViewport.height);
+      } else {
+        setViewportHeight(window.innerHeight);
       }
-      if (e.data && e.data.type === "chatty-fullscreen") {
-        setIsFullscreen(!!e.data.value);
+      if (window.self === window.top || window.innerWidth <= 640) {
+        setIsFullscreen(true);
+      }
+    };
+
+    updateDimensions();
+
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener("resize", updateDimensions);
+      vv.addEventListener("scroll", updateDimensions);
+    }
+    window.addEventListener("resize", updateDimensions);
+    window.addEventListener("orientationchange", updateDimensions);
+
+    const handleMessage = (e: MessageEvent) => {
+      // Support messages from parent frame as well as same-window injected bridges (Flutter / React Native)
+      if (e.source && e.source !== window.parent && e.source !== window) return;
+      let data = e.data;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          // ignore plain non-JSON strings
+        }
+      }
+      if (!data || typeof data !== "object") return;
+
+      if (data.type === "chatty-notification-status") {
+        setPushGranted(!!data.granted);
+      }
+      if (data.type === "chatty-fullscreen") {
+        setIsFullscreen(!!data.value);
+      }
+      if (data.type === "chatty-safe-area" || data.type === "chatty-insets") {
+        const top = typeof data.top === "number" ? data.top : typeof data.safeAreaTop === "number" ? data.safeAreaTop : undefined;
+        const bottom = typeof data.bottom === "number" ? data.bottom : typeof data.safeAreaBottom === "number" ? data.safeAreaBottom : undefined;
+        if (typeof top === "number" && top >= 0) setSafeAreaTop(top);
+        if (typeof bottom === "number" && bottom >= 0) setSafeAreaBottom(bottom);
+      }
+      if (data.type === "chatty-status-bar") {
+        const h = typeof data.height === "number" ? data.height : typeof data.top === "number" ? data.top : undefined;
+        if (typeof h === "number" && h >= 0) setSafeAreaTop(h);
       }
     };
     window.addEventListener("message", handleMessage);
@@ -873,12 +970,25 @@ function IdentifiedEmbedClient({
     window.addEventListener("gesturechange", preventGesture);
 
     return () => {
+      if (vv) {
+        vv.removeEventListener("resize", updateDimensions);
+        vv.removeEventListener("scroll", updateDimensions);
+      }
+      window.removeEventListener("resize", updateDimensions);
+      window.removeEventListener("orientationchange", updateDimensions);
       window.removeEventListener("message", handleMessage);
       window.removeEventListener("wheel", preventPinch);
       window.removeEventListener("gesturestart", preventGesture);
       window.removeEventListener("gesturechange", preventGesture);
     };
   }, []);
+
+  // When viewport height changes (e.g. keyboard opens or closes), maintain scroll position at latest message
+  useEffect(() => {
+    if (viewportHeight && chatBodyRef.current) {
+      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    }
+  }, [viewportHeight]);
 
   const requestPushPermission = async () => {
     if (typeof window === "undefined") return;
@@ -2782,19 +2892,29 @@ function IdentifiedEmbedClient({
     <div
       ref={rootRef}
       id="chatty-root"
-      className={`w-full h-screen flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`}
+      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "rounded-none" : "rounded-2xl"}`}
       style={{
         touchAction: "manipulation",
+        height: viewportHeight ? `${viewportHeight}px` : "100%",
+        maxHeight: viewportHeight ? `${viewportHeight}px` : "100dvh",
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
     >
       <style dangerouslySetInnerHTML={{ __html: `
         html, body {
+          position: fixed !important;
+          inset: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          height: 100dvh !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          overscroll-behavior: none !important;
           touch-action: manipulation;
           background: transparent !important;
           background-image: none !important;
           animation: none !important;
-          overflow: hidden !important;
           /* The root layout's "antialiased" Tailwind class (-webkit-font-smoothing:
              antialiased) applies globally, including here - it's a Mac-oriented
              hint that thins glyphs toward macOS's grayscale AA look. On Windows
@@ -2806,6 +2926,14 @@ function IdentifiedEmbedClient({
              marketing pages render text. */
           -webkit-font-smoothing: auto !important;
           -moz-osx-font-smoothing: auto !important;
+        }
+        /* Mobile input auto-zoom prevention: iOS Safari / WKWebView auto-magnifies the page
+           whenever an input has font-size < 16px. Enforcing 16px on mobile viewports (<640px)
+           prevents unwanted layout shifting and zoom disruptions. */
+        @media (max-width: 640px) {
+          input, textarea, select {
+            font-size: 16px !important;
+          }
         }
         /* Strip only box-shadow inside the iframe: the container fills the iframe
            edge-to-edge with zero margin, so any shadow has no room to render and
@@ -2857,7 +2985,13 @@ function IdentifiedEmbedClient({
         } : undefined}
       >
       {/* Header */}
-      {!voiceModeActive && <div className="chat-header px-3 sm:px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
+      {!voiceModeActive && (
+        <div
+          className="chat-header px-3 sm:px-4 pb-2 border-b border-neutral-100 dark:border-neutral-850"
+          style={{
+            paddingTop: `calc(0.75rem + max(${safeAreaTop}px, env(safe-area-inset-top, 0px)))`,
+          }}
+        >
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           {tab !== "home" && (
             <motion.button
@@ -3005,12 +3139,18 @@ function IdentifiedEmbedClient({
             </button>
           </div>
         </div>
-      </div>}
+      </div>)}
 
       {/* Body */}
       <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin flex flex-col ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto"}`}>
         {voiceModeActive ? (
-          <div className="chatty-widget-voice-stage">
+          <div
+            className="chatty-widget-voice-stage flex-1 min-h-0 flex flex-col"
+            style={{
+              paddingTop: `calc(0.5rem + max(${safeAreaTop}px, env(safe-area-inset-top, 0px)))`,
+              paddingBottom: `calc(0.5rem + max(${safeAreaBottom}px, env(safe-area-inset-bottom, 0px)))`,
+            }}
+          >
             <VoiceAgentPanel
               botId={botId}
               backendUrl={BACKEND_URL}
@@ -4196,7 +4336,7 @@ function IdentifiedEmbedClient({
                 onChange={(e) => { setSupportEmail(e.target.value); setSupportEmailSaved(false); setSupportEmailError(""); }}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void saveSupportEmail(); } }}
                 placeholder="Your email, so we can follow up"
-                className="min-w-0 flex-1 bg-transparent text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-[16px] sm:text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none"
                 aria-describedby={supportEmailError ? "chatty-support-email-error" : undefined}
               />
               <button
@@ -4383,7 +4523,7 @@ function IdentifiedEmbedClient({
             )}
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }} onPaste={onPaste}
               placeholder={transcribing ? "Transcribing…" : (!isAgentActive || agentStatus === "offline") ? "Leave a message…" : "Compose your message…"} disabled={isBotResponding || transcribing}
-              className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1" />
+              className="w-full bg-transparent text-[16px] sm:text-xs focus:outline-none disabled:opacity-60 mb-1" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
@@ -4554,7 +4694,12 @@ function IdentifiedEmbedClient({
       )}
 
       {!voiceModeActive && (
-        <div className="flex items-center justify-between px-3 pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
+        <div
+          className="flex items-center justify-between px-3 pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
+          style={{
+            paddingBottom: `calc(0.25rem + max(${safeAreaBottom}px, env(safe-area-inset-bottom, 0px)))`,
+          }}
+        >
           <div className="flex items-center gap-1 text-[9px] text-neutral-400" title="Protected by end-to-end data minimisation and cryptographic isolation">
             <ShieldCheck className="size-3 text-emerald-500" />
             <span>GDPR Protected</span>

@@ -2808,8 +2808,13 @@ function IdentifiedChatWidget({
           height: `${containerSize.height / (fontSizePercent / 100)}px`,
         } : undefined}
       >
-      {/* Header */}
-      {!voiceModeActive && <div className="chat-header px-3 sm:px-4 pt-3 pb-2 border-b border-neutral-100 dark:border-neutral-850">
+      {!voiceModeActive && (
+        <div
+          className="chat-header px-3 sm:px-4 pb-2 border-b border-neutral-100 dark:border-neutral-850"
+          style={{
+            paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))",
+          }}
+        >
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
           {tab !== "home" && (
             <motion.button
@@ -4184,7 +4189,7 @@ function IdentifiedChatWidget({
               }}
               placeholder={transcribing ? "Transcribing…" : (!isAgentActive || agentStatus === "offline") ? "Leave a message…" : "Compose your message…"} disabled={isBotResponding || transcribing}
               rows={1}
-              className="w-full bg-transparent text-xs focus:outline-none disabled:opacity-60 mb-1 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
+              className="w-full bg-transparent text-[16px] sm:text-xs focus:outline-none disabled:opacity-60 mb-1 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
@@ -4366,7 +4371,12 @@ function IdentifiedChatWidget({
       )}
 
       {!hideBranding && (
-        <div className="text-center pt-1 pb-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50">
+        <div
+          className="text-center pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
+          style={{
+            paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
           Powered by{" "}
           <a
             href="https://chatty.personaliai.com"

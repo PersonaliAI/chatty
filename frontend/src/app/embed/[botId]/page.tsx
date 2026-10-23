@@ -1,6 +1,24 @@
+import type { Viewport, Metadata } from "next";
 import { headers } from "next/headers";
 import EmbedClient from "./EmbedClient";
 import { BACKEND_URL } from "@/lib/backend-client";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
+
+export const metadata: Metadata = {
+  title: "Chatty Widget",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function EmbedPage({
   params,
