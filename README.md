@@ -30,7 +30,7 @@ Supabase project.
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Data Processing (DPA)](frontend/src/app/(legal)/dpa/page.tsx) · [Sub-processors](frontend/src/app/(legal)/subprocessors/page.tsx) · [Performance Scorecard](docs/SCORECARD.md) · [Flow Builder](https://docs.chatty.personaliai.com/guides/flow-integrations) · [Widget Embed](docs/WIDGET_INTEGRATION.md) · [Secure customer identity](docs/INBOX_IDENTITY_SETUP.md) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](docs/SELF_HOST_MANAGED_SUPABASE.md) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](docs/AI_CODING_PLUGINS.md) · [Community Traction](docs/traction.md)
+[Chatty Cloud (hosted)](https://chatty.personaliai.com) · [Documentation](https://docs.chatty.personaliai.com) · [Data Processing (DPA)](frontend/src/app/(legal)/dpa/page.tsx) · [Sub-processors](frontend/src/app/(legal)/subprocessors/page.tsx) · [Performance Scorecard](https://docs.chatty.personaliai.com/guides/scorecard) · [Flow Builder](https://docs.chatty.personaliai.com/guides/flow-architect) · [Widget Embed](https://docs.chatty.personaliai.com/guides/embed-widget) · [Secure customer identity](https://docs.chatty.personaliai.com/guides/human-takeover) · [Quick Start](#-quick-start-docker-compose) · [Platform Runbook](https://docs.chatty.personaliai.com/guides/self-hosting) · [MCP Server](#mcp-server--agent-control) · [AI Plugins](https://docs.chatty.personaliai.com/guides/ai-coding-plugins) · [Omnichannel](https://docs.chatty.personaliai.com/guides/omnichannel) · [WooCommerce](https://docs.chatty.personaliai.com/guides/woocommerce)
 
 <br />
 <br />
@@ -47,9 +47,9 @@ Supabase project.
 
 - [Why Chatty](#why-chatty)
 - [Live Dashboard Showcase (4K Retina)](#-live-dashboard-showcase-4k-retina)
-- [Performance Scorecard (A-F Auditing)](docs/SCORECARD.md)
-- [Flow Builder & Integrations](https://docs.chatty.personaliai.com/guides/flow-integrations)
-- [Widget Integration (3-Line Embed)](docs/WIDGET_INTEGRATION.md)
+- [Performance Scorecard (A-F Auditing)](https://docs.chatty.personaliai.com/guides/scorecard)
+- [Flow Builder & Integrations](https://docs.chatty.personaliai.com/guides/flow-architect)
+- [Widget Integration (3-Line Embed)](https://docs.chatty.personaliai.com/guides/embed-widget)
 - [Features](#-features)
 - [LiveKit Voice Agent & SDKs](#-livekit-voice-agent--sdks)
 - [Architecture](#architecture)
@@ -67,8 +67,8 @@ Supabase project.
   - [9. Updating](#step-9--updating)
   - [Troubleshooting](#troubleshooting)
 - [Local Development (without Docker)](#-local-development-without-docker)
-- [Managed-Supabase platform runbook](docs/SELF_HOST_MANAGED_SUPABASE.md)
-- [MCP Server & AI Coding Plugins (Claude, Cursor, Codex)](docs/AI_CODING_PLUGINS.md)
+- [Managed-Supabase platform runbook](https://docs.chatty.personaliai.com/guides/self-hosting)
+- [MCP Server & AI Coding Plugins (Claude, Cursor, Codex)](https://docs.chatty.personaliai.com/guides/ai-coding-plugins)
 - [Environment Variable Reference](#environment-variable-reference)
 - [Testing & CI](#-testing--ci)
 - [GDPR & Enterprise Data Privacy](#-gdpr--enterprise-data-privacy)
@@ -336,7 +336,7 @@ The managed-Supabase deployment contract is two Docker services (API + frontend)
 The root `docker-compose.yml` runs both services without provisioning a second
 database. The complete platform runbook, including secret handling, domains,
 health checks, verification, rollback, and troubleshooting, is in
-[docs/SELF_HOST_MANAGED_SUPABASE.md](docs/SELF_HOST_MANAGED_SUPABASE.md).
+[https://docs.chatty.personaliai.com/guides/self-hosting](https://docs.chatty.personaliai.com/guides/self-hosting).
 
 | Platform | Official deployment guide | Current repository status |
 |---|---|---|
@@ -508,7 +508,7 @@ Each of these is opt-in - set the relevant env vars in `backend/.env` and restar
 
 The supported production shape is two Docker services (API + frontend) backed
 by the same managed Supabase project. The full copy/paste runbook for each
-platform is [SELF_HOST_MANAGED_SUPABASE.md](docs/SELF_HOST_MANAGED_SUPABASE.md).
+platform is [Self-Hosting Guide](https://docs.chatty.personaliai.com/guides/self-hosting).
 It covers `DEPLOYMENT_PROFILE=managed_supabase`, secret-manager setup, domains,
 health checks, production verification, rollback, and security boundaries.
 
@@ -577,7 +577,7 @@ Connect by pointing an MCP client at:
 
 The client opens a normal OAuth consent screen on first connect. **If you're self-hosting under your own domain**, set `CHATTY_BACKEND_URL` (and `CHATTY_FRONTEND_URL`, for the consent screen redirect) in `backend/.env` to your real URLs first - see [Step 4](#step-4--configure-environment-variables).
 
-For setup instructions and plugin manifests for **Claude Code** (`/plugin marketplace add PersonaliAI/chatty`), **Cursor IDE** (`.cursor/rules/`), **Claude Desktop**, and **Windsurf**, see the full [AI Coding Tools & Plugin Marketplace Guide](docs/AI_CODING_PLUGINS.md).
+For setup instructions and plugin manifests for **Claude Code** (`/plugin marketplace add PersonaliAI/chatty`), **Cursor IDE** (`.cursor/rules/`), **Claude Desktop**, and **Windsurf**, see the full [AI Coding Tools & Plugin Marketplace Guide](https://docs.chatty.personaliai.com/guides/ai-coding-plugins).
 
 ## Environment Variable Reference
 

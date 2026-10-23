@@ -13,3 +13,6 @@
 [submodule "sdks/flutter"]
 	path = sdks/flutter
 	url = https://github.com/PersonaliAI/chatty-flutter-sdk.git
+[submodule "docs"]
+	path = docs
+	url = https://github.com/PersonaliAI/chatty-docs.git
