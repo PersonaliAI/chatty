@@ -2952,7 +2952,7 @@ function IdentifiedChatWidget({
             </button>
           </div>
         </div>
-      </div>}
+      </div>)}
 
       {/* Body */}
       <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto"}`}>
