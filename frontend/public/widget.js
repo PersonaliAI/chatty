@@ -1,97 +1,104 @@
-/* Chatty embeddable support widget loader (Crisp-Style Direct Shadow DOM).
- * Usage:
- *   <script src="https://chatty.personaliai.com/widget.js"
- *           data-id="YOUR_BOT_UUID" data-color="#f97316" data-style="minimalist" defer></script>
- *
- * Injects a native vector DOM chat assistant directly into an isolated Shadow DOM container.
- * 100% Crisp-level vector font sharpness at all zoom levels, zero iframe bitmap scaling.
- *
- * JS API: window.Chatty.open() / .openVoice() / .close() / .toggle()
- */
+// Chatty AI - Embeddable Chat Widget Loader
+// Loads the widget in an isolated Shadow DOM container to prevent any CSS bleed
 (function () {
   "use strict";
-  if (window.__chattyWidgetLoaded) return;
 
-  // Suppress indexing crawlers, but do not block headless browsers or
-  // navigator.webdriver. Automated accessibility checks, browser tests, and
-  // assistive tooling must receive the same widget as a normal visitor.
-  var ua = (navigator.userAgent || "").toLowerCase();
-  var isBot = /jina|crawler|spider|scraper|lighthouse/i.test(ua);
-  if (isBot) return;
+  if (window.__chatty_loaded) return;
+  window.__chatty_loaded = true;
 
-  // Don't mount floating widget over dashboard editor or embed iframe preview
-  var path = (window.location.pathname || "").toLowerCase();
-  if (path.startsWith("/dashboard") || path.startsWith("/embed/") || path.startsWith("/kb/")) return;
-
-  window.__chattyWidgetLoaded = true;
-
-  var script = document.currentScript;
-  if (!script) {
-    var all = document.getElementsByTagName("script");
-    for (var i = 0; i < all.length; i++) {
-      if ((all[i].src || "").indexOf("widget.js") !== -1) {
-        script = all[i];
-        break;
+  // Find the loader script tag to read data attributes
+  var script =
+    document.currentScript ||
+    (function () {
+      var scripts = document.getElementsByTagName("script");
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        var s = scripts[i];
+        if (
+          s.src &&
+          (s.src.indexOf("/widget.js") !== -1 ||
+            s.getAttribute("data-bot-id") ||
+            (s.dataset && s.dataset.botId))
+        ) {
+          return s;
+        }
       }
-    }
-  }
+      return null;
+    })();
 
-  var botId = script && (
-    script.getAttribute("data-id") ||
-    script.getAttribute("data-bot-id") ||
-    (script.dataset && (script.dataset.id || script.dataset.botId))
-  );
-
-  if (!botId && window.CHATTY_BOT_ID) {
-    botId = window.CHATTY_BOT_ID;
-  }
+  // Prioritize configured bot ID on script tag, then URL param, then window global
+  var botId =
+    (script &&
+      (script.getAttribute("data-bot-id") ||
+        (script.dataset && script.dataset.botId))) ||
+    (function () {
+      if (!script || !script.src) return "";
+      try {
+        var url = new URL(script.src, location.href);
+        return url.searchParams.get("bot_id") || url.searchParams.get("id") || "";
+      } catch (e) {
+        return "";
+      }
+    })() ||
+    window.CHATTY_BOT_ID ||
+    "";
 
   if (!botId) {
-    console.error("[Chatty] Missing data-id on widget script tag.");
+    console.warn(
+      "[Chatty] No bot ID provided. Add data-bot-id to your script tag."
+    );
     return;
   }
 
-  // window.Chatty.open()/.close()/.toggle() - queued until the widget has
-  // actually mounted and reported its API back via onApiReady below
-  var chattyApi = null;
-  var pendingCalls = [];
-  function queueOrCall(name) {
-    return function () {
-      if (chattyApi) chattyApi[name]();
-      else pendingCalls.push(name);
-    };
-  }
-  window.Chatty = {
-    identify: function (token) {
-      if (!chattyApi || !chattyApi.identify) return Promise.reject(new Error("Wait for Chatty to finish loading"));
-      return chattyApi.identify(token);
-    },
-    logout: function () {
-      if (!chattyApi || !chattyApi.logout) return Promise.reject(new Error("Wait for Chatty to finish loading"));
-      return chattyApi.logout();
-    },
-    open: queueOrCall("open"),
-    openVoice: queueOrCall("openVoice"),
-    close: queueOrCall("close"),
-    toggle: queueOrCall("toggle"),
-  };
-  function onApiReady(api) {
-    chattyApi = api;
-    for (var i = 0; i < pendingCalls.length; i++) api[pendingCalls[i]]();
-    pendingCalls = [];
-    window.dispatchEvent(new CustomEvent("chatty:ready", { detail: { botId: botId } }));
-  }
-
-  var colorAttr = script && (script.getAttribute("data-color") || (script.dataset && script.dataset.color));
-  var styleAttr = script && (script.getAttribute("data-style") || (script.dataset && script.dataset.style));
-  var position = (script && (script.getAttribute("data-position") || (script.dataset && script.dataset.position))) || "right"; // right | left
-  var mobileFull = ((script && (script.getAttribute("data-mobile-fullscreen") || (script.dataset && script.dataset.mobileFullscreen))) || "true") !== "false";
-  var teaserEnabled = ((script && (script.getAttribute("data-teaser") || (script.dataset && script.dataset.teaser))) || "true") !== "false";
-  var soundEnabled = ((script && (script.getAttribute("data-sound") || (script.dataset && script.dataset.sound))) || "true") !== "false";
-  var mode = (script && (script.getAttribute("data-mode") || (script.dataset && script.dataset.mode))) || "chat"; // chat | voice
-  var display = (script && (script.getAttribute("data-display") || (script.dataset && script.dataset.display))) || "drawer"; // drawer | modal
-  var launcher = (script && (script.getAttribute("data-launcher") || (script.dataset && script.dataset.launcher))) || "visible"; // visible | none
-  var origin = (script && script.src) ? new URL(script.src, location.href).origin : "https://chatty.personaliai.com";
+  // Support for optional widget configuration attributes
+  var colorAttr =
+    (script &&
+      (script.getAttribute("data-color") ||
+        (script.dataset && script.dataset.color))) ||
+    null;
+  var styleAttr =
+    (script &&
+      (script.getAttribute("data-style") ||
+        (script.dataset && script.dataset.style))) ||
+    null;
+  var position =
+    (script &&
+      (script.getAttribute("data-position") ||
+        (script.dataset && script.dataset.position))) ||
+    "bottom-right";
+  var mobileFull =
+    ((script &&
+      (script.getAttribute("data-mobile-fullscreen") ||
+        (script.dataset && script.dataset.mobileFullscreen))) ||
+      "true") !== "false";
+  var teaserEnabled =
+    ((script &&
+      (script.getAttribute("data-teaser") ||
+        (script.dataset && script.dataset.teaser))) ||
+      "true") !== "false";
+  var soundEnabled =
+    ((script &&
+      (script.getAttribute("data-sound") ||
+        (script.dataset && script.dataset.sound))) ||
+      "true") !== "false";
+  var mode =
+    (script &&
+      (script.getAttribute("data-mode") ||
+        (script.dataset && script.dataset.mode))) ||
+    "chat"; // chat | voice
+  var display =
+    (script &&
+      (script.getAttribute("data-display") ||
+        (script.dataset && script.dataset.display))) ||
+    "drawer"; // drawer | modal
+  var launcher =
+    (script &&
+      (script.getAttribute("data-launcher") ||
+        (script.dataset && script.dataset.launcher))) ||
+    "visible"; // visible | none
+  var origin =
+    script && script.src
+      ? new URL(script.src, location.href).origin
+      : "https://chatty.personaliai.com";
 
   // Cache-buster for chatty-app.js/.css: they're served from a fixed,
   // unversioned URL, and browsers cache script/link responses even under
@@ -101,26 +108,35 @@
   // cached copy silently gets an app that doesn't match what this file
   // expects - doMount()'s `window.ChattyDOM.mount` check just no-ops with
   // no error, so the widget never appears. Bump this on every release that
-  // Bump this whenever the widget shell or embedded chat surface changes so
-  // customer sites do not keep loading a stale cached voice UI bundle.
-  var ASSET_VERSION = "2026-10-23.v2-responsive-handoff-gdpr";
+  // changes the widget shell or embedded chat surface so customer sites
+  // do not keep loading a stale cached UI bundle.
+  var ASSET_VERSION = "2026-10-23.v3-widget-history-scroll-padding";
 
   // Preconnect to origin for fast asset loading
   try {
     var pc = document.createElement("link");
     pc.rel = "preconnect";
     pc.href = origin;
-    pc.crossOrigin = "anonymous";
     document.head.appendChild(pc);
-  } catch {}
+  } catch (e) {}
 
-  function mountShadowWidget() {
+  // Expose JavaScript API queue before app loads
+  window.Chatty = window.Chatty || function () {
+    (window.Chatty.q = window.Chatty.q || []).push(arguments);
+  };
+
+  function init() {
+    // Isolated custom element to host Shadow DOM
     var host = document.createElement("div");
     host.id = "chatty-widget-host";
-    host.style.cssText = "position:fixed;bottom:0;right:0;width:auto;height:auto;z-index:2147483646;pointer-events:none;";
+    host.style.cssText =
+      "position:fixed;bottom:0;right:0;width:auto;height:auto;z-index:2147483646;pointer-events:none;";
     document.body.appendChild(host);
 
-    var shadow = (typeof host.attachShadow === "function") ? host.attachShadow({ mode: "open" }) : host;
+    var shadow =
+      typeof host.attachShadow === "function"
+        ? host.attachShadow({ mode: "open" })
+        : host;
 
     // Inject encapsulated widget stylesheet into Shadow DOM
     var link = document.createElement("link");
@@ -163,8 +179,22 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mountShadowWidget);
+    document.addEventListener("DOMContentLoaded", init);
   } else {
-    mountShadowWidget();
+    init();
+  }
+
+  function onApiReady(api) {
+    // Flush queued commands
+    if (window.Chatty && window.Chatty.q) {
+      var q = window.Chatty.q;
+      for (var i = 0; i < q.length; i++) {
+        var args = Array.prototype.slice.call(q[i]);
+        var method = args[0];
+        if (typeof api[method] === "function") {
+          api[method].apply(api, args.slice(1));
+        }
+      }
+    }
   }
 })();

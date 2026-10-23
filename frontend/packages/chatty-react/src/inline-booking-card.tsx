@@ -99,6 +99,7 @@ export interface InlineBookingCardProps {
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   onMeetingRescheduled?: (meeting: ConfirmedMeeting) => void;
   onMeetingCancelled?: () => void;
+  onLayoutChange?: () => void;
 }
 
 interface TzOption {
@@ -270,11 +271,16 @@ export function InlineBookingCard({
   onBookingSuccess,
   onMeetingRescheduled,
   onMeetingCancelled,
+  onLayoutChange,
 }: InlineBookingCardProps) {
   const fetch = sessionId?.startsWith("ci-") ? visitorIdentityClient(botId, backendUrl).fetch : globalThis.fetch;
   const [loading, setLoading] = useState(true);
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onLayoutChange?.();
+  }, [loading, slotsData, onLayoutChange]);
 
   // Timezone selection: auto-detect visitor's location, default to USA Eastern Time if unavailable or UTC
   const detectedTz = useMemo(() => {

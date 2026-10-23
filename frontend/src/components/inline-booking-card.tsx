@@ -98,6 +98,7 @@ export interface InlineBookingCardProps {
   onBookingSuccess?: (meeting: ConfirmedMeeting) => void;
   onMeetingRescheduled?: (meeting: ConfirmedMeeting) => void;
   onMeetingCancelled?: () => void;
+  onLayoutChange?: () => void;
   sig?: string;
   t?: string;
 }
@@ -372,6 +373,7 @@ export function InlineBookingCard({
   onBookingSuccess,
   onMeetingRescheduled,
   onMeetingCancelled,
+  onLayoutChange,
   sig,
   t,
 }: InlineBookingCardProps) {
@@ -383,6 +385,10 @@ export function InlineBookingCard({
   const [loading, setLoading] = useState(true);
   const [slotsData, setSlotsData] = useState<SlotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onLayoutChange?.();
+  }, [loading, slotsData, onLayoutChange]);
 
   // Timezone selection: auto-detect visitor's location, default to USA Eastern Time if unavailable or UTC
   const detectedTz = useMemo(() => {

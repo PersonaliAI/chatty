@@ -359,23 +359,34 @@ interface EmbedClientProps {
 export default function EmbedClient(props: EmbedClientProps) {
   const identity = useVisitorIdentity(props.botId, BACKEND_URL);
   if (!identity.value) {
-    const message = identity.error ? "We couldn't start the chat. Please reload." : "Loading chat…";
+    const message = identity.error ? "We couldn't start the chat. Please reload." : "Getting your chat ready…";
     return (
       <div
         role="status"
         aria-live="polite"
-        className="w-full h-full min-h-[100dvh] flex items-center justify-center p-6 text-sm"
+        className="w-full h-full min-h-[100dvh] flex flex-col items-center justify-center gap-3 p-6 text-sm select-none"
         style={{
           boxSizing: "border-box",
-          background: "#fffaf5",
-          border: "1px solid #f1e6db",
+          background: "linear-gradient(145deg, #fffaf5, #ffffff 70%)",
           color: "#6b5c50",
           fontFamily: "ui-sans-serif, system-ui, sans-serif",
           lineHeight: 1.4,
         }}
       >
-        <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: identity.error ? "#c56a42" : "#f97316", boxShadow: identity.error ? "none" : "0 0 0 4px rgba(249,115,22,.12)" }} />
-        <span>{message}</span>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 999,
+            border: `3px solid ${identity.error ? "#f1d4c5" : "#fbd3b8"}`,
+            borderTopColor: identity.error ? "#c56a42" : "#f97316",
+            animation: identity.error ? undefined : "chatty-embed-spin .8s linear infinite",
+          }}
+        />
+        <span style={{ fontWeight: 600, color: "#443931" }}>{message}</span>
+        {!identity.error && <span style={{ fontSize: 12, color: "#9a8475" }}>This only takes a moment.</span>}
+        <style>{"@keyframes chatty-embed-spin{to{transform:rotate(360deg)}}"}</style>
       </div>
     );
   }
@@ -427,6 +438,7 @@ function IdentifiedEmbedClient({
     try {
       const p = new URLSearchParams(window.location.search).get("host");
       if (p) return p;
+      if (window.location.hostname && window.location.hostname !== "localhost") return window.location.hostname;
       if (document.referrer) return new URL(document.referrer).hostname;
     } catch {}
     return "direct";
@@ -2356,9 +2368,55 @@ function IdentifiedEmbedClient({
     }
   }, []);
 
+  // Auto-scroll when messages update or dynamic content (InlineBookingCard,
+  // images, calendar slots, markdown expansion) resizes inside the chat body.
+  const isNearBottomRef = useRef(true);
+
+  const handleChatScroll = useCallback(() => {
+    const el = chatBodyRef.current;
+    if (!el) return;
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isNearBottomRef.current = distanceToBottom < 150;
+  }, []);
+
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = chatBodyRef.current;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+  }, []);
+
   useEffect(() => {
-    chatBodyRef.current?.scrollTo({ top: chatBodyRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, isBotResponding, tab]);
+    if (tab === "messages") {
+      isNearBottomRef.current = true;
+      scrollToBottom(true);
+    }
+  }, [messages, isBotResponding, tab, scrollToBottom]);
+
+  useEffect(() => {
+    const el = chatBodyRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    let previousScrollHeight = el.scrollHeight;
+
+    const observer = new ResizeObserver(() => {
+      if (tab !== "messages") return;
+      const currentScrollHeight = el.scrollHeight;
+      if (currentScrollHeight > previousScrollHeight && isNearBottomRef.current) {
+        scrollToBottom(true);
+      }
+      previousScrollHeight = currentScrollHeight;
+    });
+
+    if (el.firstElementChild) {
+      observer.observe(el.firstElementChild);
+    }
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [tab, scrollToBottom]);
 
   // Load the owner's chosen Google Font at runtime - this route has no
   // static next/font/google import for arbitrary owner-picked fonts (those
@@ -2953,11 +3011,11 @@ function IdentifiedEmbedClient({
     <div
       ref={rootRef}
       id="chatty-root"
-      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? (isDirectDesktop ? "max-w-[540px] mx-auto my-auto h-[96dvh] max-h-[850px] rounded-2xl shadow-2xl border border-neutral-200/80 dark:border-neutral-800" : "rounded-none") : "rounded-2xl"}`}
+      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? (isDirectDesktop ? "max-w-[500px] w-full mx-auto my-auto h-[calc(100dvh-48px)] max-h-[800px] rounded-2xl shadow-2xl border border-neutral-200/80 dark:border-neutral-800" : "rounded-none") : "rounded-2xl"}`}
       style={{
         touchAction: "manipulation",
-        height: isDirectDesktop ? undefined : (viewportHeight ? `${viewportHeight}px` : "100%"),
-        maxHeight: isDirectDesktop ? "850px" : (viewportHeight ? `${viewportHeight}px` : "100dvh"),
+        height: isDirectDesktop ? "calc(100dvh - 48px)" : (viewportHeight ? `${viewportHeight}px` : "100%"),
+        maxHeight: isDirectDesktop ? "800px" : (viewportHeight ? `${viewportHeight}px` : "100dvh"),
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
     >
@@ -2969,7 +3027,8 @@ function IdentifiedEmbedClient({
           height: 100% !important;
           height: 100dvh !important;
           margin: 0 !important;
-          padding: 0 !important;
+          padding: ${isDirectDesktop ? "24px 16px !important" : "0 !important"};
+          box-sizing: border-box !important;
           overflow: hidden !important;
           overscroll-behavior: none !important;
           touch-action: manipulation;
@@ -3206,7 +3265,7 @@ function IdentifiedEmbedClient({
       </div>)}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin flex flex-col ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto overflow-x-hidden"}`}>
+      <div ref={chatBodyRef} onScroll={handleChatScroll} className={`relative flex-1 min-h-0 scrollbar-thin flex flex-col ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto overflow-x-hidden"}`}>
         {voiceModeActive ? (
           <div
             className="chatty-widget-voice-stage flex-1 min-h-0 flex flex-col"
@@ -3985,6 +4044,7 @@ function IdentifiedEmbedClient({
                                           return updated;
                                         });
                                       }}
+                                      onLayoutChange={() => scrollToBottom(true)}
                                     />
                                   )}
                                   {msg.sources && msg.sources.length > 0 && (
@@ -4769,30 +4829,22 @@ function IdentifiedEmbedClient({
         </>
       )}
 
-      {!voiceModeActive && (
+      {!voiceModeActive && !hideBranding && (
         <div
-          className="flex items-center justify-between px-3 pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
+          className="text-center pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
           style={{
             paddingBottom: `calc(0.25rem + max(${safeAreaBottom}px, env(safe-area-inset-bottom, 0px)))`,
           }}
         >
-          <div className="flex items-center gap-1 text-[9px] text-neutral-400" title="Protected by end-to-end data minimisation and cryptographic isolation">
-            <ShieldCheck className="size-3 text-emerald-500" />
-            <span>GDPR Protected</span>
-          </div>
-          {!hideBranding && (
-            <div>
-              Powered by{" "}
-              <a
-                href="https://chatty.personaliai.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
-              >
-                Chatty
-              </a>
-            </div>
-          )}
+          Powered by{" "}
+          <a
+            href="https://chatty.personaliai.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+          >
+            Chatty
+          </a>
         </div>
       )}
 

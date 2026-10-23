@@ -656,6 +656,7 @@ function IdentifiedChatWidget({
     try {
       const p = new URLSearchParams(window.location.search).get("host");
       if (p) return p;
+      if (window.location.hostname && window.location.hostname !== "localhost") return window.location.hostname;
       if (document.referrer) return new URL(document.referrer).hostname;
     } catch {}
     return "direct";
@@ -2200,14 +2201,55 @@ function IdentifiedChatWidget({
     }
   }, [ownsDocument]);
 
+  // Auto-scroll when messages update or dynamic content (InlineBookingCard,
+  // images, calendar slots, markdown expansion) resizes inside the chat body.
+  const isNearBottomRef = useRef(true);
+
+  const handleChatScroll = useCallback(() => {
+    const el = chatBodyRef.current;
+    if (!el) return;
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isNearBottomRef.current = distanceToBottom < 150;
+  }, []);
+
+  const scrollToBottom = useCallback((smooth = true) => {
+    const el = chatBodyRef.current;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: smooth ? "smooth" : "auto",
+    });
+  }, []);
+
   useEffect(() => {
-    if (tab === "messages" && chatBodyRef.current) {
-      chatBodyRef.current.scrollTo({
-        top: chatBodyRef.current.scrollHeight,
-        behavior: "smooth",
-      });
+    if (tab === "messages") {
+      isNearBottomRef.current = true;
+      scrollToBottom(true);
     }
-  }, [messages, isBotResponding, tab]);
+  }, [messages, isBotResponding, tab, scrollToBottom]);
+
+  useEffect(() => {
+    const el = chatBodyRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    let previousScrollHeight = el.scrollHeight;
+
+    const observer = new ResizeObserver(() => {
+      if (tab !== "messages") return;
+      const currentScrollHeight = el.scrollHeight;
+      if (currentScrollHeight > previousScrollHeight && isNearBottomRef.current) {
+        scrollToBottom(true);
+      }
+      previousScrollHeight = currentScrollHeight;
+    });
+
+    if (el.firstElementChild) {
+      observer.observe(el.firstElementChild);
+    }
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [tab, scrollToBottom]);
 
   // Grow the composer with its content (up to max-h-[108px] on the textarea
   // itself, ~4 lines, after which it scrolls). Keyed on inputValue rather
@@ -2997,7 +3039,7 @@ function IdentifiedChatWidget({
       </div>)}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto overflow-x-hidden"}`}>
+      <div ref={chatBodyRef} onScroll={handleChatScroll} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto overflow-x-hidden"}`}>
         {voiceModeActive ? (
           <div className="chatty-widget-voice-stage">
             <VoiceAgentPanel
@@ -3630,6 +3672,7 @@ function IdentifiedChatWidget({
                                           })
                                         );
                                       }}
+                                      onLayoutChange={() => scrollToBottom(true)}
                                     />
                                   )}
                                 </>
@@ -4428,30 +4471,24 @@ function IdentifiedChatWidget({
         </>
       )}
 
-      <div
-        className="flex items-center justify-between px-3 pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
-        style={{
-          paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom, 0px))",
-        }}
-      >
-        <div className="flex items-center gap-1 text-[9px] text-neutral-400" title="Protected by end-to-end data minimisation and cryptographic isolation">
-          <ShieldCheck className="size-3 text-emerald-500" />
-          <span>GDPR Protected</span>
+      {!voiceModeActive && !hideBranding && (
+        <div
+          className="text-center pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
+          style={{
+            paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          Powered by{" "}
+          <a
+            href="https://chatty.personaliai.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+          >
+            Chatty
+          </a>
         </div>
-        {!hideBranding && (
-          <div>
-            Powered by{" "}
-            <a
-              href="https://chatty.personaliai.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
-            >
-              Chatty
-            </a>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Toast Notification */}
       {toast && (

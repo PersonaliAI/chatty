@@ -28,12 +28,22 @@ export class VisitorIdentityClient {
     const generation = this.generation;
     const old = this.value;
     if (!newConversation) {
-      this.clear(Boolean(identityToken) || !old); // Unmount before changing identities.
+      this.clear(Boolean(identityToken)); // Unmount before changing identities; don't wipe on simple reload
     }
     const response = await globalThis.fetch(`${this.backend}/api/widget/identity`, {
-      method: "POST", headers: { "Content-Type": "application/json", ...(old?.visitor_token ? { "X-Chatty-Visitor": old.visitor_token } : {}) },
-      body: JSON.stringify({ bot_id: this.botId, ...(identityToken ? { identity_token: identityToken } : {}), ...(newConversation ? { new_conversation: true } : {}) }),
-      cache: "no-store", credentials: "include", signal: this.controller.signal,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(old?.visitor_token ? { "X-Chatty-Visitor": old.visitor_token } : {}),
+      },
+      body: JSON.stringify({
+        bot_id: this.botId,
+        ...(identityToken ? { identity_token: identityToken } : {}),
+        ...(newConversation ? { new_conversation: true } : {}),
+      }),
+      cache: "no-store",
+      credentials: "include",
+      signal: this.controller.signal,
     });
     if (!response.ok) throw new Error("Could not establish visitor identity");
     const value: VisitorIdentity = await response.json();
@@ -41,9 +51,15 @@ export class VisitorIdentityClient {
     if (!/^ci-[a-f0-9-]{36}$/.test(value.session_id) || !/^[A-Za-z0-9_-]{43}$/.test(value.visitor_token)) throw new Error("Invalid visitor identity response");
     this.value = value;
     if (old && identityToken) this.retirement.delete(old.visitor_token);
-    // Keep the bearer capability in memory only. The server also sets an
-    // HttpOnly cookie so a reload can re-establish the same visitor session.
-    try { localStorage.setItem(`chatty_session_${this.botId}`, JSON.stringify({ session_id: value.session_id, expires_at: value.expires_at })); } catch {}
+    try {
+      localStorage.setItem(
+        `chatty_session_${this.botId}`,
+        JSON.stringify({
+          session_id: value.session_id,
+          expires_at: value.expires_at,
+        })
+      );
+    } catch {}
     this.listeners.forEach(listener => listener());
   }
   initialize() {
@@ -51,9 +67,16 @@ export class VisitorIdentityClient {
       if (this.value) return;
       try {
         const stored = JSON.parse(localStorage.getItem(`chatty_session_${this.botId}`) || "null");
-        if (!stored || new Date(stored.expires_at).getTime() <= Date.now()) localStorage.removeItem(`chatty_session_${this.botId}`);
+        if (!stored || new Date(stored.expires_at).getTime() <= Date.now()) {
+          localStorage.removeItem(`chatty_session_${this.botId}`);
+        }
       } catch {}
-      try { await this.exchange(); } catch { this.value = null; await this.exchange(); }
+      try {
+        await this.exchange();
+      } catch {
+        this.value = null;
+        await this.exchange();
+      }
     });
   }
   private serialize(action: () => Promise<void>) {
