@@ -19,6 +19,7 @@ class WidgetChatRequest(BaseModel):
     host: Optional[str] = None  # parent page host, sent by widget.js - advisory only, not trusted
     flow_context: Optional[dict] = None
     ai_paused: bool = False
+    resume_ai: bool = False
 
 
 class WidgetVerifyOriginRequest(BaseModel):

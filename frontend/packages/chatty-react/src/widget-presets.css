@@ -569,3 +569,30 @@
 .chatty-voice-scrollbar::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, rgba(198, 113, 57, 0.72), rgba(140, 73, 26, 0.86)) padding-box;
 }
+
+/* KaTeX and bubble overflow prevention */
+.katex-display,
+.chatty-voice-scrollbar .katex-display,
+.bot-bubble .katex-display,
+.user-bubble .katex-display {
+  max-width: 100% !important;
+  margin: 0.35rem 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 0.15rem 0.1rem !important;
+  scrollbar-width: thin !important;
+}
+.chatty-voice-scrollbar .katex,
+.bot-bubble .katex,
+.user-bubble .katex {
+  font-size: 0.95em;
+}
+.bot-bubble table,
+.user-bubble table {
+  max-width: 100% !important;
+}
+.bot-bubble pre,
+.user-bubble pre {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+}

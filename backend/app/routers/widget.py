@@ -660,11 +660,23 @@ async def widget_chat(
             from app.routers.admin import _dispatch_ticket_to_agent
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
 
+    # Handle visitor resuming AI assistant
+    if body.resume_ai or text.startswith("[Visitor resumed AI]"):
+        try:
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "ai_paused": False,
+                "needs_attention": False,
+                "escalation_reason": None,
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+            session_row["ai_paused"] = False
+        except Exception:
+            pass
+
     # Flag conversations where the visitor asks for a human or shows frustration.
     esc = _detect_sentiment_escalation(text, session_row.get("last_message"))
     if not esc and ("[Visitor requested live agent" in text or body.ai_paused):
         esc = "Visitor requested human agent"
-    if esc:
+    if esc and not (body.resume_ai or text.startswith("[Visitor resumed AI]")):
         try:
             upd = {"needs_attention": True, "escalation_reason": esc}
             if "Negative" in esc:
@@ -770,7 +782,19 @@ async def widget_chat(
         return WidgetChatResponse(reply=handoff_ack, session_id=session_id, ai_paused=True)
 
     if session_row.get("ai_paused") or body.ai_paused or (esc and "human agent" in esc.lower()):
-        return WidgetChatResponse(reply="", session_id=session_id, ai_paused=True)
+        paused_reply = "Your message has been received and routed to our support team. A human specialist will reply right here shortly. [LIVE_AGENT_REQUESTED]\n\n[HANDOFF_ACTIONS]"
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": paused_reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            pass
+        return WidgetChatResponse(reply=paused_reply, session_id=session_id, ai_paused=True)
 
     if flow_result.get("reply"):
         reply = str(flow_result["reply"])
@@ -969,10 +993,22 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
             from app.routers.admin import _dispatch_ticket_to_agent
             background_tasks.add_task(_dispatch_ticket_to_agent, bot_id, session_id)
 
+    # Handle visitor resuming AI assistant
+    if body.resume_ai or text.startswith("[Visitor resumed AI]"):
+        try:
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "ai_paused": False,
+                "needs_attention": False,
+                "escalation_reason": None,
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+            session_row["ai_paused"] = False
+        except Exception:
+            pass
+
     esc = _detect_sentiment_escalation(text, session_row.get("last_message"))
     if not esc and ("[Visitor requested live agent" in text or body.ai_paused):
         esc = "Visitor requested human agent"
-    if esc:
+    if esc and not (body.resume_ai or text.startswith("[Visitor resumed AI]")):
         try:
             upd = {"needs_attention": True, "escalation_reason": esc}
             if "Negative" in esc:
@@ -1065,6 +1101,8 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         except Exception:
             logger.exception("Failed to save stream offline ticket confirmation")
         async def _offline_gen():
+            yield _sse({"type": "token", "text": offline_ack})
+            yield _sse({"type": "done", "reply": offline_ack})
             yield _sse({"type": "paused"})
         return StreamingResponse(_offline_gen(), media_type="text/event-stream", background=background_tasks)
 
@@ -1082,12 +1120,28 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         except Exception:
             logger.exception("Failed to save stream live agent handoff confirmation")
         async def _handoff_gen():
+            yield _sse({"type": "token", "text": handoff_ack})
+            yield _sse({"type": "done", "reply": handoff_ack})
             yield _sse({"type": "paused"})
         return StreamingResponse(_handoff_gen(), media_type="text/event-stream", background=background_tasks)
 
-    # Human agent took over - nothing to stream.
+    # Human agent took over or live handoff in progress
     if session_row.get("ai_paused") or body.ai_paused or (esc and "human agent" in esc.lower()):
+        paused_reply = "Your message has been received and routed to our support team. A human specialist will reply right here shortly. [LIVE_AGENT_REQUESTED]\n\n[HANDOFF_ACTIONS]"
+        try:
+            bot_name = bot.get("name") or "Chatty"
+            bot_av = bot.get("avatar_url") or bot.get("logo_url")
+            await run_db(lambda: supabase.table("chatty_conversations").insert({
+                "bot_id": bot_id, "session_id": session_id, "role": "assistant",
+                "content": paused_reply, "sender": "ai",
+                "sender_name": bot_name,
+                "sender_avatar": bot_av,
+            }).execute())
+        except Exception:
+            pass
         async def _paused_gen():
+            yield _sse({"type": "token", "text": paused_reply})
+            yield _sse({"type": "done", "reply": paused_reply})
             yield _sse({"type": "paused"})
         return StreamingResponse(_paused_gen(), media_type="text/event-stream", background=background_tasks)
 

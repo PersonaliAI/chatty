@@ -764,19 +764,35 @@ body {
   line-height: 1.45;
 }
 
-/* KaTeX is rendered inside the live transcript. Display equations get their
+/* KaTeX is rendered inside message bubbles and live transcript. Display equations get their
  * own horizontal scroller so a long formula never widens or clips the mobile
- * call surface, while inline math follows the surrounding text size. */
-.chatty-voice-scrollbar .katex-display {
-  max-width: 100%;
-  margin: 0.35rem 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0.15rem 0.1rem;
-  scrollbar-width: thin;
+ * surface, while inline math follows the surrounding text size. */
+.katex-display,
+.chatty-voice-scrollbar .katex-display,
+.bot-bubble .katex-display,
+.user-bubble .katex-display,
+.inbox-message-bubble .katex-display {
+  max-width: 100% !important;
+  margin: 0.35rem 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 0.15rem 0.1rem !important;
+  scrollbar-width: thin !important;
 }
-.chatty-voice-scrollbar .katex {
+.chatty-voice-scrollbar .katex,
+.bot-bubble .katex,
+.user-bubble .katex {
   font-size: 0.95em;
+}
+.bot-bubble table,
+.user-bubble table,
+.inbox-message-bubble table {
+  max-width: 100% !important;
+}
+.bot-bubble pre,
+.user-bubble pre {
+  max-width: 100% !important;
+  overflow-x: auto !important;
 }
 
 /* ── Bottom Navigation Custom Styles ── */

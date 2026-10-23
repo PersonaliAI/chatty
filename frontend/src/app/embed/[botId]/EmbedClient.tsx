@@ -858,11 +858,6 @@ function IdentifiedEmbedClient({
       if (!Number.isNaN(parsed) && parsed >= 0) return parsed;
     }
     if (sp.get("statusBar") === "true" || sp.get("statusBar") === "1") return 40;
-    if (sp.get("safeArea") === "true" || sp.get("safeArea") === "1") return 44;
-    const platform = (sp.get("platform") || "").toLowerCase();
-    if (platform === "flutter" || platform === "react-native" || platform === "android" || platform === "ios") {
-      return 44;
-    }
     return 0;
   });
 
@@ -1453,11 +1448,30 @@ function IdentifiedEmbedClient({
     }
   };
 
+  const openOfflineForm = useCallback(() => {
+    if (!offlineEmail) {
+      setOfflineEmail(extractedVisitorInfo.email || supportEmail || "");
+    }
+    if (!offlineName) {
+      setOfflineName(extractedVisitorInfo.name || "");
+    }
+    setShowOfflineForm(true);
+  }, [offlineEmail, offlineName, extractedVisitorInfo.email, extractedVisitorInfo.name, supportEmail]);
+
   const submitOfflineMessage = async () => {
-    if (!offlineName.trim() || !offlineEmail.trim() || !offlineMessage.trim()) return;
-    const name = offlineName.trim();
-    const email = offlineEmail.trim().toLowerCase();
+    const email = (offlineEmail.trim() || supportEmail.trim() || extractedVisitorInfo.email || "").toLowerCase();
+    const name = offlineName.trim() || extractedVisitorInfo.name || "Visitor";
     const message = offlineMessage.trim();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showToast("Please enter a valid email address.", "error");
+      return;
+    }
+    if (!message) {
+      showToast("Please enter your message or question.", "error");
+      return;
+    }
+
     const ticketText = `[Offline Support Ticket]\nName: ${name}\nEmail: ${email}\nMessage: ${message}`;
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
@@ -1575,6 +1589,41 @@ function IdentifiedEmbedClient({
     if (!s) { s = `v-${crypto.randomUUID()}`; localStorage.setItem(k, s); }
     return s;
   });
+
+  const resumeAiAssistant = useCallback(async () => {
+    setLiveAgent(false);
+    const nowIso = new Date().toISOString();
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: "I'd like to resume chatting with AI",
+        created_at: nowIso,
+      },
+      {
+        role: "assistant",
+        content: "I'm back and ready to help! What can I do for you today?",
+        sender: "ai",
+        created_at: nowIso,
+      },
+    ]);
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...widgetTokenHeader,
+        },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          text: "[Visitor resumed AI]",
+          resume_ai: true,
+          ai_paused: false,
+        }),
+      });
+    } catch {}
+  }, [botId, sessionId, widgetTokenHeader]);
 
   // Keep internal sessionId in sync ONLY when activeSessionId genuinely updates from parent (e.g. starting a new conversation)
   const prevActiveSessionIdRef = useRef(activeSessionId);
@@ -1753,6 +1802,7 @@ function IdentifiedEmbedClient({
   const requestLiveHandoff = useCallback(async () => {
     setLiveAgent(true);
     const nowIso = new Date().toISOString();
+    lastPollRef.current = nowIso;
     setMessages((prev) => [
       ...prev,
       {
@@ -2012,18 +2062,23 @@ function IdentifiedEmbedClient({
         if (payload.created_at) lastPollRef.current = payload.created_at;
         const textContent = payload.content || "";
         const isHuman = payload.sender === "human";
-        setMessages((p) => [
-          ...p,
-          {
-            role: "assistant" as const,
-            content: textContent,
-            sender: isHuman ? "human" : "ai",
-            channel: "text",
-            sender_name: payload.sender_name,
-            sender_avatar: payload.sender_avatar,
-            created_at: payload.created_at || new Date().toISOString(),
-          },
-        ]);
+        setMessages((p) => {
+          if (p.some((x) => x.role === "assistant" && (x.content || "").trim() === textContent.trim())) {
+            return p;
+          }
+          return [
+            ...p,
+            {
+              role: "assistant" as const,
+              content: textContent,
+              sender: isHuman ? "human" : "ai",
+              channel: "text",
+              sender_name: payload.sender_name,
+              sender_avatar: payload.sender_avatar,
+              created_at: payload.created_at || new Date().toISOString(),
+            },
+          ];
+        });
         if (payload.sender_name) setActiveAgentName(payload.sender_name);
         if (payload.sender_avatar) setActiveAgentAvatar(payload.sender_avatar);
         if (isHuman) setLiveAgent(true);
@@ -2068,8 +2123,12 @@ function IdentifiedEmbedClient({
           }));
           const latestM = newMsgs[newMsgs.length - 1];
           if (latestM?.sender_name) setActiveAgentName(latestM.sender_name);
-          if (latestM?.sender_avatar) setActiveAgentAvatar(latestM.sender_avatar);
-          setMessages((p) => [...p, ...newMsgs]);
+          setMessages((p) => {
+            const seen = new Set(p.map((x) => `${x.role}:${(x.content || "").trim()}`));
+            const unique = newMsgs.filter((m: (typeof newMsgs)[number]) => !seen.has(`${m.role}:${(m.content || "").trim()}`));
+            if (!unique.length) return p;
+            return [...p, ...unique];
+          });
           setIsBotResponding(false);
           setAgentTyping(false);
           if (newMsgs[0]?.content) triggerPushRef.current(newMsgs[0].content);
@@ -2888,15 +2947,17 @@ function IdentifiedEmbedClient({
     ? `#chatty-root { font-family: "${fontFamily}", sans-serif !important; }`
     : "";
 
+  const isDirectDesktop = typeof window !== "undefined" && window.self === window.top && window.innerWidth > 640;
+
   return (
     <div
       ref={rootRef}
       id="chatty-root"
-      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "rounded-none" : "rounded-2xl"}`}
+      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? (isDirectDesktop ? "max-w-[540px] mx-auto my-auto h-[96dvh] max-h-[850px] rounded-2xl shadow-2xl border border-neutral-200/80 dark:border-neutral-800" : "rounded-none") : "rounded-2xl"}`}
       style={{
         touchAction: "manipulation",
-        height: viewportHeight ? `${viewportHeight}px` : "100%",
-        maxHeight: viewportHeight ? `${viewportHeight}px` : "100dvh",
+        height: isDirectDesktop ? undefined : (viewportHeight ? `${viewportHeight}px` : "100%"),
+        maxHeight: isDirectDesktop ? "850px" : (viewportHeight ? `${viewportHeight}px` : "100dvh"),
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
     >
@@ -2912,7 +2973,10 @@ function IdentifiedEmbedClient({
           overflow: hidden !important;
           overscroll-behavior: none !important;
           touch-action: manipulation;
-          background: transparent !important;
+          background: ${isDirectDesktop ? "var(--chatty-page-bg, #f4f4f5)" : "transparent"} !important;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           background-image: none !important;
           animation: none !important;
           /* The root layout's "antialiased" Tailwind class (-webkit-font-smoothing:
@@ -3142,7 +3206,7 @@ function IdentifiedEmbedClient({
       </div>)}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin flex flex-col ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto"}`}>
+      <div ref={chatBodyRef} className={`relative flex-1 min-h-0 scrollbar-thin flex flex-col ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto overflow-x-hidden"}`}>
         {voiceModeActive ? (
           <div
             className="chatty-widget-voice-stage flex-1 min-h-0 flex flex-col"
@@ -3305,7 +3369,7 @@ function IdentifiedEmbedClient({
               <button
                 type="button"
                 onClick={submitOfflineMessage}
-                disabled={!offlineName.trim() || !offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted}
+                disabled={!offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-40"
                 style={{ background: primaryColor, color: onPrimary }}
               >
@@ -3845,42 +3909,54 @@ function IdentifiedEmbedClient({
                                           </div>
                                         )}
                                         {hasHandoffActions && (
-                                          <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
-                                            {i === messages.length - 1 && !isBotResponding && !liveAgent && !offlineTicketDone ? (
-                                              <>
-                                                <button
-                                                  type="button"
-                                                  onClick={requestLiveHandoff}
-                                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                                                  style={{
-                                                    borderColor: primaryColor,
-                                                    color: primaryColor,
-                                                    backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
-                                                  }}
-                                                >
-                                                  <Headphones className="size-3.5" />
-                                                  <span>Talk to an agent</span>
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => setShowOfflineForm(true)}
-                                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
-                                                >
-                                                  <Mail className="size-3.5" />
-                                                  <span>Leave email for follow-up</span>
-                                                </button>
-                                              </>
+                                          <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60 w-full">
+                                            {!liveAgent ? (
+                                              <button
+                                                type="button"
+                                                onClick={requestLiveHandoff}
+                                                disabled={isBotResponding}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                                                style={{
+                                                  borderColor: primaryColor,
+                                                  color: primaryColor,
+                                                  backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
+                                                }}
+                                              >
+                                                <Headphones className="size-3.5" />
+                                                <span>Talk to an agent</span>
+                                              </button>
                                             ) : (
-                                              <div className="flex flex-wrap items-center gap-1.5 w-full">
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
-                                                  <Headphones className="size-3" />
-                                                  <span>{liveAgent ? "Human agent requested ✓" : "Talk to an agent"}</span>
-                                                </span>
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
-                                                  <Mail className="size-3" />
-                                                  <span>{offlineTicketDone ? "Follow-up email submitted ✓" : "Leave email for follow-up"}</span>
-                                                </span>
-                                              </div>
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
+                                                <Headphones className="size-3" />
+                                                <span>Human agent requested ✓</span>
+                                              </span>
+                                            )}
+
+                                            {!offlineTicketDone ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => openOfflineForm()}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
+                                              >
+                                                <Mail className="size-3.5" />
+                                                <span>Leave email for follow-up</span>
+                                              </button>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
+                                                <Mail className="size-3" />
+                                                <span>Follow-up email submitted ✓</span>
+                                              </span>
+                                            )}
+
+                                            {liveAgent && (
+                                              <button
+                                                type="button"
+                                                onClick={resumeAiAssistant}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all cursor-pointer"
+                                              >
+                                                <Sparkles className="size-3" />
+                                                <span>Resume chatting with AI</span>
+                                              </button>
                                             )}
                                           </div>
                                         )}
@@ -4052,7 +4128,7 @@ function IdentifiedEmbedClient({
                         key={i}
                         type="button"
                         onClick={() => sendText(s)}
-                        className="starter-chip px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                        className="starter-chip max-w-full sm:max-w-[88%] text-left sm:text-right px-3.5 py-2 rounded-2xl border text-xs font-medium leading-relaxed hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer break-words shadow-2xs"
                         style={{ borderColor: primaryColor, color: primaryColor }}
                       >
                         {s}

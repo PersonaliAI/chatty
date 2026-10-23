@@ -1697,6 +1697,48 @@ function IdentifiedChatWidget({
     } catch {}
   }, [botId, sessionId, widgetTokenHeader]);
 
+  const resumeAiAssistant = useCallback(async () => {
+    setLiveAgent(false);
+    const nowIso = new Date().toISOString();
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: "I'd like to resume chatting with AI",
+        created_at: nowIso,
+      },
+      {
+        role: "assistant",
+        content: "I'm back and ready to help! What can I do for you today?",
+        sender: "ai",
+        created_at: nowIso,
+      },
+    ]);
+    try {
+      await fetch(`${BACKEND_URL}/api/widget/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...widgetTokenHeader,
+        },
+        body: JSON.stringify({
+          bot_id: botId,
+          session_id: sessionId,
+          text: "[Visitor resumed AI]",
+          resume_ai: true,
+          ai_paused: false,
+        }),
+      });
+    } catch {}
+  }, [botId, sessionId, widgetTokenHeader]);
+
+  const openOfflineForm = useCallback(() => {
+    if (!offlineEmail && (extractedVisitorInfo?.email || supportEmail)) {
+      setOfflineEmail(extractedVisitorInfo?.email || supportEmail || "");
+    }
+    setShowOfflineForm(true);
+  }, [offlineEmail, extractedVisitorInfo?.email, supportEmail]);
+
   // Query active scheduled meeting for the current session on load
   const fetchActiveMeeting = useCallback(async () => {
     if (!botId || !sessionId || !calendarSchedulingEnabled) return;
@@ -2955,7 +2997,7 @@ function IdentifiedChatWidget({
       </div>)}
 
       {/* Body */}
-      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto"}`}>
+      <div ref={chatBodyRef} className={`flex-1 flex flex-col relative min-h-0 scrollbar-thin ${voiceModeActive ? "chatty-widget-voice-host overflow-hidden" : "widget-panel overflow-y-auto overflow-x-hidden"}`}>
         {voiceModeActive ? (
           <div className="chatty-widget-voice-stage">
             <VoiceAgentPanel
@@ -3492,39 +3534,55 @@ function IdentifiedChatWidget({
                                           </div>
                                         )}
                                         {hasHandoffActions && (
-                                          <div className="flex flex-wrap gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60">
-                                            <button
-                                              type="button"
-                                              disabled={handoffLocked}
-                                              onClick={() => { if (!handoffLocked) void requestLiveHandoff(); }}
-                                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all ${
-                                                handoffLocked
-                                                  ? "opacity-75 cursor-not-allowed"
-                                                  : "hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                                              }`}
-                                              style={{
-                                                borderColor: primaryColor,
-                                                color: primaryColor,
-                                                backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
-                                              }}
-                                            >
-                                              <Headphones className="size-3.5" />
-                                              <span>{liveAgent ? "Live agent requested" : "Talk to an agent"}</span>
-                                              {liveAgent && <Check className="size-3 stroke-[2.5]" />}
-                                            </button>
-                                            <button
-                                              type="button"
-                                              disabled={handoffLocked}
-                                              onClick={() => { if (!handoffLocked) setShowOfflineForm(true); }}
-                                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 transition-all ${
-                                                handoffLocked
-                                                  ? "opacity-70 cursor-not-allowed"
-                                                  : "hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-                                              }`}
-                                            >
-                                              <Mail className="size-3.5" />
-                                              <span>{offlineSubmitted ? "Follow-up email submitted" : "Leave email for follow-up"}</span>
-                                            </button>
+                                          <div className="flex flex-wrap items-center gap-2 mt-3 pt-2 border-t border-neutral-200/60 dark:border-neutral-700/60 w-full">
+                                            {!liveAgent ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => void requestLiveHandoff()}
+                                                disabled={isBotResponding}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer disabled:opacity-50"
+                                                style={{
+                                                  borderColor: primaryColor,
+                                                  color: primaryColor,
+                                                  backgroundColor: "var(--chatty-bubble-bg, rgba(255,255,255,0.9))",
+                                                }}
+                                              >
+                                                <Headphones className="size-3.5" />
+                                                <span>Talk to an agent</span>
+                                              </button>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
+                                                <Headphones className="size-3" />
+                                                <span>Human agent requested ✓</span>
+                                              </span>
+                                            )}
+
+                                            {!offlineSubmitted ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => openOfflineForm()}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
+                                              >
+                                                <Mail className="size-3.5" />
+                                                <span>Leave email for follow-up</span>
+                                              </button>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-neutral-300/70 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 bg-neutral-200/40 dark:bg-neutral-800/50 opacity-80 select-none">
+                                                <Mail className="size-3" />
+                                                <span>Follow-up email submitted ✓</span>
+                                              </span>
+                                            )}
+
+                                            {liveAgent && (
+                                              <button
+                                                type="button"
+                                                onClick={resumeAiAssistant}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-all cursor-pointer"
+                                              >
+                                                <Sparkles className="size-3" />
+                                                <span>Resume chatting with AI</span>
+                                              </button>
+                                            )}
                                           </div>
                                         )}
                                       </>
@@ -3704,7 +3762,7 @@ function IdentifiedChatWidget({
                   <div className="flex flex-col items-end gap-2 pt-1">
                     {starters.slice(0, 4).map((s, i) => (
                       <button key={i} onClick={() => sendText(s)}
-                        className="starter-chip px-3 py-2 rounded-2xl border text-xs font-medium text-right hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors"
+                        className="starter-chip max-w-full sm:max-w-[88%] text-left sm:text-right px-3.5 py-2 rounded-2xl border text-xs font-medium leading-relaxed hover:bg-neutral-50 dark:hover:bg-neutral-900 transition-colors cursor-pointer break-words shadow-2xs"
                         style={{ borderColor: primaryColor, color: primaryColor }}>
                         {s}
                       </button>
@@ -4370,24 +4428,30 @@ function IdentifiedChatWidget({
         </>
       )}
 
-      {!hideBranding && (
-        <div
-          className="text-center pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
-          style={{
-            paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom, 0px))",
-          }}
-        >
-          Powered by{" "}
-          <a
-            href="https://chatty.personaliai.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
-          >
-            Chatty
-          </a>
+      <div
+        className="flex items-center justify-between px-3 pt-1 bg-card text-[10px] text-neutral-400 dark:text-neutral-500 font-mono tracking-wide border-t border-neutral-100/50 dark:border-neutral-900/50"
+        style={{
+          paddingBottom: "calc(0.25rem + env(safe-area-inset-bottom, 0px))",
+        }}
+      >
+        <div className="flex items-center gap-1 text-[9px] text-neutral-400" title="Protected by end-to-end data minimisation and cryptographic isolation">
+          <ShieldCheck className="size-3 text-emerald-500" />
+          <span>GDPR Protected</span>
         </div>
-      )}
+        {!hideBranding && (
+          <div>
+            Powered by{" "}
+            <a
+              href="https://chatty.personaliai.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline font-bold text-neutral-500 dark:text-neutral-400"
+            >
+              Chatty
+            </a>
+          </div>
+        )}
+      </div>
 
       {/* Toast Notification */}
       {toast && (

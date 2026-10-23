@@ -946,7 +946,7 @@ export function InlineBookingCard({
               title="Click to change timezone"
             >
               <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
-              <span className="truncate max-w-[80px] min-[360px]:max-w-[105px] sm:max-w-[160px] font-medium">
+              <span className="truncate max-w-[120px] min-[360px]:max-w-[160px] sm:max-w-[220px] font-medium">
                 {formatTimezoneCity(activeTimezone)}
               </span>
               <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 shrink-0 ${isTzOpen ? "rotate-180" : ""}`} />
@@ -961,7 +961,7 @@ export function InlineBookingCard({
           ref={tzDropdownRef}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
-          className="absolute left-2 right-2 sm:left-auto sm:right-3 sm:w-64 top-[38px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[255px]"
+          className="absolute left-2 right-2 sm:left-auto sm:right-3 sm:w-64 top-full mt-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[255px]"
         >
           {/* Popover Search Bar */}
           <div className="p-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-800/60 flex items-center gap-1.5">
@@ -1186,7 +1186,7 @@ export function InlineBookingCard({
                     No available times on this date.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-[170px] overflow-y-auto pr-1 chatty-custom-scrollbar">
+                  <div className="grid grid-cols-2 min-[420px]:grid-cols-3 gap-1.5 max-h-[170px] overflow-y-auto pr-1 chatty-custom-scrollbar">
                     {currentSlots.map((slot, idx) => {
                       const isSlotSelected = selectedSlot?.start === slot.start;
                       return (
@@ -1619,9 +1619,9 @@ export function InlineBookingCard({
           </div>
 
           {/* Locked Confirmation Footer */}
-          <div className="pt-2.5 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500">
+          <div className="pt-2.5 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500 text-center">
             <ShieldCheck className="size-3 text-emerald-500 shrink-0" />
-            <span>Booking confirmed & locked · Check your email for calendar invite</span>
+            <span className="leading-snug">Booking confirmed & locked · Check your email for calendar invite</span>
           </div>
         </div>
       )}
