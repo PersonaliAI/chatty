@@ -325,6 +325,7 @@ export default function Home() {
       document.getElementById("chatty-widget-host")?.remove();
       delete (window as unknown as { Chatty?: unknown }).Chatty;
       delete (window as unknown as { __chattyWidgetLoaded?: unknown }).__chattyWidgetLoaded;
+      delete (window as unknown as { __chatty_loaded?: unknown }).__chatty_loaded;
     };
   }, []);
 
@@ -1011,8 +1012,9 @@ export default function Home() {
 
       {/* Chatty on Chatty support widget */}
       <Script
-        src="/widget.js"
+        src="/widget.js?v=2026-10-23.v4"
         data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
+        data-bot-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
         strategy="afterInteractive"
       />
     </div>

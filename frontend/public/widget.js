@@ -3,8 +3,19 @@
 (function () {
   "use strict";
 
-  if (window.__chatty_loaded) return;
+  if (window.__chatty_loaded || window.__chattyWidgetLoaded) return;
+
+  // Suppress indexing crawlers, but do not block headless browsers
+  var ua = (navigator.userAgent || "").toLowerCase();
+  var isBot = /jina|crawler|spider|scraper|lighthouse/i.test(ua);
+  if (isBot) return;
+
+  // Don't mount floating widget over dashboard editor, embed preview, or kb page
+  var path = (window.location.pathname || "").toLowerCase();
+  if (path.startsWith("/dashboard") || path.startsWith("/embed/") || path.startsWith("/kb/")) return;
+
   window.__chatty_loaded = true;
+  window.__chattyWidgetLoaded = true;
 
   // Find the loader script tag to read data attributes
   var script =
@@ -16,8 +27,9 @@
         if (
           s.src &&
           (s.src.indexOf("/widget.js") !== -1 ||
+            s.getAttribute("data-id") ||
             s.getAttribute("data-bot-id") ||
-            (s.dataset && s.dataset.botId))
+            (s.dataset && (s.dataset.id || s.dataset.botId)))
         ) {
           return s;
         }
@@ -28,13 +40,19 @@
   // Prioritize configured bot ID on script tag, then URL param, then window global
   var botId =
     (script &&
-      (script.getAttribute("data-bot-id") ||
-        (script.dataset && script.dataset.botId))) ||
+      (script.getAttribute("data-id") ||
+        script.getAttribute("data-bot-id") ||
+        (script.dataset && (script.dataset.id || script.dataset.botId)))) ||
     (function () {
       if (!script || !script.src) return "";
       try {
         var url = new URL(script.src, location.href);
-        return url.searchParams.get("bot_id") || url.searchParams.get("id") || "";
+        return (
+          url.searchParams.get("bot_id") ||
+          url.searchParams.get("id") ||
+          url.searchParams.get("botId") ||
+          ""
+        );
       } catch (e) {
         return "";
       }
@@ -44,7 +62,7 @@
 
   if (!botId) {
     console.warn(
-      "[Chatty] No bot ID provided. Add data-bot-id to your script tag."
+      "[Chatty] No bot ID provided. Add data-id or data-bot-id to your script tag."
     );
     return;
   }
@@ -110,7 +128,7 @@
   // no error, so the widget never appears. Bump this on every release that
   // changes the widget shell or embedded chat surface so customer sites
   // do not keep loading a stale cached UI bundle.
-  var ASSET_VERSION = "2026-10-23.v3-widget-history-scroll-padding";
+  var ASSET_VERSION = "2026-10-23.v4-clean-footer-scroll";
 
   // Preconnect to origin for fast asset loading
   try {
@@ -120,10 +138,36 @@
     document.head.appendChild(pc);
   } catch (e) {}
 
-  // Expose JavaScript API queue before app loads
-  window.Chatty = window.Chatty || function () {
-    (window.Chatty.q = window.Chatty.q || []).push(arguments);
+  // JavaScript API queue: support both window.Chatty(...) and window.Chatty.open()
+  var chattyApi = null;
+  var pendingCalls = [];
+  function queueOrCall(name) {
+    return function () {
+      if (chattyApi && typeof chattyApi[name] === "function") {
+        return chattyApi[name].apply(chattyApi, arguments);
+      } else {
+        pendingCalls.push({ name: name, args: arguments });
+      }
+    };
+  }
+
+  var ChattyProxy = function () {
+    if (chattyApi && arguments.length > 0) {
+      var method = arguments[0];
+      if (typeof chattyApi[method] === "function") {
+        return chattyApi[method].apply(chattyApi, Array.prototype.slice.call(arguments, 1));
+      }
+    }
+    (ChattyProxy.q = ChattyProxy.q || []).push(arguments);
   };
+  ChattyProxy.q = (window.Chatty && window.Chatty.q) || [];
+  ChattyProxy.identify = queueOrCall("identify");
+  ChattyProxy.logout = queueOrCall("logout");
+  ChattyProxy.open = queueOrCall("open");
+  ChattyProxy.openVoice = queueOrCall("openVoice");
+  ChattyProxy.close = queueOrCall("close");
+  ChattyProxy.toggle = queueOrCall("toggle");
+  window.Chatty = ChattyProxy;
 
   function init() {
     // Isolated custom element to host Shadow DOM
@@ -185,16 +229,27 @@
   }
 
   function onApiReady(api) {
-    // Flush queued commands
+    chattyApi = api;
+    for (var i = 0; i < pendingCalls.length; i++) {
+      var c = pendingCalls[i];
+      if (typeof api[c.name] === "function") {
+        api[c.name].apply(api, c.args);
+      }
+    }
+    pendingCalls = [];
     if (window.Chatty && window.Chatty.q) {
       var q = window.Chatty.q;
-      for (var i = 0; i < q.length; i++) {
-        var args = Array.prototype.slice.call(q[i]);
+      for (var j = 0; j < q.length; j++) {
+        var args = Array.prototype.slice.call(q[j]);
         var method = args[0];
         if (typeof api[method] === "function") {
           api[method].apply(api, args.slice(1));
         }
       }
+      window.Chatty.q = [];
     }
+    try {
+      window.dispatchEvent(new CustomEvent("chatty:ready", { detail: { botId: botId } }));
+    } catch (e) {}
   }
 })();
