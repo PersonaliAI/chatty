@@ -43,6 +43,7 @@ interface FlowCopilotDrawerProps {
 }
 
 const QUICK_PROMPTS = [
+  { label: "📱 WhatsApp time-based offer", prompt: "Create a WhatsApp campaign flow: when a user sends a message about an offer, if it is before 6:00 PM reply that the offer ends at 6:30 PM, and if they message at 7:00 PM or later reply that the offer ends at 9:00 PM." },
   { label: "🚀 Lead qualification flow", prompt: "Build a lead qualification flow that listens for new leads, replies to the visitor, updates CRM, and routes enterprise leads to Slack & email." },
   { label: "💬 AI intent classifier", prompt: "Build an AI classification workflow that sorts user messages into sales or support and routes them to Slack and email." },
   { label: "📅 Booking confirmation & reminder", prompt: "Create a meeting booked flow: send a chat confirmation, update CRM, wait 1 hour, and dispatch an email reminder." },

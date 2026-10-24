@@ -217,3 +217,83 @@ def test_fallback_architect_handles_build_fix_explain_delete():
     deleted = _fallback_architect_response("Delete and clear canvas", fixed["flow_data"], "Gemini 2.5 Flash")
     assert deleted["action"] == "delete"
     assert deleted["flow_data"]["nodes"] == []
+
+
+def test_flow_agent_builds_whatsapp_variable_time_offer_campaign_and_executes_branches():
+    prompt = (
+        "Create a WhatsApp campaign such that it needs to send messages for a specific message of users, "
+        "but those messages have a variable time. Before 6:00 p.m., users send a message, so we need to send "
+        "offers ends in 6:30 p.m. But users send message at 7:00 p.m., we need to inform offers ends at 9:00 p.m."
+    )
+    generated = _fallback_architect_response(prompt, {"nodes": [], "edges": []}, "Gemini 2.5 Flash")
+    assert generated["success"] is True
+    assert generated["flow_name"] == "WhatsApp Time-Based Offer Campaign"
+
+    flow_data = generated["flow_data"]
+    assert len(flow_data["nodes"]) == 7
+    _assert_no_node_overlaps(flow_data["nodes"])
+    _validate_flow_data(flow_data, require_nodes=True)
+
+    async def _verify_execution():
+        # 1. User messages about offer BEFORE 6:00 PM (at 17:30 / 5:30 PM) -> gets ONLY 6:30 PM offer reply
+        early_res = await flow_runtime._execute_graph(
+            None,
+            flow_data,
+            {
+                "bot_id": "bot-wa",
+                "event": "message.user",
+                "session_id": "wa-sess-1",
+                "data": {
+                    "content": "Hi, can I get the offer?",
+                    "channel": "whatsapp",
+                    "current_time": "17:30",
+                },
+            },
+            persist_chat_replies=False,
+        )
+        assert early_res["error"] is None
+        assert len(early_res["replies"]) == 1
+        assert "6:30 PM" in early_res["replies"][0]
+        assert "9:00 PM" not in early_res["replies"][0]
+
+        # 2. User messages about offer AT 7:00 PM (19:00) -> gets ONLY 9:00 PM offer reply
+        late_res = await flow_runtime._execute_graph(
+            None,
+            flow_data,
+            {
+                "bot_id": "bot-wa",
+                "event": "message.user",
+                "session_id": "wa-sess-2",
+                "data": {
+                    "content": "Hi, is the offer still active?",
+                    "channel": "whatsapp",
+                    "current_time": "19:00",
+                },
+            },
+            persist_chat_replies=False,
+        )
+        assert late_res["error"] is None
+        assert len(late_res["replies"]) == 1
+        assert "9:00 PM" in late_res["replies"][0]
+        assert "6:30 PM" not in late_res["replies"][0]
+
+        # 3. User sends unrelated message -> neither offer branch executes (falls back to AI assistant)
+        other_res = await flow_runtime._execute_graph(
+            None,
+            flow_data,
+            {
+                "bot_id": "bot-wa",
+                "event": "message.user",
+                "session_id": "wa-sess-3",
+                "data": {
+                    "content": "Where is your office located?",
+                    "channel": "whatsapp",
+                    "current_time": "17:30",
+                },
+            },
+            persist_chat_replies=False,
+        )
+        assert other_res["error"] is None
+        assert other_res["replies"] == []
+
+    asyncio.run(_verify_execution())

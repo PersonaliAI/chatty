@@ -57,8 +57,13 @@ export const nodeCatalog: NodeDefinition[] = [
     fields: [{ key: "duration", label: "Duration (seconds)", type: "number", required: true }], defaultConfig: { operation: "Delay", duration: "300" },
   },
   {
-    type: "core.condition", title: "Condition", subtitle: "Branch on customer data", kind: "logic", icon: "branch", color: "#f59e0b", provider: "Flow control", operations: ["Compare", "Contains", "Matches"], category: "core",
-    fields: [{ key: "field", label: "Input field", type: "text", required: true, placeholder: "data.intent" }, { key: "operator", label: "Operator", type: "select", options: ["equals", "not_equals", "contains", "matches"] }, { key: "value", label: "Value", type: "text", required: true }], defaultConfig: { operation: "Compare", field: "data.intent", operator: "equals", value: "sales" },
+    type: "core.condition", title: "Condition", subtitle: "Branch on customer or time data", kind: "logic", icon: "branch", color: "#f59e0b", provider: "Flow control", operations: ["Compare", "Contains", "Matches", "Time Window"], category: "core",
+    fields: [
+      { key: "field", label: "Input field", type: "text", required: true, placeholder: "data.current_time or data.content", helpText: "Use data.content, data.current_time (HH:MM), data.current_hour (0-23), data.channel, or data.intent." },
+      { key: "operator", label: "Operator", type: "select", options: ["equals", "not_equals", "contains", "matches", "before_time", "after_time", "less_than", "greater_than"] },
+      { key: "value", label: "Value", type: "text", required: true, placeholder: "18:00 or offer|promo" },
+    ],
+    defaultConfig: { operation: "Compare", field: "data.intent", operator: "equals", value: "sales" },
   },
   {
     type: "chatty.ai", title: "AI transform", subtitle: "Classify, extract, summarize", kind: "chatty", icon: "spark", color: "#a855f7", provider: "Chatty AI", operations: ["Classify", "Extract", "Summarize"], category: "transform",

@@ -157,3 +157,43 @@ def test_run_widget_flow_returns_configured_reply_and_claims_event(monkeypatch):
     assert supabase.operations[-1][0] == "update"
     assert supabase.operations[-1][1]["status"] == "completed"
     assert supabase.operations[-1][1]["trace"][1]["reply"] == "Hello Alex"
+
+
+def test_branch_aware_time_condition_executes_only_matching_branch(monkeypatch):
+    flow_data = {
+        "nodes": [
+            {"id": "trig", "kind": "trigger", "type": "chatty.event", "title": "Inbound Message", "config": {"event": "message.user"}},
+            {"id": "cond-kw", "kind": "logic", "type": "core.condition", "title": "Keyword Check", "config": {"field": "data.content", "operator": "contains", "value": "offer|promo"}},
+            {"id": "cond-time", "kind": "logic", "type": "core.condition", "title": "Before 6 PM?", "config": {"field": "data.current_time", "operator": "before_time", "value": "18:00"}},
+            {"id": "reply-630", "kind": "chatty", "type": "chatty.reply", "title": "Early Offer", "pathId": "early-offer", "config": {"message": "Offer ends at 6:30 PM!"}},
+            {"id": "reply-900", "kind": "chatty", "type": "chatty.reply", "title": "Evening Offer", "pathId": "else", "config": {"message": "Offer ends at 9:00 PM!"}},
+        ],
+        "edges": [
+            {"from": "trig", "to": "cond-kw"},
+            {"from": "cond-kw", "to": "cond-time", "label": "match"},
+            {"from": "cond-time", "to": "reply-630", "label": "before 6:00 PM"},
+            {"from": "cond-time", "to": "reply-900", "label": "else"},
+        ],
+    }
+
+    early = asyncio.run(flow_runtime._execute_graph(
+        None,
+        flow_data,
+        {"bot_id": "b1", "event": "message.user", "session_id": "s1", "data": {"content": "send me the offer", "current_time": "17:45", "channel": "whatsapp"}},
+        persist_chat_replies=False,
+    ))
+    assert early["replies"] == ["Offer ends at 6:30 PM!"]
+    trace_by_id = {step["node_id"]: step["status"] for step in early["trace"]}
+    assert trace_by_id["reply-630"] == "completed"
+    assert trace_by_id["reply-900"] == "skipped"
+
+    late = asyncio.run(flow_runtime._execute_graph(
+        None,
+        flow_data,
+        {"bot_id": "b1", "event": "message.user", "session_id": "s2", "data": {"content": "send me the offer", "current_time": "7:00 PM", "channel": "whatsapp"}},
+        persist_chat_replies=False,
+    ))
+    assert late["replies"] == ["Offer ends at 9:00 PM!"]
+    late_trace_by_id = {step["node_id"]: step["status"] for step in late["trace"]}
+    assert late_trace_by_id["reply-630"] == "skipped"
+    assert late_trace_by_id["reply-900"] == "completed"

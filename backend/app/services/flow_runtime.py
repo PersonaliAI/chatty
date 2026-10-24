@@ -16,6 +16,10 @@ from app.core.db import run_db
 from app.core import ssrf
 from app.core.crypto import decrypt_secret
 import httpx
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None  # type: ignore
 
 logger = logging.getLogger("chatty.flow_runtime")
 
@@ -23,6 +27,157 @@ _MAX_ADAPTER_ATTEMPTS = 3
 _RETRY_DELAYS_SECONDS = (0.2, 0.5)
 _MAX_WIDGET_REPLY_CHARS = 4000
 _TEMPLATE_TOKEN = re.compile(r"\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}")
+_TIME_TOKEN = re.compile(r"^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$", re.IGNORECASE)
+_ELSE_LABELS = {"else", "false", "no", "otherwise", "fallback", "standard", "other", "other score"}
+_ELSE_PREFIXES = ("else", "false", "no ", "not ", "after", "other", "fallback", "evening", "late", ">= ", "> ")
+_ELSE_PATH_IDS = {"else", "false", "follow-up", "standard", "other", "evening", "late", "after-6pm", "after-18"}
+
+
+def _parse_time_minutes(value: str) -> int | None:
+    """Parse a time string ('18:00', '6:00 PM', '19', '6:30pm') into minutes since midnight (0..1439)."""
+    match = _TIME_TOKEN.match(str(value or ""))
+    if not match:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2) or 0)
+    meridiem = (match.group(3) or "").lower()
+    if meridiem == "pm" and hour < 12:
+        hour += 12
+    elif meridiem == "am" and hour == 12:
+        hour = 0
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return hour * 60 + minute
+
+
+def _enrich_runtime_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of inputs with runtime time and channel variables populated in data."""
+    raw_data = inputs.get("data") if isinstance(inputs.get("data"), dict) else {}
+    data = dict(raw_data)
+    tz_name = str(data.get("timezone") or inputs.get("timezone") or "UTC").strip()
+    now_dt = datetime.now(timezone.utc)
+    if ZoneInfo is not None and tz_name and tz_name.upper() != "UTC":
+        try:
+            now_dt = datetime.now(ZoneInfo(tz_name))
+        except Exception:
+            now_dt = datetime.now(timezone.utc)
+
+    if "current_time" in data and str(data["current_time"]).strip():
+        parsed_mins = _parse_time_minutes(str(data["current_time"]))
+        if parsed_mins is not None:
+            data["current_time"] = f"{parsed_mins // 60:02d}:{parsed_mins % 60:02d}"
+            data.setdefault("current_hour", str(parsed_mins // 60))
+    elif "current_hour" in data and str(data["current_hour"]).strip():
+        parsed_mins = _parse_time_minutes(str(data["current_hour"]))
+        if parsed_mins is not None:
+            data["current_hour"] = str(parsed_mins // 60)
+            data["current_time"] = f"{parsed_mins // 60:02d}:{parsed_mins % 60:02d}"
+
+    data.setdefault("current_time", now_dt.strftime("%H:%M"))
+    data.setdefault("current_hour", str(now_dt.hour))
+    data.setdefault("day_of_week", now_dt.strftime("%A").lower())
+    data.setdefault("channel", str(raw_data.get("channel") or inputs.get("channel") or "web"))
+    return {**inputs, "data": data}
+
+
+def _evaluate_condition(actual: str, op: str, expected: str) -> bool:
+    """Evaluate a core.condition comparison supporting string, regex, numeric, and time operators."""
+    op_norm = str(op or "equals").lower().strip()
+    act = str(actual or "").strip()
+    exp = str(expected or "").strip()
+
+    if op_norm in {"equals", "eq", "=="}:
+        if (":" in act or ":" in exp or "am" in act.lower() or "pm" in act.lower() or "am" in exp.lower() or "pm" in exp.lower()):
+            act_m = _parse_time_minutes(act)
+            exp_m = _parse_time_minutes(exp)
+            if act_m is not None and exp_m is not None:
+                return act_m == exp_m
+        return act.lower() == exp.lower()
+    if op_norm in {"not_equals", "neq", "!="}:
+        return not _evaluate_condition(act, "equals", exp)
+    if op_norm in {"contains", "in"}:
+        if not exp:
+            return True
+        if "|" in exp:
+            parts = [p.strip().lower() for p in exp.split("|") if p.strip()]
+            return any(p in act.lower() for p in parts)
+        return exp.lower() in act.lower()
+    if op_norm in {"not_contains", "not_in"}:
+        return not _evaluate_condition(act, "contains", exp)
+    if op_norm in {"matches", "regex"}:
+        return bool(re.search(exp, act, re.IGNORECASE)) if exp else False
+    if op_norm in {"before_time", "before"}:
+        act_m = _parse_time_minutes(act)
+        exp_m = _parse_time_minutes(exp)
+        if act_m is not None and exp_m is not None:
+            return act_m < exp_m
+        return act < exp
+    if op_norm in {"after_time", "after"}:
+        act_m = _parse_time_minutes(act)
+        exp_m = _parse_time_minutes(exp)
+        if act_m is not None and exp_m is not None:
+            return act_m >= exp_m
+        return act >= exp
+    if op_norm in {"less_than", "lt", "<", "less_or_equal", "lte", "<=", "greater_than", "gt", ">", "greater_or_equal", "gte", ">="}:
+        left_val: float | None = None
+        right_val: float | None = None
+        if ":" in act or ":" in exp or "am" in act.lower() or "pm" in act.lower() or "am" in exp.lower() or "pm" in exp.lower():
+            am = _parse_time_minutes(act)
+            em = _parse_time_minutes(exp)
+            if am is not None and em is not None:
+                left_val, right_val = float(am), float(em)
+        if left_val is None or right_val is None:
+            try:
+                left_val = float(act)
+                right_val = float(exp)
+            except (TypeError, ValueError):
+                am = _parse_time_minutes(act)
+                em = _parse_time_minutes(exp)
+                if am is not None and em is not None:
+                    left_val, right_val = float(am), float(em)
+        if left_val is not None and right_val is not None:
+            if op_norm in {"less_than", "lt", "<"}:
+                return left_val < right_val
+            if op_norm in {"less_or_equal", "lte", "<="}:
+                return left_val <= right_val
+            if op_norm in {"greater_than", "gt", ">"}:
+                return left_val > right_val
+            return left_val >= right_val
+        if op_norm in {"less_than", "lt", "<"}:
+            return act < exp
+        if op_norm in {"less_or_equal", "lte", "<="}:
+            return act <= exp
+        if op_norm in {"greater_than", "gt", ">"}:
+            return act > exp
+        return act >= exp
+    return True
+
+
+def _is_else_edge(edge: dict[str, Any], by_id: dict[str, dict[str, Any]]) -> bool:
+    label = str(edge.get("label") or "").strip().lower()
+    if label in _ELSE_LABELS or label.startswith(_ELSE_PREFIXES):
+        return True
+    target = by_id.get(str(edge.get("to") or ""), {})
+    path_id = str(target.get("pathId") or "").strip().lower()
+    return path_id in _ELSE_PATH_IDS
+
+
+def _select_condition_branch_edges(
+    out_edges: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+    matched: bool,
+) -> list[dict[str, Any]]:
+    if not out_edges:
+        return []
+    if len(out_edges) == 1:
+        is_neg = _is_else_edge(out_edges[0], by_id)
+        return out_edges if (not matched if is_neg else matched) else []
+    false_edges = [e for e in out_edges if _is_else_edge(e, by_id)]
+    true_edges = [e for e in out_edges if e not in false_edges]
+    if not false_edges or not true_edges:
+        true_edges = [out_edges[0]]
+        false_edges = out_edges[1:]
+    return true_edges if matched else false_edges
 
 
 async def _resolve_connection(supabase, bot_id: str, connection_id: str) -> dict[str, Any] | None:
@@ -151,17 +306,41 @@ async def _execute_graph(
     persist_chat_replies: bool,
 ) -> dict[str, Any]:
     by_id, ordered_ids, failed = _graph_order(flow_data)
+    runtime_inputs = _enrich_runtime_inputs(inputs)
+    edges = [edge for edge in flow_data.get("edges", []) if isinstance(edge, dict)]
+    incoming_edges: dict[str, list[dict[str, Any]]] = {node_id: [] for node_id in by_id}
+    outgoing_edges: dict[str, list[dict[str, Any]]] = {node_id: [] for node_id in by_id}
+    for edge in edges:
+        src = str(edge.get("from") or "")
+        dst = str(edge.get("to") or "")
+        if src in outgoing_edges and dst in incoming_edges:
+            outgoing_edges[src].append(edge)
+            incoming_edges[dst].append(edge)
+
+    active_edges: set[tuple[str, str, str]] = set()
     trace: list[dict[str, Any]] = []
     replies: list[str] = []
     connection_cache: dict[str, dict[str, Any] | None] = {}
     for node_id in ordered_ids:
         node = by_id[node_id]
         title = node.get("title") or node_id
+        inc = incoming_edges.get(node_id, [])
+        reachable = (len(inc) == 0) or any(
+            (str(e.get("from") or ""), str(e.get("to") or ""), str(e.get("label") or "")) in active_edges
+            for e in inc
+        )
+        if not reachable:
+            trace.append({"node_id": node_id, "title": title, "status": "skipped"})
+            continue
+
         status = "observed" if node.get("kind") in {"trigger", "logic", "chatty"} else "awaiting_adapter"
         config = node.get("config") if isinstance(node.get("config"), dict) else {}
         trace_step: dict[str, Any] = {"node_id": node_id, "title": title, "status": status}
+        is_condition_node = False
+        condition_matched = True
+
         if node.get("kind") == "chatty" and node.get("type") == "chatty.reply":
-            reply = _render_widget_reply(str(config.get("message") or ""), inputs)
+            reply = _render_widget_reply(str(config.get("message") or ""), runtime_inputs)
             if not reply:
                 status = "failed"
                 failed = f"{title} has no reply message configured"
@@ -190,20 +369,13 @@ async def _execute_graph(
                 status = "completed"
                 trace_step["duration_s"] = str(config.get("duration") or "1")
             else:
+                is_condition_node = True
                 field_path = str(config.get("field") or config.get("variable") or "").strip()
                 op = str(config.get("operator") or "equals").lower().strip()
                 expected = str(config.get("value") or "").strip()
-                actual = _template_value(field_path, inputs) if field_path else ""
-                if op in {"equals", "eq", "=="}:
-                    matched = actual.lower() == expected.lower()
-                elif op in {"not_equals", "neq", "!="}:
-                    matched = actual.lower() != expected.lower()
-                elif op in {"contains", "in"}:
-                    matched = expected.lower() in actual.lower()
-                elif op in {"matches", "regex"}:
-                    matched = bool(re.search(expected, actual, re.IGNORECASE)) if expected else False
-                else:
-                    matched = True
+                actual = _template_value(field_path, runtime_inputs) if field_path else ""
+                matched = _evaluate_condition(actual, op, expected)
+                condition_matched = matched
                 status = "completed" if matched else "skipped"
                 trace_step["matched"] = matched
         elif node.get("kind") == "action":
@@ -214,7 +386,7 @@ async def _execute_graph(
                     status = "completed"
                     trace_step["stage"] = str(config.get("stage") or "qualified")
                 elif node_type == "action.email":
-                    recipient = _render_widget_reply(str(config.get("to") or ""), inputs)
+                    recipient = _render_widget_reply(str(config.get("to") or ""), runtime_inputs)
                     if not recipient:
                         status = "failed"
                         failed = f"{title} has no recipient configured"
@@ -285,6 +457,14 @@ async def _execute_graph(
         trace.append(trace_step)
         if failed:
             break
+
+        outs = outgoing_edges.get(node_id, [])
+        if is_condition_node:
+            chosen_edges = _select_condition_branch_edges(outs, by_id, condition_matched)
+        else:
+            chosen_edges = outs
+        for e in chosen_edges:
+            active_edges.add((str(e.get("from") or ""), str(e.get("to") or ""), str(e.get("label") or "")))
     return {"trace": trace, "error": failed, "replies": replies}
 
 

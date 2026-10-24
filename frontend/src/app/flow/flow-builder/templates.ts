@@ -97,6 +97,29 @@ export const flowTemplates: FlowTemplate[] = [
     ],
     connections: [[0, 1], [1, 2, "low score"], [2, 3], [1, 4, "other score"], [4, 5]],
   },
+  {
+    id: "whatsapp-time-based-offer-campaign",
+    title: "WhatsApp time-based offer campaign",
+    description: "Reply to inbound WhatsApp/chat offer inquiries with dynamic expiry times based on when the user messages (before 6:00 PM vs evening).",
+    category: "Omnichannel campaigns",
+    icon: "chatty",
+    color: "#10b981",
+    setup: [
+      "Customize the campaign trigger keywords in the first Condition node (e.g. offer|promo|deal)",
+      "Adjust the cutoff time in the second Condition node (default 18:00 / 6:00 PM)",
+      "Review the early (6:30 PM) and evening (9:00 PM) offer reply messages",
+    ],
+    steps: [
+      { type: "chatty.event", config: { event: "message.user" } },
+      { type: "core.condition", config: { field: "data.content", operator: "contains", value: "offer|promo|deal|discount" } },
+      { type: "core.condition", config: { field: "data.current_time", operator: "before_time", value: "18:00" } },
+      { type: "chatty.reply", pathId: "early-offer", pathTitle: "Before 6:00 PM", config: { message: "🔥 Special WhatsApp Offer! Hurry — your exclusive offer ends at 6:30 PM today! Reply CLAIM now to lock in your discount." } },
+      { type: "action.crm", pathId: "early-offer", pathTitle: "Before 6:00 PM", config: { stage: "qualified", notes: "WhatsApp campaign responder (before 6:00 PM -> offer ends 6:30 PM)" } },
+      { type: "chatty.reply", pathId: "else", pathTitle: "After 6:00 PM", config: { message: "🔥 Evening Flash Offer! Good news — our campaign offer ends at 9:00 PM tonight! Reply CLAIM now before time runs out." } },
+      { type: "action.crm", pathId: "else", pathTitle: "After 6:00 PM", config: { stage: "qualified", notes: "WhatsApp evening campaign responder (after 6:00 PM -> offer ends 9:00 PM)" } },
+    ],
+    connections: [[0, 1], [1, 2, "offer keyword"], [2, 3, "before 6:00 PM"], [3, 4], [2, 5, "else"], [5, 6]],
+  },
 ];
 
 export function createTemplateGraph(template: FlowTemplate): FlowData {

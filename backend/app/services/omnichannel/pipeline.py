@@ -49,6 +49,7 @@ from app.services.omnichannel.whatsapp_adapter import (
 )
 from app.services.whatsapp_service import get_bot_whatsapp_secret
 from app.services.chatty_quota_service import chatty_quota_exceeded, usage_units_for_message
+from app.services.flow_runtime import run_widget_flow
 from app.services.pii_service import scrub_pii
 from app.services.widget_session_service import upsert_session as _upsert_session
 from plugins.widget_brain import run_widget_assistant
@@ -267,22 +268,46 @@ class OmnichannelPipeline:
 
             return {"status": "escalated", "reason": reason, "reply": ack_text}
 
-        # 8. Execute AI generation
+        # 7b. Execute Published Flow Builder Workflows (e.g., WhatsApp time-based offer campaigns)
+        flow_reply = ""
+        bot_tz = str(bot.get("timezone") or owner_user.get("timezone") or "UTC")
         try:
-            result = await run_widget_assistant(
+            flow_res = await run_widget_flow(
+                supabase,
                 bot_id=bot_id,
-                owner_user=owner_user,
-                bot=bot,
+                event="message.user",
                 session_id=session_id,
-                text=message.text,
-                visitor_timezone="UTC",
-                media_bytes=message.media_bytes,
-                media_mime=message.media_mime,
+                data={
+                    "content": message.text,
+                    "channel": message.channel.value,
+                    "sender_id": message.sender_id,
+                    "visitor_name": getattr(message, "sender_name", None) or message.sender_id,
+                    "timezone": bot_tz,
+                },
             )
-            reply = str(result.get("reply") or "").strip()
+            flow_reply = str(flow_res.get("reply") or "").strip()
         except Exception:
-            logger.exception("Omnichannel assistant run failed for bot %s", bot_id)
-            reply = "I apologize, but I encountered an error processing your request. Please try again in a moment."
+            logger.exception("Omnichannel flow runtime execution failed for bot %s; continuing with AI assistant", bot_id)
+
+        # 8. Execute AI generation (when no Flow Builder workflow produced a reply)
+        if flow_reply:
+            reply = flow_reply
+        else:
+            try:
+                result = await run_widget_assistant(
+                    bot_id=bot_id,
+                    owner_user=owner_user,
+                    bot=bot,
+                    session_id=session_id,
+                    text=message.text,
+                    visitor_timezone=bot_tz,
+                    media_bytes=message.media_bytes,
+                    media_mime=message.media_mime,
+                )
+                reply = str(result.get("reply") or "").strip()
+            except Exception:
+                logger.exception("Omnichannel assistant run failed for bot %s", bot_id)
+                reply = "I apologize, but I encountered an error processing your request. Please try again in a moment."
 
         if not reply:
             return {"status": "empty_reply", "delivered": False}

@@ -555,9 +555,16 @@ AVAILABLE NODE TYPES:
    AI classification, extraction, or summarization.
    config: { "operation": "Classify", "instruction": "...", "output_field": "intent" }
 5. "core.condition" (kind: "logic"):
-   Branches execution based on customer/payload data.
+   Branches execution based on customer, message, channel, or time data.
    config: { "operation": "Compare", "field": "data.intent", "operator": "equals", "value": "sales" }
-   Outgoing edges can specify label (e.g. "sales", "support", "else").
+   Supported operators: "equals", "not_equals", "contains", "matches", "before_time", "after_time", "less_than", "greater_than".
+   Supported runtime fields:
+   - "data.content": Inbound visitor/WhatsApp message text (use operator "contains", e.g. value "offer|promo|deal").
+   - "data.current_time": Current time in 24-hour "HH:MM" format (e.g. "18:00" for 6:00 PM, "19:00" for 7:00 PM; use with "before_time" or "after_time").
+   - "data.current_hour": Current hour 0-23 (use with "less_than" or "greater_than").
+   - "data.channel": Channel source ("whatsapp", "web", "instagram", "telegram", "sms").
+   - "data.intent", "data.category", "data.rating", "data.visitor_name", "data.visitor_email".
+   Outgoing edges should specify branch labels: put the positive match label on the first edge (e.g. "before 6:00 PM", "sales", "urgent") and "else" on the fallback edge.
 6. "core.wait" (kind: "logic"):
    Delay execution.
    config: { "operation": "Delay", "duration": "300" } (in seconds).
@@ -588,6 +595,7 @@ RULES FOR VALID WORKFLOWS:
 2. Nodes must connect sequentially or branch via condition nodes. No orphaned nodes or cycles.
 3. Node IDs must be unique strings (e.g., "trigger-1", "ai-2", "condition-3", "reply-sales", "slack-alert").
 4. Always provide complete, realistic configurations for every node.
+5. For WhatsApp or chat campaigns with variable time-based replies (e.g. before 6:00 PM send offer ends at 6:30 PM, after 6:00 PM / at 7:00 PM send offer ends at 9:00 PM), start with "chatty.event" (event: "message.user"), add a "core.condition" on "data.content" (operator: "contains", value: "offer|promo|deal"), then add a "core.condition" on "data.current_time" (operator: "before_time", value: "18:00") that branches into two "chatty.reply" nodes (one edge labeled "before 6:00 PM" and the fallback edge labeled "else").
 
 OUTPUT FORMAT:
 Always return a strict JSON object with NO preamble or markdown outside the JSON:
@@ -682,7 +690,111 @@ def _fallback_architect_response(
             "llm_used": llm_display_name,
         }
 
-    if "booking" in lower or "meeting" in lower or "reminder" in lower:
+    if any(k in lower for k in ("whatsapp", "campaign", "offer", "before ", "after ", "p.m", "pm", "a.m", "am")):
+        time_matches = re.findall(r"\b(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?))\b", message, re.IGNORECASE)
+        cutoff_display = "6:00 PM"
+        cutoff_24h = "18:00"
+        early_expiry = "6:30 PM"
+        late_expiry = "9:00 PM"
+        if len(time_matches) >= 2:
+            raw_cutoff = re.sub(r"\.", "", time_matches[0]).strip().upper()
+            cutoff_display = raw_cutoff
+            m_cut = re.match(r"^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$", raw_cutoff, re.IGNORECASE)
+            if m_cut:
+                hr = int(m_cut.group(1))
+                mn = int(m_cut.group(2) or 0)
+                mer = m_cut.group(3).upper()
+                if mer == "PM" and hr < 12:
+                    hr += 12
+                elif mer == "AM" and hr == 12:
+                    hr = 0
+                cutoff_24h = f"{hr:02d}:{mn:02d}"
+            early_expiry = re.sub(r"\.", "", time_matches[1]).strip().upper()
+            if len(time_matches) >= 3:
+                late_expiry = re.sub(r"\.", "", time_matches[-1]).strip().upper()
+
+        raw_nodes = [
+            {
+                "id": "trig-wa-msg",
+                "type": "chatty.event",
+                "title": "Inbound WhatsApp / Chat message",
+                "config": {"event": "message.user", "operation": "Listen for event"},
+            },
+            {
+                "id": "cond-keyword",
+                "type": "core.condition",
+                "title": "Match campaign keyword",
+                "config": {"operation": "Contains", "field": "data.content", "operator": "contains", "value": "offer|promo|deal|discount"},
+            },
+            {
+                "id": "cond-time-window",
+                "type": "core.condition",
+                "title": f"Message before {cutoff_display}?",
+                "config": {"operation": "Compare", "field": "data.current_time", "operator": "before_time", "value": cutoff_24h},
+            },
+            {
+                "id": "reply-early-offer",
+                "type": "chatty.reply",
+                "title": f"Early offer reply (ends {early_expiry})",
+                "pathId": "early-offer",
+                "pathTitle": f"Before {cutoff_display}",
+                "config": {
+                    "operation": "Send reply",
+                    "message": f"🔥 Special WhatsApp Offer! Hurry — your exclusive offer ends at {early_expiry} today! Reply CLAIM now to lock in your discount.",
+                },
+            },
+            {
+                "id": "crm-early-lead",
+                "type": "action.crm",
+                "title": "Tag early campaign lead",
+                "pathId": "early-offer",
+                "pathTitle": f"Before {cutoff_display}",
+                "config": {
+                    "operation": "Upsert lead",
+                    "stage": "qualified",
+                    "notes": f"WhatsApp campaign responder (messaged before {cutoff_display} -> offer ends {early_expiry})",
+                },
+            },
+            {
+                "id": "reply-evening-offer",
+                "type": "chatty.reply",
+                "title": f"Evening offer reply (ends {late_expiry})",
+                "pathId": "else",
+                "pathTitle": f"After {cutoff_display}",
+                "config": {
+                    "operation": "Send reply",
+                    "message": f"🔥 Evening Flash Offer! Good news — our campaign offer ends at {late_expiry} tonight! Reply CLAIM now before time runs out.",
+                },
+            },
+            {
+                "id": "crm-evening-lead",
+                "type": "action.crm",
+                "title": "Tag evening campaign lead",
+                "pathId": "else",
+                "pathTitle": f"After {cutoff_display}",
+                "config": {
+                    "operation": "Upsert lead",
+                    "stage": "qualified",
+                    "notes": f"WhatsApp evening campaign responder (messaged after {cutoff_display} -> offer ends {late_expiry})",
+                },
+            },
+        ]
+        raw_edges = [
+            {"from": "trig-wa-msg", "to": "cond-keyword"},
+            {"from": "cond-keyword", "to": "cond-time-window", "label": "offer keyword"},
+            {"from": "cond-time-window", "to": "reply-early-offer", "label": f"before {cutoff_display}"},
+            {"from": "reply-early-offer", "to": "crm-early-lead"},
+            {"from": "cond-time-window", "to": "reply-evening-offer", "label": "else"},
+            {"from": "reply-evening-offer", "to": "crm-evening-lead"},
+        ]
+        flow_name = "WhatsApp Time-Based Offer Campaign"
+        summary = [
+            "Added message.user trigger for inbound WhatsApp & chat messages",
+            "Added keyword filter condition (offer | promo | deal | discount)",
+            f"Added time-window condition (data.current_time before_time {cutoff_24h} / {cutoff_display})",
+            f"Branched replies: before {cutoff_display} → offer ends at {early_expiry}; else → offer ends at {late_expiry}",
+        ]
+    elif "booking" in lower or "meeting" in lower or "reminder" in lower:
         raw_nodes = [
             {"id": "trig-booking", "type": "chatty.event", "title": "Meeting booked", "config": {"event": "meeting.booked"}},
             {"id": "reply-confirm", "type": "chatty.reply", "title": "Send confirmation", "config": {"message": "Your meeting is confirmed, {{data.visitor_name}}! We look forward to speaking with you."}},
