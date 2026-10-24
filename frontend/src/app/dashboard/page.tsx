@@ -4618,7 +4618,12 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       </aside>
 
       {/* Main Panel */}
-      <main data-dashboard className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <main data-dashboard className="flex-1 flex flex-col min-w-0 h-full overflow-hidden relative">
+        {(loadingSession || loadingAnalytics || loadingLists) && (
+          <div className="absolute top-0 left-0 right-0 h-[2.5px] z-[60] overflow-hidden bg-neutral-200/40 dark:bg-neutral-800/40 pointer-events-none">
+            <div className="h-full bg-gradient-to-r from-orange-500 via-amber-400 to-[#f97316] w-full animate-aesthetic-progress shadow-[0_0_10px_rgba(249,115,22,0.85)]" />
+          </div>
+        )}
         {activeTab === "flow_builder" && botId ? (
           <FlowManager botId={botId} embedded onOpenSidebar={() => setSidebarOpen(true)} />
         ) : (
@@ -4826,6 +4831,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
                 csatScore={csatScore}
                 busiestHour={busiestHour}
                 csatFeedback={csatFeedback}
+                isLoading={loadingSession || loadingAnalytics || loadingLists}
               />
             </>
           )}

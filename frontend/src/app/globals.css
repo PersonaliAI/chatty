@@ -968,6 +968,24 @@ body {
   animation: shimmer 2s infinite linear;
 }
 
+@keyframes aestheticProgress {
+  0% {
+    transform: translateX(-100%) scaleX(0.2);
+    transform-origin: left;
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.7);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.2);
+    transform-origin: right;
+  }
+}
+
+.animate-aesthetic-progress {
+  animation: aestheticProgress 1.4s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+}
+
 /* TipTap Editor - Matching Simple Editor Template */
 .tiptap p.is-editor-empty:first-child::before {
   color: #a3a3a3;

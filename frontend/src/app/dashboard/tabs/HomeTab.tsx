@@ -25,6 +25,7 @@ interface HomeTabProps {
   csatScore: string;
   busiestHour: string;
   csatFeedback: CsatFeedbackItem[];
+  isLoading?: boolean;
 }
 
 const CSAT_EMOJIS: Record<
@@ -97,6 +98,7 @@ export function HomeTab({
   csatScore,
   busiestHour,
   csatFeedback,
+  isLoading = false,
 }: HomeTabProps) {
   // Use real feedback only
   const displayFeedback = useMemo(() => {
@@ -132,6 +134,65 @@ export function HomeTab({
   }, [csatFeedback, csatScore]);
 
   const busyHourDisplay = busiestHour && busiestHour !== "-" ? busiestHour : "-";
+
+  // 1. Conversations wave path: flat baseline when 0, dynamic curve when active
+  const convWave = useMemo(() => {
+    if (convCount === 0) {
+      return {
+        fill: "M0,26 L100,26 L100,28 L0,28 Z",
+        stroke: "M0,26 L100,26",
+        hasData: false,
+      };
+    }
+    return {
+      fill: "M0,22 C15,22 25,12 40,16 C55,20 65,8 80,12 C90,14 95,6 100,8 L100,28 L0,28 Z",
+      stroke: "M0,22 C15,22 25,12 40,16 C55,20 65,8 80,12 C90,14 95,6 100,8",
+      hasData: true,
+    };
+  }, [convCount]);
+
+  // 2. Trained Sources candles: flat 6% baseline when 0, dynamically scaled when > 0
+  const sourceCandles = useMemo(() => {
+    if (trainedActiveCount === 0 || charCount === 0) {
+      return Array(21).fill(6);
+    }
+    // Base scale grows logarithmically with character count up to 85%
+    const baseScale = Math.min(85, Math.max(25, Math.log10(charCount + 1) * 16));
+    const factors = [0.42, 0.62, 0.48, 0.74, 0.65, 0.84, 0.6, 0.92, 0.78, 0.98, 0.88, 1.05, 0.92, 0.96, 0.8, 0.9, 0.82, 1.0, 0.86, 1.06, 0.9];
+    return factors.map((f) => Math.min(95, Math.max(12, Math.round(baseScale * f))));
+  }, [trainedActiveCount, charCount]);
+
+  // 3. Leads Captured candles: flat 6% baseline when 0, dynamically scaled with leads count
+  const leadCandles = useMemo(() => {
+    if (leadCount === 0) {
+      return Array(21).fill(6);
+    }
+    const baseScale = Math.min(88, Math.max(20, Math.min(leadCount * 6, 45) + Math.log10(leadCount + 1) * 15));
+    const factors = [0.3, 0.48, 0.38, 0.62, 0.45, 0.72, 0.58, 0.88, 0.75, 0.98, 0.84, 1.05, 0.9, 0.96, 0.8, 0.92, 0.98, 0.85, 0.98, 1.08, 0.92];
+    return factors.map((f) => Math.min(95, Math.max(12, Math.round(baseScale * f))));
+  }, [leadCount]);
+
+  // 4. Busiest Hour candles: flat 6% baseline when no data, Gaussian bell curve around the peak hour when recorded
+  const { hourCandles, peakIndex } = useMemo(() => {
+    if (busyHourDisplay === "-" || convCount === 0) {
+      return { hourCandles: Array(21).fill(6), peakIndex: -1 };
+    }
+    let parsedHour = 14;
+    const match = busyHourDisplay.match(/(\d+)\s*(AM|PM)?/i);
+    if (match) {
+      let h = parseInt(match[1], 10);
+      const ampm = (match[2] || "").toUpperCase();
+      if (ampm === "PM" && h < 12) h += 12;
+      if (ampm === "AM" && h === 12) h = 0;
+      parsedHour = h;
+    }
+    const targetIdx = Math.min(20, Math.max(0, Math.round((parsedHour / 23) * 20)));
+    const candles = Array.from({ length: 21 }, (_, i) => {
+      const dist = Math.abs(i - targetIdx);
+      return Math.max(8, Math.round(92 * Math.exp(-(dist * dist) / 16)));
+    });
+    return { hourCandles: candles, peakIndex: targetIdx };
+  }, [busyHourDisplay, convCount]);
 
   return (
     <div className="max-w-5xl mx-auto w-full space-y-6 py-6 px-4 flex flex-col">
@@ -232,20 +293,23 @@ export function HomeTab({
             <svg className="w-full h-full" viewBox="0 0 100 28" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="wave-conversations-green" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.32" />
+                  <stop offset="0%" stopColor="#10b981" stopOpacity={convWave.hasData ? "0.32" : "0.08"} />
                   <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                 </linearGradient>
               </defs>
               <path
-                d="M0,22 C15,22 25,12 40,16 C55,20 65,8 80,12 C90,14 95,6 100,8 L100,28 L0,28 Z"
+                d={convWave.fill}
                 fill="url(#wave-conversations-green)"
+                className="transition-all duration-700"
               />
               <path
-                d="M0,22 C15,22 25,12 40,16 C55,20 65,8 80,12 C90,14 95,6 100,8"
+                d={convWave.stroke}
                 fill="none"
                 stroke="#10b981"
-                strokeWidth="2"
+                strokeWidth={convWave.hasData ? "2" : "1.5"}
+                strokeOpacity={convWave.hasData ? "1" : "0.35"}
                 strokeLinecap="round"
+                className="transition-all duration-700"
               />
             </svg>
           </div>
@@ -272,15 +336,17 @@ export function HomeTab({
 
           {/* Logical Light Blue Knowledge Density Bars */}
           <div className="mt-4 -mx-5 -mb-5 h-14 overflow-hidden flex items-end justify-between px-3 pb-1 gap-1 pointer-events-none">
-            {[26, 42, 32, 54, 48, 62, 45, 74, 58, 84, 68, 92, 70, 85, 58, 76, 64, 88, 72, 94, 80].map(
-              (height, i) => (
-                <div
-                  key={i}
-                  style={{ height: `${height}%` }}
-                  className="w-full bg-gradient-to-t from-sky-200/50 to-sky-400 dark:from-sky-900/30 dark:to-sky-500/80 rounded-t-sm transition-all"
-                />
-              )
-            )}
+            {sourceCandles.map((height, i) => (
+              <div
+                key={i}
+                style={{ height: `${height}%` }}
+                className={`w-full rounded-t-sm transition-all duration-500 ${
+                  trainedActiveCount > 0
+                    ? "bg-gradient-to-t from-sky-200/50 to-sky-400 dark:from-sky-900/30 dark:to-sky-500/80"
+                    : "bg-sky-200/30 dark:bg-sky-950/20"
+                }`}
+              />
+            ))}
           </div>
         </div>
 
@@ -308,15 +374,17 @@ export function HomeTab({
 
           {/* Logical Orange Lead Acquisition Bars */}
           <div className="mt-4 -mx-5 -mb-5 h-14 overflow-hidden flex items-end justify-between px-3 pb-1 gap-1 pointer-events-none">
-            {[18, 30, 24, 42, 28, 50, 36, 65, 52, 78, 58, 88, 72, 85, 60, 75, 86, 70, 84, 96, 78].map(
-              (height, i) => (
-                <div
-                  key={i}
-                  style={{ height: `${height}%` }}
-                  className="w-full bg-gradient-to-t from-orange-200/50 to-[#f97316] dark:from-orange-950/30 dark:to-orange-500/80 rounded-t-sm transition-all"
-                />
-              )
-            )}
+            {leadCandles.map((height, i) => (
+              <div
+                key={i}
+                style={{ height: `${height}%` }}
+                className={`w-full rounded-t-sm transition-all duration-500 ${
+                  leadCount > 0
+                    ? "bg-gradient-to-t from-orange-200/50 to-[#f97316] dark:from-orange-950/30 dark:to-orange-500/80"
+                    : "bg-orange-200/30 dark:bg-orange-950/20"
+                }`}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -420,19 +488,19 @@ export function HomeTab({
 
           {/* Logical Diurnal 24-Hour Traffic Curve with Peak Highlight */}
           <div className="mt-4 -mx-5 -mb-5 h-14 overflow-hidden flex items-end justify-between px-3 pb-1 gap-1 pointer-events-none">
-            {[12, 10, 8, 8, 10, 16, 26, 42, 58, 74, 88, 96, 86, 74, 62, 50, 42, 34, 28, 20, 14].map(
-              (height, i) => (
-                <div
-                  key={i}
-                  style={{ height: `${height}%` }}
-                  className={`w-full rounded-t-sm transition-all ${
-                    i === 11
-                      ? "bg-violet-600 dark:bg-violet-400 shadow-sm shadow-violet-500/50"
-                      : "bg-gradient-to-t from-violet-200/50 to-violet-400 dark:from-violet-950/30 dark:to-violet-500/80"
-                  }`}
-                />
-              )
-            )}
+            {hourCandles.map((height, i) => (
+              <div
+                key={i}
+                style={{ height: `${height}%` }}
+                className={`w-full rounded-t-sm transition-all duration-500 ${
+                  i === peakIndex && peakIndex !== -1
+                    ? "bg-violet-600 dark:bg-violet-400 shadow-sm shadow-violet-500/50"
+                    : peakIndex === -1
+                    ? "bg-violet-200/30 dark:bg-violet-950/20"
+                    : "bg-gradient-to-t from-violet-200/50 to-violet-400 dark:from-violet-950/30 dark:to-violet-500/80"
+                }`}
+              />
+            ))}
           </div>
         </div>
       </div>
