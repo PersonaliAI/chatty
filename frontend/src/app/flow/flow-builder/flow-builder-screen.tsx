@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { AlertCircle, Check, CheckCircle2, ChevronDown, Download, ExternalLink, History, LayoutGrid, Loader2, Menu, Play, Plus, Redo2, RotateCcw, Save, Settings2, Undo2, X } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, ChevronDown, Download, ExternalLink, History, LayoutGrid, Loader2, Menu, Play, Plus, Redo2, RotateCcw, Save, Settings2, Sparkles, Undo2, Wand2, X } from "lucide-react";
 import { chattyRequest, getFlowSession, hasFlowHandoff, supabase } from "./lib";
 import { exportN8nWorkflow } from "./n8n-export";
 import { findNodeDefinition, nodeCatalog, type NodeDefinition } from "./node-registry";
@@ -13,7 +13,9 @@ import { FlowLibrary } from "./flow-library";
 import { NodeInspector } from "./node-inspector";
 import { ConnectionModal } from "./connection-modal";
 import { getProviderConnection } from "./connections";
-import { findAvailableNodePosition, FLOW_NODE_LAYOUT } from "./graph-layout";
+import { autoLayoutGraph, findAvailableNodePosition, FLOW_NODE_LAYOUT } from "./graph-layout";
+import { FlowCopilotDrawer } from "./flow-copilot-drawer";
+import { FlowHealthModal } from "./flow-health-modal";
 import type { FlowConnection, FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
 
 type GraphSnapshot = FlowData;
@@ -74,6 +76,9 @@ export default function FlowBuilderPage() {
   const [pendingParentId, setPendingParentId] = useState<string | null>(null);
   const [pendingPathId, setPendingPathId] = useState("main");
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [healthModalOpen, setHealthModalOpen] = useState(false);
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
   const canvasCommandsRef = useRef<FlowCanvasCommands | null>(null);
   const graphRef = useRef<GraphSnapshot>(emptyGraph);
   const historyRef = useRef<GraphSnapshot[]>([]);
@@ -90,9 +95,9 @@ export default function FlowBuilderPage() {
   }), [search, sourceFilter]);
 
   const validationIssues = useMemo(() => {
+    if (nodes.length === 0) return [];
     const issues: string[] = [];
-    if (nodes.length === 0) issues.push("Add at least one node.");
-    if (!nodes.some((node) => node.kind === "trigger")) issues.push("Add a trigger node.");
+    if (!nodes.some((node) => node.kind === "trigger")) issues.push("Workflow requires a trigger node (e.g. Chatty event or Webhook) to run.");
     const ids = new Set<string>();
     for (const node of nodes) {
       if (ids.has(node.id)) issues.push(`Duplicate node id: ${node.id}.`);
@@ -208,9 +213,16 @@ export default function FlowBuilderPage() {
     const copy = cloneGraph(next); graphRef.current = copy; setNodes(copy.nodes); setEdges(copy.edges); setSaved(false);
   }
 
-  function focusValidationIssue(issue = validationIssues[0]) {
-    if (!issue) return;
-    const target = nodes.find((node) => issue.startsWith(`${node.title}:`));
+  function focusValidationIssue(issue?: string, explicitNodeId?: string) {
+    if (explicitNodeId) {
+      setSelectedId(explicitNodeId);
+      setInspectorOpen(true);
+      setMobilePanel("inspector");
+      return;
+    }
+    const targetIssue = issue || validationIssues[0];
+    if (!targetIssue) return;
+    const target = nodes.find((node) => targetIssue.startsWith(`${node.title}:`) || targetIssue.includes(node.id));
     if (target) {
       setSelectedId(target.id);
       setInspectorOpen(true);
@@ -220,6 +232,35 @@ export default function FlowBuilderPage() {
     setInspectorOpen(true);
     setLibraryView("nodes");
     setMobilePanel("palette");
+  }
+
+  async function handleAutoFixWithAI() {
+    if (!botId || isAutoFixing) return;
+    setIsAutoFixing(true);
+    try {
+      const res = await chattyRequest("/api/flow-builder/ai/fix", {
+        method: "POST",
+        body: JSON.stringify({
+          bot_id: botId,
+          flow_id: flowId,
+          flow_data: persistedGraph(graphRef.current),
+          issues: validationIssues,
+        }),
+      });
+      if (!res.ok) throw new Error("Auto-fix failed");
+      const data = await res.json() as { flow_data?: FlowData; flow_name?: string };
+      if (data.flow_data && data.flow_data.nodes) {
+        setGraph(data.flow_data, true);
+        if (data.flow_name) setFlowName(data.flow_name);
+        setSyncState("Auto-fixed with AI");
+        setHealthModalOpen(false);
+        window.setTimeout(() => canvasCommandsRef.current?.fitView(), 100);
+      }
+    } catch {
+      setSyncState("Auto-fix could not complete");
+    } finally {
+      setIsAutoFixing(false);
+    }
   }
 
   function undo() {
@@ -367,7 +408,48 @@ export default function FlowBuilderPage() {
     <header className="topbar">
       <div className="brand"><div className="brand-mark"><Image src="/chatty_flow.png" alt="" width={22} height={22} priority aria-hidden="true" /></div><div><strong>Chatty Flows</strong><span>Automation workspace</span></div></div>
       <div className="crumb"><a className="flows-link" href="/dashboard?tab=flow_builder">My flows</a><ChevronDown size={14} /><span className="muted">/</span><input className="workflow-name" value={flowName} onChange={(event) => { setFlowName(event.target.value); setSaved(false); }} aria-label="Workflow name" /><span className="draft-pill"><span className="status-dot" /> {published ? "Published" : "Draft"}</span></div>
-      <div className="top-actions"><button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button><button type="button" className="secondary" onClick={downloadN8n} disabled={Boolean(busyAction)} title="Export this flow as n8n JSON"><Download size={14} /> Export n8n</button><button type="button" className="secondary" onClick={() => void runTest()} disabled={Boolean(busyAction)}>{busyAction === "test" ? <Loader2 className="spin" size={14} /> : <Play size={14} />} Test</button><button type="button" className="secondary save-button" onClick={() => void saveDraft(false)} disabled={(saved && Boolean(botId) && Boolean(flowId)) || Boolean(busyAction)}>{busyAction === "save" ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save draft</button><button type="button" className="primary" onClick={() => void saveDraft(true)} disabled={validationIssues.length > 0 || Boolean(busyAction)}>{busyAction === "publish" ? <Loader2 className="spin" size={14} /> : <Check size={14} />} Publish</button>{authState === "required" && <span className="auth-state">Authentication required</span>}{accountOpen && <button type="button" className="account-menu-backdrop" aria-label="Close account menu" onClick={() => setAccountOpen(false)} />}<div className="account-wrap"><button type="button" className={`avatar ${accountOpen ? "open" : ""}`} aria-label="Account" title="Account" aria-expanded={accountOpen} onClick={() => setAccountOpen((current) => !current)}><span>{(authEmail?.[0] || "P").toUpperCase()}</span></button>{accountOpen && <div className="account-menu"><small>CHATTY AUTH</small><b>{authState === "session" ? "Connected" : authState === "handoff" ? "Connected by handoff" : authState === "checking" ? "Checking connection" : "Authentication required"}</b><span>{authEmail || (authState === "required" ? "Open this builder from Chatty." : "Tenant session active")}</span>{authState === "required" && <a href={process.env.NEXT_PUBLIC_CHATTY_APP_URL ?? "https://app.personaliai.com"}><ExternalLink size={13} /> Open Chatty</a>}<button type="button" onClick={() => { setRefreshingAuth(true); window.location.reload(); }} disabled={refreshingAuth}>{refreshingAuth ? <Loader2 className="spin" size={13} /> : <RotateCcw size={13} />} Refresh connection</button></div>}</div></div>
+      <div className="top-actions">
+        <button
+          type="button"
+          className={`copilot-toggle-btn ${copilotOpen ? "active" : ""}`}
+          onClick={() => setCopilotOpen((prev) => !prev)}
+          title="Open Flow Architect AI Copilot"
+        >
+          <Sparkles size={14} className="copilot-sparkle-icon" />
+          <span>AI Copilot</span>
+        </button>
+        <button type="button" className="icon-btn mobile-only" onClick={() => setMobilePanel("palette")} aria-label="Open node library"><Menu size={18} /></button>
+        <button type="button" className="secondary" onClick={downloadN8n} disabled={Boolean(busyAction)} title="Export this flow as n8n JSON"><Download size={14} /> Export n8n</button>
+        <button type="button" className="secondary" onClick={() => void runTest()} disabled={Boolean(busyAction)}>{busyAction === "test" ? <Loader2 className="spin" size={14} /> : <Play size={14} />} Test</button>
+        <button type="button" className="secondary save-button" onClick={() => void saveDraft(false)} disabled={(saved && Boolean(botId) && Boolean(flowId)) || Boolean(busyAction)}>{busyAction === "save" ? <Loader2 className="spin" size={14} /> : <Save size={14} />} Save draft</button>
+        <button
+          type="button"
+          className="primary"
+          onClick={() => void saveDraft(true)}
+          disabled={nodes.length === 0 || !nodes.some((node) => node.kind === "trigger") || validationIssues.length > 0 || Boolean(busyAction)}
+          title={nodes.length === 0 ? "Add at least a trigger to publish" : validationIssues.length > 0 ? "Resolve validation issues before publishing" : "Publish workflow"}
+        >
+          {busyAction === "publish" ? <Loader2 className="spin" size={14} /> : <Check size={14} />} Publish
+        </button>
+        {authState === "required" && <span className="auth-state">Authentication required</span>}
+        {accountOpen && <button type="button" className="account-menu-backdrop" aria-label="Close account menu" onClick={() => setAccountOpen(false)} />}
+        <div className="account-wrap">
+          <button type="button" className={`avatar ${accountOpen ? "open" : ""}`} aria-label="Account" title="Account" aria-expanded={accountOpen} onClick={() => setAccountOpen((current) => !current)}>
+            <span>{(authEmail?.[0] || "P").toUpperCase()}</span>
+          </button>
+          {accountOpen && (
+            <div className="account-menu">
+              <small>CHATTY AUTH</small>
+              <b>{authState === "session" ? "Connected" : authState === "handoff" ? "Connected by handoff" : authState === "checking" ? "Checking connection" : "Authentication required"}</b>
+              <span>{authEmail || (authState === "required" ? "Open this builder from Chatty." : "Tenant session active")}</span>
+              {authState === "required" && <a href={process.env.NEXT_PUBLIC_CHATTY_APP_URL ?? "https://app.personaliai.com"}><ExternalLink size={13} /> Open Chatty</a>}
+              <button type="button" onClick={() => { setRefreshingAuth(true); window.location.reload(); }} disabled={refreshingAuth}>
+                {refreshingAuth ? <Loader2 className="spin" size={13} /> : <RotateCcw size={13} />} Refresh connection
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </header>
     <div className="workspace">
       {view === "canvas" ? <>
@@ -386,9 +468,65 @@ export default function FlowBuilderPage() {
          onCloseMobile={() => setMobilePanel(null)}
        />
         <section className="canvas-area">
-          <div className="canvas-toolbar"><div className="toolbar-group"><button className="tool-active" onClick={() => setView("canvas")}><LayoutGrid size={15} /> Canvas</button><button onClick={() => setView("history")}><History size={15} /> History</button><span className="toolbar-divider" /><button onClick={undo} disabled={historySize === 0} aria-label="Undo" title="Undo"><Undo2 size={15} /></button><button onClick={redo} disabled={futureSize === 0} aria-label="Redo" title="Redo"><Redo2 size={15} /></button></div><div className="toolbar-group"><button onClick={() => canvasCommandsRef.current?.zoomOut()} aria-label="Zoom out" title="Zoom out">−</button><button onClick={() => canvasCommandsRef.current?.resetZoom()} className="zoom-reset" title="Reset zoom to 100%">100%</button><button onClick={() => canvasCommandsRef.current?.zoomIn()} aria-label="Zoom in" title="Zoom in">+</button><button onClick={() => canvasCommandsRef.current?.fitView()} aria-label="Fit workflow in view" title="Fit workflow in view"><RotateCcw size={14} /></button></div></div>
-           <FlowCanvas nodes={nodes} edges={edges} selectedId={selectedId} nodeMenuId={nodeMenuId} onSelect={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(Boolean(nodeId)); if (nodeId) setMobilePanel("inspector"); }} onNodesChange={moveNodes} onEdgesChange={changeEdges} onConnect={connectNodes} onDuplicate={duplicateNode} onRemove={removeNode} onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)} onAddStep={(nodeId) => openAddStep(nodeId)} onAddBranch={(nodeId) => openAddStep(nodeId, true)} onCreateNode={() => { setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }} commandsRef={canvasCommandsRef} />
-          <div className="canvas-status"><span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span><span>{nodes.length} nodes · {edges.length} connections</span>{validationIssues.length ? <button type="button" className="validation-status" onClick={() => focusValidationIssue()}><AlertCircle size={12} /> {validationIssues.length} validation issue{validationIssues.length === 1 ? "" : "s"}<span>Review</span></button> : <span className="status-right">{published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span>}</div>
+          <div className="canvas-toolbar">
+            <div className="toolbar-group">
+              <button className="tool-active" onClick={() => setView("canvas")}><LayoutGrid size={15} /> Canvas</button>
+              <button onClick={() => setView("history")}><History size={15} /> History</button>
+              <span className="toolbar-divider" />
+              <button onClick={undo} disabled={historySize === 0} aria-label="Undo" title="Undo"><Undo2 size={15} /></button>
+              <button onClick={redo} disabled={futureSize === 0} aria-label="Redo" title="Redo"><Redo2 size={15} /></button>
+              <span className="toolbar-divider" />
+              <button
+                onClick={() => {
+                  const layouted = autoLayoutGraph(nodes, edges);
+                  setGraph({ nodes: layouted, edges, paths: graphRef.current.paths }, true);
+                  window.setTimeout(() => canvasCommandsRef.current?.fitView(), 80);
+                }}
+                aria-label="Auto-arrange workflow layout"
+                title="Auto-arrange workflow layout"
+              >
+                <LayoutGrid size={14} /> Auto-layout
+              </button>
+            </div>
+            <div className="toolbar-group">
+              <button onClick={() => canvasCommandsRef.current?.zoomOut()} aria-label="Zoom out" title="Zoom out">−</button>
+              <button onClick={() => canvasCommandsRef.current?.resetZoom()} className="zoom-reset" title="Reset zoom to 100%">100%</button>
+              <button onClick={() => canvasCommandsRef.current?.zoomIn()} aria-label="Zoom in" title="Zoom in">+</button>
+              <button onClick={() => canvasCommandsRef.current?.fitView()} aria-label="Fit workflow in view" title="Fit workflow in view"><RotateCcw size={14} /></button>
+            </div>
+          </div>
+          <FlowCanvas
+            nodes={nodes}
+            edges={edges}
+            selectedId={selectedId}
+            nodeMenuId={nodeMenuId}
+            onSelect={(nodeId) => { setSelectedId(nodeId); setInspectorOpen(Boolean(nodeId)); if (nodeId) setMobilePanel("inspector"); }}
+            onNodesChange={moveNodes}
+            onEdgesChange={changeEdges}
+            onConnect={connectNodes}
+            onDuplicate={duplicateNode}
+            onRemove={removeNode}
+            onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)}
+            onAddStep={(nodeId) => openAddStep(nodeId)}
+            onAddBranch={(nodeId) => openAddStep(nodeId, true)}
+            onCreateNode={() => { setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }}
+            onOpenCopilot={() => setCopilotOpen(true)}
+            commandsRef={canvasCommandsRef}
+          />
+          <div className="canvas-status">
+            <span><span className={`green-dot ${saved ? "" : "pending"}`} /> {syncState}</span>
+            <span>{nodes.length} nodes · {edges.length} connections</span>
+            {validationIssues.length > 0 ? (
+              <button type="button" className="validation-status" onClick={() => setHealthModalOpen(true)}>
+                <AlertCircle size={12} /> {validationIssues.length} validation issue{validationIssues.length === 1 ? "" : "s"}
+                <span>Review</span>
+              </button>
+            ) : nodes.length === 0 ? (
+              <span className="status-right muted">Draft ready · Start with a trigger</span>
+            ) : (
+              <span className="status-right">{published ? `Published v${version || 1}` : saved ? "Draft ready" : "Unsaved changes"}</span>
+            )}
+          </div>
         </section>
          {inspectorOpen && <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
            <div className="panel-head"><div><small>CONFIGURE</small><h2>{selected ? selected.title : "Select a node"}</h2></div><button type="button" className="icon-btn inspector-close" onClick={() => { setInspectorOpen(false); setSelectedId(""); setMobilePanel(null); }} aria-label="Close inspector" title="Close inspector"><X size={17} /></button></div>
@@ -401,5 +539,34 @@ export default function FlowBuilderPage() {
     {running && <div className="modal-backdrop"><div className="run-modal"><div className="modal-title"><div><small>VALIDATION RUN</small><h2>Flow test</h2></div><button className="icon-btn" onClick={() => setRunning(false)}><X size={18} /></button></div>{testError ? <div className="run-error">{testError}</div> : testTrace.length ? testTrace.map((step) => <div className="run-progress" key={step.node_id}><span className="run-icon"><CheckCircle2 size={16} /></span><div><b>{step.title}</b><small>{step.status} · no external side effects</small></div></div>) : <div className="run-progress active"><span className="spinner" /><div><b>Validating graph</b><small>Checking connections and execution order…</small></div></div>}<button className="secondary full" onClick={() => setRunning(false)}>Close test run</button></div></div>}
     {pendingTemplate && <div className="modal-backdrop"><div className="template-confirm"><div className="modal-title"><div><small>USE TEMPLATE</small><h2>Replace this workflow?</h2></div><button type="button" className="icon-btn" onClick={() => setPendingTemplate(null)}><X size={18} /></button></div><p>This replaces the current canvas with “{pendingTemplate.title}”. Unsaved changes will be removed.</p><div className="template-setup"><strong>Configure before publishing</strong><ul>{pendingTemplate.setup.map((item) => <li key={item}>{item}</li>)}</ul></div><div className="template-confirm-actions"><button type="button" className="secondary" onClick={() => setPendingTemplate(null)}>Cancel</button><button type="button" className="primary" onClick={() => replaceWithTemplate(pendingTemplate)}>Replace workflow</button></div></div></div>}
     {connectionProvider && <ConnectionModal botId={botId} definition={connectionProvider} onClose={() => setConnectionProvider(null)} onSaved={saveConnection} onStartOAuth={() => void startOAuth(connectionProvider.provider)} />}
+    <FlowCopilotDrawer
+      isOpen={copilotOpen}
+      onClose={() => setCopilotOpen(false)}
+      botId={botId}
+      flowId={flowId}
+      flowName={flowName}
+      currentGraph={{ nodes, edges, paths: graphRef.current.paths }}
+      onApplyGraph={(next, newName) => {
+        setGraph(next, true);
+        if (newName) setFlowName(newName);
+        setSyncState("Updated by AI Copilot");
+        window.setTimeout(() => canvasCommandsRef.current?.fitView(), 100);
+      }}
+      onAutoLayout={() => {
+        const layouted = autoLayoutGraph(nodes, edges);
+        setGraph({ nodes: layouted, edges, paths: graphRef.current.paths }, true);
+        window.setTimeout(() => canvasCommandsRef.current?.fitView(), 80);
+      }}
+      onPublishDraft={() => void saveDraft(true)}
+    />
+    <FlowHealthModal
+      isOpen={healthModalOpen}
+      onClose={() => setHealthModalOpen(false)}
+      issues={validationIssues}
+      nodes={nodes}
+      onFocusNode={(nodeId) => focusValidationIssue(undefined, nodeId)}
+      onAutoFixWithAI={handleAutoFixWithAI}
+      isFixing={isAutoFixing}
+    />
   </main>;
 }

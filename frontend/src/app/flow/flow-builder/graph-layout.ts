@@ -82,3 +82,74 @@ export function findAvailableNodePosition(
 
   return { x: preferred.x + 12 * columnStep, y: preferred.y };
 }
+
+export function autoLayoutGraph(nodes: FlowNode[], edges: Array<{ from: string; to: string }>): FlowNode[] {
+  if (nodes.length === 0) return [];
+  const incoming = new Map<string, number>();
+  const outgoing = new Map<string, string[]>();
+
+  for (const node of nodes) {
+    incoming.set(node.id, 0);
+    outgoing.set(node.id, []);
+  }
+
+  for (const edge of edges) {
+    if (incoming.has(edge.to)) {
+      incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1);
+    }
+    if (outgoing.has(edge.from)) {
+      outgoing.get(edge.from)?.push(edge.to);
+    }
+  }
+
+  const layers = new Map<string, number>();
+  const queue = nodes
+    .filter((n) => (incoming.get(n.id) ?? 0) === 0 || n.kind === "trigger")
+    .map((n) => n.id);
+
+  for (const id of queue) {
+    layers.set(id, 0);
+  }
+
+  const visited = new Set<string>();
+  const queueCopy = [...queue];
+
+  while (queueCopy.length > 0) {
+    const current = queueCopy.shift();
+    if (!current) continue;
+    visited.add(current);
+    const curLayer = layers.get(current) ?? 0;
+    for (const child of outgoing.get(current) ?? []) {
+      layers.set(child, Math.max(layers.get(child) ?? 0, curLayer + 1));
+      if (!visited.has(child)) {
+        visited.add(child);
+        queueCopy.push(child);
+      }
+    }
+  }
+
+  let maxLayer = 0;
+  for (const l of layers.values()) {
+    if (l > maxLayer) maxLayer = l;
+  }
+  for (const node of nodes) {
+    if (!layers.has(node.id)) {
+      maxLayer += 1;
+      layers.set(node.id, maxLayer);
+    }
+  }
+
+  const rowsByLayer = new Map<number, number>();
+  return nodes.map((node) => {
+    const layer = layers.get(node.id) ?? 0;
+    const row = rowsByLayer.get(layer) ?? 0;
+    rowsByLayer.set(layer, row + 1);
+    const pos = getTemplateNodePosition(layer, row);
+    return {
+      ...node,
+      x: pos.x,
+      y: pos.y,
+      stepIndex: layer,
+    };
+  });
+}

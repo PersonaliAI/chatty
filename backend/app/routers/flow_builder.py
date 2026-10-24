@@ -49,6 +49,21 @@ class FlowTestRequest(BaseModel):
     flow_data: dict[str, Any] = Field(default_factory=dict)
 
 
+class FlowAgentChatRequest(BaseModel):
+    bot_id: str
+    flow_id: str | None = None
+    message: str
+    flow_data: dict[str, Any] = Field(default_factory=dict)
+    history: list[dict[str, str]] = Field(default_factory=list)
+
+
+class FlowAgentFixRequest(BaseModel):
+    bot_id: str
+    flow_id: str | None = None
+    flow_data: dict[str, Any] = Field(default_factory=dict)
+    issues: list[str] = Field(default_factory=list)
+
+
 class FlowConnectionRequest(BaseModel):
     bot_id: str
     provider: str = Field(min_length=1, max_length=80)
@@ -105,9 +120,11 @@ def _validate_flow_data(flow_data: dict[str, Any], *, require_nodes: bool = Fals
         if kind == "trigger":
             has_trigger = True
         if require_nodes and kind == "action":
-            config = node.get("config") if isinstance(node.get("config"), dict) else {}
-            if not str(config.get("url") or "").strip():
-                raise HTTPException(status_code=400, detail=f"Action node {node.get('title') or node_id} needs an adapter endpoint before publishing")
+            node_type = node.get("type") or "http"
+            if node_type in ("n8n.httpRequest", "http", "action"):
+                config = node.get("config") if isinstance(node.get("config"), dict) else {}
+                if not str(config.get("url") or "").strip():
+                    raise HTTPException(status_code=400, detail=f"Action node {node.get('title') or node_id} needs an adapter endpoint before publishing")
         if kind == "chatty" and node.get("type") == "chatty.reply":
             config = node.get("config") if isinstance(node.get("config"), dict) else {}
             if not str(config.get("message") or "").strip():
@@ -536,4 +553,43 @@ async def publish_flow(body: FlowPublishRequest, user: dict[str, Any] = Depends(
         }).execute()
     )
     published = (result.data or [None])[0]
-    return {"published": True, "flow_id": flow_id, "version": published.get("version") if isinstance(published, dict) else next_version}
+    result_dict = {"published": True, "flow_id": flow_id, "version": published.get("version") if isinstance(published, dict) else next_version}
+    return result_dict
+
+
+@router.get("/ai/config")
+async def get_flow_ai_config(bot_id: str, user: dict[str, Any] = Depends(require_flow_user)):
+    """Return the active AI model name configured in Agent Settings."""
+    await _authorize(bot_id, user)
+    from app.services.flow_agent_service import get_bot_llm_config
+    return await get_bot_llm_config(bot_id)
+
+
+@router.post("/ai/chat")
+async def chat_flow_agent(body: FlowAgentChatRequest, user: dict[str, Any] = Depends(require_flow_user)):
+    """Interactive turn with the Flow Architect AI agent."""
+    await _authorize(body.bot_id, user)
+    from app.services.flow_agent_service import run_flow_agent
+    return await run_flow_agent(
+        bot_id=body.bot_id,
+        flow_id=body.flow_id,
+        message=body.message,
+        current_flow_data=body.flow_data,
+        user=user,
+        conversation_history=body.history,
+    )
+
+
+@router.post("/ai/fix")
+async def fix_flow_validation(body: FlowAgentFixRequest, user: dict[str, Any] = Depends(require_flow_user)):
+    """Auto-fix graph validation errors using the bot's configured LLM."""
+    await _authorize(body.bot_id, user)
+    from app.services.flow_agent_service import auto_fix_validation_issues
+    return await auto_fix_validation_issues(
+        bot_id=body.bot_id,
+        flow_id=body.flow_id,
+        current_flow_data=body.flow_data,
+        issues=body.issues,
+        user=user,
+    )
+

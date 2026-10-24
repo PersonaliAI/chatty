@@ -60,6 +60,7 @@ type Props = {
   onAddStep: (nodeId: string) => void;
   onAddBranch: (nodeId: string) => void;
   onCreateNode: () => void;
+  onOpenCopilot?: () => void;
   commandsRef?: MutableRefObject<FlowCanvasCommands | null>;
 };
 
@@ -289,7 +290,25 @@ function FlowCanvasInner(props: Props) {
           <Code2 size={14} /> Fit view
         </button>
       </ReactFlow>
-      {canvasNodes.length === 0 && <div className="canvas-empty-state"><div className="canvas-empty-icon"><Plus size={20} /></div><strong>Start with a trigger</strong><span>Add the first step to define when this workflow runs.</span><button type="button" onClick={props.onCreateNode}>Open node library</button></div>}
+      {canvasNodes.length === 0 && (
+        <div className="canvas-empty-state">
+          <div className="canvas-empty-icon"><Plus size={20} /></div>
+          <strong>Start with a trigger</strong>
+          <span>Add the first step to define when this workflow runs, or generate an entire journey with AI.</span>
+          <div className="canvas-empty-actions">
+            <button type="button" onClick={props.onCreateNode}>Open node library</button>
+            {props.onOpenCopilot && (
+              <button
+                type="button"
+                className="canvas-empty-ai-btn"
+                onClick={props.onOpenCopilot}
+              >
+                ✨ Generate with AI Copilot
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

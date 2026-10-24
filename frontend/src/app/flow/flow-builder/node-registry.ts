@@ -64,6 +64,31 @@ export const nodeCatalog: NodeDefinition[] = [
     type: "chatty.ai", title: "AI transform", subtitle: "Classify, extract, summarize", kind: "chatty", icon: "spark", color: "#a855f7", provider: "Chatty AI", operations: ["Classify", "Extract", "Summarize"], category: "transform",
     fields: [adapterUrl("Chatty AI endpoint"), { key: "instruction", label: "Instruction", type: "textarea", required: true, placeholder: "Classify the visitor message as sales, support, billing, or other." }], defaultConfig: { operation: "Classify", method: "POST" },
   },
+  {
+    type: "action.email", title: "Send email", subtitle: "Notify customer or team", kind: "action", icon: "mail", color: "#2563eb", provider: "Email", operations: ["Send notification email"], category: "communication",
+    fields: [
+      { key: "to", label: "Recipient email", type: "text", required: true, placeholder: "{{data.visitor_email}} or alerts@company.com" },
+      { key: "subject", label: "Subject", type: "text", required: true, placeholder: "New lead from Chatty Assistant" },
+      { key: "body", label: "Message body", type: "textarea", required: true, placeholder: "Hi, a new lead has arrived: {{data.visitor_name}} ({{data.visitor_email}})." },
+    ],
+    defaultConfig: { operation: "Send notification email", to: "{{data.visitor_email}}", subject: "Automated workflow update" },
+  },
+  {
+    type: "action.slack", title: "Slack alert", subtitle: "Post message to channel", kind: "action", icon: "slack", color: "#4a154b", provider: "Slack", operations: ["Send channel message"], category: "communication",
+    fields: [
+      { key: "channel", label: "Channel name", type: "text", required: true, placeholder: "#sales-leads or #alerts" },
+      { key: "message", label: "Message", type: "textarea", required: true, placeholder: "🚀 New high-intent lead: {{data.visitor_name}} ({{data.visitor_email}})" },
+    ],
+    defaultConfig: { operation: "Send channel message", channel: "#alerts" },
+  },
+  {
+    type: "action.crm", title: "Update CRM", subtitle: "Create or update lead record", kind: "action", icon: "crm", color: "#10b981", provider: "Chatty CRM", operations: ["Upsert lead", "Update stage"], category: "data",
+    fields: [
+      { key: "stage", label: "Lead stage", type: "select", required: true, options: ["new", "qualified", "in_progress", "won", "lost"] },
+      { key: "notes", label: "Lead notes", type: "textarea", placeholder: "Captured via AI automation workflow" },
+    ],
+    defaultConfig: { operation: "Upsert lead", stage: "new" },
+  },
 ];
 
 export function findNodeDefinition(node: { provider?: string; n8nType?: string; title: string }): NodeDefinition | undefined {
