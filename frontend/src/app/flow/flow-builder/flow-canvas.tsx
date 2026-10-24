@@ -19,11 +19,14 @@ import {
   type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
-import { AlertCircle, CheckCircle2, ChevronDown, Clock3, Code2, Copy, Loader2, Minus, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Clock3, Code2, Copy, Loader2, Minus, MoreHorizontal, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MutableRefObject } from "react";
 import { FLOW_NODE_LAYOUT } from "./graph-layout";
+import { nodeCatalog, type NodeDefinition } from "./node-registry";
 import type { FlowEdge, FlowNode } from "./types";
 import { NodeIcon } from "./node-icon";
+
+const STEP_CATALOG_ITEMS = nodeCatalog.filter((item) => item.kind !== "trigger");
 
 type NodeActions = {
   onSelect: (nodeId: string) => void;
@@ -32,6 +35,7 @@ type NodeActions = {
   onToggleMenu: (nodeId: string) => void;
   onAddStep: (nodeId: string) => void;
   onAddBranch: (nodeId: string) => void;
+  onQuickInsertStep?: (parentId: string, item: NodeDefinition, isBranch: boolean, branchLabel?: string) => void;
   openMenuId: string | null;
 };
 
@@ -59,6 +63,7 @@ type Props = {
   onToggleMenu: (nodeId: string) => void;
   onAddStep: (nodeId: string) => void;
   onAddBranch: (nodeId: string) => void;
+  onQuickInsertStep?: (parentId: string, item: NodeDefinition, isBranch: boolean, branchLabel?: string) => void;
   onCreateNode: () => void;
   onOpenCopilot?: () => void;
   commandsRef?: MutableRefObject<FlowCanvasCommands | null>;
@@ -100,6 +105,8 @@ function summarizeNodeAction(data: FlowNode): string {
 
 function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
   const updateNodeInternals = useUpdateNodeInternals();
+  const [pickerMode, setPickerMode] = useState<"step" | "branch" | null>(null);
+  const [branchLabel, setBranchLabel] = useState<string>("else");
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => updateNodeInternals(data.id));
     return () => window.cancelAnimationFrame(frame);
@@ -183,15 +190,85 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
             </div>
           )}
           <div className="intercom-node-actions-row">
-            <button type="button" className="intercom-add-step" onClick={(event) => { event.stopPropagation(); data.onAddStep(data.id); }}>
+            <button
+              type="button"
+              className={`intercom-add-step ${pickerMode === "step" ? "is-open" : ""}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setPickerMode((prev) => (prev === "step" ? null : "step"));
+                data.onAddStep(data.id);
+              }}
+            >
               <Plus size={14} /> Add step
             </button>
             {data.kind === "logic" && (
-              <button type="button" className="intercom-add-branch" onClick={(event) => { event.stopPropagation(); data.onAddBranch(data.id); }}>
+              <button
+                type="button"
+                className={`intercom-add-branch ${pickerMode === "branch" ? "is-open" : ""}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPickerMode((prev) => (prev === "branch" ? null : "branch"));
+                  data.onAddBranch(data.id);
+                }}
+              >
                 <Plus size={14} /> Add path
               </button>
             )}
           </div>
+          {pickerMode && (
+            <div className="intercom-inline-picker nodrag" onClick={(event) => event.stopPropagation()}>
+              <div className="intercom-inline-picker-head">
+                <strong>{pickerMode === "branch" ? "Add branch path" : "Add next step"}</strong>
+                <button
+                  type="button"
+                  className="intercom-inline-picker-close"
+                  onClick={() => setPickerMode(null)}
+                  aria-label="Close step picker"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              {pickerMode === "branch" && (
+                <div className="intercom-inline-branch-input">
+                  <label>
+                    Branch edge label:
+                    <input
+                      type="text"
+                      value={branchLabel}
+                      onChange={(e) => setBranchLabel(e.target.value)}
+                      placeholder="e.g. else, before 6:00 PM, whatsapp"
+                    />
+                  </label>
+                </div>
+              )}
+              <div className="intercom-inline-picker-grid">
+                {STEP_CATALOG_ITEMS.map((item) => (
+                  <button
+                    key={item.type}
+                    type="button"
+                    className="intercom-inline-picker-item"
+                    onClick={() => {
+                      data.onQuickInsertStep?.(
+                        data.id,
+                        item,
+                        pickerMode === "branch",
+                        pickerMode === "branch" ? (branchLabel.trim() || "else") : undefined,
+                      );
+                      setPickerMode(null);
+                    }}
+                  >
+                    <span className="intercom-inline-picker-icon" style={{ color: item.color, background: `${item.color}18` }}>
+                      <NodeIcon icon={item.icon} size={13} />
+                    </span>
+                    <div>
+                      <b>{item.title}</b>
+                      <small>{item.subtitle}</small>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <span className="n8n-node-status-icons"><NodeExecutionMark status={status} /></span>
       </div>
@@ -211,8 +288,8 @@ function FlowCanvasInner(props: Props) {
   const reactFlow = useReactFlow<CanvasNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const nodeTypes = useMemo(() => ({ chatty: ChattyCanvasNode }), []);
-  const actionRefs = useRef({ onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu, onAddStep: props.onAddStep, onAddBranch: props.onAddBranch });
-  actionRefs.current = { onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu, onAddStep: props.onAddStep, onAddBranch: props.onAddBranch };
+  const actionRefs = useRef({ onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu, onAddStep: props.onAddStep, onAddBranch: props.onAddBranch, onQuickInsertStep: props.onQuickInsertStep });
+  actionRefs.current = { onSelect: props.onSelect, onDuplicate: props.onDuplicate, onRemove: props.onRemove, onToggleMenu: props.onToggleMenu, onAddStep: props.onAddStep, onAddBranch: props.onAddBranch, onQuickInsertStep: props.onQuickInsertStep };
   const stableActions = useMemo<NodeActions>(() => ({
     onSelect: (nodeId) => actionRefs.current.onSelect(nodeId),
     onDuplicate: (node) => actionRefs.current.onDuplicate(node),
@@ -220,6 +297,7 @@ function FlowCanvasInner(props: Props) {
     onToggleMenu: (nodeId) => actionRefs.current.onToggleMenu(nodeId),
     onAddStep: (nodeId) => actionRefs.current.onAddStep(nodeId),
     onAddBranch: (nodeId) => actionRefs.current.onAddBranch(nodeId),
+    onQuickInsertStep: (parentId, item, isBranch, branchLabel) => actionRefs.current.onQuickInsertStep?.(parentId, item, isBranch, branchLabel),
     openMenuId: null,
   }), []);
 

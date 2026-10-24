@@ -345,20 +345,98 @@ export default function FlowBuilderPage() {
     finally { setBusyAction(null); }
   }
 
-  function addNode(item: NodeDefinition) {
+  function insertStepFromNode(
+    parentId: string,
+    item: NodeDefinition,
+    isBranch = false,
+    customBranchLabel?: string,
+  ) {
     const id = `${item.type.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${Date.now()}`;
-    const parent = pendingParentId ? graphRef.current.nodes.find((node) => node.id === pendingParentId) : undefined;
-    const pathId = pendingParentId ? pendingPathId : item.kind === "trigger" ? id : "main";
-    const pathTitle = pendingParentId && pendingPathId !== "main" ? `Path ${String.fromCharCode(65 + graphRef.current.nodes.filter((node) => node.pathId && node.pathId !== "main").length)}` : "Main path";
+    const parent = graphRef.current.nodes.find((node) => node.id === parentId);
+    const branchIndex = graphRef.current.nodes.filter((node) => node.pathId && node.pathId !== "main").length;
+    const defaultBranchTitle = customBranchLabel || `Path ${String.fromCharCode(65 + (branchIndex % 26))}`;
+    const pathId = isBranch ? `path-${Date.now()}` : (parent?.pathId || "main");
+    const pathTitle = isBranch ? defaultBranchTitle : (parent?.pathTitle || "Main path");
     const preferredPosition = parent
       ? { x: parent.x + FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap, y: parent.y }
       : { x: FLOW_NODE_LAYOUT.originX, y: FLOW_NODE_LAYOUT.originY };
     const position = findAvailableNodePosition(graphRef.current.nodes, preferredPosition);
-    const newNode: FlowNode = { id, type: item.type, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: position.x, y: position.y, provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider, retry_enabled: "true", idempotency_enabled: "true" }, pathId, pathTitle, stepIndex: parent ? (parent.stepIndex ?? 0) + 1 : 0 };
-    const nextEdges = parent ? [...graphRef.current.edges, { from: parent.id, to: id, label: pendingPathId === "main" ? undefined : pathTitle }] : graphRef.current.edges;
+    const newNode: FlowNode = {
+      id,
+      type: item.type,
+      kind: item.kind,
+      title: item.title,
+      subtitle: item.subtitle,
+      icon: item.icon,
+      color: item.color,
+      x: position.x,
+      y: position.y,
+      provider: item.provider,
+      credentialType: item.credentialType,
+      n8nType: item.n8nType,
+      n8nTypeVersion: item.n8nTypeVersion,
+      n8nParameters: {},
+      operations: item.operations,
+      config: {
+        ...item.defaultConfig,
+        provider: item.provider,
+        retry_enabled: "true",
+        idempotency_enabled: "true",
+      },
+      pathId,
+      pathTitle,
+      stepIndex: parent ? (parent.stepIndex ?? 0) + 1 : 0,
+    };
+
+    let nextEdges = [...graphRef.current.edges];
+    if (parent) {
+      const parentOutgoing = nextEdges.filter((e) => e.from === parent.id);
+      if (!isBranch && parent.kind !== "logic" && parentOutgoing.length === 1) {
+        const existingEdge = parentOutgoing[0];
+        nextEdges = nextEdges
+          .filter((e) => !(e.from === existingEdge.from && e.to === existingEdge.to))
+          .concat([
+            { from: parent.id, to: id, label: existingEdge.label },
+            { from: id, to: existingEdge.to },
+          ]);
+      } else {
+        nextEdges.push({
+          from: parent.id,
+          to: id,
+          label: isBranch ? pathTitle : undefined,
+        });
+      }
+    }
+
+    const nextPaths = [...(graphRef.current.paths ?? [])];
+    if (!nextPaths.some((path) => path.id === pathId)) {
+      nextPaths.push({ id: pathId, title: pathTitle, color: item.color });
+    }
+    const rawNextNodes = [...graphRef.current.nodes, newNode];
+    const layoutedNodes = autoLayoutGraph(rawNextNodes, nextEdges);
+    setGraph({ nodes: layoutedNodes, edges: nextEdges, paths: nextPaths });
+    setSelectedId(id);
+    setInspectorOpen(true);
+    setPendingParentId(null);
+    setPendingPathId("main");
+    setMobilePanel(null);
+    setSyncState(isBranch ? `Added branch path "${pathTitle}"` : `Added step "${item.title}"`);
+  }
+
+  function addNode(item: NodeDefinition) {
+    if (pendingParentId) {
+      insertStepFromNode(pendingParentId, item, pendingPathId !== "main");
+      return;
+    }
+    const id = `${item.type.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${Date.now()}`;
+    const pathId = item.kind === "trigger" ? id : "main";
+    const pathTitle = "Main path";
+    const preferredPosition = { x: FLOW_NODE_LAYOUT.originX, y: FLOW_NODE_LAYOUT.originY };
+    const position = findAvailableNodePosition(graphRef.current.nodes, preferredPosition);
+    const newNode: FlowNode = { id, type: item.type, kind: item.kind, title: item.title, subtitle: item.subtitle, icon: item.icon, color: item.color, x: position.x, y: position.y, provider: item.provider, credentialType: item.credentialType, n8nType: item.n8nType, n8nTypeVersion: item.n8nTypeVersion, n8nParameters: {}, operations: item.operations, config: { ...item.defaultConfig, provider: item.provider, retry_enabled: "true", idempotency_enabled: "true" }, pathId, pathTitle, stepIndex: 0 };
     const nextPaths = [...(graphRef.current.paths ?? [])];
     if (!nextPaths.some((path) => path.id === pathId)) nextPaths.push({ id: pathId, title: pathTitle, color: item.color });
-    setGraph({ nodes: [...graphRef.current.nodes, newNode], edges: nextEdges, paths: nextPaths }); setSelectedId(id); setInspectorOpen(true); setPendingParentId(null); setPendingPathId("main"); setMobilePanel(null);
+    setGraph({ nodes: [...graphRef.current.nodes, newNode], edges: graphRef.current.edges, paths: nextPaths }); setSelectedId(id); setInspectorOpen(true); setPendingParentId(null); setPendingPathId("main"); setMobilePanel(null);
   }
 
   function replaceWithTemplate(template: FlowTemplate) {
@@ -522,6 +600,9 @@ export default function FlowBuilderPage() {
             onToggleMenu={(nodeId) => setNodeMenuId(nodeMenuId === nodeId ? null : nodeId)}
             onAddStep={(nodeId) => openAddStep(nodeId)}
             onAddBranch={(nodeId) => openAddStep(nodeId, true)}
+            onQuickInsertStep={(parentId, item, isBranch, branchLabel) =>
+              insertStepFromNode(parentId, item, isBranch, branchLabel)
+            }
             onCreateNode={() => { setLibraryView("nodes"); setMobilePanel("palette"); window.setTimeout(() => document.querySelector<HTMLInputElement>(".search input")?.focus(), 0); }}
             onOpenCopilot={() => setCopilotOpen(true)}
             commandsRef={canvasCommandsRef}
