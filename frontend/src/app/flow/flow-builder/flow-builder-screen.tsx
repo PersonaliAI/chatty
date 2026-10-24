@@ -13,7 +13,7 @@ import { FlowLibrary } from "./flow-library";
 import { NodeInspector } from "./node-inspector";
 import { ConnectionModal } from "./connection-modal";
 import { getProviderConnection } from "./connections";
-import { autoLayoutGraph, findAvailableNodePosition, FLOW_NODE_LAYOUT } from "./graph-layout";
+import { autoLayoutGraph, findAvailableNodePosition, FLOW_NODE_LAYOUT, nodesOverlap } from "./graph-layout";
 import { FlowCopilotDrawer } from "./flow-copilot-drawer";
 import { FlowHealthModal } from "./flow-health-modal";
 import type { FlowConnection, FlowData, FlowEdge, FlowNode, FlowRun, FlowRunTrace } from "./types";
@@ -176,7 +176,19 @@ export default function FlowBuilderPage() {
       const payload = await response.json() as { versions?: Array<{ id: string; flow_id?: string; flow_name?: string; version: number; flow_data: FlowData; status: string }> };
       const latest = payload.versions?.find((item) => !selectedFlow || item.flow_id === selectedFlow);
       if (!latest?.flow_data) return;
-       const next = { nodes: latest.flow_data.nodes ?? [], edges: latest.flow_data.edges ?? [], paths: latest.flow_data.paths ?? [] };
+      const rawNodes = latest.flow_data.nodes ?? [];
+      const rawEdges = latest.flow_data.edges ?? [];
+      let hasOverlap = false;
+      for (let i = 0; i < rawNodes.length && !hasOverlap; i += 1) {
+        for (let j = i + 1; j < rawNodes.length; j += 1) {
+          if (nodesOverlap(rawNodes[i], rawNodes[j], 16, 16)) {
+            hasOverlap = true;
+            break;
+          }
+        }
+      }
+      const nextNodes = hasOverlap ? autoLayoutGraph(rawNodes, rawEdges) : rawNodes;
+      const next = { nodes: nextNodes, edges: rawEdges, paths: latest.flow_data.paths ?? [] };
       graphRef.current = next; setNodes(next.nodes); setEdges(next.edges); setFlowId(latest.flow_id || selectedFlow); setFlowName(latest.flow_name || "New workflow"); setVersion(latest.version); setPublished(latest.status === "published"); setSaved(true); setSyncState("Synced from Chatty"); historyRef.current = []; futureRef.current = []; setHistorySize(0); setFutureSize(0);
     }).catch(() => setSyncState("Unable to sync workflow"));
   }, []);
@@ -250,7 +262,8 @@ export default function FlowBuilderPage() {
       if (!res.ok) throw new Error("Auto-fix failed");
       const data = await res.json() as { flow_data?: FlowData; flow_name?: string };
       if (data.flow_data && data.flow_data.nodes) {
-        setGraph(data.flow_data, true);
+        const layoutedNodes = autoLayoutGraph(data.flow_data.nodes, data.flow_data.edges ?? []);
+        setGraph({ ...data.flow_data, nodes: layoutedNodes }, true);
         if (data.flow_name) setFlowName(data.flow_name);
         setSyncState("Auto-fixed with AI");
         setHealthModalOpen(false);
@@ -530,7 +543,25 @@ export default function FlowBuilderPage() {
         </section>
          {inspectorOpen && <aside className={`inspector ${mobilePanel === "inspector" ? "mobile-open" : ""}`}>
            <div className="panel-head"><div><small>CONFIGURE</small><h2>{selected ? selected.title : "Select a node"}</h2></div><button type="button" className="icon-btn inspector-close" onClick={() => { setInspectorOpen(false); setSelectedId(""); setMobilePanel(null); }} aria-label="Close inspector" title="Close inspector"><X size={17} /></button></div>
-           <NodeInspector selected={selected} nodes={nodes} connections={connections} onUpdateNode={updateNode} onUpdateConfig={updateConfig} onConnectNodes={connectNodes} onRemove={removeNode} onOpenConnection={() => { if (selected) setConnectionProvider(getProviderConnection(selected) ?? null); }} onOpenChatty={() => void startOAuth(selected?.provider ?? "")} connectionBusy={Boolean(connectingProvider)} />
+           <NodeInspector
+             selected={selected}
+             nodes={nodes}
+             edges={edges}
+             connections={connections}
+             onUpdateNode={updateNode}
+             onUpdateConfig={updateConfig}
+             onConnectNodes={connectNodes}
+             onUpdateEdgeLabel={(src, dst, label) => {
+               changeEdges(graphRef.current.edges.map((e) => (e.from === src && e.to === dst ? { ...e, label: label || undefined } : e)));
+             }}
+             onRemoveEdge={(src, dst) => {
+               changeEdges(graphRef.current.edges.filter((e) => !(e.from === src && e.to === dst)));
+             }}
+             onRemove={removeNode}
+             onOpenConnection={() => { if (selected) setConnectionProvider(getProviderConnection(selected) ?? null); }}
+             onOpenChatty={() => void startOAuth(selected?.provider ?? "")}
+             connectionBusy={Boolean(connectingProvider)}
+           />
            {validationIssues.length > 0 && <div className="validation-box"><div><AlertCircle size={14} /><b>Before publishing</b><span>{validationIssues.length}</span></div>{validationIssues.slice(0, 4).map((issue) => <button type="button" className="validation-issue" key={issue} onClick={() => focusValidationIssue(issue)}>{issue}</button>)}</div>}
          </aside>}
       </> : <section className="history-area"><RunHistory runs={runs} loading={runsLoading} selectedRun={selectedRun} onSelect={setSelectedRun} onRefresh={() => setRunsRefresh((value) => value + 1)} onBack={() => setView("canvas")} /></section>}
@@ -547,7 +578,8 @@ export default function FlowBuilderPage() {
       flowName={flowName}
       currentGraph={{ nodes, edges, paths: graphRef.current.paths }}
       onApplyGraph={(next, newName) => {
-        setGraph(next, true);
+        const layoutedNodes = autoLayoutGraph(next.nodes ?? [], next.edges ?? []);
+        setGraph({ ...next, nodes: layoutedNodes }, true);
         if (newName) setFlowName(newName);
         setSyncState("Updated by AI Copilot");
         window.setTimeout(() => canvasCommandsRef.current?.fitView(), 100);
@@ -557,6 +589,7 @@ export default function FlowBuilderPage() {
         setGraph({ nodes: layouted, edges, paths: graphRef.current.paths }, true);
         window.setTimeout(() => canvasCommandsRef.current?.fitView(), 80);
       }}
+      onSaveDraft={() => void saveDraft(false)}
       onPublishDraft={() => void saveDraft(true)}
     />
     <FlowHealthModal

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, ExternalLink, Loader2, Settings2, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ExternalLink, Loader2, Settings2, Trash2, X } from "lucide-react";
 import { getProviderConnection, providerConnectionLabel } from "./connections";
 import { findNodeDefinition, type NodeField } from "./node-registry";
 import { NodeIcon } from "./node-icon";
-import type { FlowConnection, FlowNode } from "./types";
+import type { FlowConnection, FlowEdge, FlowNode } from "./types";
 
 function ModernSelect({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -30,17 +30,34 @@ function NodeFieldEditor({ field, value, onChange }: { field: NodeField; value: 
 type Props = {
   selected: FlowNode | null;
   nodes: FlowNode[];
+  edges?: FlowEdge[];
   connections: FlowConnection[];
   onUpdateNode: (nodeId: string, update: Partial<FlowNode>) => void;
   onUpdateConfig: (key: string, value: string) => void;
   onConnectNodes: (sourceId: string, targetId: string) => void;
+  onUpdateEdgeLabel?: (sourceId: string, targetId: string, label: string) => void;
+  onRemoveEdge?: (sourceId: string, targetId: string) => void;
   onRemove: (nodeId: string) => void;
   onOpenConnection: () => void;
   onOpenChatty: () => void;
   connectionBusy: boolean;
 };
 
-export function NodeInspector({ selected, nodes, connections, onUpdateNode, onUpdateConfig, onConnectNodes, onRemove, onOpenConnection, onOpenChatty, connectionBusy }: Props) {
+export function NodeInspector({
+  selected,
+  nodes,
+  edges = [],
+  connections,
+  onUpdateNode,
+  onUpdateConfig,
+  onConnectNodes,
+  onUpdateEdgeLabel,
+  onRemoveEdge,
+  onRemove,
+  onOpenConnection,
+  onOpenChatty,
+  connectionBusy,
+}: Props) {
   const definition = selected ? findNodeDefinition(selected) : undefined;
   const connectionDefinition = selected ? getProviderConnection(selected) : undefined;
   const providerConnections = selected ? connections.filter((connection) => connection.provider === selected.provider && connection.status === "connected") : [];
@@ -48,6 +65,10 @@ export function NodeInspector({ selected, nodes, connections, onUpdateNode, onUp
   const inspectorFields = definition?.fields ?? [{ key: "operation", label: "Operation", type: "text" as const }, { key: "url", label: "Adapter endpoint URL", type: "url" as const, required: selected?.kind === "action", placeholder: "https://..." }];
 
   if (!selected) return <div className="empty-inspector"><Settings2 size={22} /><p>Select a node to configure its parameters, credentials, retries, and outputs.</p></div>;
+
+  const outgoingEdges = edges.filter((e) => e.from === selected.id);
+  const connectedTargetIds = new Set(outgoingEdges.map((e) => e.to));
+  const availableTargets = nodes.filter((node) => node.id !== selected.id && node.kind !== "trigger" && !connectedTargetIds.has(node.id));
 
   return <div className="inspector-body">
     <div className="selected-summary"><span className="summary-icon" style={{ color: selected.color, background: `${selected.color}16` }}><NodeIcon icon={selected.icon} /></span><div><b>{selected.title}</b><span>{selected.subtitle}</span></div></div>
@@ -57,7 +78,56 @@ export function NodeInspector({ selected, nodes, connections, onUpdateNode, onUp
     {connectionDefinition && <div className="inspector-section connection-section"><div className="section-title">Provider connection</div><p className="connection-help">Credentials are encrypted and scoped to this bot.</p>{providerConnections.length > 0 ? <ModernSelect label={`${selected.provider} connection`} value={selectedConnection ? providerConnectionLabel(selectedConnection) : ""} options={providerConnections.map(providerConnectionLabel)} onChange={(value) => { const connection = providerConnections.find((item) => providerConnectionLabel(item) === value); if (connection) onUpdateConfig("connection_id", connection.id); }} /> : <div className="connection-empty">No {selected.provider} connection is available.</div>}<button type="button" className="connection-action" onClick={connectionDefinition.oauthStartPath ? onOpenChatty : onOpenConnection} disabled={connectionBusy}>{connectionBusy ? <Loader2 className="spin" size={14} /> : connectionDefinition.oauthStartPath ? <ExternalLink size={14} /> : <NodeIcon icon={selected.icon} size={14} />}{providerConnections.length > 0 ? "Manage connections" : `Connect ${selected.provider}`}</button>{selected.config.connection_id && !selectedConnection && <small className="required-mark">Select a current connection before publishing.</small>}</div>}
     {selected.n8nType && <div className="inspector-section"><div className="section-title">n8n parameters</div><textarea className="json-editor" value={JSON.stringify(selected.n8nParameters ?? {}, null, 2)} onChange={(event) => { try { onUpdateNode(selected.id, { n8nParameters: JSON.parse(event.target.value) as Record<string, unknown> }); } catch { /* Keep the last valid JSON until the user finishes typing. */ } }} spellCheck={false} rows={8} /></div>}
     <div className="inspector-section"><div className="section-title">Reliability</div><button type="button" className="toggle-row toggle-button" onClick={() => onUpdateConfig("retry_enabled", selected.config.retry_enabled === "true" ? "false" : "true")}><span><b>Retry failed runs</b><small>Three attempts with backoff</small></span><span className={`toggle ${selected.config.retry_enabled !== "false" ? "on" : ""}`} /></button><button type="button" className="toggle-row toggle-button" onClick={() => onUpdateConfig("idempotency_enabled", selected.config.idempotency_enabled === "false" ? "true" : "false")}><span><b>Idempotency key</b><small>Prevent duplicate side effects</small></span><span className={`toggle ${selected.config.idempotency_enabled !== "false" ? "on" : ""}`} /></button></div>
-    {selected.kind !== "trigger" && <div className="connect-list"><div className="section-title">Next step</div>{nodes.filter((node) => node.id !== selected.id).map((node) => <button type="button" key={node.id} onClick={() => onConnectNodes(selected.id, node.id)}><NodeIcon icon={node.icon} size={14} />{node.title}<ArrowRight size={14} /></button>)}</div>}
+    {outgoingEdges.length > 0 && (
+      <div className="inspector-section">
+        <div className="section-title">Connected paths ({outgoingEdges.length})</div>
+        <div className="outgoing-edges-list">
+          {outgoingEdges.map((edge) => {
+            const targetNode = nodes.find((n) => n.id === edge.to);
+            return (
+              <div key={`${edge.from}->${edge.to}`} className="outgoing-edge-item">
+                <div className="outgoing-edge-head">
+                  <span className="outgoing-edge-target">
+                    <ArrowRight size={12} />
+                    <b>{targetNode?.title || edge.to}</b>
+                  </span>
+                  {onRemoveEdge && (
+                    <button
+                      type="button"
+                      className="outgoing-edge-remove"
+                      onClick={() => onRemoveEdge(edge.from, edge.to)}
+                      title="Disconnect path"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                {selected.kind === "logic" && onUpdateEdgeLabel && (
+                  <input
+                    className="outgoing-edge-label-input"
+                    value={edge.label ?? ""}
+                    placeholder="Branch label (e.g. sales, else)"
+                    onChange={(e) => onUpdateEdgeLabel(edge.from, edge.to, e.target.value)}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+    {availableTargets.length > 0 && (
+      <div className="connect-list">
+        <div className="section-title">Connect next step</div>
+        {availableTargets.map((node) => (
+          <button type="button" key={node.id} onClick={() => onConnectNodes(selected.id, node.id)}>
+            <NodeIcon icon={node.icon} size={14} />
+            {node.title}
+            <ArrowRight size={14} />
+          </button>
+        ))}
+      </div>
+    )}
     <button type="button" className="delete-btn" onClick={() => onRemove(selected.id)}><Trash2 size={14} /> Remove node</button>
   </div>;
 }

@@ -212,7 +212,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .canvas-empty-state button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* Intercom-style workflow cards on the n8n-grade interaction canvas. */
-.n8n-flow-canvas .react-flow__node { width: 312px; min-height: 220px; overflow: visible; }
+.n8n-flow-canvas .react-flow__node { width: 312px; height: auto !important; min-height: 220px; overflow: visible; }
 .intercom-flow-node { position: relative; width: 312px; min-height: 220px; color: var(--ink); cursor: pointer; }
 .intercom-node-card { position: relative; min-height: 220px; overflow: hidden; border: 1px solid #d8dee8; border-radius: 14px; background: var(--paper); box-shadow: 0 7px 18px rgba(15, 23, 42, .08); transition: border-color .16s ease, box-shadow .16s ease; }
 .intercom-flow-node:hover .intercom-node-card { border-color: #aeb9c8; box-shadow: 0 12px 26px rgba(15, 23, 42, .12); }
@@ -227,11 +227,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .intercom-trigger-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; }
 .intercom-node-copy { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
 .intercom-pill { justify-self: start; padding: 5px 9px; border: 1px solid #e0e5ec; border-radius: 999px; color: #556274; background: #f8fafc; font-size: 10px; font-weight: 700; }
-.intercom-message-preview { padding: 12px; border-radius: 9px; color: #283548; background: #f4f6f9; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.intercom-message-preview { max-height: 76px; overflow: hidden; padding: 11px 12px; border-radius: 9px; color: #283548; background: #f4f6f9; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
 .intercom-action-chip { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 10px; border: 1px solid #e1e6ed; border-radius: 9px; background: #fbfcfe; }
-.intercom-action-chip span { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; }
+.intercom-action-chip span { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; flex-shrink: 0; }
 .intercom-action-chip b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.intercom-add-step, .intercom-add-branch { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; border: 1px solid #e1e6ed; border-radius: 999px; color: #475569; background: #fff; font-size: 11px; font-weight: 700; }
+.intercom-node-actions-row { display: flex; gap: 6px; width: 100%; }
+.intercom-add-step, .intercom-add-branch { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; border: 1px solid #e1e6ed; border-radius: 999px; color: #475569; background: #fff; font-size: 11px; font-weight: 700; }
 .intercom-add-step:hover, .intercom-add-branch:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .intercom-add-branch { border-style: dashed; color: #b7791f; background: #fffbeb; }
 .intercom-flow-node .n8n-node-status-icons { position: absolute; right: 10px; top: 14px; display: flex; align-items: center; }
@@ -691,7 +692,23 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 }
 .flow-copilot-apply-btn.applied {
   background: #10b981;
-  cursor: default;
+}
+.flow-copilot-draft-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 11px;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.flow-copilot-draft-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
 }
 .flow-copilot-publish-btn {
   display: inline-flex;
@@ -705,6 +722,62 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   font-weight: 700;
   cursor: pointer;
   border: 0;
+}
+.copilot-autoapply-pill {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.copilot-autoapply-pill.on {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.outgoing-edges-list {
+  display: grid;
+  gap: 8px;
+}
+.outgoing-edge-item {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+.outgoing-edge-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.outgoing-edge-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink);
+}
+.outgoing-edge-remove {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--muted);
+}
+.outgoing-edge-remove:hover {
+  background: #fee2e2;
+  color: var(--danger);
+}
+.outgoing-edge-label-input {
+  margin-top: 6px !important;
+  min-height: 30px !important;
+  padding: 5px 8px !important;
+  font-size: 11px !important;
 }
 
 .flow-copilot-suggestions {

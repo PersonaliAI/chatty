@@ -71,6 +71,32 @@ function NodeExecutionMark({ status }: { status: NonNullable<FlowNode["execution
   return <span className={`n8n-node-status n8n-node-status-${status}`} title={label} aria-label={label}><StatusIcon className={status === "running" ? "n8n-node-status-spin" : ""} size={14} /></span>;
 }
 
+function summarizeNodeAction(data: FlowNode): string {
+  const cfg = data.config ?? {};
+  if (data.type === "core.condition" && cfg.field) {
+    return `${cfg.field} ${cfg.operator || "equals"} "${cfg.value || ""}"`;
+  }
+  if (data.type === "core.wait" && cfg.duration) {
+    return `Delay ${cfg.duration}s`;
+  }
+  if (data.type === "chatty.ai" && cfg.instruction) {
+    return `${cfg.operation || "Classify"}: ${cfg.instruction.slice(0, 48)}${cfg.instruction.length > 48 ? "…" : ""}`;
+  }
+  if (data.type === "action.slack" && cfg.channel) {
+    return `Post to ${cfg.channel}`;
+  }
+  if (data.type === "action.email" && cfg.to) {
+    return `Email → ${cfg.to}`;
+  }
+  if (data.type === "action.crm" && cfg.stage) {
+    return `CRM stage → ${cfg.stage}`;
+  }
+  if (data.type === "n8n.httpRequest" && cfg.url) {
+    return `${cfg.method || "POST"} ${cfg.url.replace(/^https?:\/\//, "").slice(0, 32)}`;
+  }
+  return cfg.operation || (data.kind === "trigger" ? "Start when this event occurs" : data.subtitle);
+}
+
 function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
   const updateNodeInternals = useUpdateNodeInternals();
   useEffect(() => {
@@ -80,7 +106,11 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
 
   const status = data.executionState ?? "idle";
   const message = data.config.message?.trim();
-  const operation = data.config.operation || (data.kind === "trigger" ? "Start when this event occurs" : data.subtitle);
+  const operationSummary = summarizeNodeAction(data);
+  const triggerPill = data.type === "n8n.webhook"
+    ? (data.config.path || "/incoming-event")
+    : (data.config.event || "Chatty event");
+
   return (
     <div
       className={`intercom-flow-node ${selected ? "is-selected" : ""} ${data.kind === "trigger" ? "is-trigger" : ""} n8n-state-${status}`}
@@ -112,11 +142,41 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
         </button>
       </div>
       <div className="intercom-node-card">
-        <div className="intercom-node-header"><span className="intercom-step-label">{data.kind === "trigger" ? "WHEN" : `${String.fromCharCode(65 + Math.min(data.stepIndex ?? 0, 25))}.`}</span><strong>{data.title}</strong>{data.pathId && data.pathId !== "main" && <span className="intercom-path-chip">{data.pathTitle}</span>}<ChevronDown size={15} /></div>
+        <div className="intercom-node-header">
+          <span className="intercom-step-label">{data.kind === "trigger" ? "WHEN" : `${String.fromCharCode(65 + Math.min(data.stepIndex ?? 0, 25))}.`}</span>
+          <strong>{data.title}</strong>
+          {data.pathId && data.pathId !== "main" && <span className="intercom-path-chip">{data.pathTitle}</span>}
+          <ChevronDown size={15} />
+        </div>
         <div className="intercom-node-body">
-          {data.kind === "trigger" ? <><div className="intercom-trigger-icon" style={{ color: data.color, background: `${data.color}18` }}><NodeIcon icon={data.icon} size={24} /></div><p className="intercom-node-copy">{data.subtitle}</p><span className="intercom-pill">Chatty event</span></> : data.kind === "chatty" && message ? <div className="intercom-message-preview">{message}</div> : <div className="intercom-action-chip"><span style={{ color: data.color, background: `${data.color}18` }}><NodeIcon icon={data.icon} size={15} /></span><b>{operation}</b></div>}
-          {data.kind !== "trigger" && <button type="button" className="intercom-add-step" onClick={(event) => { event.stopPropagation(); data.onAddStep(data.id); }}><Plus size={15} /> Add step</button>}
-          {data.kind === "logic" && <button type="button" className="intercom-add-branch" onClick={(event) => { event.stopPropagation(); data.onAddBranch(data.id); }}><Plus size={14} /> Add path</button>}
+          {data.kind === "trigger" ? (
+            <>
+              <div className="intercom-trigger-icon" style={{ color: data.color, background: `${data.color}18` }}>
+                <NodeIcon icon={data.icon} size={24} />
+              </div>
+              <p className="intercom-node-copy">{data.subtitle}</p>
+              <span className="intercom-pill">{triggerPill}</span>
+            </>
+          ) : data.kind === "chatty" && data.type === "chatty.reply" && message ? (
+            <div className="intercom-message-preview">{message}</div>
+          ) : (
+            <div className="intercom-action-chip">
+              <span style={{ color: data.color, background: `${data.color}18` }}>
+                <NodeIcon icon={data.icon} size={15} />
+              </span>
+              <b>{operationSummary}</b>
+            </div>
+          )}
+          <div className="intercom-node-actions-row">
+            <button type="button" className="intercom-add-step" onClick={(event) => { event.stopPropagation(); data.onAddStep(data.id); }}>
+              <Plus size={14} /> Add step
+            </button>
+            {data.kind === "logic" && (
+              <button type="button" className="intercom-add-branch" onClick={(event) => { event.stopPropagation(); data.onAddBranch(data.id); }}>
+                <Plus size={14} /> Add path
+              </button>
+            )}
+          </div>
         </div>
         <span className="n8n-node-status-icons"><NodeExecutionMark status={status} /></span>
       </div>
@@ -152,23 +212,36 @@ function FlowCanvasInner(props: Props) {
     id: node.id,
     type: "chatty",
     position: { x: node.x, y: node.y },
-    // React Flow keeps nodes hidden until it has dimensions. The card has a
-    // stable Intercom-style size, so provide it up front while ResizeObserver
-    // measures the rendered handles.
-    width: FLOW_NODE_LAYOUT.width,
-    height: FLOW_NODE_LAYOUT.height,
+    initialWidth: FLOW_NODE_LAYOUT.width,
+    initialHeight: FLOW_NODE_LAYOUT.height,
     data: { ...node, ...stableActions, openMenuId: props.nodeMenuId },
     selected: node.id === props.selectedId,
   }), [props.nodeMenuId, props.selectedId, stableActions]);
+
+  const toCanvasEdge = useCallback((edge: FlowEdge, nodeList: FlowNode[]): Edge => {
+    const srcNode = nodeList.find((n) => n.id === edge.from);
+    const dstNode = nodeList.find((n) => n.id === edge.to);
+    const isCompleted = srcNode?.executionState === "completed" && dstNode?.executionState === "completed";
+    return {
+      id: `${edge.from}->${edge.to}`,
+      source: edge.from,
+      target: edge.to,
+      type: "smoothstep",
+      animated: isCompleted,
+      label: edge.label,
+      labelStyle: { fill: "#334155", fontWeight: 700, fontSize: 10 },
+      labelBgStyle: { fill: "#ffffff", stroke: "#cbd5e1", strokeWidth: 1 },
+      labelBgPadding: [6, 3],
+      labelBgBorderRadius: 6,
+      style: {
+        stroke: isCompleted ? "#22c55e" : "#9aaabd",
+        strokeWidth: isCompleted ? 2.2 : 1.8,
+      },
+    };
+  }, []);
+
   const [canvasNodes, setCanvasNodes] = useState<CanvasNode[]>(() => props.nodes.map(toCanvasNode));
-  const [canvasEdges, setCanvasEdges] = useState<Edge[]>(() => props.edges.map((edge) => ({
-    id: `${edge.from}->${edge.to}`,
-    source: edge.from,
-    target: edge.to,
-    type: "smoothstep",
-    animated: false,
-    style: { stroke: "#9aaabd", strokeWidth: 1.8 },
-  })));
+  const [canvasEdges, setCanvasEdges] = useState<Edge[]>(() => props.edges.map((edge) => toCanvasEdge(edge, props.nodes)));
   const hadNodesRef = useRef(props.nodes.length > 0);
 
   useEffect(() => {
@@ -189,20 +262,13 @@ function FlowCanvasInner(props: Props) {
   }, [props.nodes, props.nodeMenuId, props.selectedId, toCanvasNode]);
 
   useEffect(() => {
-    setCanvasEdges(props.edges.map((edge) => ({
-      id: `${edge.from}->${edge.to}`,
-      source: edge.from,
-      target: edge.to,
-      type: "smoothstep",
-      animated: false,
-      style: { stroke: "#9aaabd", strokeWidth: 1.8 },
-    })));
-  }, [props.edges]);
+    setCanvasEdges(props.edges.map((edge) => toCanvasEdge(edge, props.nodes)));
+  }, [props.edges, props.nodes, toCanvasEdge]);
 
   useEffect(() => {
     const hasNodes = props.nodes.length > 0;
     if (hasNodes && !hadNodesRef.current) {
-      const timer = window.setTimeout(() => reactFlow.fitView({ padding: 0.35, duration: 180 }), 80);
+      const timer = window.setTimeout(() => reactFlow.fitView({ padding: 0.28, duration: 200 }), 80);
       hadNodesRef.current = hasNodes;
       return () => window.clearTimeout(timer);
     }
@@ -225,7 +291,7 @@ function FlowCanvasInner(props: Props) {
       zoomIn: () => { void reactFlow.zoomIn({ duration: 160 }); },
       zoomOut: () => { void reactFlow.zoomOut({ duration: 160 }); },
       resetZoom: () => { void reactFlow.zoomTo(1, { duration: 160 }); },
-      fitView: () => { void reactFlow.fitView({ padding: 0.35, duration: 160 }); },
+      fitView: () => { void reactFlow.fitView({ padding: 0.28, duration: 180 }); },
     };
     return () => { if (props.commandsRef) props.commandsRef.current = null; };
   }, [props.commandsRef, reactFlow]);
@@ -235,18 +301,32 @@ function FlowCanvasInner(props: Props) {
     setCanvasNodes(next);
     const removed = new Set(changes.filter((change) => change.type === "remove").map((change) => change.id));
     if (removed.size > 0) {
-      props.onEdgesChange(canvasEdges.filter((edge) => !removed.has(edge.source) && !removed.has(edge.target)).map((edge) => ({ from: edge.source, to: edge.target })));
+      props.onEdgesChange(
+        canvasEdges
+          .filter((edge) => !removed.has(edge.source) && !removed.has(edge.target))
+          .map((edge) => ({
+            from: edge.source,
+            to: edge.target,
+            ...(typeof edge.label === "string" && edge.label ? { label: edge.label } : {}),
+          })),
+      );
     }
     props.onNodesChange(next.map((node) => {
       const source = props.nodes.find((item) => item.id === node.id);
       return source ? { ...source, x: node.position.x, y: node.position.y } : source;
     }).filter((node): node is FlowNode => Boolean(node)));
-  }, [canvasNodes, props]);
+  }, [canvasEdges, canvasNodes, props]);
 
-  const handleEdgesChange = useCallback((changes: EdgeChange[]) => {
+  const handleEdgesChange = useCallback((changes: EdgeChange<Edge>[]) => {
     const next = applyEdgeChanges(changes, canvasEdges);
     setCanvasEdges(next);
-    props.onEdgesChange(next.map((edge) => ({ from: edge.source, to: edge.target })));
+    props.onEdgesChange(
+      next.map((edge) => ({
+        from: edge.source,
+        to: edge.target,
+        ...(typeof edge.label === "string" && edge.label ? { label: edge.label } : {}),
+      })),
+    );
   }, [canvasEdges, props]);
 
   const handleConnect = useCallback((connection: Connection) => {
@@ -265,7 +345,7 @@ function FlowCanvasInner(props: Props) {
         onInit={refreshNodeInternals}
         onPaneClick={() => props.onSelect("")}
         fitView
-        fitViewOptions={{ padding: 0.35, minZoom: 0.55, maxZoom: 1.1 }}
+        fitViewOptions={{ padding: 0.28, minZoom: 0.45, maxZoom: 1.05 }}
         minZoom={0.2}
         maxZoom={2}
         snapToGrid
@@ -286,7 +366,7 @@ function FlowCanvasInner(props: Props) {
           nodeColor={(node) => String((node?.data as CanvasNodeData | undefined)?.color || "#cbd5e1")}
           maskColor="rgba(247, 249, 252, 0.75)"
         />}
-        <button type="button" className="n8n-fit-view" onClick={() => reactFlow.fitView({ padding: 0.35 })} aria-label="Fit workflow to view">
+        <button type="button" className="n8n-fit-view" onClick={() => reactFlow.fitView({ padding: 0.28, duration: 180 })} aria-label="Fit workflow to view">
           <Code2 size={14} /> Fit view
         </button>
       </ReactFlow>

@@ -3,13 +3,17 @@ import type { FlowNode } from "./types";
 export const FLOW_NODE_LAYOUT = {
   width: 312,
   height: 260,
-  horizontalGap: 108,
-  verticalGap: 72,
+  horizontalGap: 136,
+  verticalGap: 92,
   originX: 96,
   originY: 96,
 } as const;
 
 type TemplateConnection = readonly [number, number, string?];
+
+function snapToGrid(value: number, grid = 16): number {
+  return Math.round(value / grid) * grid;
+}
 
 export function calculateTemplateLayers(stepCount: number, connections: readonly TemplateConnection[]): number[] {
   const children = Array.from({ length: stepCount }, () => [] as number[]);
@@ -38,8 +42,6 @@ export function calculateTemplateLayers(stepCount: number, connections: readonly
     }
   }
 
-  // Keep a deterministic position for an invalid cyclic template. The API
-  // still rejects the cycle before publish, but the draft must remain usable.
   for (let index = 0; index < stepCount; index += 1) {
     if (!visited.has(index)) layers[index] = Math.max(layers[index], 0);
   }
@@ -49,17 +51,20 @@ export function calculateTemplateLayers(stepCount: number, connections: readonly
 
 export function getTemplateNodePosition(layer: number, row: number): { x: number; y: number } {
   return {
-    x: FLOW_NODE_LAYOUT.originX + layer * (FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap),
-    y: FLOW_NODE_LAYOUT.originY + row * (FLOW_NODE_LAYOUT.height + FLOW_NODE_LAYOUT.verticalGap),
+    x: snapToGrid(FLOW_NODE_LAYOUT.originX + layer * (FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap)),
+    y: snapToGrid(FLOW_NODE_LAYOUT.originY + row * (FLOW_NODE_LAYOUT.height + FLOW_NODE_LAYOUT.verticalGap)),
   };
 }
 
-function overlaps(first: { x: number; y: number }, second: { x: number; y: number }): boolean {
-  const horizontal = first.x < second.x + FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap
-    && first.x + FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap > second.x;
-  const vertical = first.y < second.y + FLOW_NODE_LAYOUT.height + FLOW_NODE_LAYOUT.verticalGap
-    && first.y + FLOW_NODE_LAYOUT.height + FLOW_NODE_LAYOUT.verticalGap > second.y;
-  return horizontal && vertical;
+export function nodesOverlap(
+  first: { x: number; y: number },
+  second: { x: number; y: number },
+  paddingX = 64,
+  paddingY = 48,
+): boolean {
+  const minDx = FLOW_NODE_LAYOUT.width + paddingX;
+  const minDy = FLOW_NODE_LAYOUT.height + paddingY;
+  return Math.abs(first.x - second.x) < minDx && Math.abs(first.y - second.y) < minDy;
 }
 
 export function findAvailableNodePosition(
@@ -70,86 +75,160 @@ export function findAvailableNodePosition(
   const columnStep = FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap;
   const rowStep = FLOW_NODE_LAYOUT.height + FLOW_NODE_LAYOUT.verticalGap;
 
-  for (let column = 0; column < 12; column += 1) {
+  for (let column = 0; column < 14; column += 1) {
     for (const rowOffset of rowOffsets) {
       const candidate = {
-        x: preferred.x + column * columnStep,
-        y: preferred.y + rowOffset * rowStep,
+        x: snapToGrid(preferred.x + column * columnStep),
+        y: snapToGrid(preferred.y + rowOffset * rowStep),
       };
-      if (nodes.every((node) => !overlaps(candidate, node))) return candidate;
+      if (nodes.every((node) => !nodesOverlap(candidate, node))) return candidate;
     }
   }
 
-  return { x: preferred.x + 12 * columnStep, y: preferred.y };
+  return {
+    x: snapToGrid(preferred.x + 14 * columnStep),
+    y: snapToGrid(preferred.y),
+  };
 }
 
-export function autoLayoutGraph(nodes: FlowNode[], edges: Array<{ from: string; to: string }>): FlowNode[] {
+/**
+ * Computes a clean, non-overlapping topological DAG layout:
+ * 1. Kahn's longest-path layering (handles branches, merges, diamonds, and cycle fallback).
+ * 2. Sugiyama barycenter row ordering within each column to eliminate edge crossings.
+ * 3. Symmetrical vertical centering around the workflow spine.
+ * 4. Strict bounding-box collision guard so no two nodes ever overlap.
+ */
+export function autoLayoutGraph(
+  nodes: FlowNode[],
+  edges: Array<{ from: string; to: string; label?: string }>,
+): FlowNode[] {
   if (nodes.length === 0) return [];
-  const incoming = new Map<string, number>();
-  const outgoing = new Map<string, string[]>();
 
-  for (const node of nodes) {
-    incoming.set(node.id, 0);
-    outgoing.set(node.id, []);
+  const orderedIds = nodes.map((n) => n.id);
+  const nodeIds = new Set(orderedIds);
+  const orderIndex = new Map(orderedIds.map((id, idx) => [id, idx]));
+
+  const inDegree = new Map<string, number>();
+  const outgoing = new Map<string, string[]>();
+  const parents = new Map<string, string[]>();
+
+  for (const id of orderedIds) {
+    inDegree.set(id, 0);
+    outgoing.set(id, []);
+    parents.set(id, []);
   }
 
+  const seenEdges = new Set<string>();
   for (const edge of edges) {
-    if (incoming.has(edge.to)) {
-      incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1);
-    }
-    if (outgoing.has(edge.from)) {
-      outgoing.get(edge.from)?.push(edge.to);
+    const u = edge.from;
+    const v = edge.to;
+    const key = `${u}->${v}`;
+    if (nodeIds.has(u) && nodeIds.has(v) && u !== v && !seenEdges.has(key)) {
+      seenEdges.add(key);
+      outgoing.get(u)?.push(v);
+      parents.get(v)?.push(u);
+      inDegree.set(v, (inDegree.get(v) ?? 0) + 1);
     }
   }
 
   const layers = new Map<string, number>();
-  const queue = nodes
-    .filter((n) => (incoming.get(n.id) ?? 0) === 0 || n.kind === "trigger")
-    .map((n) => n.id);
-
+  const queue: string[] = orderedIds.filter((id) => (inDegree.get(id) ?? 0) === 0);
   for (const id of queue) {
     layers.set(id, 0);
   }
 
-  const visited = new Set<string>();
-  const queueCopy = [...queue];
+  const processed = new Set<string>();
+  while (processed.size < orderedIds.length) {
+    if (queue.length === 0) {
+      const remaining = orderedIds.find((id) => !processed.has(id));
+      if (!remaining) break;
+      const parentLayers = (parents.get(remaining) ?? [])
+        .filter((p) => layers.has(p))
+        .map((p) => (layers.get(p) ?? 0) + 1);
+      layers.set(remaining, parentLayers.length > 0 ? Math.max(...parentLayers) : 0);
+      queue.push(remaining);
+    }
 
-  while (queueCopy.length > 0) {
-    const current = queueCopy.shift();
-    if (!current) continue;
-    visited.add(current);
+    const current = queue.shift();
+    if (!current || processed.has(current)) continue;
+    processed.add(current);
     const curLayer = layers.get(current) ?? 0;
+
     for (const child of outgoing.get(current) ?? []) {
+      if (processed.has(child)) continue;
       layers.set(child, Math.max(layers.get(child) ?? 0, curLayer + 1));
-      if (!visited.has(child)) {
-        visited.add(child);
-        queueCopy.push(child);
+      const nextIn = (inDegree.get(child) ?? 1) - 1;
+      inDegree.set(child, nextIn);
+      if (nextIn <= 0) {
+        queue.push(child);
       }
     }
   }
 
-  let maxLayer = 0;
-  for (const l of layers.values()) {
-    if (l > maxLayer) maxLayer = l;
-  }
+  const nodesByLayer = new Map<number, FlowNode[]>();
   for (const node of nodes) {
-    if (!layers.has(node.id)) {
-      maxLayer += 1;
-      layers.set(node.id, maxLayer);
+    const l = layers.get(node.id) ?? 0;
+    const list = nodesByLayer.get(l) ?? [];
+    list.push(node);
+    nodesByLayer.set(l, list);
+  }
+
+  const stepX = FLOW_NODE_LAYOUT.width + FLOW_NODE_LAYOUT.horizontalGap;
+  const stepY = FLOW_NODE_LAYOUT.height + FLOW_NODE_LAYOUT.verticalGap;
+
+  let maxRows = 1;
+  for (const list of nodesByLayer.values()) {
+    if (list.length > maxRows) maxRows = list.length;
+  }
+  const spineY = FLOW_NODE_LAYOUT.originY + ((maxRows - 1) * stepY) / 2;
+
+  const assignedY = new Map<string, number>();
+  const coords = new Map<string, { x: number; y: number; stepIndex: number }>();
+  const placedBoxes: Array<{ x: number; y: number }> = [];
+
+  const sortedLayerIndices = [...nodesByLayer.keys()].sort((a, b) => a - b);
+  for (const layerIdx of sortedLayerIndices) {
+    const colNodes = [...(nodesByLayer.get(layerIdx) ?? [])];
+    if (layerIdx > 0 && colNodes.length > 1) {
+      colNodes.sort((a, b) => {
+        const pa = (parents.get(a.id) ?? []).filter((p) => assignedY.has(p));
+        const pb = (parents.get(b.id) ?? []).filter((p) => assignedY.has(p));
+        const avgA = pa.length > 0 ? pa.reduce((s, p) => s + (assignedY.get(p) ?? 0), 0) / pa.length : (orderIndex.get(a.id) ?? 0) * stepY;
+        const avgB = pb.length > 0 ? pb.reduce((s, p) => s + (assignedY.get(p) ?? 0), 0) / pb.length : (orderIndex.get(b.id) ?? 0) * stepY;
+        if (Math.abs(avgA - avgB) > 1) return avgA - avgB;
+        return (orderIndex.get(a.id) ?? 0) - (orderIndex.get(b.id) ?? 0);
+      });
+    }
+
+    const k = colNodes.length;
+    const colStartY = spineY - ((k - 1) * stepY) / 2;
+    const targetX = snapToGrid(FLOW_NODE_LAYOUT.originX + layerIdx * stepX);
+
+    for (let rowIdx = 0; rowIdx < k; rowIdx += 1) {
+      const node = colNodes[rowIdx];
+      let targetY = snapToGrid(colStartY + rowIdx * stepY);
+
+      while (placedBoxes.some((box) => nodesOverlap({ x: targetX, y: targetY }, box))) {
+        targetY = snapToGrid(targetY + stepY);
+      }
+
+      placedBoxes.push({ x: targetX, y: targetY });
+      assignedY.set(node.id, targetY);
+      coords.set(node.id, { x: targetX, y: targetY, stepIndex: layerIdx });
     }
   }
 
-  const rowsByLayer = new Map<number, number>();
   return nodes.map((node) => {
-    const layer = layers.get(node.id) ?? 0;
-    const row = rowsByLayer.get(layer) ?? 0;
-    rowsByLayer.set(layer, row + 1);
-    const pos = getTemplateNodePosition(layer, row);
+    const pos = coords.get(node.id) ?? {
+      x: FLOW_NODE_LAYOUT.originX,
+      y: FLOW_NODE_LAYOUT.originY,
+      stepIndex: 0,
+    };
     return {
       ...node,
       x: pos.x,
       y: pos.y,
-      stepIndex: layer,
+      stepIndex: pos.stepIndex,
     };
   });
 }

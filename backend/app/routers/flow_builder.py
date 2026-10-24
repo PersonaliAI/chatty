@@ -87,8 +87,8 @@ ALLOWED_NODE_KINDS = {
 }
 
 CONNECTION_REQUIRED_PROVIDERS = {
-    "Email", "Google", "Slack", "Discord", "HubSpot", "Notion", "Airtable",
-    "Stripe", "Telegram", "Twilio", "Chatty CRM",
+    "Google", "Discord", "HubSpot", "Notion", "Airtable",
+    "Stripe", "Telegram", "Twilio",
 }
 
 SUPPORTED_CONNECTION_TYPES = {"oauth", "api_key", "token", "basic", "webhook"}

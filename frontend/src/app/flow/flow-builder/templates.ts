@@ -1,4 +1,4 @@
-import { calculateTemplateLayers, getTemplateNodePosition } from "./graph-layout";
+import { autoLayoutGraph, calculateTemplateLayers, getTemplateNodePosition } from "./graph-layout";
 import { nodeCatalog } from "./node-registry";
 import type { FlowData, FlowNode, FlowPath } from "./types";
 
@@ -35,7 +35,7 @@ export const flowTemplates: FlowTemplate[] = [
       { type: "chatty.reply", config: { message: "Thanks for contacting us. We have your details and will ask a few quick questions." } },
       { type: "core.condition", config: { field: "data.intent", operator: "equals", value: "sales" } },
       { type: "chatty.reply", pathId: "qualified", pathTitle: "Qualified", config: { message: "Thanks. A specialist will follow up with the next steps." } },
-      { type: "n8n.httpRequest", pathId: "qualified", pathTitle: "Qualified", config: { method: "POST", body: "{\"event\":\"lead.qualified\",\"lead\":{{data}}}" } },
+      { type: "n8n.httpRequest", pathId: "qualified", pathTitle: "Qualified", config: { url: "https://api.example.com/v1/webhooks/lead-qualified", method: "POST", body: "{\"event\":\"lead.qualified\",\"lead\":{{data}}}" } },
       { type: "core.wait", pathId: "follow-up", pathTitle: "Follow-up", config: { duration: "900" } },
       { type: "chatty.reply", pathId: "follow-up", pathTitle: "Follow-up", config: { message: "We are still here if you need help. Reply to continue." } },
     ],
@@ -48,14 +48,14 @@ export const flowTemplates: FlowTemplate[] = [
     category: "Customer support",
     icon: "spark",
     color: "#a855f7",
-    setup: ["Connect the Chatty AI adapter", "Configure the escalation webhook endpoint", "Review the urgent and standard response paths"],
+    setup: ["Review the AI classification instruction", "Configure the escalation webhook endpoint", "Review the urgent and standard response paths"],
     steps: [
       { type: "chatty.event", config: { event: "message.user" } },
-      { type: "chatty.ai", config: { instruction: "Classify the visitor message as urgent, billing, technical, sales, or other. Return a category and a short reason." } },
+      { type: "chatty.ai", config: { operation: "Classify", instruction: "Classify the visitor message as urgent, billing, technical, sales, or other. Return a category and a short reason.", output_field: "category" } },
       { type: "chatty.reply", config: { message: "Thanks for your message. We are checking the right next step for you." } },
       { type: "core.condition", config: { field: "data.category", operator: "equals", value: "urgent" } },
       { type: "chatty.reply", pathId: "urgent", pathTitle: "Urgent", config: { message: "We have marked this as urgent and are notifying the support team now." } },
-      { type: "n8n.httpRequest", pathId: "urgent", pathTitle: "Urgent", config: { method: "POST", body: "{\"event\":\"support.escalation\",\"priority\":\"urgent\",\"data\":{{data}}}" } },
+      { type: "n8n.httpRequest", pathId: "urgent", pathTitle: "Urgent", config: { url: "https://api.example.com/v1/webhooks/support-escalation", method: "POST", body: "{\"event\":\"support.escalation\",\"priority\":\"urgent\",\"data\":{{data}}}" } },
       { type: "core.wait", pathId: "standard", pathTitle: "Standard", config: { duration: "300" } },
       { type: "chatty.reply", pathId: "standard", pathTitle: "Standard", config: { message: "A specialist will review your message and follow up as soon as possible." } },
     ],
@@ -72,10 +72,10 @@ export const flowTemplates: FlowTemplate[] = [
     steps: [
       { type: "chatty.event", config: { event: "meeting.booked" } },
       { type: "chatty.reply", config: { message: "Your meeting is booked. We look forward to speaking with you." } },
-      { type: "n8n.httpRequest", config: { method: "POST", body: "{\"event\":\"meeting.booked\",\"session_id\":\"{{session_id}}\",\"data\":{{data}}}" } },
+      { type: "n8n.httpRequest", config: { url: "https://api.example.com/v1/webhooks/meeting-booked", method: "POST", body: "{\"event\":\"meeting.booked\",\"session_id\":\"{{session_id}}\",\"data\":{{data}}}" } },
       { type: "core.wait", config: { duration: "86400" } },
       { type: "chatty.reply", config: { message: "This is a reminder for your upcoming meeting. Reply here if you need to reschedule." } },
-      { type: "n8n.httpRequest", config: { method: "POST", body: "{\"event\":\"meeting.reminder\",\"session_id\":\"{{session_id}}\",\"data\":{{data}}}" } },
+      { type: "n8n.httpRequest", config: { url: "https://api.example.com/v1/webhooks/meeting-reminder", method: "POST", body: "{\"event\":\"meeting.reminder\",\"session_id\":\"{{session_id}}\",\"data\":{{data}}}" } },
     ],
     connections: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5]],
   },
@@ -91,9 +91,9 @@ export const flowTemplates: FlowTemplate[] = [
       { type: "chatty.event", config: { event: "csat.submitted" } },
       { type: "core.condition", config: { field: "data.rating", operator: "equals", value: "1" } },
       { type: "chatty.reply", pathId: "recovery", pathTitle: "Recovery", config: { message: "Thank you for the honest feedback. We are sorry the experience fell short. A specialist will follow up." } },
-      { type: "n8n.httpRequest", pathId: "recovery", pathTitle: "Recovery", config: { method: "POST", body: "{\"event\":\"csat.recovery\",\"data\":{{data}}}" } },
+      { type: "n8n.httpRequest", pathId: "recovery", pathTitle: "Recovery", config: { url: "https://api.example.com/v1/webhooks/csat-recovery", method: "POST", body: "{\"event\":\"csat.recovery\",\"data\":{{data}}}" } },
       { type: "chatty.reply", pathId: "positive", pathTitle: "Positive", config: { message: "Thank you for your feedback. We are glad we could help." } },
-      { type: "n8n.httpRequest", pathId: "positive", pathTitle: "Positive", config: { method: "POST", body: "{\"event\":\"csat.positive\",\"data\":{{data}}}" } },
+      { type: "n8n.httpRequest", pathId: "positive", pathTitle: "Positive", config: { url: "https://api.example.com/v1/webhooks/csat-positive", method: "POST", body: "{\"event\":\"csat.positive\",\"data\":{{data}}}" } },
     ],
     connections: [[0, 1], [1, 2, "low score"], [2, 3], [1, 4, "other score"], [4, 5]],
   },
@@ -104,7 +104,7 @@ export function createTemplateGraph(template: FlowTemplate): FlowData {
   const rowsByLayer = new Map<number, number>();
   const paths = new Map<string, FlowPath>();
 
-  const nodes = template.steps.map((step, index) => {
+  const initialNodes = template.steps.map((step, index) => {
     const definition = nodeCatalog.find((item) => item.type === step.type);
     if (!definition) throw new Error(`Template node ${step.type} is not available.`);
     const layer = layers[index] ?? 0;
@@ -139,13 +139,17 @@ export function createTemplateGraph(template: FlowTemplate): FlowData {
     return node;
   });
 
+  const edges = template.connections.map(([from, to, label]) => ({
+    from: initialNodes[from].id,
+    to: initialNodes[to].id,
+    ...(label ? { label } : {}),
+  }));
+
+  const positionedNodes = autoLayoutGraph(initialNodes, edges);
+
   return {
-    nodes,
-    edges: template.connections.map(([from, to, label]) => ({
-      from: nodes[from].id,
-      to: nodes[to].id,
-      ...(label ? { label } : {}),
-    })),
+    nodes: positionedNodes,
+    edges,
     paths: [...paths.values()],
   };
 }

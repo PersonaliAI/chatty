@@ -177,26 +177,55 @@ async def _execute_graph(
                         "content": reply,
                         "sender": "ai",
                     }).execute())
-        elif node.get("kind") == "logic":
-            field_path = str(config.get("field") or config.get("variable") or "").strip()
-            op = str(config.get("operator") or "equals").lower().strip()
-            expected = str(config.get("value") or "").strip()
-            actual = _template_value(field_path, inputs) if field_path else ""
-            if op in {"equals", "eq", "=="}:
-                matched = actual.lower() == expected.lower()
-            elif op in {"not_equals", "neq", "!="}:
-                matched = actual.lower() != expected.lower()
-            elif op in {"contains", "in"}:
-                matched = expected.lower() in actual.lower()
-            elif op in {"matches", "regex"}:
-                matched = bool(re.search(expected, actual, re.IGNORECASE)) if expected else False
+        elif node.get("kind") == "chatty" and node.get("type") == "chatty.ai":
+            instruction = str(config.get("instruction") or "").strip()
+            if not instruction:
+                status = "failed"
+                failed = f"{title} has no AI instruction configured"
             else:
-                matched = True
-            status = "completed" if matched else "skipped"
-            trace_step["matched"] = matched
+                status = "completed"
+                trace_step["operation"] = str(config.get("operation") or "Classify")
+        elif node.get("kind") == "logic":
+            if node.get("type") == "core.wait":
+                status = "completed"
+                trace_step["duration_s"] = str(config.get("duration") or "1")
+            else:
+                field_path = str(config.get("field") or config.get("variable") or "").strip()
+                op = str(config.get("operator") or "equals").lower().strip()
+                expected = str(config.get("value") or "").strip()
+                actual = _template_value(field_path, inputs) if field_path else ""
+                if op in {"equals", "eq", "=="}:
+                    matched = actual.lower() == expected.lower()
+                elif op in {"not_equals", "neq", "!="}:
+                    matched = actual.lower() != expected.lower()
+                elif op in {"contains", "in"}:
+                    matched = expected.lower() in actual.lower()
+                elif op in {"matches", "regex"}:
+                    matched = bool(re.search(expected, actual, re.IGNORECASE)) if expected else False
+                else:
+                    matched = True
+                status = "completed" if matched else "skipped"
+                trace_step["matched"] = matched
         elif node.get("kind") == "action":
+            node_type = str(node.get("type") or "").strip()
             url = str(config.get("url") or "").strip()
-            if not url:
+            if not url and node_type in {"action.crm", "action.email", "action.slack"}:
+                if node_type == "action.crm":
+                    status = "completed"
+                    trace_step["stage"] = str(config.get("stage") or "qualified")
+                elif node_type == "action.email":
+                    recipient = _render_widget_reply(str(config.get("to") or ""), inputs)
+                    if not recipient:
+                        status = "failed"
+                        failed = f"{title} has no recipient configured"
+                    else:
+                        status = "completed"
+                        trace_step["to"] = recipient
+                elif node_type == "action.slack":
+                    channel = str(config.get("channel") or "#alerts").strip()
+                    status = "completed"
+                    trace_step["channel"] = channel
+            elif not url:
                 status = "failed"
                 failed = f"{title} has no adapter endpoint configured"
             else:
