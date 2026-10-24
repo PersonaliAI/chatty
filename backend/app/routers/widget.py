@@ -726,6 +726,10 @@ async def widget_chat(
         "visitor_name": visitor_name,
         "visitor_email": visitor_email,
         "offline_ticket": body.offline_ticket,
+        "timezone": visitor_timezone,
+        "channel": request.headers.get("x-chatty-channel") or "web",
+        "platform": request.headers.get("x-chatty-platform") or request.headers.get("x-client-platform") or "",
+        "user_agent": request.headers.get("user-agent") or "",
         "event_id": uuid.uuid4().hex,
     }
     try:
@@ -1064,6 +1068,10 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         "visitor_name": visitor_name,
         "visitor_email": visitor_email,
         "offline_ticket": body.offline_ticket,
+        "timezone": visitor_timezone,
+        "channel": request.headers.get("x-chatty-channel") or "web",
+        "platform": request.headers.get("x-chatty-platform") or request.headers.get("x-client-platform") or "",
+        "user_agent": request.headers.get("user-agent") or "",
         "event_id": uuid.uuid4().hex,
     }
     try:

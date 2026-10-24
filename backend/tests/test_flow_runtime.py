@@ -197,3 +197,37 @@ def test_branch_aware_time_condition_executes_only_matching_branch(monkeypatch):
     late_trace_by_id = {step["node_id"]: step["status"] for step in late["trace"]}
     assert late_trace_by_id["reply-630"] == "skipped"
     assert late_trace_by_id["reply-900"] == "completed"
+
+
+def test_platform_and_channel_detection_in_flow_conditions():
+    flow_data = {
+        "nodes": [
+            {"id": "trig", "kind": "trigger", "type": "chatty.event", "title": "Inbound Message", "config": {"event": "message.user"}},
+            {"id": "cond-plat", "kind": "logic", "type": "core.condition", "title": "Platform Check", "config": {"field": "data.platform", "operator": "equals", "value": "android_app"}},
+            {"id": "reply-android", "kind": "chatty", "type": "chatty.reply", "title": "Android Reply", "pathId": "android", "config": {"message": "Sent from {{data.platform}} on {{data.os}} ({{data.device}})"}},
+            {"id": "reply-other", "kind": "chatty", "type": "chatty.reply", "title": "Other Reply", "pathId": "else", "config": {"message": "Sent from {{data.platform}} via {{data.channel}}"}},
+        ],
+        "edges": [
+            {"from": "trig", "to": "cond-plat"},
+            {"from": "cond-plat", "to": "reply-android", "label": "android_app"},
+            {"from": "cond-plat", "to": "reply-other", "label": "else"},
+        ],
+    }
+
+    # 1. Android app detected via User-Agent (WebView / OkHttp)
+    android_res = asyncio.run(flow_runtime._execute_graph(
+        None,
+        flow_data,
+        {"bot_id": "b1", "event": "message.user", "session_id": "s1", "data": {"content": "hi", "channel": "web", "user_agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/UQ1A; wv) AppleWebKit/537.36"}},
+        persist_chat_replies=False,
+    ))
+    assert android_res["replies"] == ["Sent from android_app on android (mobile)"]
+
+    # 2. Instagram DM detected via omnichannel channel
+    ig_res = asyncio.run(flow_runtime._execute_graph(
+        None,
+        flow_data,
+        {"bot_id": "b1", "event": "message.user", "session_id": "s2", "data": {"content": "hi", "channel": "instagram"}},
+        persist_chat_replies=False,
+    ))
+    assert ig_res["replies"] == ["Sent from instagram via instagram"]

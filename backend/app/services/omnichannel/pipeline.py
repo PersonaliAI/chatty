@@ -280,6 +280,7 @@ class OmnichannelPipeline:
                 data={
                     "content": message.text,
                     "channel": message.channel.value,
+                    "platform": message.channel.value,
                     "sender_id": message.sender_id,
                     "visitor_name": getattr(message, "sender_name", None) or message.sender_id,
                     "timezone": bot_tz,

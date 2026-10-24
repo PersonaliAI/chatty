@@ -50,8 +50,62 @@ def _parse_time_minutes(value: str) -> int | None:
     return hour * 60 + minute
 
 
+def _detect_platform_metadata(raw_data: dict[str, Any], inputs: dict[str, Any]) -> dict[str, str]:
+    """Derive normalized channel, platform, device, and os fields from event data and user_agent."""
+    channel = str(raw_data.get("channel") or inputs.get("channel") or "web").strip().lower()
+    explicit_platform = str(raw_data.get("platform") or inputs.get("platform") or "").strip().lower()
+    ua = str(raw_data.get("user_agent") or inputs.get("user_agent") or "").strip().lower()
+
+    if channel in {"whatsapp", "instagram", "messenger", "telegram", "sms", "email"}:
+        return {
+            "channel": channel,
+            "platform": explicit_platform or channel,
+            "device": str(raw_data.get("device") or ("mobile" if channel in {"whatsapp", "instagram", "telegram", "sms"} else "unknown")),
+            "os": str(raw_data.get("os") or "unknown"),
+        }
+
+    # Detect OS and native app vs browser from explicit header or User-Agent
+    os_name = str(raw_data.get("os") or "").strip().lower()
+    if not os_name:
+        if "android" in ua or "dalvik" in ua or "okhttp" in ua:
+            os_name = "android"
+        elif any(k in ua for k in ("iphone", "ipad", "ipod", "cfnetwork", "darwin")):
+            os_name = "ios"
+        elif "windows" in ua:
+            os_name = "windows"
+        elif "mac os" in ua or "macintosh" in ua:
+            os_name = "macos"
+        elif "linux" in ua:
+            os_name = "linux"
+        else:
+            os_name = "unknown"
+
+    is_mobile = os_name in {"android", "ios"} or "mobile" in ua
+    device = str(raw_data.get("device") or ("mobile" if is_mobile else "desktop")).strip().lower()
+
+    if explicit_platform:
+        platform = explicit_platform
+    elif any(k in ua for k in ("okhttp", "dalvik", "; wv)", "wv ", "reactnative", "flutter", "personaliai-android", "chatty-android")):
+        platform = "android_app"
+    elif any(k in ua for k in ("cfnetwork", "personaliai-ios", "chatty-ios")):
+        platform = "ios_app"
+    elif os_name == "android":
+        platform = "android"
+    elif os_name == "ios":
+        platform = "ios"
+    else:
+        platform = "web"
+
+    return {
+        "channel": channel,
+        "platform": platform,
+        "device": device,
+        "os": os_name,
+    }
+
+
 def _enrich_runtime_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
-    """Return a copy of inputs with runtime time and channel variables populated in data."""
+    """Return a copy of inputs with runtime time, channel, and platform variables populated in data."""
     raw_data = inputs.get("data") if isinstance(inputs.get("data"), dict) else {}
     data = dict(raw_data)
     tz_name = str(data.get("timezone") or inputs.get("timezone") or "UTC").strip()
@@ -73,10 +127,14 @@ def _enrich_runtime_inputs(inputs: dict[str, Any]) -> dict[str, Any]:
             data["current_hour"] = str(parsed_mins // 60)
             data["current_time"] = f"{parsed_mins // 60:02d}:{parsed_mins % 60:02d}"
 
+    platform_meta = _detect_platform_metadata(raw_data, inputs)
     data.setdefault("current_time", now_dt.strftime("%H:%M"))
     data.setdefault("current_hour", str(now_dt.hour))
     data.setdefault("day_of_week", now_dt.strftime("%A").lower())
-    data.setdefault("channel", str(raw_data.get("channel") or inputs.get("channel") or "web"))
+    data.setdefault("channel", platform_meta["channel"])
+    data.setdefault("platform", platform_meta["platform"])
+    data.setdefault("device", platform_meta["device"])
+    data.setdefault("os", platform_meta["os"])
     return {**inputs, "data": data}
 
 

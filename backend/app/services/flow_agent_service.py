@@ -562,7 +562,10 @@ AVAILABLE NODE TYPES:
    - "data.content": Inbound visitor/WhatsApp message text (use operator "contains", e.g. value "offer|promo|deal").
    - "data.current_time": Current time in 24-hour "HH:MM" format (e.g. "18:00" for 6:00 PM, "19:00" for 7:00 PM; use with "before_time" or "after_time").
    - "data.current_hour": Current hour 0-23 (use with "less_than" or "greater_than").
-   - "data.channel": Channel source ("whatsapp", "web", "instagram", "telegram", "sms").
+   - "data.channel": Channel source ("whatsapp", "web", "instagram", "messenger", "telegram", "sms", "email").
+   - "data.platform": Client platform ("whatsapp", "instagram", "messenger", "telegram", "sms", "email", "web", "android_app", "ios_app", "android", "ios").
+   - "data.device": Device category ("mobile", "desktop").
+   - "data.os": Operating system ("android", "ios", "windows", "macos", "linux").
    - "data.intent", "data.category", "data.rating", "data.visitor_name", "data.visitor_email".
    Outgoing edges should specify branch labels: put the positive match label on the first edge (e.g. "before 6:00 PM", "sales", "urgent") and "else" on the fallback edge.
 6. "core.wait" (kind: "logic"):
