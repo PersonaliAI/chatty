@@ -12,6 +12,7 @@ from app.services.flow_agent_service import (
     _fallback_architect_response,
     auto_fix_validation_issues,
     compute_dag_coordinates,
+    get_bot_llm_config,
     run_flow_agent,
 )
 
@@ -298,3 +299,25 @@ def test_flow_agent_builds_whatsapp_variable_time_offer_campaign_and_executes_br
         assert other_res["replies"] == []
 
     asyncio.run(_verify_execution())
+
+
+def test_get_bot_llm_config_honors_default_agent_settings_over_stale_byok():
+    class _FakeResp:
+        data = {
+            "name": "Chatty Bot",
+            "selected_model": "gemma-4-31b",
+            "byok_provider": "openai",
+            "byok_model": "gpt-4-turbo",
+            "byok_api_key_encrypted": "enc-stale-key",
+        }
+
+    async def _check():
+        with patch("app.services.flow_agent_service.run_db", AsyncMock(return_value=_FakeResp())):
+            cfg = await get_bot_llm_config("ad32f373-7694-43f4-9465-f8d65ce291e3")
+            assert cfg["selected_model"] == "gemma-4-31b"
+            assert cfg["display_name"] == "Gemma 4 31B (Default)"
+            assert cfg["is_byok"] is False
+            assert "CrewAI Multi-Agent" in cfg["framework"]
+
+    asyncio.run(_check())
+

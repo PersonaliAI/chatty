@@ -223,14 +223,14 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .intercom-step-label { color: #8793a4; font-size: 10px; font-weight: 800; letter-spacing: .07em; }
 .intercom-path-chip { max-width: 74px; overflow: hidden; padding: 3px 6px; border-radius: 999px; color: #9a6418; background: #fff4d6; font-size: 8px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .intercom-node-header svg { color: #8b97a7; }
-.intercom-node-body { display: grid; gap: 12px; padding: 15px; }
+.intercom-node-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 15px; width: 100%; box-sizing: border-box; }
 .intercom-trigger-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 12px; }
-.intercom-node-copy { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.45; }
-.intercom-pill { justify-self: start; padding: 5px 9px; border: 1px solid #e0e5ec; border-radius: 999px; color: #556274; background: #f8fafc; font-size: 10px; font-weight: 700; }
-.intercom-message-preview { max-height: 76px; overflow: hidden; padding: 11px 12px; border-radius: 9px; color: #283548; background: #f4f6f9; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
-.intercom-action-chip { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 8px 10px; border: 1px solid #e1e6ed; border-radius: 9px; background: #fbfcfe; }
-.intercom-action-chip span { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; flex-shrink: 0; }
-.intercom-action-chip b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.intercom-node-copy { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.45; overflow-wrap: break-word; word-break: break-word; }
+.intercom-pill { justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 9px; border: 1px solid #e0e5ec; border-radius: 999px; color: #556274; background: #f8fafc; font-size: 10px; font-weight: 700; }
+.intercom-message-preview { min-width: 0; max-width: 100%; max-height: 76px; overflow: hidden; padding: 11px 12px; border-radius: 9px; color: #283548; background: #f4f6f9; font-size: 12px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.intercom-action-chip { display: flex; align-items: flex-start; gap: 8px; min-width: 0; max-width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid #e1e6ed; border-radius: 9px; background: #fbfcfe; overflow: hidden; box-sizing: border-box; }
+.intercom-action-chip span { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 7px; flex-shrink: 0; margin-top: 1px; }
+.intercom-action-chip b { flex: 1; min-width: 0; overflow: hidden; font-size: 11.5px; line-height: 1.38; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; overflow-wrap: break-word; word-break: break-word; }
 .intercom-node-actions-row { display: flex; gap: 6px; width: 100%; }
 .intercom-add-step, .intercom-add-branch { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; border: 1px solid #e1e6ed; border-radius: 999px; color: #475569; background: #fff; font-size: 11px; font-weight: 700; }
 .intercom-add-step:hover, .intercom-add-branch:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }

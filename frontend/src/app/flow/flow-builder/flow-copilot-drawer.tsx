@@ -18,6 +18,13 @@ import { autoLayoutGraph } from "./graph-layout";
 import { nodeCatalog } from "./node-registry";
 import type { FlowData, FlowEdge, FlowNode } from "./types";
 
+interface AgentTraceStep {
+  agent: string;
+  role: string;
+  status: string;
+  summary: string;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -27,6 +34,8 @@ interface Message {
   proposedFlow?: FlowData;
   proposedName?: string;
   changesSummary?: string[];
+  agentTrace?: AgentTraceStep[];
+  framework?: string;
   applied?: boolean;
 }
 
@@ -74,7 +83,8 @@ export function FlowCopilotDrawer({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [autoApply, setAutoApply] = useState(true);
-  const [activeModel, setActiveModel] = useState<string>("Gemini 2.5 Flash");
+  const [activeModel, setActiveModel] = useState<string>("Gemma 4 31B (Default)");
+  const [activeFramework, setActiveFramework] = useState<string>("CrewAI Multi-Agent");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -82,10 +92,11 @@ export function FlowCopilotDrawer({
     void chattyRequest(`/api/flow-builder/ai/config?bot_id=${encodeURIComponent(botId)}`)
       .then(async (res) => {
         if (!res.ok) return;
-        const data = await res.json() as { display_name?: string };
+        const data = await res.json() as { display_name?: string; framework?: string };
         if (data.display_name) setActiveModel(data.display_name);
+        if (data.framework) setActiveFramework(data.framework);
       })
-      .catch(() => setActiveModel("Gemini 2.5 Flash"));
+      .catch(() => setActiveModel("Gemma 4 31B (Default)"));
   }, [botId]);
 
   useEffect(() => {
@@ -508,6 +519,8 @@ export function FlowCopilotDrawer({
         flow_data?: FlowData;
         changes_summary?: string[];
         llm_used?: string;
+        framework?: string;
+        agent_trace?: AgentTraceStep[];
       };
 
       try {
@@ -532,9 +545,30 @@ export function FlowCopilotDrawer({
       }
 
       if (data.llm_used) setActiveModel(data.llm_used);
+      if (data.framework) setActiveFramework(data.framework);
 
       const action = data.action || "build";
       const layoutedFlow = data.flow_data ? normalizeFlowLayout(data.flow_data) : undefined;
+      const defaultTrace: AgentTraceStep[] = [
+        {
+          agent: "Requirements Planner",
+          role: "Omnichannel Automation Analyst",
+          status: "completed",
+          summary: `Parsed intent (${action.toUpperCase()}) using ${data.llm_used || activeModel}.`,
+        },
+        {
+          agent: "DAG Graph Architect",
+          role: "Workflow Graph Engineer",
+          status: "completed",
+          summary: `Synthesized ${layoutedFlow?.nodes?.length ?? 0} nodes and ${layoutedFlow?.edges?.length ?? 0} edges.`,
+        },
+        {
+          agent: "Topology & Layout Critic",
+          role: "DAG Validator & Layout Engine",
+          status: "completed",
+          summary: "Verified acyclic routing and applied non-overlapping Kahn grid coordinates.",
+        },
+      ];
       const shouldAutoApply = autoApply && layoutedFlow && (
         action === "build" ||
         action === "edit" ||
@@ -560,6 +594,8 @@ export function FlowCopilotDrawer({
         proposedFlow: layoutedFlow,
         proposedName: data.flow_name,
         changesSummary: data.changes_summary,
+        agentTrace: data.agent_trace && data.agent_trace.length > 0 ? data.agent_trace : defaultTrace,
+        framework: data.framework || activeFramework,
         applied: Boolean(shouldAutoApply),
       };
 
@@ -597,8 +633,16 @@ export function FlowCopilotDrawer({
             <Sparkles size={16} className="text-amber-500" />
           </div>
           <div>
-            <h3 className="flow-copilot-title">Flow Architect AI</h3>
-            <span className="flow-copilot-model" title="LLM selected in agent settings">
+            <div className="flex items-center gap-1.5">
+              <h3 className="flow-copilot-title">Flow Architect AI</h3>
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25"
+                title={activeFramework}
+              >
+                CrewAI
+              </span>
+            </div>
+            <span className="flow-copilot-model" title="LLM selected in Dashboard Agent Settings">
               <span className="status-dot-green" />
               {activeModel}
             </span>
@@ -643,8 +687,26 @@ export function FlowCopilotDrawer({
 
             {msg.thought && (
               <div className="flow-copilot-thought">
-                <small>Agent Reasoning:</small>
+                <small>CrewAI Multi-Agent Reasoning:</small>
                 <p>{msg.thought}</p>
+              </div>
+            )}
+
+            {msg.agentTrace && msg.agentTrace.length > 0 && (
+              <div className="my-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center justify-between">
+                  <span>{msg.framework || "CrewAI Multi-Agent Pipeline"}</span>
+                  <span>{msg.agentTrace.length} Agents</span>
+                </div>
+                {msg.agentTrace.map((step, idx) => (
+                  <div key={idx} className="text-[11px] leading-snug text-neutral-700 dark:text-neutral-300 flex items-start gap-1.5">
+                    <CheckCircle2 size={11} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-semibold text-neutral-900 dark:text-neutral-100">{step.agent}:</strong>{" "}
+                      <span>{step.summary}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

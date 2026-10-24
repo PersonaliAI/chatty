@@ -80,7 +80,8 @@ function summarizeNodeAction(data: FlowNode): string {
     return `Delay ${cfg.duration}s`;
   }
   if (data.type === "chatty.ai" && cfg.instruction) {
-    return `${cfg.operation || "Classify"}: ${cfg.instruction.slice(0, 48)}${cfg.instruction.length > 48 ? "…" : ""}`;
+    const outField = cfg.output_field ? ` → data.${cfg.output_field}` : "";
+    return `${cfg.operation || "Classify"}${outField}: ${cfg.instruction.slice(0, 42)}${cfg.instruction.length > 42 ? "…" : ""}`;
   }
   if (data.type === "action.slack" && cfg.channel) {
     return `Post to ${cfg.channel}`;

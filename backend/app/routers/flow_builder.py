@@ -562,7 +562,14 @@ async def get_flow_ai_config(bot_id: str, user: dict[str, Any] = Depends(require
     """Return the active AI model name configured in Agent Settings."""
     await _authorize(bot_id, user)
     from app.services.flow_agent_service import get_bot_llm_config
-    return await get_bot_llm_config(bot_id)
+    cfg = await get_bot_llm_config(bot_id)
+    return {
+        "bot_name": cfg.get("bot_name"),
+        "selected_model": cfg.get("selected_model"),
+        "display_name": cfg.get("display_name"),
+        "is_byok": cfg.get("is_byok"),
+        "framework": cfg.get("framework", "CrewAI Multi-Agent Orchestrator"),
+    }
 
 
 @router.post("/ai/chat")

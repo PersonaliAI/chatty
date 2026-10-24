@@ -390,10 +390,13 @@ async def _run_flow_ai_node(
     if supabase is None:
         return _heuristic_ai_transform(operation, instruction, runtime_inputs)
 
-    from plugins import ai_client
+    from app.services.chatty_quota_service import is_builtin_google_model
+    from plugins import ai_client, llm_providers
 
     data = runtime_inputs.get("data") if isinstance(runtime_inputs.get("data"), dict) else {}
-    model = ai_client.resolve_gemini_model("gemini-2.5-flash")
+    model = ai_client.resolve_gemini_model("gemma-4-31b")
+    api_key: str | None = None
+    is_byok = False
     if supabase is not None and bot_id:
         try:
             bot_res = await run_db(
@@ -404,10 +407,15 @@ async def _run_flow_ai_node(
                 .execute()
             )
             bot_row = bot_res.data or {}
-            if bot_row.get("byok_provider") and bot_row.get("byok_model") and bot_row.get("byok_api_key_encrypted"):
-                model = ai_client.resolve_byok_model(bot_row["byok_provider"], bot_row["byok_model"])
-            elif bot_row.get("selected_model"):
-                model = ai_client.resolve_gemini_model(bot_row["selected_model"])
+            raw_sel = (bot_row.get("selected_model") or "gemma-4-31b").strip()
+            byok_prov = (bot_row.get("byok_provider") or "").strip().lower()
+            byok_key_enc = bot_row.get("byok_api_key_encrypted")
+            if not is_builtin_google_model(raw_sel) and byok_prov and byok_key_enc:
+                api_key = llm_providers.decrypt_api_key(byok_key_enc)
+                model = ai_client.resolve_byok_model(byok_prov, bot_row.get("byok_model") or raw_sel)
+                is_byok = True
+            else:
+                model = ai_client.resolve_gemini_model(raw_sel if is_builtin_google_model(raw_sel) else "gemma-4-31b")
         except Exception:
             pass
 
@@ -440,6 +448,8 @@ async def _run_flow_ai_node(
                 {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_prompt},
             ],
+            api_key=api_key,
+            is_byok=is_byok,
             bot_id=bot_id or None,
             call_type="flow_ai_node",
             temperature=0.1 if op_norm == "classify" else 0.4,
