@@ -186,6 +186,8 @@ async def whatsapp_test(
     token = (access_token or "").strip() or decrypt_secret((bot.get("whatsapp_access_token") or "").strip())
     if not phone_id or not token:
         raise HTTPException(status_code=400, detail="Provide or save a WhatsApp Phone Number ID and Access Token first")
+    if not re.fullmatch(r"^\d{6,32}$", phone_id):
+        raise HTTPException(status_code=400, detail="Invalid WhatsApp Phone Number ID format (must be 6-32 digits)")
     version = os.environ.get("WHATSAPP_API_VERSION", "v25.0")
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:

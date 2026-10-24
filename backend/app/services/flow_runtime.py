@@ -27,7 +27,7 @@ _MAX_ADAPTER_ATTEMPTS = 3
 _RETRY_DELAYS_SECONDS = (0.2, 0.5)
 _MAX_WIDGET_REPLY_CHARS = 4000
 _TEMPLATE_TOKEN = re.compile(r"\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}")
-_TIME_TOKEN = re.compile(r"^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$", re.IGNORECASE)
+_TIME_TOKEN = re.compile(r"^(\d{1,2})(?::(\d{2}))?(?:\s*(am|pm))?$", re.IGNORECASE)
 _ELSE_LABELS = {"else", "false", "no", "otherwise", "fallback", "standard", "other", "other score"}
 _ELSE_PREFIXES = ("else", "false", "no ", "not ", "after", "other", "fallback", "evening", "late", ">= ", "> ")
 _ELSE_PATH_IDS = {"else", "false", "follow-up", "standard", "other", "evening", "late", "after-6pm", "after-18"}
@@ -35,7 +35,8 @@ _ELSE_PATH_IDS = {"else", "false", "follow-up", "standard", "other", "evening", 
 
 def _parse_time_minutes(value: str) -> int | None:
     """Parse a time string ('18:00', '6:00 PM', '19', '6:30pm') into minutes since midnight (0..1439)."""
-    match = _TIME_TOKEN.match(str(value or ""))
+    val = str(value or "").strip()
+    match = _TIME_TOKEN.match(val)
     if not match:
         return None
     hour = int(match.group(1))

@@ -1766,7 +1766,7 @@ export function IntegrationsTab({
                     {connectingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
                     {connectingWhatsApp ? "Connecting…" : isWaConnected ? "Reconnect Meta" : "Connect WhatsApp"}
                   </button>
-                  {isWaConfigured && (
+                  {isWaConnected && (
                     <button
                       type="button"
                       onClick={handleDisconnectWhatsApp}
@@ -2092,7 +2092,7 @@ export function IntegrationsTab({
                     {connectingMessenger ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
                     {connectingMessenger ? "Connecting…" : isFbConnected ? "Reconnect Page" : "Connect Messenger"}
                   </button>
-                  {isFbConfigured && (
+                  {isFbConnected && (
                     <button
                       type="button"
                       onClick={handleDisconnectMessenger}
@@ -2411,7 +2411,7 @@ export function IntegrationsTab({
                     {connectingInstagram ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
                     {connectingInstagram ? "Connecting…" : isIgConnected ? "Reconnect Instagram" : "Connect Instagram"}
                   </button>
-                  {isIgConfigured && (
+                  {isIgConnected && (
                     <button
                       type="button"
                       onClick={handleDisconnectInstagram}
@@ -2732,7 +2732,7 @@ export function IntegrationsTab({
                     {connectingTiktok ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
                     {connectingTiktok ? "Connecting…" : isTtConnected ? "Reconnect TikTok" : "Connect TikTok"}
                   </button>
-                  {isTtConfigured && (
+                  {isTtConnected && (
                     <button
                       type="button"
                       onClick={handleDisconnectTiktok}
@@ -3055,7 +3055,7 @@ export function IntegrationsTab({
                     {testingTelegram ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
                     {testingTelegram ? "Validating…" : "Test Bot Token"}
                   </button>
-                  {isTgConfigured && (
+                  {isTgConnected && (
                     <button
                       type="button"
                       onClick={handleDisconnectTelegram}
@@ -3300,7 +3300,7 @@ export function IntegrationsTab({
                     {testingSms ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
                     {testingSms ? "Testing…" : "Verify Twilio Account"}
                   </button>
-                  {isSmsConfigured && (
+                  {isSmsConnected && (
                     <button
                       type="button"
                       onClick={handleDisconnectSms}
@@ -3502,7 +3502,7 @@ export function IntegrationsTab({
                     {testingEmail ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
                     {testingEmail ? "Verifying…" : "Validate Routing"}
                   </button>
-                  {isEmailConfigured && (
+                  {isEmailConnected && (
                     <button
                       type="button"
                       onClick={handleDisconnectEmail}

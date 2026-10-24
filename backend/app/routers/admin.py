@@ -593,7 +593,8 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
                 if sid_tw and tok_tw and from_tw and recipient_id:
                     await send_outbound_sms(account_sid=sid_tw, auth_token=tok_tw, from_number=from_tw, to_number=recipient_id, text=reply_txt)
         except Exception:
-            logger.warning("Non-fatal: outbound omnichannel human reply failed for %s", sid_str, exc_info=True)
+            clean_sid = sid_str.replace("\r", "").replace("\n", "")[:80]
+            logger.warning("Non-fatal: outbound omnichannel human reply failed for %s", clean_sid, exc_info=True)
 
     raw_display_text = req.text.strip()
     if has_template and not raw_display_text:

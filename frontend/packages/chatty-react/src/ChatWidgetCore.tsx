@@ -1784,7 +1784,21 @@ function IdentifiedChatWidget({
       if (!response.ok) throw new Error("History unavailable");
       const body = await response.json();
       if (body.messages && body.messages.length > 0) {
-        const hydrated = dedupeAdjacentWelcomeMessages(body.messages, welcomeMsg);
+        const hasLeadingGreeting = body.messages[0]?.role === "assistant";
+        const messagesWithWelcome = hasLeadingGreeting
+          ? body.messages
+          : [
+              {
+                role: "assistant",
+                content: welcomeMsg,
+                sender: "ai",
+                created_at: body.messages[0]?.created_at || new Date().toISOString(),
+                sender_name: isPreview ? (paramName || botName || "Fin") : (botName || "Fin"),
+                sender_avatar: isPreview ? (paramAvatarUrl || avatarUrl || null) : (avatarUrl || null),
+              },
+              ...body.messages,
+            ];
+        const hydrated = dedupeAdjacentWelcomeMessages(messagesWithWelcome, welcomeMsg);
         const hasEmailMsg = hydrated.some((m: Message) => typeof m.content === "string" && (m.content.includes("[EMAIL_CAPTURED:") || m.content.startsWith("[Offline Support Ticket]")));
         if (hasEmailMsg) {
           setSupportEmailSaved(true);
@@ -1804,7 +1818,7 @@ function IdentifiedChatWidget({
     } finally {
       setLoadingHistory(false);
     }
-  }, [botId, fetch, welcomeMsg, fetchActiveMeeting]);
+  }, [botId, fetch, welcomeMsg, fetchActiveMeeting, botName, avatarUrl, isPreview, paramName, paramAvatarUrl]);
 
   useEffect(() => {
     void loadMessagesForSession(sessionId);
