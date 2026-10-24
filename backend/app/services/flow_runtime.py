@@ -356,6 +356,106 @@ def _replies_from_trace(trace: list[dict[str, Any]]) -> list[str]:
     return [str(step["reply"]) for step in trace if step.get("reply")]
 
 
+def _heuristic_ai_transform(operation: str, instruction: str, runtime_inputs: dict[str, Any]) -> str:
+    """Deterministic fallback when external LLM provider is unreachable."""
+    data = runtime_inputs.get("data") if isinstance(runtime_inputs.get("data"), dict) else {}
+    content = str(data.get("content") or "").lower()
+    instr_lower = instruction.lower()
+    op_lower = operation.lower()
+
+    if op_lower == "classify":
+        if any(w in content for w in ("offer", "promo", "deal", "discount", "coupon", "sale", "special")):
+            return "offer" if "offer" in instr_lower else "sales"
+        if any(w in content for w in ("urgent", "emergency", "asap", "immediately", "broken", "down")):
+            return "urgent"
+        if any(w in content for w in ("bill", "invoice", "refund", "charge", "payment", "subscription")):
+            return "billing"
+        if any(w in content for w in ("buy", "price", "pricing", "quote", "demo", "plan", "enterprise")):
+            return "sales"
+        if any(w in content for w in ("help", "support", "issue", "error", "bug", "problem")):
+            return "support"
+        return "other"
+    return content or "completed"
+
+
+async def _run_flow_ai_node(
+    supabase,
+    *,
+    bot_id: str,
+    operation: str,
+    instruction: str,
+    runtime_inputs: dict[str, Any],
+) -> str:
+    """Execute a chatty.ai node using the bot's configured LLM from Agent Settings."""
+    if supabase is None:
+        return _heuristic_ai_transform(operation, instruction, runtime_inputs)
+
+    from plugins import ai_client
+
+    data = runtime_inputs.get("data") if isinstance(runtime_inputs.get("data"), dict) else {}
+    model = ai_client.resolve_gemini_model("gemini-2.5-flash")
+    if supabase is not None and bot_id:
+        try:
+            bot_res = await run_db(
+                lambda: supabase.table("chatty_bots")
+                .select("selected_model, byok_provider, byok_model, byok_api_key_encrypted")
+                .eq("id", bot_id)
+                .maybe_single()
+                .execute()
+            )
+            bot_row = bot_res.data or {}
+            if bot_row.get("byok_provider") and bot_row.get("byok_model") and bot_row.get("byok_api_key_encrypted"):
+                model = ai_client.resolve_byok_model(bot_row["byok_provider"], bot_row["byok_model"])
+            elif bot_row.get("selected_model"):
+                model = ai_client.resolve_gemini_model(bot_row["selected_model"])
+        except Exception:
+            pass
+
+    op_norm = operation.strip().lower()
+    if op_norm == "classify":
+        sys_prompt = (
+            "You are an AI classification engine inside a Chatty automation workflow. "
+            "Follow the instruction and return ONLY the single category/label in lowercase "
+            "with no punctuation, quotes, or explanation."
+        )
+    else:
+        sys_prompt = (
+            "You are an AI assistant step inside a Chatty automation workflow. "
+            "Follow the instruction concisely using the message, time, and platform context. "
+            "Return only the requested output text."
+        )
+
+    user_prompt = (
+        f"Instruction: {instruction}\n"
+        f"User Message: {data.get('content', '')}\n"
+        f"Platform: {data.get('platform', 'web')} (Channel: {data.get('channel', 'web')})\n"
+        f"Current Time (24h): {data.get('current_time', '')}\n"
+        f"Visitor Name: {data.get('visitor_name', '')}\n"
+    )
+
+    try:
+        resp = await ai_client.chat(
+            model=model,
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            bot_id=bot_id or None,
+            call_type="flow_ai_node",
+            temperature=0.1 if op_norm == "classify" else 0.4,
+            max_tokens=300,
+        )
+        raw_out = str((resp.choices[0].message.content if resp and resp.choices else "") or "").strip()
+        if raw_out:
+            if op_norm == "classify":
+                return raw_out.splitlines()[0].strip().strip("\"'`.").lower()
+            return raw_out[:_MAX_WIDGET_REPLY_CHARS]
+    except Exception as exc:
+        logger.debug("chatty.ai LLM call fallback used: %s", exc)
+
+    return _heuristic_ai_transform(operation, instruction, runtime_inputs)
+
+
 async def _execute_graph(
     supabase,
     flow_data: dict[str, Any],
@@ -415,13 +515,29 @@ async def _execute_graph(
                         "sender": "ai",
                     }).execute())
         elif node.get("kind") == "chatty" and node.get("type") == "chatty.ai":
-            instruction = str(config.get("instruction") or "").strip()
+            instruction = _render_widget_reply(str(config.get("instruction") or ""), runtime_inputs)
             if not instruction:
                 status = "failed"
                 failed = f"{title} has no AI instruction configured"
             else:
+                operation = str(config.get("operation") or "Classify").strip()
+                output_field = str(config.get("output_field") or "intent").strip() or "intent"
+                raw_input_data = inputs.get("data") if isinstance(inputs.get("data"), dict) else {}
+                if output_field in raw_input_data and str(raw_input_data[output_field]).strip():
+                    ai_value = str(raw_input_data[output_field]).strip()
+                else:
+                    ai_value = await _run_flow_ai_node(
+                        supabase,
+                        bot_id=str(inputs.get("bot_id") or ""),
+                        operation=operation,
+                        instruction=instruction,
+                        runtime_inputs=runtime_inputs,
+                    )
+                    runtime_inputs["data"][output_field] = ai_value
                 status = "completed"
-                trace_step["operation"] = str(config.get("operation") or "Classify")
+                trace_step["operation"] = operation
+                trace_step["output_field"] = output_field
+                trace_step["output"] = ai_value
         elif node.get("kind") == "logic":
             if node.get("type") == "core.wait":
                 status = "completed"

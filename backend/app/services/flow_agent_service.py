@@ -598,7 +598,7 @@ RULES FOR VALID WORKFLOWS:
 2. Nodes must connect sequentially or branch via condition nodes. No orphaned nodes or cycles.
 3. Node IDs must be unique strings (e.g., "trigger-1", "ai-2", "condition-3", "reply-sales", "slack-alert").
 4. Always provide complete, realistic configurations for every node.
-5. For WhatsApp or chat campaigns with variable time-based replies (e.g. before 6:00 PM send offer ends at 6:30 PM, after 6:00 PM / at 7:00 PM send offer ends at 9:00 PM), start with "chatty.event" (event: "message.user"), add a "core.condition" on "data.content" (operator: "contains", value: "offer|promo|deal"), then add a "core.condition" on "data.current_time" (operator: "before_time", value: "18:00") that branches into two "chatty.reply" nodes (one edge labeled "before 6:00 PM" and the fallback edge labeled "else").
+5. For WhatsApp or chat campaigns with variable time-based replies (e.g. before 6:00 PM send offer ends at 6:30 PM, after 6:00 PM / at 7:00 PM send offer ends at 9:00 PM), start with "chatty.event" (event: "message.user"), add a "chatty.ai" LLM classifier node (operation: "Classify", output_field: "intent", instruction: "Classify if the user is asking about an offer, promotion, deal, or discount. Return offer or other."), then add a "core.condition" on "data.intent" (operator: "equals", value: "offer"), then add a "core.condition" on "data.current_time" (operator: "before_time", value: "18:00") that branches into two "chatty.reply" nodes (one edge labeled "before 6:00 PM" and the fallback edge labeled "else").
 
 OUTPUT FORMAT:
 Always return a strict JSON object with NO preamble or markdown outside the JSON:
@@ -724,10 +724,20 @@ def _fallback_architect_response(
                 "config": {"event": "message.user", "operation": "Listen for event"},
             },
             {
+                "id": "ai-offer-intent",
+                "type": "chatty.ai",
+                "title": "LLM classify offer intent",
+                "config": {
+                    "operation": "Classify",
+                    "instruction": "Classify if the user message is asking about an offer, promotion, discount, deal, or special campaign. Return 'offer' or 'other'.",
+                    "output_field": "intent",
+                },
+            },
+            {
                 "id": "cond-keyword",
                 "type": "core.condition",
-                "title": "Match campaign keyword",
-                "config": {"operation": "Contains", "field": "data.content", "operator": "contains", "value": "offer|promo|deal|discount"},
+                "title": "Is offer inquiry?",
+                "config": {"operation": "Compare", "field": "data.intent", "operator": "equals", "value": "offer"},
             },
             {
                 "id": "cond-time-window",
@@ -783,8 +793,9 @@ def _fallback_architect_response(
             },
         ]
         raw_edges = [
-            {"from": "trig-wa-msg", "to": "cond-keyword"},
-            {"from": "cond-keyword", "to": "cond-time-window", "label": "offer keyword"},
+            {"from": "trig-wa-msg", "to": "ai-offer-intent"},
+            {"from": "ai-offer-intent", "to": "cond-keyword"},
+            {"from": "cond-keyword", "to": "cond-time-window", "label": "offer intent"},
             {"from": "cond-time-window", "to": "reply-early-offer", "label": f"before {cutoff_display}"},
             {"from": "reply-early-offer", "to": "crm-early-lead"},
             {"from": "cond-time-window", "to": "reply-evening-offer", "label": "else"},
@@ -793,7 +804,7 @@ def _fallback_architect_response(
         flow_name = "WhatsApp Time-Based Offer Campaign"
         summary = [
             "Added message.user trigger for inbound WhatsApp & chat messages",
-            "Added keyword filter condition (offer | promo | deal | discount)",
+            "Added chatty.ai LLM brain node to classify offer/promotion intent",
             f"Added time-window condition (data.current_time before_time {cutoff_24h} / {cutoff_display})",
             f"Branched replies: before {cutoff_display} → offer ends at {early_expiry}; else → offer ends at {late_expiry}",
         ]

@@ -111,14 +111,15 @@ export const flowTemplates: FlowTemplate[] = [
     ],
     steps: [
       { type: "chatty.event", config: { event: "message.user" } },
-      { type: "core.condition", config: { field: "data.content", operator: "contains", value: "offer|promo|deal|discount" } },
+      { type: "chatty.ai", config: { operation: "Classify", instruction: "Classify if the user message is asking about an offer, promotion, discount, deal, or special campaign. Return 'offer' or 'other'.", output_field: "intent" } },
+      { type: "core.condition", config: { field: "data.intent", operator: "equals", value: "offer" } },
       { type: "core.condition", config: { field: "data.current_time", operator: "before_time", value: "18:00" } },
       { type: "chatty.reply", pathId: "early-offer", pathTitle: "Before 6:00 PM", config: { message: "🔥 Special WhatsApp Offer! Hurry — your exclusive offer ends at 6:30 PM today! Reply CLAIM now to lock in your discount." } },
       { type: "action.crm", pathId: "early-offer", pathTitle: "Before 6:00 PM", config: { stage: "qualified", notes: "WhatsApp campaign responder (before 6:00 PM -> offer ends 6:30 PM)" } },
       { type: "chatty.reply", pathId: "else", pathTitle: "After 6:00 PM", config: { message: "🔥 Evening Flash Offer! Good news — our campaign offer ends at 9:00 PM tonight! Reply CLAIM now before time runs out." } },
       { type: "action.crm", pathId: "else", pathTitle: "After 6:00 PM", config: { stage: "qualified", notes: "WhatsApp evening campaign responder (after 6:00 PM -> offer ends 9:00 PM)" } },
     ],
-    connections: [[0, 1], [1, 2, "offer keyword"], [2, 3, "before 6:00 PM"], [3, 4], [2, 5, "else"], [5, 6]],
+    connections: [[0, 1], [1, 2], [2, 3, "offer intent"], [3, 4, "before 6:00 PM"], [4, 5], [3, 6, "else"], [6, 7]],
   },
 ];
 

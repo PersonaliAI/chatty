@@ -230,7 +230,8 @@ def test_flow_agent_builds_whatsapp_variable_time_offer_campaign_and_executes_br
     assert generated["flow_name"] == "WhatsApp Time-Based Offer Campaign"
 
     flow_data = generated["flow_data"]
-    assert len(flow_data["nodes"]) == 7
+    assert len(flow_data["nodes"]) == 8
+    assert any(n["type"] == "chatty.ai" for n in flow_data["nodes"])
     _assert_no_node_overlaps(flow_data["nodes"])
     _validate_flow_data(flow_data, require_nodes=True)
 
