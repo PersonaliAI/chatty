@@ -169,6 +169,11 @@ import { FlowManager } from "@/app/flow/flow-builder/flow-manager";
 // (no separate typed text on a button or a launcher circle).
 const ICON_ONLY_SECTIONS = new Set(["sendBtn", "launcher"]);
 
+const ADMIN_BYPASS_EMAILS = new Set([
+  "personaliai.com@gmail.com",
+  "damayanthakat@gmail.com",
+]);
+
 // Lazy-loaded: pulls in lucide-react/dynamic's full icon-name list, which
 // shouldn't sit in the main dashboard bundle for something opened rarely.
 const IconLibraryPicker = dynamic(
@@ -321,6 +326,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
   const isTrialExpired = useMemo(() => {
     if (SELF_HOST_MODE) return false;
+    if (user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase())) return false;
     if (isCurrentBotShared) return false;
     if (loadingSession || !user || !botId || billingInfo === null) return false;
     if (billingInfo?.status === "active" || billingInfo?.status === "on_trial") return false;
@@ -994,12 +1000,13 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
             email: profile.email || undefined,
             user_metadata: { name: profile.display_name, avatar_url: profile.avatar_url },
           } as unknown as SupabaseUser;
+          const isAdminEmail = Boolean(selfHostUser.email && ADMIN_BYPASS_EMAILS.has(selfHostUser.email.toLowerCase()));
           setUser(selfHostUser);
-          setUserPlatformRole(profile.role || null);
+          setUserPlatformRole(profile.role || (isAdminEmail ? "super_admin" : null));
           setBillingInfo({
-            plan: profile.plan || "free",
-            status: profile.subscription_status || null,
-            renewsAt: profile.subscription_renews_at || null,
+            plan: isAdminEmail ? "chatty_enterprise" : profile.plan || "free",
+            status: isAdminEmail ? "active" : profile.subscription_status || null,
+            renewsAt: isAdminEmail ? null : profile.subscription_renews_at || null,
           });
           await checkCloudConnections(profile.user_id);
           await loadBotSettings(profile.user_id);
@@ -1025,11 +1032,19 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
             .eq("auth_user_id", session.user.id)
             .maybeSingle()
             .then(({ data }) => {
+              const isAdminEmail = Boolean(session.user.email && ADMIN_BYPASS_EMAILS.has(session.user.email.toLowerCase()));
               if (data?.role) setUserPlatformRole(data.role as string);
+              else if (isAdminEmail) setUserPlatformRole("super_admin");
+
+              const userSelectedPlan =
+                (session.user.user_metadata?.plan_preference as string) ||
+                (session.user.user_metadata?.selected_plan as string) ||
+                "free";
+
               setBillingInfo({
-                plan: (data?.plan as string) || "free",
-                status: (data?.subscription_status as string) || null,
-                renewsAt: (data?.subscription_renews_at as string) || null,
+                plan: isAdminEmail ? "chatty_enterprise" : (data?.plan as string) || userSelectedPlan,
+                status: isAdminEmail ? "active" : (data?.subscription_status as string) || null,
+                renewsAt: isAdminEmail ? null : (data?.subscription_renews_at as string) || null,
               });
             });
           await checkCloudConnections(session.user.id);
@@ -1589,10 +1604,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
             .maybeSingle()
             .then(({ data: myData }) => {
               if (myData) {
+                const isAdminEmail = Boolean(user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase()));
                 setBillingInfo({
-                  plan: (myData.plan as string) || "free",
-                  status: (myData.subscription_status as string) || null,
-                  renewsAt: (myData.subscription_renews_at as string) || null,
+                  plan: isAdminEmail ? "chatty_enterprise" : (myData.plan as string) || (user?.user_metadata?.plan_preference as string) || (user?.user_metadata?.selected_plan as string) || "free",
+                  status: isAdminEmail ? "active" : (myData.subscription_status as string) || null,
+                  renewsAt: isAdminEmail ? null : (myData.subscription_renews_at as string) || null,
                   isSharedBot: false,
                 });
               }
@@ -1897,10 +1913,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           .maybeSingle()
           .then(({ data: myData }) => {
             if (myData) {
+              const isAdminEmail = Boolean(user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase()));
               setBillingInfo({
-                plan: (myData.plan as string) || "free",
-                status: (myData.subscription_status as string) || null,
-                renewsAt: (myData.subscription_renews_at as string) || null,
+                plan: isAdminEmail ? "chatty_enterprise" : (myData.plan as string) || (user?.user_metadata?.plan_preference as string) || (user?.user_metadata?.selected_plan as string) || "free",
+                status: isAdminEmail ? "active" : (myData.subscription_status as string) || null,
+                renewsAt: isAdminEmail ? null : (myData.subscription_renews_at as string) || null,
                 isSharedBot: false,
               });
             }
@@ -1977,10 +1994,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     if (!name.trim()) return;
 
     // Check plan limits before attempting creation
+    const isAdminUser = Boolean(user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase()));
     const ownedCount = userBots.filter((b) => b.user_id === user.id).length;
-    const currentPlan = billingInfo?.plan || "free";
-    const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
-    if (Number.isFinite(maxBots) && ownedCount >= maxBots) {
+    const currentPlan = isAdminUser ? "chatty_enterprise" : (billingInfo?.plan || "free");
+    const maxBots = isAdminUser ? Infinity : (MAX_BOTS_BY_PLAN[currentPlan] ?? 1);
+    if (!isAdminUser && Number.isFinite(maxBots) && ownedCount >= maxBots) {
       showToast(
         `Chatbot limit reached (${ownedCount}/${maxBots} in use). Free allows 1, Hobby allows 3, and Standard allows 6 chatbots. Upgrade to Business for unlimited chatbots!`,
         "error"
@@ -2302,9 +2320,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   }
 
   const isPlatformAdmin = Boolean(
-    (user?.email && ["personaliai.com@gmail.com"].includes(user.email.toLowerCase())) ||
+    (user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase())) ||
     userPlatformRole === "admin" ||
-    userPlatformRole === "superadmin"
+    userPlatformRole === "superadmin" ||
+    userPlatformRole === "super_admin"
   );
 
   // Team members (seats) for the active bot.
@@ -4421,10 +4440,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
                     <div className="border-t border-neutral-100 dark:border-neutral-850 my-1"></div>
                     
                     {(() => {
+                      const isAdminUser = Boolean(user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase()));
                       const ownedCount = user ? userBots.filter((b) => b.user_id === user.id).length : 0;
-                      const currentPlan = billingInfo?.plan || "free";
-                      const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
-                      const isAtLimit = Number.isFinite(maxBots) && ownedCount >= maxBots;
+                      const currentPlan = isAdminUser ? "chatty_enterprise" : (billingInfo?.plan || "free");
+                      const maxBots = isAdminUser ? Infinity : (MAX_BOTS_BY_PLAN[currentPlan] ?? 1);
+                      const isAtLimit = !isAdminUser && Number.isFinite(maxBots) && ownedCount >= maxBots;
                       return (
                         <button
                           type="button"
@@ -5292,6 +5312,10 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               user={user}
               billingInterval={billingInterval}
               setBillingInterval={setBillingInterval}
+              isPlatformAdmin={isPlatformAdmin || Boolean(user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase()))}
+              userBotsCount={userBots.length}
+              totalCharsCount={sources.reduce((acc, s) => acc + (s.charCount || 0), 0)}
+              teamMembersCount={teamMembers.length}
             />
           )}
 
@@ -5776,10 +5800,11 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               </button>
             </div>
             {(() => {
+              const isAdminUser = Boolean(user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase()));
               const ownedCount = user ? userBots.filter((b) => b.user_id === user.id).length : 0;
-              const currentPlan = billingInfo?.plan || "free";
-              const maxBots = MAX_BOTS_BY_PLAN[currentPlan] ?? 1;
-              const isAtLimit = Number.isFinite(maxBots) && ownedCount >= maxBots;
+              const currentPlan = isAdminUser ? "chatty_enterprise" : (billingInfo?.plan || "free");
+              const maxBots = isAdminUser ? Infinity : (MAX_BOTS_BY_PLAN[currentPlan] ?? 1);
+              const isAtLimit = !isAdminUser && Number.isFinite(maxBots) && ownedCount >= maxBots;
 
               if (isAtLimit) {
                 return (

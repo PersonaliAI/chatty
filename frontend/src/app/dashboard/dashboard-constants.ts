@@ -264,6 +264,7 @@ export const PLAN_LABELS: Record<string, string> = {
   chatty_hobby: "Hobby",
   chatty_standard: "Standard",
   chatty_business: "Business",
+  chatty_enterprise: "Enterprise Operator (Super Admin)",
 };
 
 export const MAX_BOTS_BY_PLAN: Record<string, number> = {
@@ -271,4 +272,5 @@ export const MAX_BOTS_BY_PLAN: Record<string, number> = {
   chatty_hobby: 3,
   chatty_standard: 6,
   chatty_business: Infinity,
+  chatty_enterprise: Infinity,
 };

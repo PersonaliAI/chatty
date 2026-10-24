@@ -24,9 +24,10 @@ PLAN_QUOTAS: dict[str, int] = {
     "chatty_hobby": 1000,
     "chatty_standard": 10000,
     "chatty_business": 40000,
+    "chatty_enterprise": 999999999,
 }
 
-WHITELABEL_PLANS = {"pro", "executive", "chatty_business"}
+WHITELABEL_PLANS = {"pro", "executive", "chatty_business", "chatty_enterprise"}
 
 # Flat plans sell predictable AI capacity rather than raw conversation rows.
 # A normal short text turn costs one credit; larger or multimodal requests
@@ -117,9 +118,14 @@ def usage_units_for_message(
 def plan_for(user: dict[str, Any]) -> str:
     email = (user.get("email") or "").strip().lower()
     if email in ADMIN_BYPASS_EMAILS:
-        return "chatty_business"
-    plan = (user.get("plan") or "free").lower()
-    return plan if plan in PLAN_QUOTAS else "free"
+        return "chatty_enterprise"
+    plan = (user.get("plan") or "").lower()
+    if plan in PLAN_QUOTAS and plan != "free":
+        return plan
+    pref = (user.get("plan_preference") or "").lower()
+    if pref in PLAN_QUOTAS and pref != "free":
+        return pref
+    return "chatty_standard"
 
 
 def _month_start_iso() -> str:

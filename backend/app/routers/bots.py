@@ -1577,3 +1577,122 @@ async def get_capabilities(user: dict[str, Any] = Depends(require_user)):
         "zoom_configured": _zoom.zoom_configured(),
         "deployment_profile": "managed_supabase",
     }
+
+
+@router.get("/api/billing/summary")
+async def get_billing_summary(user: dict[str, Any] = Depends(require_user)) -> dict[str, Any]:
+    """Return industrial-standard billing tier, real-time usage quotas, and trial status."""
+    from app.core.config import ADMIN_BYPASS_EMAILS
+    from app.services.chatty_quota_service import (
+        PLAN_QUOTAS,
+        check_bot_owner_subscription,
+        get_chatty_monthly_usage,
+        plan_for,
+    )
+
+    auth_id = user.get("auth_user_id") or user.get("id")
+    email = (user.get("email") or "").strip().lower()
+    is_admin = bool(email in ADMIN_BYPASS_EMAILS or user.get("role") in ("admin", "superadmin"))
+
+    resolved_plan = "chatty_enterprise" if is_admin else plan_for(user)
+    plan_limit = None if (is_admin or resolved_plan == "chatty_enterprise") else PLAN_QUOTAS.get(resolved_plan, 10000)
+
+    # Evaluate subscription / trial state
+    sub_eval = await check_bot_owner_subscription(user, auth_id)
+    sub_status = "active" if is_admin else sub_eval.get("status", "active")
+    is_trial = not is_admin and sub_status == "on_trial"
+    is_expired = not is_admin and sub_status in ("trial_expired", "subscription_canceled", "payment_failed")
+
+    # Trial days calculation
+    trial_start_raw = user.get("trial_started_at") or user.get("created_at")
+    days_elapsed = 0
+    if trial_start_raw:
+        try:
+            st = datetime.fromisoformat(str(trial_start_raw).replace("Z", "+00:00"))
+            days_elapsed = max(0, (datetime.now(timezone.utc) - st).days)
+        except Exception:
+            days_elapsed = 0
+    days_remaining = max(0, 14 - days_elapsed) if is_trial else (0 if is_expired else 14)
+
+    # Query usage metrics
+    used_credits = await get_chatty_monthly_usage(auth_id)
+
+    # Count owned bots
+    bots_res = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("user_id", auth_id).execute())
+    user_bots = bots_res.data or []
+    bots_count = len(user_bots)
+    bot_ids = [b["id"] for b in user_bots]
+
+    # Count indexed characters
+    total_chars = 0
+    if bot_ids:
+        try:
+            sources_res = await run_db(lambda: supabase.table("chatty_sources").select("char_count").in_("bot_id", bot_ids).execute())
+            for s in (sources_res.data or []):
+                total_chars += int(s.get("char_count") or 0)
+        except Exception:
+            pass
+
+    # Count team members
+    team_count = 0
+    try:
+        team_res = await run_db(lambda: supabase.table("chatty_team_members").select("id").eq("owner_id", auth_id).execute())
+        team_count = len(team_res.data or [])
+    except Exception:
+        pass
+
+    # Limits mapping
+    bots_limit = None if (is_admin or resolved_plan in ("chatty_business", "chatty_enterprise")) else (3 if resolved_plan == "chatty_hobby" else 6)
+    chars_limit = None if (is_admin or resolved_plan == "chatty_enterprise") else (10_000_000 if resolved_plan == "chatty_hobby" else 20_000_000 if resolved_plan == "chatty_standard" else 50_000_000)
+    storage_limit_mb = None if (is_admin or resolved_plan == "chatty_enterprise") else (500 if resolved_plan == "chatty_hobby" else 2048 if resolved_plan == "chatty_standard" else 10240)
+    team_limit = None if (is_admin or resolved_plan != "chatty_hobby") else 1
+
+    return {
+        "is_admin": is_admin,
+        "plan": resolved_plan,
+        "status": sub_status,
+        "renews_at": None if is_admin else user.get("subscription_renews_at"),
+        "trial": {
+            "is_trial": is_trial,
+            "is_expired": is_expired,
+            "days_total": 14,
+            "days_elapsed": days_elapsed,
+            "days_remaining": days_remaining,
+            "trial_started_at": trial_start_raw,
+        },
+        "usage": {
+            "ai_credits": {
+                "used": used_credits,
+                "limit": plan_limit,
+                "unlimited": is_admin or resolved_plan == "chatty_enterprise",
+            },
+            "chatbots": {
+                "used": bots_count,
+                "limit": bots_limit,
+                "unlimited": is_admin or resolved_plan in ("chatty_business", "chatty_enterprise"),
+            },
+            "characters": {
+                "used": total_chars,
+                "limit": chars_limit,
+                "unlimited": is_admin or resolved_plan == "chatty_enterprise",
+            },
+            "team_members": {
+                "used": team_count,
+                "limit": team_limit,
+                "unlimited": is_admin or resolved_plan != "chatty_hobby",
+            },
+            "storage_mb": {
+                "used": round(total_chars / (1024 * 500), 1),
+                "limit": storage_limit_mb,
+                "unlimited": is_admin or resolved_plan == "chatty_enterprise",
+            },
+        },
+        "features": {
+            "whitelabel": is_admin or resolved_plan in ("chatty_standard", "chatty_business", "chatty_enterprise"),
+            "byok": is_admin or resolved_plan in ("chatty_business", "chatty_enterprise"),
+            "auto_train": "realtime" if (is_admin or resolved_plan in ("chatty_business", "chatty_enterprise")) else "daily" if resolved_plan == "chatty_standard" else "off",
+            "priority_support": is_admin or resolved_plan in ("chatty_business", "chatty_enterprise"),
+            "admin_api": is_admin or resolved_plan in ("chatty_business", "chatty_enterprise"),
+            "unlimited_teams": is_admin or resolved_plan != "chatty_hobby",
+        },
+    }

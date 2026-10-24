@@ -181,6 +181,6 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 # Admin / billing bypass emails (comma-separated, e.g. "admin@example.com,owner@domain.com")
 ADMIN_BYPASS_EMAILS = {
     e.strip().lower()
-    for e in os.environ.get("ADMIN_BYPASS_EMAILS", "personaliai.com@gmail.com").split(",")
+    for e in os.environ.get("ADMIN_BYPASS_EMAILS", "personaliai.com@gmail.com,damayanthakat@gmail.com").split(",")
     if e.strip()
 }

@@ -68,8 +68,13 @@ export function TrialCountdown({
     return null;
   }
 
-  // Already paid / active subscription
-  if (subscriptionStatus === "active") {
+  const normalizedPlan = (plan || "").toLowerCase();
+  // Already paid / active subscription or Enterprise operator tier
+  if (
+    subscriptionStatus === "active" ||
+    normalizedPlan === "chatty_enterprise" ||
+    normalizedPlan === "enterprise"
+  ) {
     return null;
   }
 

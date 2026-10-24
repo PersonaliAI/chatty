@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   ExternalLink,
@@ -14,6 +14,14 @@ import {
   Share2,
   ShieldCheck,
   ArrowRight,
+  Bot,
+  Database,
+  Infinity as InfinityIcon,
+  Zap,
+  Clock,
+  Lock,
+  Crown,
+  Layers,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -33,96 +41,181 @@ interface BillingTabProps {
   user: SupabaseUser | null;
   billingInterval: "monthly" | "yearly";
   setBillingInterval: (iv: "monthly" | "yearly") => void;
+  isPlatformAdmin?: boolean;
+  userBotsCount?: number;
+  totalCharsCount?: number;
+  teamMembersCount?: number;
 }
+
+const ADMIN_BYPASS_EMAILS = new Set([
+  "personaliai.com@gmail.com",
+  "damayanthakat@gmail.com",
+]);
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Standard (14-Day Trial)",
   chatty_hobby: "Hobby",
   chatty_standard: "Standard",
   chatty_business: "Business",
+  chatty_enterprise: "Enterprise Operator (Super Admin)",
 };
 
-const PLAN_FEATURES: Record<string, string[]> = {
-  free: [
-    "14-day free trial included",
-    "10,000 weighted AI credits/mo",
-    "20M training characters",
-    "6 chatbots",
-    "2 GB Media Storage (1,500 products)",
-  ],
-  chatty_hobby: [
-    "1,000 weighted AI credits/mo",
-    "10M training characters",
-    "3 chatbots",
-    "Fast & Advanced AI models",
-    "500 MB Media Storage (250 products)",
-    "AI Actions & Analytics",
-    "Guardrails & Notifications",
-    "Lead collection & API",
-  ],
-  chatty_standard: [
-    "10,000 weighted AI credits/mo",
-    "20M training characters",
-    "6 chatbots",
-    "2 GB Media Storage (1,500 products)",
-    "Daily Auto Train sync",
-    "Remove branding completely",
-    "Unlimited team members",
-  ],
-  chatty_business: [
-    "40,000 weighted AI credits/mo",
-    "50M training characters",
-    "Unlimited chatbots",
-    "10 GB Media Storage (Unlimited products)",
-    "BYOK (Bring-Your-Own-Key) option",
-    "White-label configuration",
-    "Management Admin API",
-  ],
-};
-
-const PLAN_CARDS: {
-  id: "hobby" | "standard" | "business";
+interface PlanTierConfig {
+  id: string;
   label: string;
-  monthly: number;
-  yearly: number;
-  blurb: string;
-  popular?: boolean;
-}[] = [
+  monthlyCredits: number | null; // null = unlimited
+  maxBots: number | null; // null = unlimited
+  maxCharacters: number | null; // null = unlimited
+  mediaStorageMb: number | null; // null = unlimited
+  teamSeats: number | null; // null = unlimited
+  whitelabel: boolean;
+  byok: boolean;
+  autoTrainSchedule: string;
+  adminApi: boolean;
+  features: string[];
+}
+
+const PLAN_TIER_CONFIGS: Record<string, PlanTierConfig> = {
+  chatty_hobby: {
+    id: "chatty_hobby",
+    label: "Hobby",
+    monthlyCredits: 1000,
+    maxBots: 3,
+    maxCharacters: 10_000_000,
+    mediaStorageMb: 500,
+    teamSeats: 1,
+    whitelabel: false,
+    byok: false,
+    autoTrainSchedule: "Manual",
+    adminApi: false,
+    features: [
+      "1,000 weighted AI credits / mo",
+      "10M training characters",
+      "Up to 3 live AI chatbots",
+      "500 MB Media Storage (250 products)",
+      "Fast & Advanced foundation models",
+      "Lead extraction & notifications",
+      "Calendar scheduling (Outlook & Google)",
+      "Single teammate workspace",
+    ],
+  },
+  chatty_standard: {
+    id: "chatty_standard",
+    label: "Standard",
+    monthlyCredits: 10000,
+    maxBots: 6,
+    maxCharacters: 20_000_000,
+    mediaStorageMb: 2048,
+    teamSeats: null,
+    whitelabel: true,
+    byok: false,
+    autoTrainSchedule: "Daily Auto-Sync",
+    adminApi: false,
+    features: [
+      "10,000 weighted AI credits / mo",
+      "20M training characters",
+      "Up to 6 live AI chatbots",
+      "2 GB Media Storage (1,500 products)",
+      "Remove Chatty branding completely",
+      "Daily Auto Train & cloud re-indexing",
+      "Teams & Meet video links generated",
+      "Unlimited team collaboration seats",
+    ],
+  },
+  chatty_business: {
+    id: "chatty_business",
+    label: "Business",
+    monthlyCredits: 40000,
+    maxBots: null,
+    maxCharacters: 50_000_000,
+    mediaStorageMb: 10240,
+    teamSeats: null,
+    whitelabel: true,
+    byok: true,
+    autoTrainSchedule: "Realtime Continuous",
+    adminApi: true,
+    features: [
+      "40,000 weighted AI credits / mo",
+      "50M training characters",
+      "Unlimited AI chatbots",
+      "10 GB Media Storage (Unlimited products)",
+      "Bring-Your-Own-Key (BYOK) for 0 platform fees",
+      "Full White-label configuration & domain CNAME",
+      "Management Admin API & webhooks",
+      "Priority inference routing & SLA",
+    ],
+  },
+  chatty_enterprise: {
+    id: "chatty_enterprise",
+    label: "Enterprise Operator",
+    monthlyCredits: null,
+    maxBots: null,
+    maxCharacters: null,
+    mediaStorageMb: null,
+    teamSeats: null,
+    whitelabel: true,
+    byok: true,
+    autoTrainSchedule: "Realtime Continuous",
+    adminApi: true,
+    features: [
+      "Unlimited weighted AI credits ($0 Operator Plan)",
+      "Unlimited training character volume",
+      "Unlimited live chatbots & deployments",
+      "Unlimited Media Storage & products",
+      "Full Enterprise White-labeling",
+      "Dedicated developer APIs & webhooks",
+      "Super-Admin administrative bypass",
+      "All limits, quotas & trials bypassed",
+    ],
+  },
+};
+
+const PLAN_CARDS = [
   {
     id: "hobby",
+    key: "chatty_hobby",
     label: "Hobby",
     monthly: 19,
     yearly: 15,
     blurb: "Perfect for individuals, developers, and side projects.",
+    credits: "1,000 credits/mo",
+    bots: "3 chatbots",
+    chars: "10M chars",
   },
   {
     id: "standard",
+    key: "chatty_standard",
     label: "Standard",
     monthly: 99,
     yearly: 79,
     blurb: "All in Hobby, plus advanced automation and multi-bot systems.",
+    credits: "10,000 credits/mo",
+    bots: "6 chatbots",
+    chars: "20M chars",
     popular: true,
   },
   {
     id: "business",
+    key: "chatty_business",
     label: "Business",
     monthly: 399,
     yearly: 319,
     blurb: "For enterprise scale, heavy traffic, and reseller options.",
+    credits: "40,000 credits/mo",
+    bots: "Unlimited chatbots",
+    chars: "50M chars",
   },
 ];
 
-function formatCents(cents: number): string {
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-  });
+function formatNumber(num: number | null | undefined): string {
+  if (num === null || num === undefined) return "∞ Unlimited";
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+  return num.toLocaleString();
 }
 
 /**
  * User Account Affiliate & Payout Details Section.
- * Gives every user direct access to their referral link, stats,
- * and payment/payout details (e.g. PayPal/Wise email) right in their account.
  */
 function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
   const supabase = createClient();
@@ -238,48 +331,74 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
     );
   }
 
-  // State A: User is an Active Affiliate Partner
   if (isAffiliate && profile) {
     return (
       <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xs">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-100 dark:border-neutral-800 pb-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-mono uppercase tracking-widest text-[#f97316] font-bold">
                 Partner &amp; Referral Program
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-[#f97316]/10 text-[#f97316] text-[10px] font-mono font-bold">
-                {profile.commission_percentage}% Monthly Commission
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold">
+                Active Partner (30% Commission)
               </span>
             </div>
-            <h3 className="text-base font-bold text-neutral-900 dark:text-white mt-1">
-              Your Referral Link &amp; Payment Payout Details
+            <h3 className="text-base font-bold mt-1 text-neutral-900 dark:text-white">
+              Your Referral Link &amp; Earnings
             </h3>
           </div>
           <Link
             href="/affiliate"
-            className="text-xs font-semibold text-neutral-600 hover:text-[#f97316] dark:text-neutral-400 dark:hover:text-[#f97316] flex items-center gap-1 transition-colors"
+            className="text-xs text-neutral-500 hover:text-[#f97316] inline-flex items-center gap-1 transition-colors"
           >
-            <span>Full Partner Portal</span>
-            <ExternalLink className="size-3.5" />
+            <span>Partner Terms</span>
+            <ArrowRight className="size-3" />
           </Link>
         </div>
 
-        {/* Referral Link Box */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950/50 border border-neutral-200/60 dark:border-neutral-800/60">
+            <span className="text-[10px] font-mono uppercase text-neutral-400 block">Total Referrals</span>
+            <span className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5 block">
+              {stats?.total_referrals || 0}
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950/50 border border-neutral-200/60 dark:border-neutral-800/60">
+            <span className="text-[10px] font-mono uppercase text-neutral-400 block">Paid Customers</span>
+            <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5 block">
+              {stats?.active_subscriptions || 0}
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950/50 border border-neutral-200/60 dark:border-neutral-800/60">
+            <span className="text-[10px] font-mono uppercase text-neutral-400 block">Unpaid Commission</span>
+            <span className="text-lg font-bold text-[#f97316] mt-0.5 block">
+              ${((stats?.pending_commission_cents || 0) / 100).toFixed(2)}
+            </span>
+          </div>
+          <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950/50 border border-neutral-200/60 dark:border-neutral-800/60">
+            <span className="text-[10px] font-mono uppercase text-neutral-400 block">Total Paid Out</span>
+            <span className="text-lg font-bold text-neutral-900 dark:text-white mt-0.5 block">
+              ${((stats?.paid_commission_cents || 0) / 100).toFixed(2)}
+            </span>
+          </div>
+        </div>
+
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5">
-            <Share2 className="size-3.5 text-[#f97316]" />
-            <span>Your Personal Referral Link</span>
+          <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
+            Your Dedicated Referral Link
           </label>
           <div className="flex items-center gap-2">
-            <div className="flex-1 px-3 py-2 text-xs font-mono rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 truncate">
-              {profile.referral_url}
-            </div>
+            <input
+              type="text"
+              readOnly
+              value={profile.referral_url}
+              className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-700 dark:text-neutral-300 select-all focus:outline-none"
+            />
             <button
               type="button"
               onClick={handleCopy}
-              className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
             >
               {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
               <span>{copied ? "Copied" : "Copy Link"}</span>
@@ -287,65 +406,23 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-800 space-y-0.5">
-            <span className="text-[10px] uppercase font-mono text-neutral-400 block">Total Clicks</span>
-            <p className="text-lg font-bold font-mono text-neutral-900 dark:text-white">
-              {stats?.clicks_all_time ?? 0}
-            </p>
-          </div>
-          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-800 space-y-0.5">
-            <span className="text-[10px] uppercase font-mono text-neutral-400 block">Paid Referrals</span>
-            <p className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400">
-              {stats?.referrals_paid ?? 0}
-            </p>
-          </div>
-          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-800 space-y-0.5">
-            <span className="text-[10px] uppercase font-mono text-neutral-400 block">Pending Hold</span>
-            <p className="text-lg font-bold font-mono text-amber-500">
-              {formatCents(stats?.pending_cents ?? 0)}
-            </p>
-          </div>
-          <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-100 dark:border-neutral-800 space-y-0.5">
-            <span className="text-[10px] uppercase font-mono text-neutral-400 block">Payable Balance</span>
-            <p className="text-lg font-bold font-mono text-[#f97316]">
-              {formatCents(stats?.payable_cents ?? 0)}
-            </p>
-          </div>
-        </div>
-
-        {/* Payment Required Details in User Accounts */}
-        <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
-          <div>
-            <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
-              PayPal Payout Account (Required for commission disbursements)
-            </label>
-            <p className="text-[11px] text-neutral-400 mt-0.5">
-              Specify your verified PayPal email address where earned commissions will be disbursed.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-xs text-neutral-500 whitespace-nowrap">Payout PayPal:</span>
             <input
               type="email"
               value={payoutEmail}
               onChange={(e) => setPayoutEmail(e.target.value)}
-              placeholder="your-account@paypal.com"
-              className="flex-1 px-3 py-2 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white focus:outline-none focus:border-[#f97316] transition-colors"
+              placeholder="paypal@yourdomain.com"
+              className="px-3 py-1.5 text-xs rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white flex-1 max-w-sm focus:outline-none focus:border-[#f97316]"
             />
             <button
               type="button"
               onClick={handleUpdatePayoutEmail}
               disabled={savingEmail || !payoutEmail.trim()}
-              className="px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:text-neutral-900 text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer shrink-0 flex items-center justify-center gap-1.5"
+              className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
             >
-              {savingEmail ? (
-                <RefreshCw className="size-3.5 animate-spin" />
-              ) : emailSaved ? (
-                <Check className="size-3.5 text-emerald-400" />
-              ) : null}
-              <span>{emailSaved ? "Saved!" : "Save PayPal Email"}</span>
+              {savingEmail ? "Saving..." : emailSaved ? "Saved!" : "Update"}
             </button>
           </div>
         </div>
@@ -353,7 +430,6 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
     );
   }
 
-  // State B: User has not joined yet — 1-click Activation Card
   return (
     <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-xs">
       <div className="flex items-center gap-2">
@@ -438,91 +514,452 @@ export function BillingTab({
   user,
   billingInterval,
   setBillingInterval,
+  isPlatformAdmin = false,
+  userBotsCount = 1,
+  totalCharsCount = 0,
+  teamMembersCount = 1,
 }: BillingTabProps) {
-  const plan = billingInfo?.plan || "free";
-  const status = billingInfo?.status;
-  const isPaid = ["active", "on_trial", "paused"].includes(status || "");
+  const supabase = createClient();
+  const [summaryData, setSummaryData] = useState<any>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
+  const userEmail = (user?.email || "").toLowerCase().trim();
+  const isAdmin = useMemo(() => {
+    return isPlatformAdmin || ADMIN_BYPASS_EMAILS.has(userEmail);
+  }, [isPlatformAdmin, userEmail]);
+
+  // Determine effective plan
+  const selectedPlanPref = (user?.user_metadata?.plan_preference as string) || (user?.user_metadata?.selected_plan as string);
+  const activePlanKey = useMemo(() => {
+    if (isAdmin) return "chatty_enterprise";
+    if (billingInfo?.plan && billingInfo.plan !== "free") {
+      return billingInfo.plan;
+    }
+    if (selectedPlanPref && PLAN_TIER_CONFIGS[selectedPlanPref]) {
+      return selectedPlanPref;
+    }
+    return "chatty_standard";
+  }, [isAdmin, billingInfo?.plan, selectedPlanPref]);
+
+  const activeTierConfig = PLAN_TIER_CONFIGS[activePlanKey] || PLAN_TIER_CONFIGS.chatty_standard;
+
+  const isPaidActive = Boolean(
+    !isAdmin &&
+    billingInfo?.status &&
+    ["active", "paid"].includes(billingInfo.status) &&
+    billingInfo.plan &&
+    billingInfo.plan !== "free"
+  );
+
+  const isTrial = Boolean(!isAdmin && !isPaidActive);
+
+  // Trial countdown calculation
+  const trialDaysRemaining = useMemo(() => {
+    if (!isTrial) return 14;
+    const startRaw = (user?.user_metadata?.trial_started_at as string) || user?.created_at;
+    if (!startRaw) return 14;
+    try {
+      const start = new Date(startRaw);
+      const elapsed = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
+      return Math.max(0, 14 - elapsed);
+    } catch {
+      return 14;
+    }
+  }, [isTrial, user]);
+
+  const trialDaysElapsed = Math.min(14, Math.max(0, 14 - trialDaysRemaining));
+
+  // Load backend summary if available
+  useEffect(() => {
+    async function loadSummary() {
+      try {
+        setLoadingSummary(true);
+        const res = await fetchBackend(supabase, "/api/billing/summary");
+        if (res.ok) {
+          const d = await res.json();
+          setSummaryData(d);
+        }
+      } catch (err) {
+        console.warn("Billing summary query fallback to client state:", err);
+      } finally {
+        setLoadingSummary(false);
+      }
+    }
+    loadSummary();
+  }, []);
+
+  // Compute live usage numbers
+  const liveAiCreditsUsed = summaryData?.usage?.ai_credits?.used ?? 0;
+  const liveAiCreditsLimit = isAdmin ? null : (summaryData?.usage?.ai_credits?.limit ?? activeTierConfig.monthlyCredits);
+
+  const liveBotsCount = summaryData?.usage?.chatbots?.used ?? userBotsCount;
+  const liveBotsLimit = isAdmin ? null : (summaryData?.usage?.chatbots?.limit ?? activeTierConfig.maxBots);
+
+  const liveCharsCount = summaryData?.usage?.characters?.used ?? totalCharsCount;
+  const liveCharsLimit = isAdmin ? null : (summaryData?.usage?.characters?.limit ?? activeTierConfig.maxCharacters);
+
+  const liveTeamCount = summaryData?.usage?.team_members?.used ?? teamMembersCount;
+  const liveTeamLimit = isAdmin ? null : (summaryData?.usage?.team_members?.limit ?? activeTierConfig.teamSeats);
+
   const portalUrl = process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
 
   return (
     <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-sm font-bold">Billing &amp; Usage</h2>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-          Manage your subscription tier, billing interval, and affiliate partner earnings.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+              Billing &amp; Resource Quotas
+            </h2>
+            {isAdmin && (
+              <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-bold tracking-wider uppercase shadow-xs flex items-center gap-1">
+                <Crown className="size-3" /> Super Admin Unlimited
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+            Real-time telemetry, active resource usage against plan capacity, and billing management.
+          </p>
+        </div>
+
+        {isPaidActive && portalUrl && (
+          <a
+            href={portalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-semibold text-neutral-700 dark:text-neutral-300 transition-colors shadow-xs shrink-0"
+          >
+            <span>Manage Invoices &amp; Cards</span>
+            <ExternalLink className="size-3.5" />
+          </a>
+        )}
       </div>
 
-      {/* Shared Bot Owner Billing Banner */}
-      {billingInfo?.isSharedBot && (
-        <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-950 dark:text-blue-100 flex items-start gap-3">
-          <ShieldCheck className="size-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
-              Workspace Owner Managed Billing
-            </h4>
-            <p className="text-xs text-blue-800/90 dark:text-blue-200 leading-relaxed">
-              You are collaborating on a shared assistant owned by <strong>{billingInfo.ownerName || billingInfo.ownerEmail || "Workspace Owner"}</strong>.
-              All chatbot quotas, AI credits, whitelabel branding, and add-ons are covered by the owner&apos;s <strong>{(PLAN_LABELS[plan] || plan).toUpperCase()}</strong> plan. Teammates are never billed for shared bot usage.
-            </p>
+      {/* ========================================================
+          1. ACTIVE PLAN & TRIAL STATUS BANNER (Industrial Standard)
+          ======================================================== */}
+      {isAdmin ? (
+        // Super Admin Unlimited Banner
+        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-neutral-900 via-neutral-950 to-neutral-900 border border-orange-500/30 text-white shadow-md relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+            <Crown className="size-48 text-orange-400" />
+          </div>
+          <div className="relative z-10 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-md bg-orange-500/20 text-orange-400 border border-orange-500/40 text-[10px] font-mono font-bold uppercase tracking-wider">
+                  Self-Host / Platform Operator
+                </span>
+                <span className="px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-bold uppercase">
+                  Active • Lifetime Access
+                </span>
+              </div>
+              <span className="text-xs font-mono text-neutral-400">
+                Primary Account: <strong>{userEmail}</strong>
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <span>Enterprise Operator Plan</span>
+                <InfinityIcon className="size-5 text-orange-400" />
+              </h3>
+              <p className="text-xs text-neutral-300/90 max-w-2xl leading-relaxed">
+                You are signed in as the SaaS Platform Administrator. All chatbot instance limits, AI token inference credits, RAG training characters, team seats, and trial timeouts are <strong>completely unlimited ($0/mo Operator License)</strong>.
+              </p>
+            </div>
           </div>
         </div>
-      )}
-
-      {/* Current Plan Overview Card */}
-      <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-4 sm:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400">
-              Current Subscription
-            </span>
-            <div className="flex items-center gap-3 mt-1">
-              <h3 className="text-xl font-bold capitalize">
-                {PLAN_LABELS[plan] || plan}
-              </h3>
-              {status && (
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold ${
-                    status === "active"
-                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-                      : status === "on_trial"
-                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400"
-                      : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400"
-                  }`}
-                >
-                  {status}
+      ) : isTrial ? (
+        // Free Trial Banner (Accurately Reflecting Selected Plan)
+        <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800/60 text-[#f97316] text-[10px] font-mono font-bold uppercase tracking-wider">
+                  14-Day Free Trial
                 </span>
-              )}
+                <span className="text-xs font-mono text-neutral-400">
+                  Tier: <strong>{activeTierConfig.label} Plan</strong>
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-neutral-900 dark:text-white">
+                {activeTierConfig.label} Plan Trial ({trialDaysRemaining} {trialDaysRemaining === 1 ? "day" : "days"} remaining)
+              </h3>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                You have full access to all {activeTierConfig.label} features during your trial: <strong>{formatNumber(activeTierConfig.monthlyCredits)} AI credits</strong>, <strong>{formatNumber(activeTierConfig.maxBots)} chatbots</strong>, and <strong>{formatNumber(activeTierConfig.maxCharacters)} characters</strong>.
+              </p>
             </div>
+
+            <Link
+              href={`/checkout?plan=${activePlanKey.replace("chatty_", "")}&interval=${billingInterval}`}
+              className="px-5 py-2.5 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-bold transition-all shadow-sm shrink-0 text-center flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Zap className="size-3.5 fill-white" />
+              <span>Activate Full Subscription</span>
+            </Link>
+          </div>
+
+          {/* 14-Day Trial Timeline Bar */}
+          <div className="space-y-1.5 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-neutral-500">Day {trialDaysElapsed} of 14</span>
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                {trialDaysRemaining > 0 ? `${trialDaysRemaining} days left` : "Trial expired today"}
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(7, (trialDaysElapsed / 14) * 100))}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        // Active Paid Subscription Card
+        <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-400">
+                Active Subscription
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold uppercase">
+                Active
+              </span>
+            </div>
+            <h3 className="text-xl font-bold mt-1 text-neutral-900 dark:text-white capitalize">
+              {PLAN_LABELS[billingInfo?.plan || ""] || billingInfo?.plan || "Standard Plan"}
+            </h3>
             {billingInfo?.renewsAt && (
-              <p className="text-xs text-neutral-400 mt-1">
-                Renews on {new Date(billingInfo.renewsAt).toLocaleDateString()}
+              <p className="text-xs text-neutral-400 mt-1 flex items-center gap-1.5">
+                <Clock className="size-3.5" />
+                <span>Next renewal on {new Date(billingInfo.renewsAt).toLocaleDateString()}</span>
               </p>
             )}
           </div>
 
-          {isPaid && portalUrl && (
-            <a
-              href={portalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-semibold text-neutral-700 dark:text-neutral-300 transition-colors"
-            >
-              <span>Manage Invoices</span>
-              <ExternalLink className="size-3.5" />
-            </a>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold">
+              Billed {billingInterval === "yearly" ? "Annually (Save 20%)" : "Monthly"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          2. REAL-TIME USAGE & QUOTA METERS (Industrial Standard)
+          ======================================================== */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+              Live Quotas &amp; Usage
+            </h3>
+            <p className="text-[11px] text-neutral-500 mt-0.5">
+              Current telemetry and consumption for your active billing cycle.
+            </p>
+          </div>
+          {loadingSummary && (
+            <span className="text-[10px] text-neutral-400 flex items-center gap-1">
+              <RefreshCw className="size-3 animate-spin" /> Syncing...
+            </span>
           )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Meter 1: AI Credits / Messages */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase font-semibold text-neutral-400">AI Inference Credits</span>
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30">
+                <Sparkles className="size-4" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-neutral-900 dark:text-white">
+                  {liveAiCreditsUsed.toLocaleString()}
+                </span>
+                <span className="text-xs text-neutral-400 font-mono">
+                  / {liveAiCreditsLimit ? liveAiCreditsLimit.toLocaleString() : "∞"}
+                </span>
+              </div>
+              <p className="text-[10px] text-neutral-400 mt-0.5">
+                {liveAiCreditsLimit
+                  ? `${Math.min(100, Math.round((liveAiCreditsUsed / liveAiCreditsLimit) * 100))}% consumed this cycle`
+                  : "Unlimited AI token capacity"}
+              </p>
+            </div>
+            {/* Meter Bar */}
+            <div className="w-full h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isAdmin
+                    ? "w-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                    : liveAiCreditsLimit && (liveAiCreditsUsed / liveAiCreditsLimit) > 0.9
+                    ? "bg-rose-500"
+                    : liveAiCreditsLimit && (liveAiCreditsUsed / liveAiCreditsLimit) > 0.75
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
+                }`}
+                style={{
+                  width: isAdmin
+                    ? "100%"
+                    : `${Math.min(100, Math.max(3, liveAiCreditsLimit ? (liveAiCreditsUsed / liveAiCreditsLimit) * 100 : 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Meter 2: Active Chatbots */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase font-semibold text-neutral-400">Active Chatbots</span>
+              <div className="p-2 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-800/30">
+                <Bot className="size-4" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-neutral-900 dark:text-white">
+                  {liveBotsCount}
+                </span>
+                <span className="text-xs text-neutral-400 font-mono">
+                  / {liveBotsLimit ? liveBotsLimit : "∞"}
+                </span>
+              </div>
+              <p className="text-[10px] text-neutral-400 mt-0.5">
+                {liveBotsLimit ? `${liveBotsCount} of ${liveBotsLimit} assistants in use` : "Unlimited assistant creation"}
+              </p>
+            </div>
+            {/* Meter Bar */}
+            <div className="w-full h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  isAdmin
+                    ? "w-full bg-gradient-to-r from-sky-500 to-blue-400"
+                    : liveBotsLimit && liveBotsCount >= liveBotsLimit
+                    ? "bg-amber-500"
+                    : "bg-sky-500"
+                }`}
+                style={{
+                  width: isAdmin
+                    ? "100%"
+                    : `${Math.min(100, Math.max(5, liveBotsLimit ? (liveBotsCount / liveBotsLimit) * 100 : 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Meter 3: Knowledge Characters */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase font-semibold text-neutral-400">Training Characters</span>
+              <div className="p-2 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-[#f97316] border border-orange-100 dark:border-orange-800/30">
+                <Database className="size-4" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-neutral-900 dark:text-white">
+                  {formatNumber(liveCharsCount)}
+                </span>
+                <span className="text-xs text-neutral-400 font-mono">
+                  / {liveCharsLimit ? formatNumber(liveCharsLimit) : "∞"}
+                </span>
+              </div>
+              <p className="text-[10px] text-neutral-400 mt-0.5">
+                Indexed in pgvector knowledge base
+              </p>
+            </div>
+            {/* Meter Bar */}
+            <div className="w-full h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-500"
+                style={{
+                  width: isAdmin
+                    ? "100%"
+                    : `${Math.min(100, Math.max(4, liveCharsLimit ? (liveCharsCount / liveCharsLimit) * 100 : 100))}%`,
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Meter 4: Team Collaboration */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase font-semibold text-neutral-400">Team Seats</span>
+              <div className="p-2 rounded-xl bg-violet-50 dark:bg-violet-950/50 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-800/30">
+                <Users className="size-4" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-neutral-900 dark:text-white">
+                  {liveTeamCount}
+                </span>
+                <span className="text-xs text-neutral-400 font-mono">
+                  / {liveTeamLimit ? liveTeamLimit : "∞"}
+                </span>
+              </div>
+              <p className="text-[10px] text-neutral-400 mt-0.5">
+                {liveTeamLimit ? `${liveTeamCount} of ${liveTeamLimit} seat occupied` : "Unlimited teammate seats"}
+              </p>
+            </div>
+            {/* Meter Bar */}
+            <div className="w-full h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-400 transition-all duration-500"
+                style={{
+                  width: isAdmin
+                    ? "100%"
+                    : `${Math.min(100, Math.max(6, liveTeamLimit ? (liveTeamCount / liveTeamLimit) * 100 : 100))}%`,
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Plan Selection Grid */}
+      {/* ========================================================
+          3. FEATURE ENTITLEMENTS MATRIX (Checked with Plan Cards)
+          ======================================================== */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+            Current Tier Capabilities &amp; Features
+          </h3>
+          <p className="text-[11px] text-neutral-500 mt-0.5">
+            Features currently enabled for your account under the <strong>{activeTierConfig.label}</strong> tier.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+          {activeTierConfig.features.map((feat, idx) => (
+            <div
+              key={idx}
+              className="flex items-start gap-2.5 p-3 rounded-xl bg-neutral-50/70 dark:bg-neutral-950/40 border border-neutral-200/50 dark:border-neutral-800/50 text-xs text-neutral-800 dark:text-neutral-200 font-medium"
+            >
+              <CheckCircle2 className="size-4 text-emerald-500 shrink-0 mt-0.5" />
+              <span>{feat}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ========================================================
+          4. PLAN SELECTION & UPGRADE CARDS
+          ======================================================== */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold">Upgrade or Change Plan</h3>
+            <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
+              {isAdmin ? "SaaS Commercial Pricing Tiers" : "Available Subscription Tiers"}
+            </h3>
             <p className="text-xs text-neutral-400">
-              Choose the tier that matches your monthly conversation volume.
+              Select or upgrade your tier to unlock higher conversation limits and enterprise features.
             </p>
           </div>
 
@@ -558,10 +995,9 @@ export function BillingTab({
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {PLAN_CARDS.map((card) => {
-            const isCurrent = isPaid && plan.includes(card.id);
-            const isTrialPlan = !isPaid && (plan.includes(card.id) || (plan === "free" && card.id === "standard"));
-            const price =
-              billingInterval === "yearly" ? card.yearly : card.monthly;
+            const isCurrentPaid = isPaidActive && activePlanKey === card.key;
+            const isCurrentTrial = isTrial && activePlanKey === card.key;
+            const price = billingInterval === "yearly" ? card.yearly : card.monthly;
 
             return (
               <div
@@ -579,10 +1015,15 @@ export function BillingTab({
                 )}
                 <div>
                   <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-base font-bold">{card.label}</h4>
-                    {isTrialPlan && (
+                    <h4 className="text-base font-bold text-neutral-900 dark:text-white">{card.label}</h4>
+                    {isCurrentTrial && (
+                      <span className="px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800/60 text-[#f97316] text-[10px] font-mono font-bold uppercase">
+                        Current Trial
+                      </span>
+                    )}
+                    {isCurrentPaid && (
                       <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold uppercase">
-                        14-Day Trial
+                        Active Plan
                       </span>
                     )}
                   </div>
@@ -590,7 +1031,7 @@ export function BillingTab({
                     {card.blurb}
                   </p>
                   <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-3xl font-black">${price}</span>
+                    <span className="text-3xl font-black text-neutral-900 dark:text-white">${price}</span>
                     <span className="text-xs text-neutral-400">/month</span>
                   </div>
                   {billingInterval === "yearly" && (
@@ -600,8 +1041,8 @@ export function BillingTab({
                   )}
 
                   <ul className="mt-6 space-y-2 text-xs text-neutral-600 dark:text-neutral-400">
-                    {(PLAN_FEATURES[`chatty_${card.id}`] || []).map((feat) => (
-                      <li key={feat} className="flex items-start gap-2">
+                    {(PLAN_TIER_CONFIGS[card.key]?.features || []).map((feat, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
                         <CheckCircle2 className="size-3.5 text-[#f97316] shrink-0 mt-0.5" />
                         <span>{feat}</span>
                       </li>
@@ -609,9 +1050,13 @@ export function BillingTab({
                   </ul>
                 </div>
 
-                {isCurrent ? (
-                  <span className="mt-6 text-center text-xs font-mono uppercase tracking-wider border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-400">
-                    Current plan
+                {isAdmin ? (
+                  <span className="mt-6 text-center text-xs font-mono uppercase tracking-wider border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2.5 text-neutral-400 bg-neutral-50 dark:bg-neutral-950">
+                    Included in Operator License
+                  </span>
+                ) : isCurrentPaid ? (
+                  <span className="mt-6 text-center text-xs font-mono uppercase tracking-wider border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 rounded-xl px-3 py-2.5 font-bold">
+                    Current Plan
                   </span>
                 ) : (
                   <Link
@@ -619,10 +1064,10 @@ export function BillingTab({
                     className={`mt-6 text-center text-xs font-mono uppercase tracking-wider rounded-xl px-3 py-2.5 transition-all ${
                       card.popular
                         ? "bg-[#f97316] hover:bg-[#ea580c] text-white font-bold shadow-xs"
-                        : "border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 font-semibold"
+                        : "border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 font-semibold text-neutral-900 dark:text-white"
                     }`}
                   >
-                    {isPaid ? "Switch Plan" : `Activate ${card.label}`}
+                    {isCurrentTrial ? `Activate ${card.label} Subscription` : `Switch to ${card.label}`}
                   </Link>
                 )}
               </div>
@@ -630,19 +1075,19 @@ export function BillingTab({
           })}
         </div>
 
-        {/* Self-Hosted Open Source — Only Free Option */}
+        {/* Self-Hosted Open Source */}
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/60 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono font-bold uppercase">
-                Only Free Option
+                Developer Option
               </span>
               <span className="text-xs font-bold text-neutral-900 dark:text-white">
-                Self-Host Open Source ($0 Forever)
+                Self-Host Open Source Stack ($0 Forever)
               </span>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              All cloud plans include a 14-day free trial. To run Chatty 100% free forever, self-host the open-source stack on your own server with Docker and bring your own API keys.
+              Run Chatty on your own private infrastructure with Docker, Supabase, and your own LLM API keys with complete code ownership.
             </p>
           </div>
           <a
@@ -651,13 +1096,13 @@ export function BillingTab({
             rel="noopener noreferrer"
             className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 px-4 py-2 text-xs font-semibold text-neutral-900 dark:text-white transition-colors"
           >
-            <span>Self-Host via GitHub</span>
+            <span>GitHub Repository</span>
             <ExternalLink className="size-3.5" />
           </a>
         </div>
       </div>
 
-      {/* User Account Affiliate & Payment Required Details */}
+      {/* User Account Affiliate & Referral Details */}
       <UserAffiliateSection user={user} />
     </div>
   );
