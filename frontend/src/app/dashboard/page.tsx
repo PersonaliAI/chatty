@@ -528,31 +528,60 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   const [whatsappVerifyToken, setWhatsappVerifyToken] = useState("");
   const [whatsappAppSecret, setWhatsappAppSecret] = useState("");
   const [whatsappQuickReplies, setWhatsappQuickReplies] = useState<string[]>([]);
+  const [whatsappConfigured, setWhatsappConfigured] = useState(false);
 
-  // Omnichannel: Instagram DM & Messenger
+  // Omnichannel: Facebook Messenger
+  const [messengerEnabled, setMessengerEnabled] = useState(false);
+  const [messengerPageId, setMessengerPageId] = useState("");
+  const [messengerPageName, setMessengerPageName] = useState("");
+  const [messengerAccessToken, setMessengerAccessToken] = useState("");
+  const [messengerVerifyToken, setMessengerVerifyToken] = useState("");
+  const [messengerAppSecret, setMessengerAppSecret] = useState("");
+  const [messengerQuickReplies, setMessengerQuickReplies] = useState<string[]>([]);
+  const [messengerConfigured, setMessengerConfigured] = useState(false);
+
+  // Omnichannel: Instagram DM
   const [instagramEnabled, setInstagramEnabled] = useState(false);
   const [instagramPageId, setInstagramPageId] = useState("");
+  const [instagramUsername, setInstagramUsername] = useState("");
   const [instagramAccessToken, setInstagramAccessToken] = useState("");
   const [instagramVerifyToken, setInstagramVerifyToken] = useState("");
   const [instagramAppSecret, setInstagramAppSecret] = useState("");
+  const [instagramQuickReplies, setInstagramQuickReplies] = useState<string[]>([]);
+  const [instagramConfigured, setInstagramConfigured] = useState(false);
+
+  // Omnichannel: TikTok Business
+  const [tiktokEnabled, setTiktokEnabled] = useState(false);
+  const [tiktokOpenId, setTiktokOpenId] = useState("");
+  const [tiktokBusinessId, setTiktokBusinessId] = useState("");
+  const [tiktokDisplayName, setTiktokDisplayName] = useState("");
+  const [tiktokAccessToken, setTiktokAccessToken] = useState("");
+  const [tiktokVerifyToken, setTiktokVerifyToken] = useState("");
+  const [tiktokClientKey, setTiktokClientKey] = useState("");
+  const [tiktokClientSecret, setTiktokClientSecret] = useState("");
+  const [tiktokQuickReplies, setTiktokQuickReplies] = useState<string[]>([]);
+  const [tiktokConfigured, setTiktokConfigured] = useState(false);
 
   // Omnichannel: Telegram Bot
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramSecretToken, setTelegramSecretToken] = useState("");
   const [telegramBotUsername, setTelegramBotUsername] = useState("");
+  const [telegramConfigured, setTelegramConfigured] = useState(false);
 
   // Omnichannel: Twilio SMS
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [twilioAccountSid, setTwilioAccountSid] = useState("");
   const [twilioAuthToken, setTwilioAuthToken] = useState("");
   const [twilioPhoneNumber, setTwilioPhoneNumber] = useState("");
+  const [smsConfigured, setSmsConfigured] = useState(false);
 
   // Omnichannel: Two-Way Support Email
   const [emailChannelEnabled, setEmailChannelEnabled] = useState(false);
   const [emailSupportAddress, setEmailSupportAddress] = useState("");
   const [emailWebhookSecret, setEmailWebhookSecret] = useState("");
   const [emailAutoReplyMode, setEmailAutoReplyMode] = useState<"instant_ai" | "draft_copilot">("instant_ai");
+  const [emailConfigured, setEmailConfigured] = useState(false);
 
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
@@ -1546,6 +1575,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setBookingRequireBusinessEmail(activeBot.booking_require_business_email || false);
 
         // Omnichannel Messaging Channels
+        const botAny = activeBot as Record<string, unknown>;
         setWhatsappEnabled(Boolean(activeBot.whatsapp_enabled));
         setWhatsappPhoneNumberId(String(activeBot.whatsapp_phone_number_id || ""));
         setWhatsappWabaId(String(activeBot.whatsapp_waba_id || ""));
@@ -1553,28 +1583,54 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setWhatsappVerifyToken(String(activeBot.whatsapp_verify_token || ""));
         setWhatsappAppSecret(String(activeBot.whatsapp_app_secret || ""));
         setWhatsappQuickReplies(Array.isArray(activeBot.whatsapp_quick_replies) ? activeBot.whatsapp_quick_replies : []);
+        setWhatsappConfigured(Boolean(botAny.whatsapp_configured));
 
-        const botAny = activeBot as Record<string, unknown>;
+        setMessengerEnabled(Boolean(botAny.messenger_enabled));
+        setMessengerPageId(String(botAny.messenger_page_id || ""));
+        setMessengerPageName(String(botAny.messenger_page_name || ""));
+        setMessengerAccessToken(String(botAny.messenger_access_token || ""));
+        setMessengerVerifyToken(String(botAny.messenger_verify_token || ""));
+        setMessengerAppSecret(String(botAny.messenger_app_secret || ""));
+        setMessengerQuickReplies(Array.isArray(botAny.messenger_quick_replies) ? (botAny.messenger_quick_replies as string[]) : []);
+        setMessengerConfigured(Boolean(botAny.messenger_configured));
+
         setInstagramEnabled(Boolean(botAny.instagram_enabled));
         setInstagramPageId(String(botAny.instagram_page_id || ""));
+        setInstagramUsername(String(botAny.instagram_username || ""));
         setInstagramAccessToken(String(botAny.instagram_access_token || ""));
         setInstagramVerifyToken(String(botAny.instagram_verify_token || ""));
         setInstagramAppSecret(String(botAny.instagram_app_secret || ""));
+        setInstagramQuickReplies(Array.isArray(botAny.instagram_quick_replies) ? (botAny.instagram_quick_replies as string[]) : []);
+        setInstagramConfigured(Boolean(botAny.instagram_configured));
+
+        setTiktokEnabled(Boolean(botAny.tiktok_enabled));
+        setTiktokOpenId(String(botAny.tiktok_open_id || ""));
+        setTiktokBusinessId(String(botAny.tiktok_business_id || ""));
+        setTiktokDisplayName(String(botAny.tiktok_display_name || ""));
+        setTiktokAccessToken(String(botAny.tiktok_access_token || ""));
+        setTiktokVerifyToken(String(botAny.tiktok_verify_token || ""));
+        setTiktokClientKey(String(botAny.tiktok_client_key || ""));
+        setTiktokClientSecret(String(botAny.tiktok_client_secret || ""));
+        setTiktokQuickReplies(Array.isArray(botAny.tiktok_quick_replies) ? (botAny.tiktok_quick_replies as string[]) : []);
+        setTiktokConfigured(Boolean(botAny.tiktok_configured));
 
         setTelegramEnabled(Boolean(botAny.telegram_enabled));
         setTelegramBotToken(String(botAny.telegram_bot_token || ""));
         setTelegramSecretToken(String(botAny.telegram_secret_token || ""));
         setTelegramBotUsername(String(botAny.telegram_bot_username || ""));
+        setTelegramConfigured(Boolean(botAny.telegram_configured));
 
         setSmsEnabled(Boolean(botAny.sms_enabled));
         setTwilioAccountSid(String(botAny.twilio_account_sid || ""));
         setTwilioAuthToken(String(botAny.twilio_auth_token || ""));
         setTwilioPhoneNumber(String(botAny.twilio_phone_number || ""));
+        setSmsConfigured(Boolean(botAny.sms_configured));
 
         setEmailChannelEnabled(Boolean(botAny.email_channel_enabled));
         setEmailSupportAddress(String(botAny.email_support_address || ""));
         setEmailWebhookSecret(String(botAny.email_webhook_secret || ""));
         setEmailAutoReplyMode((botAny.email_auto_reply_mode as "instant_ai" | "draft_copilot") || "instant_ai");
+        setEmailConfigured(Boolean(botAny.email_configured));
 
         // When active bot belongs to another workspace owner (shared bot),
         // resolve and manage the workspace owner's billing, quotas, and subscription tier
@@ -1775,6 +1831,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setAllowedDomains(selected.allowed_domains || []);
       setNotificationEmails(String(selected.notification_emails || ""));
       // Omnichannel Messaging Channels
+      const selAny = selected as Record<string, unknown>;
       setWhatsappEnabled(Boolean(selected.whatsapp_enabled));
       setWhatsappPhoneNumberId(String(selected.whatsapp_phone_number_id || ""));
       setWhatsappWabaId(String(selected.whatsapp_waba_id || ""));
@@ -1782,28 +1839,54 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setWhatsappVerifyToken(String(selected.whatsapp_verify_token || ""));
       setWhatsappAppSecret(String(selected.whatsapp_app_secret || ""));
       setWhatsappQuickReplies(Array.isArray(selected.whatsapp_quick_replies) ? selected.whatsapp_quick_replies : []);
+      setWhatsappConfigured(Boolean(selAny.whatsapp_configured));
 
-      const selAny = selected as Record<string, unknown>;
+      setMessengerEnabled(Boolean(selAny.messenger_enabled));
+      setMessengerPageId(String(selAny.messenger_page_id || ""));
+      setMessengerPageName(String(selAny.messenger_page_name || ""));
+      setMessengerAccessToken(String(selAny.messenger_access_token || ""));
+      setMessengerVerifyToken(String(selAny.messenger_verify_token || ""));
+      setMessengerAppSecret(String(selAny.messenger_app_secret || ""));
+      setMessengerQuickReplies(Array.isArray(selAny.messenger_quick_replies) ? (selAny.messenger_quick_replies as string[]) : []);
+      setMessengerConfigured(Boolean(selAny.messenger_configured));
+
       setInstagramEnabled(Boolean(selAny.instagram_enabled));
       setInstagramPageId(String(selAny.instagram_page_id || ""));
+      setInstagramUsername(String(selAny.instagram_username || ""));
       setInstagramAccessToken(String(selAny.instagram_access_token || ""));
       setInstagramVerifyToken(String(selAny.instagram_verify_token || ""));
       setInstagramAppSecret(String(selAny.instagram_app_secret || ""));
+      setInstagramQuickReplies(Array.isArray(selAny.instagram_quick_replies) ? (selAny.instagram_quick_replies as string[]) : []);
+      setInstagramConfigured(Boolean(selAny.instagram_configured));
+
+      setTiktokEnabled(Boolean(selAny.tiktok_enabled));
+      setTiktokOpenId(String(selAny.tiktok_open_id || ""));
+      setTiktokBusinessId(String(selAny.tiktok_business_id || ""));
+      setTiktokDisplayName(String(selAny.tiktok_display_name || ""));
+      setTiktokAccessToken(String(selAny.tiktok_access_token || ""));
+      setTiktokVerifyToken(String(selAny.tiktok_verify_token || ""));
+      setTiktokClientKey(String(selAny.tiktok_client_key || ""));
+      setTiktokClientSecret(String(selAny.tiktok_client_secret || ""));
+      setTiktokQuickReplies(Array.isArray(selAny.tiktok_quick_replies) ? (selAny.tiktok_quick_replies as string[]) : []);
+      setTiktokConfigured(Boolean(selAny.tiktok_configured));
 
       setTelegramEnabled(Boolean(selAny.telegram_enabled));
       setTelegramBotToken(String(selAny.telegram_bot_token || ""));
       setTelegramSecretToken(String(selAny.telegram_secret_token || ""));
       setTelegramBotUsername(String(selAny.telegram_bot_username || ""));
+      setTelegramConfigured(Boolean(selAny.telegram_configured));
 
       setSmsEnabled(Boolean(selAny.sms_enabled));
       setTwilioAccountSid(String(selAny.twilio_account_sid || ""));
       setTwilioAuthToken(String(selAny.twilio_auth_token || ""));
       setTwilioPhoneNumber(String(selAny.twilio_phone_number || ""));
+      setSmsConfigured(Boolean(selAny.sms_configured));
 
       setEmailChannelEnabled(Boolean(selAny.email_channel_enabled));
       setEmailSupportAddress(String(selAny.email_support_address || ""));
       setEmailWebhookSecret(String(selAny.email_webhook_secret || ""));
       setEmailAutoReplyMode((selAny.email_auto_reply_mode as "instant_ai" | "draft_copilot") || "instant_ai");
+      setEmailConfigured(Boolean(selAny.email_configured));
       setOnboardingStep(selected.onboarding_step || 0);
       setOnboardingCompleted(selected.onboarding_completed || false);
       setLeadFields(selected.lead_fields || ["name", "email", "phone"]);
@@ -1931,16 +2014,23 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   }
 
   // OAuth returns to the dashboard before the client state has been refreshed.
-  // Reload the active bot once so a successful WhatsApp connection immediately
-  // reflects the enabled state and credentials in the Integrations tab.
+  // Reload the active bot once so a successful WhatsApp, Messenger, Instagram, or TikTok connection
+  // immediately reflects the enabled state and credentials in the Integrations tab.
   useEffect(() => {
     if (!user?.id || typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("whatsapp") !== "connected") return;
+    const wa = params.get("whatsapp");
+    const fb = params.get("messenger");
+    const ig = params.get("instagram");
+    const tt = params.get("tiktok");
+    if (!wa && !fb && !ig && !tt) return;
     setActiveTab("integrations");
     void loadBotSettings(user.id);
     window.history.replaceState({}, "", "/dashboard?tab=integrations");
-    showToast("WhatsApp connected successfully", "success");
+    if (wa === "connected") showToast("WhatsApp connected successfully", "success");
+    if (fb === "connected") showToast("Facebook Messenger connected successfully", "success");
+    if (ig === "connected") showToast("Instagram DM connected successfully", "success");
+    if (tt === "connected") showToast("TikTok Business Messaging connected successfully", "success");
     // The callback query is consumed once; user changes do not need to rerun it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -2955,11 +3045,29 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           whatsapp_verify_token: whatsappVerifyToken.trim() || null,
           whatsapp_app_secret: whatsappAppSecret.trim() || null,
           whatsapp_quick_replies: whatsappQuickReplies,
+          messenger_enabled: messengerEnabled,
+          messenger_page_id: messengerPageId.trim() || null,
+          messenger_page_name: messengerPageName.trim() || null,
+          messenger_access_token: messengerAccessToken.trim() || null,
+          messenger_verify_token: messengerVerifyToken.trim() || null,
+          messenger_app_secret: messengerAppSecret.trim() || null,
+          messenger_quick_replies: messengerQuickReplies,
           instagram_enabled: instagramEnabled,
           instagram_page_id: instagramPageId.trim() || null,
+          instagram_username: instagramUsername.trim() || null,
           instagram_access_token: instagramAccessToken.trim() || null,
           instagram_verify_token: instagramVerifyToken.trim() || null,
           instagram_app_secret: instagramAppSecret.trim() || null,
+          instagram_quick_replies: instagramQuickReplies,
+          tiktok_enabled: tiktokEnabled,
+          tiktok_open_id: tiktokOpenId.trim() || null,
+          tiktok_business_id: tiktokBusinessId.trim() || null,
+          tiktok_display_name: tiktokDisplayName.trim() || null,
+          tiktok_access_token: tiktokAccessToken.trim() || null,
+          tiktok_verify_token: tiktokVerifyToken.trim() || null,
+          tiktok_client_key: tiktokClientKey.trim() || null,
+          tiktok_client_secret: tiktokClientSecret.trim() || null,
+          tiktok_quick_replies: tiktokQuickReplies,
           telegram_enabled: telegramEnabled,
           telegram_bot_token: telegramBotToken.trim() || null,
           telegram_secret_token: telegramSecretToken.trim() || null,
@@ -5229,16 +5337,60 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setWhatsappAppSecret={setWhatsappAppSecret}
               whatsappQuickReplies={whatsappQuickReplies}
               setWhatsappQuickReplies={setWhatsappQuickReplies}
+              whatsappConfigured={whatsappConfigured}
+              setWhatsappConfigured={setWhatsappConfigured}
+              messengerEnabled={messengerEnabled}
+              setMessengerEnabled={setMessengerEnabled}
+              messengerPageId={messengerPageId}
+              setMessengerPageId={setMessengerPageId}
+              messengerPageName={messengerPageName}
+              setMessengerPageName={setMessengerPageName}
+              messengerAccessToken={messengerAccessToken}
+              setMessengerAccessToken={setMessengerAccessToken}
+              messengerVerifyToken={messengerVerifyToken}
+              setMessengerVerifyToken={setMessengerVerifyToken}
+              messengerAppSecret={messengerAppSecret}
+              setMessengerAppSecret={setMessengerAppSecret}
+              messengerQuickReplies={messengerQuickReplies}
+              setMessengerQuickReplies={setMessengerQuickReplies}
+              messengerConfigured={messengerConfigured}
+              setMessengerConfigured={setMessengerConfigured}
               instagramEnabled={instagramEnabled}
               setInstagramEnabled={setInstagramEnabled}
               instagramPageId={instagramPageId}
               setInstagramPageId={setInstagramPageId}
+              instagramUsername={instagramUsername}
+              setInstagramUsername={setInstagramUsername}
               instagramAccessToken={instagramAccessToken}
               setInstagramAccessToken={setInstagramAccessToken}
               instagramVerifyToken={instagramVerifyToken}
               setInstagramVerifyToken={setInstagramVerifyToken}
               instagramAppSecret={instagramAppSecret}
               setInstagramAppSecret={setInstagramAppSecret}
+              instagramQuickReplies={instagramQuickReplies}
+              setInstagramQuickReplies={setInstagramQuickReplies}
+              instagramConfigured={instagramConfigured}
+              setInstagramConfigured={setInstagramConfigured}
+              tiktokEnabled={tiktokEnabled}
+              setTiktokEnabled={setTiktokEnabled}
+              tiktokOpenId={tiktokOpenId}
+              setTiktokOpenId={setTiktokOpenId}
+              tiktokBusinessId={tiktokBusinessId}
+              setTiktokBusinessId={setTiktokBusinessId}
+              tiktokDisplayName={tiktokDisplayName}
+              setTiktokDisplayName={setTiktokDisplayName}
+              tiktokAccessToken={tiktokAccessToken}
+              setTiktokAccessToken={setTiktokAccessToken}
+              tiktokVerifyToken={tiktokVerifyToken}
+              setTiktokVerifyToken={setTiktokVerifyToken}
+              tiktokClientKey={tiktokClientKey}
+              setTiktokClientKey={setTiktokClientKey}
+              tiktokClientSecret={tiktokClientSecret}
+              setTiktokClientSecret={setTiktokClientSecret}
+              tiktokQuickReplies={tiktokQuickReplies}
+              setTiktokQuickReplies={setTiktokQuickReplies}
+              tiktokConfigured={tiktokConfigured}
+              setTiktokConfigured={setTiktokConfigured}
               telegramEnabled={telegramEnabled}
               setTelegramEnabled={setTelegramEnabled}
               telegramBotToken={telegramBotToken}
@@ -5247,6 +5399,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setTelegramSecretToken={setTelegramSecretToken}
               telegramBotUsername={telegramBotUsername}
               setTelegramBotUsername={setTelegramBotUsername}
+              telegramConfigured={telegramConfigured}
+              setTelegramConfigured={setTelegramConfigured}
               smsEnabled={smsEnabled}
               setSmsEnabled={setSmsEnabled}
               twilioAccountSid={twilioAccountSid}
@@ -5255,6 +5409,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setTwilioAuthToken={setTwilioAuthToken}
               twilioPhoneNumber={twilioPhoneNumber}
               setTwilioPhoneNumber={setTwilioPhoneNumber}
+              smsConfigured={smsConfigured}
+              setSmsConfigured={setSmsConfigured}
               emailChannelEnabled={emailChannelEnabled}
               setEmailChannelEnabled={setEmailChannelEnabled}
               emailSupportAddress={emailSupportAddress}
@@ -5263,6 +5419,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setEmailWebhookSecret={setEmailWebhookSecret}
               emailAutoReplyMode={emailAutoReplyMode}
               setEmailAutoReplyMode={setEmailAutoReplyMode}
+              emailConfigured={emailConfigured}
+              setEmailConfigured={setEmailConfigured}
               showToast={showToast}
               authToken={authToken}
             />

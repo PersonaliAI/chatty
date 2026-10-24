@@ -78,6 +78,22 @@ function InstagramBrandIcon({ className = "size-5" }: { className?: string }) {
   );
 }
 
+function MessengerBrandIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.19 5.44 3.14 7.17.16.13.26.35.27.57l.05 1.78c.04.57.61.94 1.13.71l1.98-.87c.17-.08.36-.1.55-.06.91.25 1.87.38 2.88.38 5.64 0 10-4.13 10-9.7C22 6.13 17.64 2 12 2zm5.95 7.46-2.93 4.65c-.47.74-1.48.92-2.17.4l-2.33-1.75a.6.6 0 0 0-.72 0l-3.15 2.39c-.42.32-.97-.18-.69-.63l2.93-4.65c.47-.74 1.48-.92 2.17-.4l2.33 1.75a.6.6 0 0 0 .72 0l3.15-2.39c.42-.32.97.18.69.63z" />
+    </svg>
+  );
+}
+
+function TikTokBrandIcon({ className = "size-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+    </svg>
+  );
+}
+
 function TelegramBrandIcon({ className = "size-5" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="currentColor">
@@ -142,20 +158,68 @@ interface IntegrationsTabProps {
   setWhatsappAppSecret?: (v: string) => void;
   whatsappQuickReplies?: string[];
   setWhatsappQuickReplies?: (v: string[]) => void;
+  whatsappConfigured?: boolean;
+  setWhatsappConfigured?: (v: boolean) => void;
 
-  // 2. Instagram DM & Facebook Messenger Channel
+  // 2. Facebook Messenger Channel
+  messengerEnabled?: boolean;
+  setMessengerEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  messengerPageId?: string;
+  setMessengerPageId?: (v: string) => void;
+  messengerPageName?: string;
+  setMessengerPageName?: (v: string) => void;
+  messengerAccessToken?: string;
+  setMessengerAccessToken?: (v: string) => void;
+  messengerVerifyToken?: string;
+  setMessengerVerifyToken?: (v: string) => void;
+  messengerAppSecret?: string;
+  setMessengerAppSecret?: (v: string) => void;
+  messengerQuickReplies?: string[];
+  setMessengerQuickReplies?: (v: string[]) => void;
+  messengerConfigured?: boolean;
+  setMessengerConfigured?: (v: boolean) => void;
+
+  // 3. Instagram DM Channel
   instagramEnabled?: boolean;
   setInstagramEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
   instagramPageId?: string;
   setInstagramPageId?: (v: string) => void;
+  instagramUsername?: string;
+  setInstagramUsername?: (v: string) => void;
   instagramAccessToken?: string;
   setInstagramAccessToken?: (v: string) => void;
   instagramVerifyToken?: string;
   setInstagramVerifyToken?: (v: string) => void;
   instagramAppSecret?: string;
   setInstagramAppSecret?: (v: string) => void;
+  instagramQuickReplies?: string[];
+  setInstagramQuickReplies?: (v: string[]) => void;
+  instagramConfigured?: boolean;
+  setInstagramConfigured?: (v: boolean) => void;
 
-  // 3. Telegram Bot Channel
+  // 4. TikTok Business Channel
+  tiktokEnabled?: boolean;
+  setTiktokEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  tiktokOpenId?: string;
+  setTiktokOpenId?: (v: string) => void;
+  tiktokBusinessId?: string;
+  setTiktokBusinessId?: (v: string) => void;
+  tiktokDisplayName?: string;
+  setTiktokDisplayName?: (v: string) => void;
+  tiktokAccessToken?: string;
+  setTiktokAccessToken?: (v: string) => void;
+  tiktokVerifyToken?: string;
+  setTiktokVerifyToken?: (v: string) => void;
+  tiktokClientKey?: string;
+  setTiktokClientKey?: (v: string) => void;
+  tiktokClientSecret?: string;
+  setTiktokClientSecret?: (v: string) => void;
+  tiktokQuickReplies?: string[];
+  setTiktokQuickReplies?: (v: string[]) => void;
+  tiktokConfigured?: boolean;
+  setTiktokConfigured?: (v: boolean) => void;
+
+  // 5. Telegram Bot Channel
   telegramEnabled?: boolean;
   setTelegramEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
   telegramBotToken?: string;
@@ -164,8 +228,10 @@ interface IntegrationsTabProps {
   setTelegramSecretToken?: (v: string) => void;
   telegramBotUsername?: string;
   setTelegramBotUsername?: (v: string) => void;
+  telegramConfigured?: boolean;
+  setTelegramConfigured?: (v: boolean) => void;
 
-  // 4. Twilio SMS Channel
+  // 6. Twilio SMS Channel
   smsEnabled?: boolean;
   setSmsEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
   twilioAccountSid?: string;
@@ -174,8 +240,10 @@ interface IntegrationsTabProps {
   setTwilioAuthToken?: (v: string) => void;
   twilioPhoneNumber?: string;
   setTwilioPhoneNumber?: (v: string) => void;
+  smsConfigured?: boolean;
+  setSmsConfigured?: (v: boolean) => void;
 
-  // 5. Two-Way Support Email Channel
+  // 7. Two-Way Support Email Channel
   emailChannelEnabled?: boolean;
   setEmailChannelEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
   emailSupportAddress?: string;
@@ -184,6 +252,8 @@ interface IntegrationsTabProps {
   setEmailWebhookSecret?: (v: string) => void;
   emailAutoReplyMode?: "instant_ai" | "draft_copilot";
   setEmailAutoReplyMode?: (v: "instant_ai" | "draft_copilot") => void;
+  emailConfigured?: boolean;
+  setEmailConfigured?: (v: boolean) => void;
 
   showToast?: (msg: string, type?: "success" | "error" | "info") => void;
   authToken?: string;
@@ -220,17 +290,63 @@ export function IntegrationsTab({
   setWhatsappAppSecret,
   whatsappQuickReplies = [],
   setWhatsappQuickReplies,
+  whatsappConfigured = false,
+  setWhatsappConfigured,
+  // Messenger
+  messengerEnabled = false,
+  setMessengerEnabled,
+  messengerPageId = "",
+  setMessengerPageId,
+  messengerPageName = "",
+  setMessengerPageName,
+  messengerAccessToken = "",
+  setMessengerAccessToken,
+  messengerVerifyToken = "",
+  setMessengerVerifyToken,
+  messengerAppSecret = "",
+  setMessengerAppSecret,
+  messengerQuickReplies = [],
+  setMessengerQuickReplies,
+  messengerConfigured = false,
+  setMessengerConfigured,
   // Instagram
   instagramEnabled = false,
   setInstagramEnabled,
   instagramPageId = "",
   setInstagramPageId,
+  instagramUsername = "",
+  setInstagramUsername,
   instagramAccessToken = "",
   setInstagramAccessToken,
   instagramVerifyToken = "",
   setInstagramVerifyToken,
   instagramAppSecret = "",
   setInstagramAppSecret,
+  instagramQuickReplies = [],
+  setInstagramQuickReplies,
+  instagramConfigured = false,
+  setInstagramConfigured,
+  // TikTok
+  tiktokEnabled = false,
+  setTiktokEnabled,
+  tiktokOpenId = "",
+  setTiktokOpenId,
+  tiktokBusinessId = "",
+  setTiktokBusinessId,
+  tiktokDisplayName = "",
+  setTiktokDisplayName,
+  tiktokAccessToken = "",
+  setTiktokAccessToken,
+  tiktokVerifyToken = "",
+  setTiktokVerifyToken,
+  tiktokClientKey = "",
+  setTiktokClientKey,
+  tiktokClientSecret = "",
+  setTiktokClientSecret,
+  tiktokQuickReplies = [],
+  setTiktokQuickReplies,
+  tiktokConfigured = false,
+  setTiktokConfigured,
   // Telegram
   telegramEnabled = false,
   setTelegramEnabled,
@@ -240,6 +356,8 @@ export function IntegrationsTab({
   setTelegramSecretToken,
   telegramBotUsername = "",
   setTelegramBotUsername,
+  telegramConfigured = false,
+  setTelegramConfigured,
   // SMS
   smsEnabled = false,
   setSmsEnabled,
@@ -249,6 +367,8 @@ export function IntegrationsTab({
   setTwilioAuthToken,
   twilioPhoneNumber = "",
   setTwilioPhoneNumber,
+  smsConfigured = false,
+  setSmsConfigured,
   // Email
   emailChannelEnabled = false,
   setEmailChannelEnabled,
@@ -258,20 +378,26 @@ export function IntegrationsTab({
   setEmailWebhookSecret,
   emailAutoReplyMode = "instant_ai",
   setEmailAutoReplyMode,
+  emailConfigured = false,
+  setEmailConfigured,
   showToast,
   authToken = "",
 }: IntegrationsTabProps) {
   const { confirm, confirmationDialog } = useConfirmDialog();
 
-  // Active Omnichannel Channel Tab
-  type OmnichannelChannelKey = "whatsapp" | "instagram" | "telegram" | "sms" | "email";
+  // Active Omnichannel Channel Tab (7 Global Channels)
+  type OmnichannelChannelKey = "whatsapp" | "messenger" | "instagram" | "tiktok" | "telegram" | "sms" | "email";
   const [activeChannel, setActiveChannel] = useState<OmnichannelChannelKey>("whatsapp");
 
   // Show/Hide Secrets
   const [showWaToken, setShowWaToken] = useState(false);
   const [showWaSecret, setShowWaSecret] = useState(false);
+  const [showFbToken, setShowFbToken] = useState(false);
+  const [showFbSecret, setShowFbSecret] = useState(false);
   const [showIgToken, setShowIgToken] = useState(false);
   const [showIgSecret, setShowIgSecret] = useState(false);
+  const [showTtToken, setShowTtToken] = useState(false);
+  const [showTtSecret, setShowTtSecret] = useState(false);
   const [showTgToken, setShowTgToken] = useState(false);
   const [showTgSecret, setShowTgSecret] = useState(false);
   const [showSmsToken, setShowSmsToken] = useState(false);
@@ -279,61 +405,107 @@ export function IntegrationsTab({
 
   // Setup Guides Collapse
   const [showWaGuide, setShowWaGuide] = useState(false);
+  const [showFbGuide, setShowFbGuide] = useState(false);
   const [showIgGuide, setShowIgGuide] = useState(false);
+  const [showTtGuide, setShowTtGuide] = useState(false);
   const [showTgGuide, setShowTgGuide] = useState(false);
   const [showSmsGuide, setShowSmsGuide] = useState(false);
   const [showEmailGuide, setShowEmailGuide] = useState(false);
 
   // Copied URLs / Snippets
   const [copiedWaUrl, setCopiedWaUrl] = useState(false);
+  const [copiedFbUrl, setCopiedFbUrl] = useState(false);
   const [copiedIgUrl, setCopiedIgUrl] = useState(false);
+  const [copiedTtUrl, setCopiedTtUrl] = useState(false);
   const [copiedTgUrl, setCopiedTgUrl] = useState(false);
   const [copiedTgCurl, setCopiedTgCurl] = useState(false);
   const [copiedSmsUrl, setCopiedSmsUrl] = useState(false);
   const [copiedEmailUrl, setCopiedEmailUrl] = useState(false);
   const [copiedVoiceSnippet, setCopiedVoiceSnippet] = useState<string | null>(null);
 
-  // Test / Connect Progress Spinners
+  // Test / Connect / Disconnect Progress Spinners
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
   const [deauthorizingWhatsApp, setDeauthorizingWhatsApp] = useState(false);
-  const [testingInstagram, setTestingInstagram] = useState(false);
-  const [testingTelegram, setTestingTelegram] = useState(false);
-  const [testingSms, setTestingSms] = useState(false);
-  const [testingEmail, setTestingEmail] = useState(false);
 
-  // WhatsApp Quick Reply input
+  const [connectingMessenger, setConnectingMessenger] = useState(false);
+  const [testingMessenger, setTestingMessenger] = useState(false);
+  const [disconnectingMessenger, setDisconnectingMessenger] = useState(false);
+
+  const [connectingInstagram, setConnectingInstagram] = useState(false);
+  const [testingInstagram, setTestingInstagram] = useState(false);
+  const [disconnectingInstagram, setDisconnectingInstagram] = useState(false);
+
+  const [connectingTiktok, setConnectingTiktok] = useState(false);
+  const [testingTiktok, setTestingTiktok] = useState(false);
+  const [disconnectingTiktok, setDisconnectingTiktok] = useState(false);
+
+  const [testingTelegram, setTestingTelegram] = useState(false);
+  const [disconnectingTelegram, setDisconnectingTelegram] = useState(false);
+
+  const [testingSms, setTestingSms] = useState(false);
+  const [disconnectingSms, setDisconnectingSms] = useState(false);
+
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [disconnectingEmail, setDisconnectingEmail] = useState(false);
+
+  // Quick Reply Draft Inputs
   const [newQuickReply, setNewQuickReply] = useState("");
+  const [newFbQuickReply, setNewFbQuickReply] = useState("");
+  const [newIgQuickReply, setNewIgQuickReply] = useState("");
+  const [newTtQuickReply, setNewTtQuickReply] = useState("");
 
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
   // Webhook URLs
   const WA_CALLBACK_URL = `${backendUrl}/webhook/whatsapp`;
+  const FB_CALLBACK_URL = `${backendUrl}/webhook/messenger`;
   const IG_CALLBACK_URL = `${backendUrl}/webhook/instagram`;
+  const TT_CALLBACK_URL = `${backendUrl}/webhook/tiktok`;
   const TG_CALLBACK_URL = `${backendUrl}/webhook/telegram${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
   const SMS_CALLBACK_URL = `${backendUrl}/webhook/twilio/sms${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
   const EMAIL_CALLBACK_URL = `${backendUrl}/webhook/email/inbound${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
 
   /* -------------------------------------------------------------------------- */
-  /* Connection States Calculation                                             */
+  /* Connection States Calculation (supports saved backend encrypted state)     */
   /* -------------------------------------------------------------------------- */
-  const isWaConnected = Boolean(whatsappEnabled && whatsappPhoneNumberId && whatsappAccessToken);
-  const isWaConfigured = Boolean(whatsappPhoneNumberId || whatsappAccessToken);
+  const hasWaToken = Boolean(whatsappAccessToken || whatsappConfigured);
+  const isWaConnected = Boolean(whatsappEnabled && (whatsappPhoneNumberId || whatsappConfigured) && hasWaToken);
+  const isWaConfigured = Boolean(whatsappPhoneNumberId || whatsappAccessToken || whatsappConfigured);
 
-  const isIgConnected = Boolean(instagramEnabled && instagramPageId && instagramAccessToken);
-  const isIgConfigured = Boolean(instagramPageId || instagramAccessToken);
+  const hasFbToken = Boolean(messengerAccessToken || messengerConfigured);
+  const isFbConnected = Boolean(messengerEnabled && (messengerPageId || messengerConfigured) && hasFbToken);
+  const isFbConfigured = Boolean(messengerPageId || messengerAccessToken || messengerConfigured);
 
-  const isTgConnected = Boolean(telegramEnabled && telegramBotToken);
-  const isTgConfigured = Boolean(telegramBotToken);
+  const hasIgToken = Boolean(instagramAccessToken || instagramConfigured);
+  const isIgConnected = Boolean(instagramEnabled && (instagramPageId || instagramConfigured) && hasIgToken);
+  const isIgConfigured = Boolean(instagramPageId || instagramAccessToken || instagramConfigured);
 
-  const isSmsConnected = Boolean(smsEnabled && twilioAccountSid && twilioAuthToken && twilioPhoneNumber);
-  const isSmsConfigured = Boolean(twilioAccountSid || twilioPhoneNumber);
+  const hasTtToken = Boolean(tiktokAccessToken || tiktokConfigured);
+  const isTtConnected = Boolean(tiktokEnabled && (tiktokOpenId || tiktokBusinessId || tiktokConfigured) && hasTtToken);
+  const isTtConfigured = Boolean(tiktokOpenId || tiktokBusinessId || tiktokAccessToken || tiktokConfigured);
 
-  const isEmailConnected = Boolean(emailChannelEnabled && emailSupportAddress);
-  const isEmailConfigured = Boolean(emailSupportAddress);
+  const hasTgToken = Boolean(telegramBotToken || telegramConfigured);
+  const isTgConnected = Boolean(telegramEnabled && hasTgToken);
+  const isTgConfigured = Boolean(telegramBotToken || telegramBotUsername || telegramConfigured);
 
-  const activeChannelsCount = [isWaConnected, isIgConnected, isTgConnected, isSmsConnected, isEmailConnected].filter(Boolean).length;
+  const hasSmsToken = Boolean(twilioAuthToken || smsConfigured);
+  const isSmsConnected = Boolean(smsEnabled && (twilioAccountSid || smsConfigured) && hasSmsToken && twilioPhoneNumber);
+  const isSmsConfigured = Boolean(twilioAccountSid || twilioPhoneNumber || smsConfigured);
+
+  const isEmailConnected = Boolean(emailChannelEnabled && (emailSupportAddress || emailConfigured));
+  const isEmailConfigured = Boolean(emailSupportAddress || emailConfigured);
+
+  const activeChannelsCount = [
+    isWaConnected,
+    isFbConnected,
+    isIgConnected,
+    isTtConnected,
+    isTgConnected,
+    isSmsConnected,
+    isEmailConnected,
+  ].filter(Boolean).length;
 
   /* -------------------------------------------------------------------------- */
   /* Copy & Secret Helpers                                                      */
@@ -356,28 +528,45 @@ export function IntegrationsTab({
     `${prefix}_` + Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12);
 
   /* -------------------------------------------------------------------------- */
-  /* WhatsApp Actions                                                           */
+  /* Generic Quick-Reply Builder Helper                                         */
   /* -------------------------------------------------------------------------- */
-  const handleAddQuickReply = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const trimmed = newQuickReply.trim();
-    if (!trimmed || !setWhatsappQuickReplies) return;
-    if (whatsappQuickReplies.length >= 3) {
-      showToast?.("Meta allows maximum 3 quick-reply buttons per message", "error");
+  const addChannelQuickReply = (
+    draft: string,
+    setDraft: (v: string) => void,
+    list: string[],
+    setter?: (v: string[]) => void,
+    channelLabel = "this channel"
+  ) => {
+    const trimmed = draft.trim();
+    if (!trimmed || !setter) return;
+    if (list.length >= 3) {
+      showToast?.(`${channelLabel} allows a maximum of 3 quick-reply buttons per message`, "error");
       return;
     }
-    if (!whatsappQuickReplies.includes(trimmed)) {
-      handleInputChange(setWhatsappQuickReplies, [...whatsappQuickReplies, trimmed]);
-      setNewQuickReply("");
+    if (!list.includes(trimmed)) {
+      handleInputChange(setter, [...list, trimmed]);
+      setDraft("");
     }
   };
 
-  const handleRemoveQuickReply = (btn: string) => {
-    if (!setWhatsappQuickReplies) return;
+  const removeChannelQuickReply = (btn: string, list: string[], setter?: (v: string[]) => void) => {
+    if (!setter) return;
     handleInputChange(
-      setWhatsappQuickReplies,
-      whatsappQuickReplies.filter((b) => b !== btn)
+      setter,
+      list.filter((b) => b !== btn)
     );
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* 1. WhatsApp Actions                                                        */
+  /* -------------------------------------------------------------------------- */
+  const handleAddQuickReply = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    addChannelQuickReply(newQuickReply, setNewQuickReply, whatsappQuickReplies, setWhatsappQuickReplies, "WhatsApp");
+  };
+
+  const handleRemoveQuickReply = (btn: string) => {
+    removeChannelQuickReply(btn, whatsappQuickReplies, setWhatsappQuickReplies);
   };
 
   const handleConnectWhatsApp = async () => {
@@ -410,7 +599,10 @@ export function IntegrationsTab({
     }
     setTestingWhatsApp(true);
     try {
-      const response = await fetch(`${backendUrl}/api/integrations/whatsapp/test?bot_id=${encodeURIComponent(botId)}`, {
+      const params = new URLSearchParams({ bot_id: botId });
+      if (whatsappPhoneNumberId) params.append("phone_number_id", whatsappPhoneNumberId);
+      if (whatsappAccessToken) params.append("access_token", whatsappAccessToken);
+      const response = await fetch(`${backendUrl}/api/integrations/whatsapp/test?${params.toString()}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${authToken}`, "Content-Type": "application/json" },
       });
@@ -442,6 +634,7 @@ export function IntegrationsTab({
       setWhatsappVerifyToken?.("");
       setWhatsappAppSecret?.("");
       setWhatsappQuickReplies?.([]);
+      setWhatsappConfigured?.(false);
       showToast?.("WhatsApp disconnected and credentials removed", "success");
     } catch (error) {
       showToast?.(error instanceof Error ? error.message : "WhatsApp disconnect failed", "error");
@@ -473,6 +666,7 @@ export function IntegrationsTab({
       setWhatsappVerifyToken?.("");
       setWhatsappAppSecret?.("");
       setWhatsappQuickReplies?.([]);
+      setWhatsappConfigured?.(false);
       showToast?.("Meta authorization revoked and WhatsApp disconnected", "success");
     } catch (error) {
       showToast?.(error instanceof Error ? error.message : "Meta deauthorization failed", "error");
@@ -482,8 +676,111 @@ export function IntegrationsTab({
   };
 
   /* -------------------------------------------------------------------------- */
-  /* Instagram & Messenger Actions                                              */
+  /* 2. Facebook Messenger Actions                                              */
   /* -------------------------------------------------------------------------- */
+  const handleConnectMessenger = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setConnectingMessenger(true);
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/integrations/messenger/start?bot_id=${encodeURIComponent(botId)}&redirect_path=${encodeURIComponent("/dashboard?tab=integrations")}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) throw new Error(data.detail || "Could not start Facebook Messenger OAuth");
+      window.location.assign(data.url);
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : "Could not start Facebook Messenger OAuth", "error");
+      setConnectingMessenger(false);
+    }
+  };
+
+  const handleTestMessenger = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingMessenger(true);
+    try {
+      const params = new URLSearchParams({ bot_id: botId });
+      if (messengerPageId) params.append("page_id", messengerPageId);
+      if (messengerAccessToken) params.append("access_token", messengerAccessToken);
+      const res = await fetch(`${backendUrl}/api/integrations/messenger/test?${params.toString()}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Facebook Messenger connection test failed");
+      if (data.page_name && setMessengerPageName && !messengerPageName) {
+        setMessengerPageName(data.page_name);
+      }
+      showToast?.(data.message || "Facebook Messenger Page connection verified", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Facebook Messenger connection test failed", "error");
+    } finally {
+      setTestingMessenger(false);
+    }
+  };
+
+  const handleDisconnectMessenger = async () => {
+    if (!botId || !authToken || disconnectingMessenger) return;
+    if (!(await confirm("Disconnect Facebook Messenger from this bot and remove its saved Page credentials?"))) return;
+    setDisconnectingMessenger(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/integrations/messenger/disconnect?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Messenger disconnect failed");
+      setMessengerEnabled?.(false);
+      setMessengerPageId?.("");
+      setMessengerPageName?.("");
+      setMessengerAccessToken?.("");
+      setMessengerVerifyToken?.("");
+      setMessengerAppSecret?.("");
+      setMessengerQuickReplies?.([]);
+      setMessengerConfigured?.(false);
+      showToast?.("Facebook Messenger disconnected and credentials removed", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Messenger disconnect failed", "error");
+    } finally {
+      setDisconnectingMessenger(false);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* 3. Instagram Direct Actions                                                */
+  /* -------------------------------------------------------------------------- */
+  const handleConnectInstagram = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setConnectingInstagram(true);
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/integrations/instagram/start?bot_id=${encodeURIComponent(botId)}&redirect_path=${encodeURIComponent("/dashboard?tab=integrations")}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) throw new Error(data.detail || "Could not start Instagram OAuth");
+      window.location.assign(data.url);
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : "Could not start Instagram OAuth", "error");
+      setConnectingInstagram(false);
+    }
+  };
+
   const handleTestInstagram = async () => {
     if (!botId || !authToken) {
       showToast?.("Your session is still loading. Please try again.", "error");
@@ -500,6 +797,9 @@ export function IntegrationsTab({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "Instagram connection test failed");
+      if (data.username && setInstagramUsername && !instagramUsername) {
+        setInstagramUsername(data.username);
+      }
       showToast?.(data.message || "Instagram DM connection verified", "success");
     } catch (err) {
       showToast?.(err instanceof Error ? err.message : "Instagram connection test failed", "error");
@@ -508,8 +808,118 @@ export function IntegrationsTab({
     }
   };
 
+  const handleDisconnectInstagram = async () => {
+    if (!botId || !authToken || disconnectingInstagram) return;
+    if (!(await confirm("Disconnect Instagram DM from this bot and remove its saved Meta credentials?"))) return;
+    setDisconnectingInstagram(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/integrations/instagram/disconnect?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Instagram disconnect failed");
+      setInstagramEnabled?.(false);
+      setInstagramPageId?.("");
+      setInstagramUsername?.("");
+      setInstagramAccessToken?.("");
+      setInstagramVerifyToken?.("");
+      setInstagramAppSecret?.("");
+      setInstagramQuickReplies?.([]);
+      setInstagramConfigured?.(false);
+      showToast?.("Instagram DM disconnected and credentials removed", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Instagram disconnect failed", "error");
+    } finally {
+      setDisconnectingInstagram(false);
+    }
+  };
+
   /* -------------------------------------------------------------------------- */
-  /* Telegram Bot Actions                                                       */
+  /* 4. TikTok Business Actions                                                 */
+  /* -------------------------------------------------------------------------- */
+  const handleConnectTiktok = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setConnectingTiktok(true);
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/integrations/tiktok/start?bot_id=${encodeURIComponent(botId)}&redirect_path=${encodeURIComponent("/dashboard?tab=integrations")}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.url) throw new Error(data.detail || "Could not start TikTok Business OAuth");
+      window.location.assign(data.url);
+    } catch (error) {
+      showToast?.(error instanceof Error ? error.message : "Could not start TikTok Business OAuth", "error");
+      setConnectingTiktok(false);
+    }
+  };
+
+  const handleTestTiktok = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    setTestingTiktok(true);
+    try {
+      const params = new URLSearchParams({ bot_id: botId });
+      if (tiktokOpenId) params.append("open_id", tiktokOpenId);
+      if (tiktokBusinessId) params.append("business_id", tiktokBusinessId);
+      if (tiktokAccessToken) params.append("access_token", tiktokAccessToken);
+      const res = await fetch(`${backendUrl}/api/integrations/tiktok/test?${params.toString()}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "TikTok Business connection test failed");
+      if (data.display_name && setTiktokDisplayName && !tiktokDisplayName) {
+        setTiktokDisplayName(data.display_name);
+      }
+      showToast?.(data.message || "TikTok Business Messaging connection verified", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "TikTok Business connection test failed", "error");
+    } finally {
+      setTestingTiktok(false);
+    }
+  };
+
+  const handleDisconnectTiktok = async () => {
+    if (!botId || !authToken || disconnectingTiktok) return;
+    if (!(await confirm("Disconnect TikTok Business Messaging from this bot and remove its saved credentials?"))) return;
+    setDisconnectingTiktok(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/integrations/tiktok/disconnect?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "TikTok disconnect failed");
+      setTiktokEnabled?.(false);
+      setTiktokOpenId?.("");
+      setTiktokBusinessId?.("");
+      setTiktokDisplayName?.("");
+      setTiktokAccessToken?.("");
+      setTiktokVerifyToken?.("");
+      setTiktokClientKey?.("");
+      setTiktokClientSecret?.("");
+      setTiktokQuickReplies?.([]);
+      setTiktokConfigured?.(false);
+      showToast?.("TikTok Business Messaging disconnected", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "TikTok disconnect failed", "error");
+    } finally {
+      setDisconnectingTiktok(false);
+    }
+  };
+
+  /* -------------------------------------------------------------------------- */
+  /* 5. Telegram Bot Actions                                                    */
   /* -------------------------------------------------------------------------- */
   const handleTestTelegram = async () => {
     if (!botId || !authToken) {
@@ -526,6 +936,9 @@ export function IntegrationsTab({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || "Telegram connection test failed");
+      if (data.username && setTelegramBotUsername && !telegramBotUsername) {
+        setTelegramBotUsername(`@${String(data.username).replace(/^@/, "")}`);
+      }
       showToast?.(data.message || "Telegram Bot verified successfully", "success");
     } catch (err) {
       showToast?.(err instanceof Error ? err.message : "Telegram connection test failed", "error");
@@ -534,8 +947,32 @@ export function IntegrationsTab({
     }
   };
 
+  const handleDisconnectTelegram = async () => {
+    if (!botId || !authToken || disconnectingTelegram) return;
+    if (!(await confirm("Disconnect Telegram Bot and clear saved BotFather credentials?"))) return;
+    setDisconnectingTelegram(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/integrations/telegram/disconnect?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Telegram disconnect failed");
+      setTelegramEnabled?.(false);
+      setTelegramBotToken?.("");
+      setTelegramSecretToken?.("");
+      setTelegramBotUsername?.("");
+      setTelegramConfigured?.(false);
+      showToast?.("Telegram Bot disconnected", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Telegram disconnect failed", "error");
+    } finally {
+      setDisconnectingTelegram(false);
+    }
+  };
+
   /* -------------------------------------------------------------------------- */
-  /* Twilio SMS Actions                                                         */
+  /* 6. Twilio SMS Actions                                                      */
   /* -------------------------------------------------------------------------- */
   const handleTestSms = async () => {
     if (!botId || !authToken) {
@@ -562,8 +999,32 @@ export function IntegrationsTab({
     }
   };
 
+  const handleDisconnectSms = async () => {
+    if (!botId || !authToken || disconnectingSms) return;
+    if (!(await confirm("Disconnect Twilio SMS and remove saved Twilio credentials?"))) return;
+    setDisconnectingSms(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/integrations/sms/disconnect?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "SMS disconnect failed");
+      setSmsEnabled?.(false);
+      setTwilioAccountSid?.("");
+      setTwilioAuthToken?.("");
+      setTwilioPhoneNumber?.("");
+      setSmsConfigured?.(false);
+      showToast?.("Twilio SMS disconnected", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "SMS disconnect failed", "error");
+    } finally {
+      setDisconnectingSms(false);
+    }
+  };
+
   /* -------------------------------------------------------------------------- */
-  /* Two-Way Email Actions                                                      */
+  /* 7. Two-Way Email Actions                                                   */
   /* -------------------------------------------------------------------------- */
   const handleTestEmail = async () => {
     if (!botId || !authToken) {
@@ -585,6 +1046,29 @@ export function IntegrationsTab({
       showToast?.(err instanceof Error ? err.message : "Email test failed", "error");
     } finally {
       setTestingEmail(false);
+    }
+  };
+
+  const handleDisconnectEmail = async () => {
+    if (!botId || !authToken || disconnectingEmail) return;
+    if (!(await confirm("Disconnect Support Email and clear saved inbound forwarding settings?"))) return;
+    setDisconnectingEmail(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/integrations/email/disconnect?bot_id=${encodeURIComponent(botId)}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Email disconnect failed");
+      setEmailChannelEnabled?.(false);
+      setEmailSupportAddress?.("");
+      setEmailWebhookSecret?.("");
+      setEmailConfigured?.(false);
+      showToast?.("Support Email disconnected", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Email disconnect failed", "error");
+    } finally {
+      setDisconnectingEmail(false);
     }
   };
 
@@ -873,12 +1357,12 @@ export function IntegrationsTab({
 
       {/* Sticky Navigation Bar */}
       <nav
-        className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center justify-between gap-1.5 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95"
+        className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95"
         aria-label="Integration sections"
       >
-        <div className="flex flex-wrap items-center gap-1.5 flex-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
           {[
-            { id: "omnichannel", label: "Omnichannel Messaging", badge: "5 Channels" },
+            { id: "omnichannel", label: "Omnichannel Hub", badge: "7 Channels" },
             { id: "voice", label: "LiveKit Voice" },
             { id: "embed", label: "Embed & SDKs" },
             { id: "domains", label: "Domain Security" },
@@ -889,7 +1373,7 @@ export function IntegrationsTab({
               onClick={() =>
                 document.getElementById(`integration-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
               }
-              className="inline-flex items-center gap-1.5 min-h-9 rounded-xl px-3.5 py-2 text-xs font-bold text-neutral-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:text-neutral-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 cursor-pointer"
+              className="inline-flex items-center gap-1.5 whitespace-nowrap min-h-8 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:text-neutral-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 cursor-pointer shrink-0"
             >
               <span>{item.label}</span>
               {item.badge && (
@@ -900,9 +1384,9 @@ export function IntegrationsTab({
             </button>
           ))}
         </div>
-        <div className="hidden sm:flex items-center gap-2 px-3 text-xs text-neutral-500 dark:text-neutral-400">
+        <div className="hidden sm:flex items-center gap-2 px-3 text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
           <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-medium">{activeChannelsCount} active channel{activeChannelsCount === 1 ? "" : "s"}</span>
+          <span className="font-semibold text-neutral-700 dark:text-neutral-300">{activeChannelsCount} of 7 Channels Live</span>
         </div>
       </nav>
 
@@ -911,27 +1395,27 @@ export function IntegrationsTab({
       {/* ==================================================================== */}
       <div
         id="integration-omnichannel"
-        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-7 shadow-sm"
+        className="scroll-mt-24 p-4 sm:p-6 lg:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
       >
         {/* Hub Executive Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-neutral-100 dark:border-neutral-800/80">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800/80">
           <div className="space-y-1.5 max-w-2xl">
             <div className="flex items-center gap-2.5">
-              <span className="inline-flex size-9 items-center justify-center rounded-xl bg-orange-500/10 text-[#f97316] border border-orange-500/20 shadow-xs">
+              <span className="inline-flex size-9 items-center justify-center rounded-xl bg-orange-500/10 text-[#f97316] border border-orange-500/20 shadow-xs shrink-0">
                 <Sparkles className="size-5" />
               </span>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2 flex-wrap">
                   Omnichannel Messaging Hub
                   <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 border border-emerald-500/20">
-                    Industrial Grade
+                    Industrial Standard
                   </span>
                 </h2>
               </div>
             </div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
-              Connect your AI agent across the 5 essential global messaging channels. Delivers instant autonomous answers,
-              in-chat calendar bookings, verified HMAC security, CRM contact persistence, and live human takeover.
+              Unified autonomous conversational infrastructure across 7 enterprise channels: <b>WhatsApp Business</b>, <b>Facebook Messenger</b>, <b>Instagram DM</b>, <b>TikTok Business</b>, <b>Telegram Bot</b>, <b>Two-Way SMS</b>, and <b>Support Email</b>.
+              Features cryptographic HMAC validation, interactive quick replies, calendar booking links, and real-time Inbox agent takeover.
             </p>
           </div>
 
@@ -939,8 +1423,8 @@ export function IntegrationsTab({
           <div className="flex flex-wrap items-center gap-2 self-start md:self-auto shrink-0">
             <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 p-2.5 px-3.5 flex items-center gap-3 text-xs">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-bold">Active Channels</div>
-                <div className="text-sm font-extrabold text-neutral-900 dark:text-neutral-100">{activeChannelsCount} of 5 Live</div>
+                <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-bold">Active Hub Channels</div>
+                <div className="text-sm font-extrabold text-neutral-900 dark:text-neutral-100">{activeChannelsCount} of 7 Live</div>
               </div>
               <div className="size-7 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold">
                 ✓
@@ -949,20 +1433,20 @@ export function IntegrationsTab({
           </div>
         </div>
 
-        {/* 5 Channel Switcher Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* 7 Channel Switcher Cards Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
           {/* 1. WhatsApp */}
           <button
             type="button"
             onClick={() => setActiveChannel("whatsapp")}
-            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+            className={`flex flex-col justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
               activeChannel === "whatsapp"
                 ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs ring-2 ring-emerald-500/20"
                 : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
             }`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="size-8 rounded-xl bg-[#25D366]/10 text-[#25D366] flex items-center justify-center">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="size-8 rounded-xl bg-[#25D366]/10 text-[#25D366] flex items-center justify-center shrink-0">
                 <WhatsAppBrandIcon className="size-5" />
               </div>
               {isWaConnected ? (
@@ -971,7 +1455,7 @@ export function IntegrationsTab({
                 </span>
               ) : isWaConfigured ? (
                 <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
-                  Configured
+                  Saved
                 </span>
               ) : (
                 <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
@@ -979,25 +1463,60 @@ export function IntegrationsTab({
                 </span>
               )}
             </div>
-            <div className="mt-3">
-              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">WhatsApp</div>
-              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">Europe & LATAM</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">WhatsApp</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">Cloud API</div>
             </div>
-            <div className="mt-2 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">90%+ Open Rates</div>
+            <div className="mt-1.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400 truncate">90%+ Open Rate</div>
           </button>
 
-          {/* 2. Instagram & Messenger */}
+          {/* 2. Facebook Messenger */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("messenger")}
+            className={`flex flex-col justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
+              activeChannel === "messenger"
+                ? "border-blue-600 bg-blue-50/50 dark:bg-blue-950/20 shadow-xs ring-2 ring-blue-600/20"
+                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="size-8 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <MessengerBrandIcon className="size-5" />
+              </div>
+              {isFbConnected ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+              ) : isFbConfigured ? (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                  Saved
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                  Off
+                </span>
+              )}
+            </div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">Messenger</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">Page PSID</div>
+            </div>
+            <div className="mt-1.5 text-[9px] font-semibold text-blue-700 dark:text-blue-400 truncate">Meta Graph API</div>
+          </button>
+
+          {/* 3. Instagram DM */}
           <button
             type="button"
             onClick={() => setActiveChannel("instagram")}
-            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+            className={`flex flex-col justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
               activeChannel === "instagram"
                 ? "border-pink-500 bg-pink-50/50 dark:bg-pink-950/20 shadow-xs ring-2 ring-pink-500/20"
                 : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
             }`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="size-8 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="size-8 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center shrink-0">
                 <InstagramBrandIcon className="size-5" />
               </div>
               {isIgConnected ? (
@@ -1006,7 +1525,7 @@ export function IntegrationsTab({
                 </span>
               ) : isIgConfigured ? (
                 <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
-                  Configured
+                  Saved
                 </span>
               ) : (
                 <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
@@ -1014,25 +1533,60 @@ export function IntegrationsTab({
                 </span>
               )}
             </div>
-            <div className="mt-3">
-              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Instagram & Messenger</div>
-              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">D2C & Creators</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">Instagram DM</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">D2C & Creators</div>
             </div>
-            <div className="mt-2 text-[9px] font-semibold text-pink-700 dark:text-pink-400">Inbound Buyer DMs</div>
+            <div className="mt-1.5 text-[9px] font-semibold text-pink-700 dark:text-pink-400 truncate">Buyer Stories DM</div>
           </button>
 
-          {/* 3. Telegram */}
+          {/* 4. TikTok Business */}
+          <button
+            type="button"
+            onClick={() => setActiveChannel("tiktok")}
+            className={`flex flex-col justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
+              activeChannel === "tiktok"
+                ? "border-neutral-950 dark:border-neutral-200 bg-neutral-100/70 dark:bg-neutral-800/60 shadow-xs ring-2 ring-neutral-400/30"
+                : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="size-8 rounded-xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 flex items-center justify-center shrink-0">
+                <TikTokBrandIcon className="size-5" />
+              </div>
+              {isTtConnected ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1 rounded-full bg-emerald-500 animate-pulse" /> Live
+                </span>
+              ) : isTtConfigured ? (
+                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
+                  Saved
+                </span>
+              ) : (
+                <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
+                  Off
+                </span>
+              )}
+            </div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">TikTok DM</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">Business Inbox</div>
+            </div>
+            <div className="mt-1.5 text-[9px] font-semibold text-neutral-800 dark:text-neutral-200 truncate">Commercial API</div>
+          </button>
+
+          {/* 5. Telegram */}
           <button
             type="button"
             onClick={() => setActiveChannel("telegram")}
-            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+            className={`flex flex-col justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
               activeChannel === "telegram"
                 ? "border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 shadow-xs ring-2 ring-sky-500/20"
                 : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
             }`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="size-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="size-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
                 <TelegramBrandIcon className="size-5" />
               </div>
               {isTgConnected ? (
@@ -1041,7 +1595,7 @@ export function IntegrationsTab({
                 </span>
               ) : isTgConfigured ? (
                 <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
-                  Configured
+                  Saved
                 </span>
               ) : (
                 <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
@@ -1049,25 +1603,25 @@ export function IntegrationsTab({
                 </span>
               )}
             </div>
-            <div className="mt-3">
-              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Telegram Bot</div>
-              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">Tech & Startups</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">Telegram Bot</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">Tech & Startups</div>
             </div>
-            <div className="mt-2 text-[9px] font-semibold text-sky-700 dark:text-sky-400">Zero-Verification Bot</div>
+            <div className="mt-1.5 text-[9px] font-semibold text-sky-700 dark:text-sky-400 truncate">@BotFather API</div>
           </button>
 
-          {/* 4. Twilio SMS */}
+          {/* 6. Twilio SMS */}
           <button
             type="button"
             onClick={() => setActiveChannel("sms")}
-            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+            className={`flex flex-col justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
               activeChannel === "sms"
                 ? "border-red-500 bg-red-50/50 dark:bg-red-950/20 shadow-xs ring-2 ring-red-500/20"
                 : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
             }`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="size-8 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="size-8 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
                 <SmsBrandIcon className="size-5" />
               </div>
               {isSmsConnected ? (
@@ -1076,7 +1630,7 @@ export function IntegrationsTab({
                 </span>
               ) : isSmsConfigured ? (
                 <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
-                  Configured
+                  Saved
                 </span>
               ) : (
                 <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
@@ -1084,25 +1638,25 @@ export function IntegrationsTab({
                 </span>
               )}
             </div>
-            <div className="mt-3">
-              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Two-Way SMS</div>
-              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">US & Canada</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">Two-Way SMS</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">US & Canada</div>
             </div>
-            <div className="mt-2 text-[9px] font-semibold text-red-700 dark:text-red-400">High Conversion SMS</div>
+            <div className="mt-1.5 text-[9px] font-semibold text-red-700 dark:text-red-400 truncate">Twilio Carrier</div>
           </button>
 
-          {/* 5. Support Email */}
+          {/* 7. Support Email */}
           <button
             type="button"
             onClick={() => setActiveChannel("email")}
-            className={`flex flex-col justify-between p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative ${
+            className={`flex flex-col justify-between p-3 rounded-2xl border text-left transition-all cursor-pointer relative ${
               activeChannel === "email"
                 ? "border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-xs ring-2 ring-blue-500/20"
                 : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/60 hover:border-neutral-300 dark:hover:border-neutral-700"
             }`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div className="size-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <div className="flex items-start justify-between gap-1.5">
+              <div className="size-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                 <EmailBrandIcon className="size-5" />
               </div>
               {isEmailConnected ? (
@@ -1111,7 +1665,7 @@ export function IntegrationsTab({
                 </span>
               ) : isEmailConfigured ? (
                 <span className="text-[9px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded-full">
-                  Configured
+                  Saved
                 </span>
               ) : (
                 <span className="text-[9px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded-full">
@@ -1119,18 +1673,18 @@ export function IntegrationsTab({
                 </span>
               )}
             </div>
-            <div className="mt-3">
-              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100">Support Email</div>
-              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 line-clamp-1">B2B SaaS & Services</div>
+            <div className="mt-2.5">
+              <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate">Support Email</div>
+              <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5 truncate">B2B SaaS</div>
             </div>
-            <div className="mt-2 text-[9px] font-semibold text-blue-700 dark:text-blue-400">Threaded Forwarding</div>
+            <div className="mt-1.5 text-[9px] font-semibold text-blue-700 dark:text-blue-400 truncate">RFC-822 Thread</div>
           </button>
         </div>
 
         {/* ------------------------------------------------------------------ */}
         {/* ACTIVE CHANNEL WORKSPACE                                           */}
         {/* ------------------------------------------------------------------ */}
-        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 p-5 sm:p-6 space-y-6">
+        <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-950/40 p-4 sm:p-6 space-y-6">
           {/* ================================================================ */}
           {/* CHANNEL 1: WHATSAPP BUSINESS                                     */}
           {/* ================================================================ */}
@@ -1143,7 +1697,7 @@ export function IntegrationsTab({
                     <WhatsAppBrandIcon className="size-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
                         WhatsApp Business (Meta Cloud API)
                       </h3>
@@ -1197,7 +1751,7 @@ export function IntegrationsTab({
                   <button
                     type="button"
                     onClick={handleTestWhatsApp}
-                    disabled={testingWhatsApp || !botId || !whatsappPhoneNumberId || !whatsappAccessToken}
+                    disabled={testingWhatsApp || !botId || (!whatsappPhoneNumberId && !whatsappConfigured)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100/70 disabled:opacity-50 cursor-pointer"
                   >
                     {testingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
@@ -1285,14 +1839,18 @@ export function IntegrationsTab({
                 <div className="space-y-1.5">
                   <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
                     <span>Permanent Access Token</span>
-                    <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
+                    {whatsappConfigured ? (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Encrypted &amp; Stored</span>
+                    ) : (
+                      <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold">Required</span>
+                    )}
                   </label>
                   <div className="relative">
                     <input
                       type={showWaToken ? "text" : "password"}
                       value={whatsappAccessToken}
                       onChange={(e) => setWhatsappAccessToken && handleInputChange(setWhatsappAccessToken, e.target.value)}
-                      placeholder="EAA..."
+                      placeholder={whatsappConfigured ? "••••••••••••••••••••••••••••••••" : "EAA..."}
                       className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
                     />
                     <button
@@ -1357,7 +1915,7 @@ export function IntegrationsTab({
                     </button>
                   </div>
                   <p className="text-[10px] text-neutral-400">
-                    From Meta App Dashboard &rarr; <b>App settings &rarr; Basic &rarr; App secret</b>. Cryptographically validates the <code>X-Hub-Signature-256</code> header.
+                    From Meta App Dashboard &rarr; <b>App settings &rarr; Basic &rarr; App secret</b>. Validates the <code>X-Hub-Signature-256</code> header.
                   </p>
                 </div>
               </div>
@@ -1447,9 +2005,324 @@ export function IntegrationsTab({
                       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">4</span>
                       <div><b>Subscribe to Messages</b>: Under Webhook fields, click <b>Subscribe</b> next to <code>messages</code>.</div>
                     </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* CHANNEL 2: FACEBOOK MESSENGER                                    */}
+          {/* ================================================================ */}
+          {activeChannel === "messenger" && (
+            <div className="space-y-6">
+              {/* Channel Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-600/20">
+                    <MessengerBrandIcon className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        Facebook Messenger (Meta Graph API)
+                      </h3>
+                      {isFbConnected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live &bull; Connected
+                        </span>
+                      ) : isFbConfigured ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Configured (Disabled)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                          Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Autonomous conversational sales and customer service for Facebook Business Pages. Resolves user messages, postback quick replies, and human handoff in real-time.
+                    </p>
+                  </div>
+                </div>
+
+                {setMessengerEnabled && (
+                  <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Enable Facebook Messenger integration"
+                      checked={messengerEnabled}
+                      onChange={(e) => handleInputChange(setMessengerEnabled, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-blue-600"></div>
+                    <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      {messengerEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* 1-Click Connect & Test Banner */}
+              <div className="rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50/70 dark:bg-blue-950/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold text-blue-900 dark:text-blue-200">1-Click Facebook Page Authorization</p>
+                  <p className="text-[11px] text-blue-800/70 dark:text-blue-300/70 mt-0.5">
+                    Connect your Facebook Page via Meta OAuth or paste your permanent Page Access Token below.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleTestMessenger}
+                    disabled={testingMessenger || !botId || (!messengerPageId && !messengerConfigured)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-100/70 disabled:opacity-50 cursor-pointer"
+                  >
+                    {testingMessenger ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {testingMessenger ? "Testing…" : "Test Connection"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConnectMessenger}
+                    disabled={connectingMessenger || !botId}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {connectingMessenger ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+                    {connectingMessenger ? "Connecting…" : isFbConnected ? "Reconnect Page" : "Connect Messenger"}
+                  </button>
+                  {isFbConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectMessenger}
+                      disabled={disconnectingMessenger}
+                      className="inline-flex items-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+                    >
+                      {disconnectingMessenger ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Webhook Callback Banner */}
+              <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-blue-600" /> Facebook Messenger Webhook URL
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(FB_CALLBACK_URL, setCopiedFbUrl, "Messenger Webhook URL copied")}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                  >
+                    {copiedFbUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    {copiedFbUrl ? "Copied!" : "Copy URL"}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {FB_CALLBACK_URL}
+                </p>
+                <p className="text-[10px] text-neutral-400">
+                  In Meta Developer Dashboard &rarr; <b>Messenger &rarr; Settings &rarr; Webhooks</b>, subscribe to <code>messages</code> and <code>messaging_postbacks</code>.
+                </p>
+              </div>
+
+              {/* Credentials Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Page ID */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Facebook Page ID</span>
+                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Required</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={messengerPageId}
+                    onChange={(e) => setMessengerPageId && handleInputChange(setMessengerPageId, e.target.value)}
+                    placeholder="e.g. 102938475610293"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Numeric Facebook Page identifier from Page settings.</p>
+                </div>
+
+                {/* Page Name */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    Page Display Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={messengerPageName}
+                    onChange={(e) => setMessengerPageName && handleInputChange(setMessengerPageName, e.target.value)}
+                    placeholder="e.g. Acme Support Page"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Friendly name shown on ticket cards.</p>
+                </div>
+
+                {/* Page Access Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Page Access Token</span>
+                    {messengerConfigured ? (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Encrypted &amp; Stored</span>
+                    ) : (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">Required</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showFbToken ? "text" : "password"}
+                      value={messengerAccessToken}
+                      onChange={(e) => setMessengerAccessToken && handleInputChange(setMessengerAccessToken, e.target.value)}
+                      placeholder={messengerConfigured ? "••••••••••••••••••••••••••••••••" : "EAA..."}
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFbToken(!showFbToken)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showFbToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">Page access token with <code>pages_messaging</code> permission.</p>
+                </div>
+
+                {/* Webhook Verify Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Webhook Verify Token</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = generateSecret("fb");
+                        if (setMessengerVerifyToken) handleInputChange(setMessengerVerifyToken, token);
+                        showToast?.("Generated new Messenger Verify Token", "info");
+                      }}
+                      className="text-[10px] text-blue-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="size-2.5" /> Generate Secret
+                    </button>
+                  </label>
+                  <input
+                    type="text"
+                    value={messengerVerifyToken}
+                    onChange={(e) => setMessengerVerifyToken && handleInputChange(setMessengerVerifyToken, e.target.value)}
+                    placeholder="e.g. chatty_fb_secret_12345"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Secret token entered in Meta Webhook configuration modal.</p>
+                </div>
+
+                {/* Meta App Secret */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Key className="size-3.5 text-blue-600" /> Meta App Secret (HMAC-SHA256 Verification)
+                    </span>
+                    <span className="text-[10px] text-neutral-400">Recommended for security</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showFbSecret ? "text" : "password"}
+                      value={messengerAppSecret}
+                      onChange={(e) => setMessengerAppSecret && handleInputChange(setMessengerAppSecret, e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowFbSecret(!showFbSecret)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showFbSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    From Meta App Dashboard &rarr; <b>App settings &rarr; Basic &rarr; App secret</b>. Validates the <code>X-Hub-Signature-256</code> header.
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Replies */}
+              <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                    <MessageSquare className="size-3.5 text-blue-600" /> Interactive Quick-Reply Buttons (Optional)
+                  </label>
+                  <span className="text-[10px] text-neutral-400">Max 3 buttons</span>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {messengerQuickReplies.map((btn) => (
+                    <span
+                      key={btn}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-800 dark:text-neutral-200 shadow-2xs"
+                    >
+                      {btn}
+                      <button
+                        type="button"
+                        onClick={() => removeChannelQuickReply(btn, messengerQuickReplies, setMessengerQuickReplies)}
+                        className="text-neutral-400 hover:text-red-500 cursor-pointer"
+                        title="Remove button"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {messengerQuickReplies.length < 3 && (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newFbQuickReply}
+                        onChange={(e) => setNewFbQuickReply(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addChannelQuickReply(newFbQuickReply, setNewFbQuickReply, messengerQuickReplies, setMessengerQuickReplies, "Messenger");
+                          }
+                        }}
+                        placeholder="Button label..."
+                        maxLength={20}
+                        className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-xs focus:outline-none w-32"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addChannelQuickReply(newFbQuickReply, setNewFbQuickReply, messengerQuickReplies, setMessengerQuickReplies, "Messenger")}
+                        disabled={!newFbQuickReply.trim()}
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-40 cursor-pointer"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Setup Guide Accordion */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => setShowFbGuide(!showFbGuide)}
+                  className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+                >
+                  <span>Step-by-Step Facebook Messenger Setup Guide</span>
+                  {showFbGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </button>
+                {showFbGuide && (
+                  <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800">
                     <div className="flex items-start gap-2.5">
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] font-bold">5</span>
-                      <div><b>Save Changes</b>: Click the &quot;Save Changes&quot; button in the bottom floating bar to persist your settings.</div>
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-[10px] font-bold">1</span>
+                      <div><b>Meta Developer Portal</b>: In your Meta App, add the <b>Messenger</b> product.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-[10px] font-bold">2</span>
+                      <div><b>Configure Webhook</b>: Under Messenger &rarr; Webhooks, click <b>Add Callback URL</b>, enter the URL and Verify Token above, and subscribe to <code>messages</code> and <code>messaging_postbacks</code>.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white text-[10px] font-bold">3</span>
+                      <div><b>Generate Token</b>: Under Access Tokens, select your Facebook Page and generate a permanent token. Paste into the fields above.</div>
                     </div>
                   </div>
                 )}
@@ -1458,7 +2331,7 @@ export function IntegrationsTab({
           )}
 
           {/* ================================================================ */}
-          {/* CHANNEL 2: INSTAGRAM DM & MESSENGER                              */}
+          {/* CHANNEL 3: INSTAGRAM DM                                          */}
           {/* ================================================================ */}
           {activeChannel === "instagram" && (
             <div className="space-y-6">
@@ -1469,9 +2342,9 @@ export function IntegrationsTab({
                     <InstagramBrandIcon className="size-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                        Instagram DM &amp; Facebook Messenger (Meta Graph API)
+                        Instagram Direct (Meta Graph API)
                       </h3>
                       {isIgConnected ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
@@ -1511,32 +2384,51 @@ export function IntegrationsTab({
                 )}
               </div>
 
-              {/* Value Proposition Callout */}
-              <div className="p-4 rounded-xl bg-pink-50/70 dark:bg-pink-950/20 border border-pink-200 dark:border-pink-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-bold text-pink-900 dark:text-pink-200 flex items-center gap-1.5">
-                    <span>Meta Graph API v21.0 Webhook Handler</span>
-                  </div>
-                  <p className="text-[11px] text-pink-800/80 dark:text-pink-300/80">
-                    Supports both Instagram Direct Messages (IGSID) and Facebook Messenger Page (PSID) conversations with cryptographic HMAC-SHA256 signature validation.
+              {/* 1-Click Connect & Test Banner */}
+              <div className="rounded-xl border border-pink-200 dark:border-pink-900/50 bg-pink-50/70 dark:bg-pink-950/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold text-pink-900 dark:text-pink-200">1-Click Instagram Direct Authorization</p>
+                  <p className="text-[11px] text-pink-800/70 dark:text-pink-300/70 mt-0.5">
+                    Connect your Professional Instagram account via Meta OAuth or enter your Page Access Token below.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleTestInstagram}
-                  disabled={testingInstagram || !botId || !instagramPageId || !instagramAccessToken}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-pink-300 dark:border-pink-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-pink-700 dark:text-pink-300 hover:bg-pink-100/70 disabled:opacity-50 cursor-pointer shrink-0"
-                >
-                  {testingInstagram ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-                  {testingInstagram ? "Testing…" : "Test connection"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleTestInstagram}
+                    disabled={testingInstagram || !botId || (!instagramPageId && !instagramConfigured)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-pink-300 dark:border-pink-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-pink-700 dark:text-pink-300 hover:bg-pink-100/70 disabled:opacity-50 cursor-pointer"
+                  >
+                    {testingInstagram ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {testingInstagram ? "Testing…" : "Test Connection"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConnectInstagram}
+                    disabled={connectingInstagram || !botId}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-pink-700 disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {connectingInstagram ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+                    {connectingInstagram ? "Connecting…" : isIgConnected ? "Reconnect Instagram" : "Connect Instagram"}
+                  </button>
+                  {isIgConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectInstagram}
+                      disabled={disconnectingInstagram}
+                      className="inline-flex items-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+                    >
+                      {disconnectingInstagram ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Webhook Callback Banner */}
               <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                    <ShieldCheck className="size-3.5 text-pink-500" /> Meta Webhook Callback URL (Instagram &amp; Messenger)
+                    <ShieldCheck className="size-3.5 text-pink-500" /> Instagram Webhook Callback URL
                   </span>
                   <button
                     type="button"
@@ -1551,13 +2443,13 @@ export function IntegrationsTab({
                   {IG_CALLBACK_URL}
                 </p>
                 <p className="text-[10px] text-neutral-400">
-                  Paste this into Meta Developer Dashboard &rarr; <b>Instagram &rarr; Webhooks Callback URL</b> or <b>Messenger &rarr; Webhooks</b>.
+                  In Meta Developer Dashboard &rarr; <b>Instagram &rarr; Webhooks</b>, subscribe to <code>messages</code> and <code>messaging_postbacks</code>.
                 </p>
               </div>
 
               {/* Credentials Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                {/* Page ID / Instagram Account ID */}
+                {/* Instagram Page ID */}
                 <div className="space-y-1.5">
                   <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
                     <span>Meta Page ID / Instagram Account ID</span>
@@ -1571,6 +2463,52 @@ export function IntegrationsTab({
                     className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
                   />
                   <p className="text-[10px] text-neutral-400">Numeric Facebook Page ID or Instagram Business Account ID.</p>
+                </div>
+
+                {/* Instagram Username */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    Instagram Handle (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={instagramUsername}
+                    onChange={(e) => setInstagramUsername && handleInputChange(setInstagramUsername, e.target.value)}
+                    placeholder="e.g. yourbrand"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Public profile handle for routing display.</p>
+                </div>
+
+                {/* Page Access Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Page Access Token</span>
+                    {instagramConfigured ? (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Encrypted &amp; Stored</span>
+                    ) : (
+                      <span className="text-[10px] text-pink-600 dark:text-pink-400 font-bold">Required</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showIgToken ? "text" : "password"}
+                      value={instagramAccessToken}
+                      onChange={(e) => setInstagramAccessToken && handleInputChange(setInstagramAccessToken, e.target.value)}
+                      placeholder={instagramConfigured ? "••••••••••••••••••••••••••••••••" : "EAA..."}
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowIgToken(!showIgToken)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showIgToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    Requires <code>pages_messaging</code> and <code>instagram_manage_messages</code>.
+                  </p>
                 </div>
 
                 {/* Webhook Verify Token */}
@@ -1597,33 +2535,6 @@ export function IntegrationsTab({
                     className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
                   />
                   <p className="text-[10px] text-neutral-400">Verification string entered in Meta webhook setup modal.</p>
-                </div>
-
-                {/* Page Access Token */}
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
-                    <span>Page Access Token (Permanent)</span>
-                    <span className="text-[10px] text-pink-600 dark:text-pink-400 font-bold">Required</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showIgToken ? "text" : "password"}
-                      value={instagramAccessToken}
-                      onChange={(e) => setInstagramAccessToken && handleInputChange(setInstagramAccessToken, e.target.value)}
-                      placeholder="EAA..."
-                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowIgToken(!showIgToken)}
-                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
-                    >
-                      {showIgToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-neutral-400">
-                    Requires <code>pages_messaging</code> and <code>instagram_manage_messages</code> permissions.
-                  </p>
                 </div>
 
                 {/* Meta App Secret */}
@@ -1656,6 +2567,60 @@ export function IntegrationsTab({
                 </div>
               </div>
 
+              {/* Quick Replies */}
+              <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                    <MessageSquare className="size-3.5 text-pink-600" /> Interactive Quick-Reply Buttons (Optional)
+                  </label>
+                  <span className="text-[10px] text-neutral-400">Max 3 buttons</span>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {instagramQuickReplies.map((btn) => (
+                    <span
+                      key={btn}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-800 dark:text-neutral-200 shadow-2xs"
+                    >
+                      {btn}
+                      <button
+                        type="button"
+                        onClick={() => removeChannelQuickReply(btn, instagramQuickReplies, setInstagramQuickReplies)}
+                        className="text-neutral-400 hover:text-red-500 cursor-pointer"
+                        title="Remove button"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {instagramQuickReplies.length < 3 && (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newIgQuickReply}
+                        onChange={(e) => setNewIgQuickReply(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addChannelQuickReply(newIgQuickReply, setNewIgQuickReply, instagramQuickReplies, setInstagramQuickReplies, "Instagram");
+                          }
+                        }}
+                        placeholder="Button label..."
+                        maxLength={20}
+                        className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-xs focus:outline-none w-32"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addChannelQuickReply(newIgQuickReply, setNewIgQuickReply, instagramQuickReplies, setInstagramQuickReplies, "Instagram")}
+                        disabled={!newIgQuickReply.trim()}
+                        className="px-2.5 py-1 rounded-lg bg-pink-600 text-white text-xs font-medium hover:bg-pink-700 disabled:opacity-40 cursor-pointer"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Setup Guide Accordion */}
               <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
                 <button
@@ -1663,7 +2628,7 @@ export function IntegrationsTab({
                   onClick={() => setShowIgGuide(!showIgGuide)}
                   className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
                 >
-                  <span>Step-by-Step Instagram DM &amp; Messenger Meta Setup Guide</span>
+                  <span>Step-by-Step Instagram Professional Setup Guide</span>
                   {showIgGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                 </button>
                 {showIgGuide && (
@@ -1680,9 +2645,324 @@ export function IntegrationsTab({
                       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-pink-500 text-white text-[10px] font-bold">3</span>
                       <div><b>Configure Webhook</b>: In Meta Developer Portal &rarr; Instagram &rarr; Webhooks, paste the <b>Callback URL</b> and <b>Verify Token</b> from above. Subscribe to <code>messages</code>.</div>
                     </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================================================================ */}
+          {/* CHANNEL 4: TIKTOK BUSINESS MESSAGING                              */}
+          {/* ================================================================ */}
+          {activeChannel === "tiktok" && (
+            <div className="space-y-6">
+              {/* Channel Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="size-10 rounded-2xl bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 flex items-center justify-center shrink-0 border border-neutral-800 dark:border-neutral-200">
+                    <TikTokBrandIcon className="size-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                        TikTok Business Messaging (Commercial API)
+                      </h3>
+                      {isTtConnected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-bold border border-emerald-500/20">
+                          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live &bull; Connected
+                        </span>
+                      ) : isTtConfigured ? (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                          Configured (Disabled)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-neutral-500 bg-neutral-200/60 dark:bg-neutral-800 px-2 py-0.5 rounded-full">
+                          Not Connected
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                      Direct messaging for TikTok Shop sellers, viral creators, and e-commerce advertisers. Converts product inquiries, live-stream questions, and video engagements into automated sales.
+                    </p>
+                  </div>
+                </div>
+
+                {setTiktokEnabled && (
+                  <label className="relative inline-flex items-center cursor-pointer select-none self-start sm:self-auto shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-label="Enable TikTok Business integration"
+                      checked={tiktokEnabled}
+                      onChange={(e) => handleInputChange(setTiktokEnabled, e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-neutral-200 peer-focus:outline-hidden rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-neutral-600 peer-checked:bg-neutral-900 dark:peer-checked:bg-neutral-100"></div>
+                    <span className="ml-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                      {tiktokEnabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* 1-Click Connect & Test Banner */}
+              <div className="rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-100/70 dark:bg-neutral-800/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold text-neutral-900 dark:text-neutral-100">1-Click TikTok for Business Authorization</p>
+                  <p className="text-[11px] text-neutral-600 dark:text-neutral-400 mt-0.5">
+                    Connect via TikTok Business OAuth or provide your TikTok Commercial Access Token below.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleTestTiktok}
+                    disabled={testingTiktok || !botId || (!tiktokOpenId && !tiktokBusinessId && !tiktokConfigured)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-neutral-800 dark:text-neutral-200 hover:bg-neutral-200/70 disabled:opacity-50 cursor-pointer"
+                  >
+                    {testingTiktok ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {testingTiktok ? "Testing…" : "Test Connection"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConnectTiktok}
+                    disabled={connectingTiktok || !botId}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 dark:bg-neutral-100 dark:text-neutral-900 text-white px-3.5 py-2 text-xs font-bold hover:bg-black disabled:opacity-50 cursor-pointer shadow-xs"
+                  >
+                    {connectingTiktok ? <Loader2 className="size-3.5 animate-spin" /> : <ExternalLink className="size-3.5" />}
+                    {connectingTiktok ? "Connecting…" : isTtConnected ? "Reconnect TikTok" : "Connect TikTok"}
+                  </button>
+                  {isTtConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectTiktok}
+                      disabled={disconnectingTiktok}
+                      className="inline-flex items-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+                    >
+                      {disconnectingTiktok ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Webhook Callback Banner */}
+              <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-neutral-800 dark:text-neutral-200" /> TikTok Business Webhook URL
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(TT_CALLBACK_URL, setCopiedTtUrl, "TikTok Webhook URL copied")}
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                  >
+                    {copiedTtUrl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    {copiedTtUrl ? "Copied!" : "Copy URL"}
+                  </button>
+                </div>
+                <p className="font-mono text-xs text-neutral-800 dark:text-neutral-200 break-all select-all">
+                  {TT_CALLBACK_URL}
+                </p>
+                <p className="text-[10px] text-neutral-400">
+                  In TikTok for Developers &rarr; <b>App &rarr; Webhooks</b>, register this endpoint with your verification token.
+                </p>
+              </div>
+
+              {/* Credentials Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* TikTok Open ID */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>TikTok Open ID / Business Account ID</span>
+                    <span className="text-[10px] text-neutral-800 dark:text-neutral-200 font-bold">Required</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={tiktokOpenId}
+                    onChange={(e) => setTiktokOpenId && handleInputChange(setTiktokOpenId, e.target.value)}
+                    placeholder="e.g. 72648102948201928"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">User or Business Account Open ID from TikTok Developers.</p>
+                </div>
+
+                {/* Display Name */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    TikTok Handle / Display Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={tiktokDisplayName}
+                    onChange={(e) => setTiktokDisplayName && handleInputChange(setTiktokDisplayName, e.target.value)}
+                    placeholder="e.g. @yourbusiness"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Handle displayed on Inbox ticket cards.</p>
+                </div>
+
+                {/* Access Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Business Access Token</span>
+                    {tiktokConfigured ? (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">Encrypted &amp; Stored</span>
+                    ) : (
+                      <span className="text-[10px] text-neutral-800 dark:text-neutral-200 font-bold">Required</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showTtToken ? "text" : "password"}
+                      value={tiktokAccessToken}
+                      onChange={(e) => setTiktokAccessToken && handleInputChange(setTiktokAccessToken, e.target.value)}
+                      placeholder={tiktokConfigured ? "••••••••••••••••••••••••••••••••" : "act.xxxxxx"}
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTtToken(!showTtToken)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showTtToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">OAuth user access token with <code>business.message</code> scope.</p>
+                </div>
+
+                {/* Webhook Verify Token */}
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span>Webhook Verify Token</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const token = generateSecret("tt");
+                        if (setTiktokVerifyToken) handleInputChange(setTiktokVerifyToken, token);
+                        showToast?.("Generated new TikTok Verify Token", "info");
+                      }}
+                      className="text-[10px] text-neutral-800 dark:text-neutral-200 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="size-2.5" /> Generate Secret
+                    </button>
+                  </label>
+                  <input
+                    type="text"
+                    value={tiktokVerifyToken}
+                    onChange={(e) => setTiktokVerifyToken && handleInputChange(setTiktokVerifyToken, e.target.value)}
+                    placeholder="e.g. chatty_tt_secret_54321"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[10px] text-neutral-400">Verification string entered in TikTok webhook setup.</p>
+                </div>
+
+                {/* TikTok Client Secret */}
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Key className="size-3.5 text-neutral-800 dark:text-neutral-200" /> TikTok Client Secret (HMAC-SHA256 Signature)
+                    </span>
+                    <span className="text-[10px] text-neutral-400">Recommended for security</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showTtSecret ? "text" : "password"}
+                      value={tiktokClientSecret}
+                      onChange={(e) => setTiktokClientSecret && handleInputChange(setTiktokClientSecret, e.target.value)}
+                      placeholder="••••••••••••••••••••••••••••••••"
+                      className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 pr-9 text-xs font-mono focus:outline-none focus:border-neutral-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowTtSecret(!showTtSecret)}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 cursor-pointer"
+                    >
+                      {showTtSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-neutral-400">
+                    From TikTok Developer App details. Validates the <code>TikTok-Signature</code> or <code>X-TikTok-Signature</code> header.
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Replies */}
+              <div className="p-4 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                    <MessageSquare className="size-3.5 text-neutral-800 dark:text-neutral-200" /> Interactive Quick-Reply Buttons (Optional)
+                  </label>
+                  <span className="text-[10px] text-neutral-400">Max 3 buttons</span>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {tiktokQuickReplies.map((btn) => (
+                    <span
+                      key={btn}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-800 dark:text-neutral-200 shadow-2xs"
+                    >
+                      {btn}
+                      <button
+                        type="button"
+                        onClick={() => removeChannelQuickReply(btn, tiktokQuickReplies, setTiktokQuickReplies)}
+                        className="text-neutral-400 hover:text-red-500 cursor-pointer"
+                        title="Remove button"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                  {tiktokQuickReplies.length < 3 && (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={newTtQuickReply}
+                        onChange={(e) => setNewTtQuickReply(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            addChannelQuickReply(newTtQuickReply, setNewTtQuickReply, tiktokQuickReplies, setTiktokQuickReplies, "TikTok");
+                          }
+                        }}
+                        placeholder="Button label..."
+                        maxLength={20}
+                        className="bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-700 rounded-lg px-2.5 py-1 text-xs focus:outline-none w-32"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addChannelQuickReply(newTtQuickReply, setNewTtQuickReply, tiktokQuickReplies, setTiktokQuickReplies, "TikTok")}
+                        disabled={!newTtQuickReply.trim()}
+                        className="px-2.5 py-1 rounded-lg bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-medium hover:bg-black disabled:opacity-40 cursor-pointer"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Setup Guide Accordion */}
+              <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+                <button
+                  type="button"
+                  onClick={() => setShowTtGuide(!showTtGuide)}
+                  className="w-full flex items-center justify-between p-3.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+                >
+                  <span>Step-by-Step TikTok for Business Messaging Setup Guide</span>
+                  {showTtGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                </button>
+                {showTtGuide && (
+                  <div className="p-4 space-y-3 text-xs text-neutral-600 dark:text-neutral-400 border-t border-neutral-200 dark:border-neutral-800">
                     <div className="flex items-start gap-2.5">
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-pink-500 text-white text-[10px] font-bold">4</span>
-                      <div><b>Save Changes</b>: Click the &quot;Save Changes&quot; button in the bottom floating bar to persist your settings.</div>
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-[10px] font-bold">1</span>
+                      <div><b>TikTok Developer Portal</b>: Create an App on <a href="https://developers.tiktok.com/" target="_blank" rel="noopener noreferrer" className="underline font-bold">developers.tiktok.com</a> and add the Business Messaging product.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-[10px] font-bold">2</span>
+                      <div><b>Register Webhook</b>: Add the Webhook URL and Verify Token above. Check the <code>im.business.message</code> events.</div>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-[10px] font-bold">3</span>
+                      <div><b>Save Credentials</b>: Click &quot;Connect TikTok&quot; or copy the Open ID and Access Token into the inputs above and hit Save Changes.</div>
                     </div>
                   </div>
                 )}
@@ -1769,12 +3049,22 @@ export function IntegrationsTab({
                   <button
                     type="button"
                     onClick={handleTestTelegram}
-                    disabled={testingTelegram || !botId || !telegramBotToken}
+                    disabled={testingTelegram || !botId || (!telegramBotToken && !telegramConfigured)}
                     className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-50 cursor-pointer shadow-xs"
                   >
                     {testingTelegram ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
                     {testingTelegram ? "Validating…" : "Test Bot Token"}
                   </button>
+                  {isTgConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectTelegram}
+                      disabled={disconnectingTelegram}
+                      className="inline-flex items-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+                    >
+                      {disconnectingTelegram ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2000,15 +3290,27 @@ export function IntegrationsTab({
                     Automated opt-out recognition (<code>STOP</code>, <code>UNSUBSCRIBE</code>, <code>CANCEL</code>) and opt-in restoration (<code>START</code>) with 1,600-character multi-part GSM-7 concatenation.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleTestSms}
-                  disabled={testingSms || !botId || !twilioAccountSid || !twilioAuthToken}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-300 dark:border-red-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-red-700 dark:text-red-300 hover:bg-red-100/70 disabled:opacity-50 cursor-pointer shrink-0"
-                >
-                  {testingSms ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-                  {testingSms ? "Testing…" : "Verify Twilio Account"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleTestSms}
+                    disabled={testingSms || !botId || (!twilioAccountSid && !smsConfigured)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-300 dark:border-red-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-red-700 dark:text-red-300 hover:bg-red-100/70 disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {testingSms ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {testingSms ? "Testing…" : "Verify Twilio Account"}
+                  </button>
+                  {isSmsConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectSms}
+                      disabled={disconnectingSms}
+                      className="inline-flex items-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+                    >
+                      {disconnectingSms ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Webhook Callback Banner */}
@@ -2190,15 +3492,27 @@ export function IntegrationsTab({
                     Automatically preserves <code>In-Reply-To</code> and <code>References</code> headers while stripping nested history so customers see clean answers.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleTestEmail}
-                  disabled={testingEmail || !botId || !emailSupportAddress}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-100/70 disabled:opacity-50 cursor-pointer shrink-0"
-                >
-                  {testingEmail ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-                  {testingEmail ? "Verifying…" : "Validate Routing"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleTestEmail}
+                    disabled={testingEmail || !botId || (!emailSupportAddress && !emailConfigured)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-blue-300 dark:border-blue-700 bg-white/80 dark:bg-neutral-900/60 px-3.5 py-2 text-xs font-bold text-blue-700 dark:text-blue-300 hover:bg-blue-100/70 disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {testingEmail ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+                    {testingEmail ? "Verifying…" : "Validate Routing"}
+                  </button>
+                  {isEmailConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleDisconnectEmail}
+                      disabled={disconnectingEmail}
+                      className="inline-flex items-center rounded-lg border border-red-200 dark:border-red-900/70 bg-white dark:bg-neutral-900 px-3 py-2 text-xs font-bold text-red-600 dark:text-red-300 hover:bg-red-50 disabled:opacity-50 cursor-pointer"
+                    >
+                      {disconnectingEmail ? "Disconnecting…" : "Disconnect"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Webhook Callback Banner */}

@@ -36,13 +36,17 @@ from app.services.omnichannel import (
     ChannelType,
     InboundMessage,
     OmnichannelPipeline,
+    find_bot_by_omnichannel_field,
     normalize_email_message,
     normalize_instagram_message,
     normalize_sms_webhook,
     normalize_telegram_update,
+    normalize_tiktok_message,
+    unpack_omnichannel_bot_row,
     verify_email_webhook_secret,
     verify_instagram_signature,
     verify_telegram_secret,
+    verify_tiktok_signature,
     verify_twilio_signature,
 )
 
@@ -1178,11 +1182,14 @@ async def resend_inbound(request: Request):
 # ---------------------------------------------------------------------------
 INSTAGRAM_VERIFY_TOKEN = os.environ.get("INSTAGRAM_VERIFY_TOKEN", "") or WHATSAPP_VERIFY_TOKEN
 INSTAGRAM_APP_SECRET = os.environ.get("INSTAGRAM_APP_SECRET", "") or WHATSAPP_APP_SECRET
+MESSENGER_VERIFY_TOKEN = os.environ.get("MESSENGER_VERIFY_TOKEN", "") or INSTAGRAM_VERIFY_TOKEN
+MESSENGER_APP_SECRET = os.environ.get("MESSENGER_APP_SECRET", "") or INSTAGRAM_APP_SECRET
 
 
 @router.get("/webhook/instagram")
-async def instagram_verify(request: Request):
-    """Meta webhook verification handshake for Instagram DMs and Messenger."""
+@router.get("/webhook/messenger")
+async def instagram_or_messenger_verify(request: Request):
+    """Meta webhook verification handshake for Instagram DMs and Facebook Messenger."""
     p = request.query_params
     mode = p.get("hub.mode")
     token = p.get("hub.verify_token")
@@ -1191,28 +1198,29 @@ async def instagram_verify(request: Request):
     if mode != "subscribe" or not token:
         raise HTTPException(status_code=403, detail="Invalid verification request")
 
-    if INSTAGRAM_VERIFY_TOKEN and token == INSTAGRAM_VERIFY_TOKEN:
+    if token in {t for t in (INSTAGRAM_VERIFY_TOKEN, MESSENGER_VERIFY_TOKEN) if t}:
         return PlainTextResponse(challenge or "")
 
     try:
-        res = await run_db(lambda: supabase.table("chatty_bots")
-            .select("id")
-            .eq("instagram_verify_token", token)
-            .limit(1)
-            .execute())
-        if res.data:
+        bot_ig = await find_bot_by_omnichannel_field(supabase, "instagram_verify_token", token)
+        if bot_ig:
+            return PlainTextResponse(challenge or "")
+        bot_fb = await find_bot_by_omnichannel_field(supabase, "messenger_verify_token", token)
+        if bot_fb:
             return PlainTextResponse(challenge or "")
     except Exception:
-        logger.exception("Error verifying per-bot instagram token")
+        logger.exception("Error verifying per-bot instagram/messenger token")
 
     raise HTTPException(status_code=403, detail="Verification token mismatch")
 
 
 @router.post("/webhook/instagram")
+@router.post("/webhook/messenger")
 async def instagram_receive(request: Request):
     """Inbound Instagram DMs & Facebook Messenger webhook handler."""
     raw_body = await request.body()
     sig_header = request.headers.get("x-hub-signature-256", "")
+    is_messenger_route = request.url.path.endswith("/messenger")
 
     try:
         body = json.loads(raw_body.decode("utf-8")) if raw_body else {}
@@ -1221,29 +1229,46 @@ async def instagram_receive(request: Request):
 
     entries = body.get("entry", [])
     for entry in entries:
-        page_id = str(entry.get("id") or "")
-        res = await run_db(lambda: supabase.table("chatty_bots")
-            .select("*")
-            .or_(f"instagram_page_id.eq.{page_id},whatsapp_phone_number_id.eq.{page_id}")
-            .limit(1)
-            .execute())
-        if not res.data:
+        page_id = str(entry.get("id") or "").strip()
+        bot = None
+        if page_id:
+            if is_messenger_route:
+                bot = await find_bot_by_omnichannel_field(supabase, "messenger_page_id", page_id)
+            if not bot:
+                bot = await find_bot_by_omnichannel_field(supabase, "instagram_page_id", page_id)
+            if not bot and not is_messenger_route:
+                bot = await find_bot_by_omnichannel_field(supabase, "messenger_page_id", page_id)
+            if not bot:
+                bot = await find_bot_by_omnichannel_field(supabase, "whatsapp_phone_number_id", page_id)
+
+        if not bot:
             res = await run_db(lambda: supabase.table("chatty_bots").select("*").limit(1).execute())
             if not res.data:
                 continue
+            bot = unpack_omnichannel_bot_row(res.data[0])
 
-        bot = res.data[0]
-        app_secret = bot.get("instagram_app_secret") or bot.get("whatsapp_app_secret") or INSTAGRAM_APP_SECRET
+        obj_type = str(body.get("object") or "").lower()
+        is_instagram = (not is_messenger_route) and (entry.get("messaging") is None or "instagram" in obj_type)
+
+        raw_secret = (
+            (bot.get("instagram_app_secret") if is_instagram else (bot.get("messenger_app_secret") or bot.get("instagram_app_secret")))
+            or bot.get("whatsapp_app_secret")
+            or (INSTAGRAM_APP_SECRET if is_instagram else MESSENGER_APP_SECRET)
+        )
+        app_secret = decrypt_secret(str(raw_secret or "")) if raw_secret else ""
         if app_secret and not verify_instagram_signature(raw_body, sig_header, app_secret):
             raise HTTPException(status_code=401, detail="Invalid signature")
 
-        access_token = decrypt_secret(bot.get("instagram_access_token") or "") or bot.get("whatsapp_access_token") or WHATSAPP_ACCESS_TOKEN
+        raw_token = (
+            (bot.get("instagram_access_token") if is_instagram else (bot.get("messenger_access_token") or bot.get("instagram_access_token")))
+            or bot.get("whatsapp_access_token")
+            or WHATSAPP_ACCESS_TOKEN
+        )
+        access_token = decrypt_secret(str(raw_token or ""))
         owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).limit(1).execute())
         if not owner_res.data:
             continue
         owner_user = owner_res.data[0]
-
-        is_instagram = entry.get("messaging") is None or "instagram" in str(body.get("object", "")).lower()
 
         for messaging_event in (entry.get("messaging") or entry.get("standby") or []):
             inbound = normalize_instagram_message(messaging_event, is_instagram=is_instagram)
@@ -1259,6 +1284,96 @@ async def instagram_receive(request: Request):
 
 
 # ---------------------------------------------------------------------------
+# TikTok Business Messaging Channel (TikTok Open API v2)
+# ---------------------------------------------------------------------------
+TIKTOK_VERIFY_TOKEN = os.environ.get("TIKTOK_VERIFY_TOKEN", "")
+TIKTOK_CLIENT_SECRET = os.environ.get("TIKTOK_CLIENT_SECRET", "")
+
+
+@router.get("/webhook/tiktok")
+async def tiktok_verify(request: Request):
+    """TikTok Developer / Business webhook verification handshake."""
+    p = request.query_params
+    challenge = p.get("challenge") or p.get("hub.challenge") or p.get("echostr") or ""
+    token = p.get("verify_token") or p.get("hub.verify_token") or p.get("token") or ""
+
+    if not token and challenge:
+        # TikTok Business webhooks sometimes send only `?challenge=<str>` on GET verification
+        return PlainTextResponse(challenge)
+
+    if TIKTOK_VERIFY_TOKEN and token == TIKTOK_VERIFY_TOKEN:
+        return PlainTextResponse(challenge)
+
+    try:
+        bot = await find_bot_by_omnichannel_field(supabase, "tiktok_verify_token", token)
+        if bot:
+            return PlainTextResponse(challenge)
+    except Exception:
+        logger.exception("Error verifying per-bot TikTok token")
+
+    raise HTTPException(status_code=403, detail="TikTok verification token mismatch")
+
+
+@router.post("/webhook/tiktok")
+async def tiktok_receive(request: Request):
+    """Inbound TikTok Business Messaging webhook with HMAC-SHA256 verification."""
+    raw_body = await request.body()
+    sig_header = (
+        request.headers.get("tiktok-signature")
+        or request.headers.get("x-tiktok-signature")
+        or ""
+    )
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except Exception:
+        return {"ok": True}
+
+    # Respond immediately to TikTok POST URL verification challenges
+    if isinstance(payload, dict) and payload.get("challenge") and not payload.get("event") and not payload.get("content") and not payload.get("data"):
+        return {"challenge": payload["challenge"]}
+
+    inbound = normalize_tiktok_message(payload)
+    if not inbound:
+        return {"ok": True}
+
+    bot_id_param = request.query_params.get("bot_id", "").strip()
+    bot = None
+    if bot_id_param:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id_param).limit(1).execute())
+        if res.data:
+            bot = unpack_omnichannel_bot_row(res.data[0])
+    if not bot and inbound.recipient_id:
+        bot = await find_bot_by_omnichannel_field(supabase, "tiktok_business_id", inbound.recipient_id)
+        if not bot:
+            bot = await find_bot_by_omnichannel_field(supabase, "tiktok_open_id", inbound.recipient_id)
+    if not bot:
+        res = await run_db(lambda: supabase.table("chatty_bots").select("*").limit(1).execute())
+        if not res.data:
+            return {"ok": True}
+        bot = unpack_omnichannel_bot_row(res.data[0])
+
+    raw_secret = bot.get("tiktok_client_secret") or TIKTOK_CLIENT_SECRET
+    client_secret = decrypt_secret(str(raw_secret or "")) if raw_secret else ""
+    if client_secret and not verify_tiktok_signature(raw_body, sig_header, client_secret):
+        raise HTTPException(status_code=401, detail="Invalid TikTok signature")
+
+    access_token = decrypt_secret(str(bot.get("tiktok_access_token") or ""))
+    owner_res = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", bot["user_id"]).limit(1).execute())
+    if not owner_res.data:
+        return {"ok": True}
+    owner_user = owner_res.data[0]
+
+    await _omnichannel_pipeline.process_inbound(
+        message=inbound,
+        bot=bot,
+        owner_user=owner_user,
+        access_token=access_token,
+    )
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # Telegram Bot Channel
 # ---------------------------------------------------------------------------
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -1266,9 +1381,10 @@ TELEGRAM_SECRET_TOKEN = os.environ.get("TELEGRAM_SECRET_TOKEN", "")
 
 
 @router.post("/webhook/telegram")
-async def telegram_receive(request: Request):
+@router.post("/webhook/telegram/{path_bot_id}")
+async def telegram_receive(request: Request, path_bot_id: str | None = None):
     """Inbound Telegram Bot webhook handler."""
-    bot_id = request.query_params.get("bot_id", "").strip()
+    bot_id = (path_bot_id or request.query_params.get("bot_id") or "").strip()
     secret_header = request.headers.get("x-telegram-bot-api-secret-token", "")
 
     if bot_id:
@@ -1281,7 +1397,7 @@ async def telegram_receive(request: Request):
         if not res.data:
             return {"ok": True}
 
-    bot = res.data[0]
+    bot = unpack_omnichannel_bot_row(res.data[0])
     expected_secret = bot.get("telegram_secret_token") or TELEGRAM_SECRET_TOKEN
     if expected_secret and not verify_telegram_secret(secret_header, expected_secret):
         raise HTTPException(status_code=401, detail="Invalid Telegram secret token")
@@ -1317,7 +1433,9 @@ TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
 
 
 @router.post("/webhook/twilio/sms")
-async def twilio_sms_receive(request: Request):
+@router.post("/webhook/sms")
+@router.post("/webhook/sms/{path_bot_id}")
+async def twilio_sms_receive(request: Request, path_bot_id: str | None = None):
     """Inbound Twilio SMS webhook with cryptographic signature verification."""
     from fastapi.responses import Response
 
@@ -1326,7 +1444,7 @@ async def twilio_sms_receive(request: Request):
     full_url = str(request.url)
 
     to_number = form_data.get("To", "").strip()
-    bot_id = request.query_params.get("bot_id", "").strip()
+    bot_id = (path_bot_id or request.query_params.get("bot_id") or "").strip()
 
     if bot_id:
         res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
@@ -1338,7 +1456,7 @@ async def twilio_sms_receive(request: Request):
     if not res.data:
         return Response(content="<Response></Response>", media_type="application/xml")
 
-    bot = res.data[0]
+    bot = unpack_omnichannel_bot_row(res.data[0])
     auth_token = decrypt_secret(bot.get("twilio_auth_token") or "") or TWILIO_AUTH_TOKEN
     if auth_token and sig_header:
         if not verify_twilio_signature(full_url, form_data, sig_header, auth_token):

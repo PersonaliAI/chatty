@@ -204,6 +204,16 @@ async def admin_inbox(bot_id: str, user: dict[str, Any] = Depends(require_user))
             r["whatsapp_window"] = whatsapp_service.compute_service_window(
                 r.get("last_message_at") or r.get("created_at")
             )
+        elif sess_id.startswith("fb:"):
+            r["channel"] = "messenger"
+        elif sess_id.startswith("ig:"):
+            r["channel"] = "instagram"
+        elif sess_id.startswith("tt:"):
+            r["channel"] = "tiktok"
+        elif sess_id.startswith("tg:"):
+            r["channel"] = "telegram"
+        elif sess_id.startswith("sms:"):
+            r["channel"] = "sms"
     return {"sessions": rows}
 
 
@@ -292,7 +302,15 @@ async def admin_inbox_visitor(bot_id: str, session_id: str,
         "previous_conversations": previous,
         "identity_status": "verified" if contact.get("external_user_id") else "details_provided" if profile.get("name") or profile.get("email") or name or email or lead.get("phone") else "anonymous",
         "identity_verified": bool(contact.get("external_user_id")),
-        "channel": "whatsapp" if (session.get("channel") == "whatsapp" or session_id.startswith("wa:")) else (session.get("channel") or "web"),
+        "channel": (
+            "whatsapp" if (session.get("channel") == "whatsapp" or session_id.startswith("wa:"))
+            else "messenger" if session_id.startswith("fb:")
+            else "instagram" if session_id.startswith("ig:")
+            else "tiktok" if session_id.startswith("tt:")
+            else "telegram" if session_id.startswith("tg:")
+            else "sms" if session_id.startswith("sms:")
+            else (session.get("channel") or "web")
+        ),
         "first_seen_at": session.get("created_at") or lead.get("created_at"),
         "last_seen_at": session.get("last_message_at"),
         "location": {key: lead.get(key) for key in ("country", "region", "city")},
@@ -526,6 +544,56 @@ async def admin_inbox_reply(req: InboxReplyRequest, user: dict[str, Any] = Depen
                     text=req.text.strip(),
                     access_token=access_token,
                 )
+
+    # Outbound human agent reply delivery for Messenger, Instagram, TikTok, Telegram, and SMS
+    sid_str = str(req.session_id or "")
+    ch_initial = str(s_row_initial.get("channel") or "").lower()
+    is_omni_social = (
+        sid_str.startswith(("fb:", "ig:", "tt:", "tg:", "sms:"))
+        or ch_initial in ("messenger", "instagram", "tiktok", "telegram", "sms")
+    )
+    if is_omni_social and req.text.strip():
+        try:
+            from app.core.crypto import decrypt_secret
+            from app.services.omnichannel import (
+                send_outbound_instagram,
+                send_outbound_sms,
+                send_outbound_telegram,
+                send_outbound_tiktok,
+                unpack_omnichannel_bot_row,
+            )
+            bot_omni_res = await run_db(
+                lambda: supabase.table("chatty_bots").select("*").eq("id", req.bot_id).limit(1).execute()
+            )
+            bot_omni = unpack_omnichannel_bot_row(bot_omni_res.data[0]) if (bot_omni_res and bot_omni_res.data) else {}
+            recipient_id = sid_str.split(":", 1)[1].strip() if ":" in sid_str else sid_str
+            reply_txt = req.text.strip()
+
+            if sid_str.startswith("fb:") or ch_initial == "messenger":
+                tok = decrypt_secret(str(bot_omni.get("messenger_access_token") or bot_omni.get("instagram_access_token") or ""))
+                if tok and recipient_id:
+                    await send_outbound_instagram(page_access_token=tok, recipient_id=recipient_id, text=reply_txt)
+            elif sid_str.startswith("ig:") or ch_initial == "instagram":
+                tok = decrypt_secret(str(bot_omni.get("instagram_access_token") or ""))
+                if tok and recipient_id:
+                    await send_outbound_instagram(page_access_token=tok, recipient_id=recipient_id, text=reply_txt)
+            elif sid_str.startswith("tt:") or ch_initial == "tiktok":
+                tok = decrypt_secret(str(bot_omni.get("tiktok_access_token") or ""))
+                biz_id = str(bot_omni.get("tiktok_business_id") or bot_omni.get("tiktok_open_id") or "me")
+                if tok and recipient_id:
+                    await send_outbound_tiktok(access_token=tok, business_id=biz_id, recipient_id=recipient_id, text=reply_txt)
+            elif sid_str.startswith("tg:") or ch_initial == "telegram":
+                tok = decrypt_secret(str(bot_omni.get("telegram_bot_token") or ""))
+                if tok and recipient_id:
+                    await send_outbound_telegram(bot_token=tok, chat_id=recipient_id, text=reply_txt)
+            elif sid_str.startswith("sms:") or ch_initial == "sms":
+                sid_tw = str(bot_omni.get("twilio_account_sid") or "")
+                tok_tw = decrypt_secret(str(bot_omni.get("twilio_auth_token") or ""))
+                from_tw = str(bot_omni.get("twilio_phone_number") or "")
+                if sid_tw and tok_tw and from_tw and recipient_id:
+                    await send_outbound_sms(account_sid=sid_tw, auth_token=tok_tw, from_number=from_tw, to_number=recipient_id, text=reply_txt)
+        except Exception:
+            logger.warning("Non-fatal: outbound omnichannel human reply failed for %s", sid_str, exc_info=True)
 
     raw_display_text = req.text.strip()
     if has_template and not raw_display_text:

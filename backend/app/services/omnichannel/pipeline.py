@@ -27,11 +27,13 @@ import re
 from typing import Any, Optional
 
 from app.core.clients import supabase
+from app.core.crypto import decrypt_secret
 from app.core.db import run_db
 from app.services.omnichannel.booking_bridge import (
     build_channel_booking_cta,
     is_booking_intent,
 )
+from app.services.omnichannel.config_store import unpack_omnichannel_bot_row
 from app.services.omnichannel.email_adapter import send_outbound_email
 from app.services.omnichannel.escalation_bridge import (
     apply_human_takeover,
@@ -43,6 +45,7 @@ from app.services.omnichannel.instagram_adapter import send_outbound_instagram
 from app.services.omnichannel.models import ChannelType, InboundMessage
 from app.services.omnichannel.sms_adapter import check_tcpa_opt_out, send_outbound_sms
 from app.services.omnichannel.telegram_adapter import send_outbound_telegram
+from app.services.omnichannel.tiktok_adapter import send_outbound_tiktok
 from app.services.omnichannel.whatsapp_adapter import (
     format_whatsapp_reply,
     send_outbound_whatsapp,
@@ -82,12 +85,13 @@ class OmnichannelPipeline:
                 phone_number_id=message.recipient_id,
                 to=message.sender_id,
                 text=text,
-                access_token=access_token,
+                access_token=decrypt_secret(access_token or bot.get("whatsapp_access_token") or ""),
                 quick_replies=quick_replies,
             )
 
-        if ch in (ChannelType.INSTAGRAM, ChannelType.MESSENGER):
-            token = bot.get("instagram_access_token") or access_token
+        if ch == ChannelType.MESSENGER:
+            raw_tok = bot.get("messenger_access_token") or bot.get("instagram_access_token") or access_token or ""
+            token = decrypt_secret(str(raw_tok))
             return await send_outbound_instagram(
                 page_access_token=token,
                 recipient_id=message.sender_id,
@@ -95,8 +99,31 @@ class OmnichannelPipeline:
                 quick_replies=quick_replies,
             )
 
+        if ch == ChannelType.INSTAGRAM:
+            raw_tok = bot.get("instagram_access_token") or access_token or ""
+            token = decrypt_secret(str(raw_tok))
+            return await send_outbound_instagram(
+                page_access_token=token,
+                recipient_id=message.sender_id,
+                text=text,
+                quick_replies=quick_replies,
+            )
+
+        if ch == ChannelType.TIKTOK:
+            raw_tok = bot.get("tiktok_access_token") or access_token or ""
+            token = decrypt_secret(str(raw_tok))
+            biz_id = str(bot.get("tiktok_business_id") or bot.get("tiktok_open_id") or message.recipient_id or "").strip()
+            return await send_outbound_tiktok(
+                access_token=token,
+                business_id=biz_id,
+                recipient_id=message.sender_id,
+                text=text,
+                quick_replies=quick_replies,
+            )
+
         if ch == ChannelType.TELEGRAM:
-            token = bot.get("telegram_bot_token") or access_token
+            raw_tok = bot.get("telegram_bot_token") or access_token or ""
+            token = decrypt_secret(str(raw_tok))
             inline_buttons = None
             if booking_url:
                 inline_buttons = [{"text": "📅 Book Appointment", "url": booking_url}]
@@ -110,7 +137,8 @@ class OmnichannelPipeline:
 
         if ch == ChannelType.SMS:
             account_sid = bot.get("twilio_account_sid") or os.environ.get("TWILIO_ACCOUNT_SID", "")
-            auth_token = bot.get("twilio_auth_token") or access_token or os.environ.get("TWILIO_AUTH_TOKEN", "")
+            raw_tok = bot.get("twilio_auth_token") or access_token or os.environ.get("TWILIO_AUTH_TOKEN", "")
+            auth_token = decrypt_secret(str(raw_tok))
             from_num = message.recipient_id or bot.get("twilio_phone_number") or os.environ.get("TWILIO_FROM_NUMBER", "")
             return await send_outbound_sms(
                 account_sid=account_sid,
@@ -145,6 +173,7 @@ class OmnichannelPipeline:
         app_secret: Optional[str] = None,
     ) -> dict[str, Any]:
         """Process an inbound message across any supported channel."""
+        bot = unpack_omnichannel_bot_row(bot)
         bot_id = bot["id"]
         session_id = message.session_id
         bot_model = bot.get("selected_model")
@@ -340,7 +369,7 @@ class OmnichannelPipeline:
         has_handoff_marker = "[HANDOFF_ACTIONS]" in reply
         reply = reply.replace("[HANDOFF_ACTIONS]", "").strip()
 
-        if message.channel in (ChannelType.WHATSAPP, ChannelType.TELEGRAM, ChannelType.INSTAGRAM):
+        if message.channel in (ChannelType.WHATSAPP, ChannelType.TELEGRAM, ChannelType.INSTAGRAM, ChannelType.MESSENGER, ChannelType.TIKTOK):
             reply = format_whatsapp_reply(reply)
 
         # 11. Record outbound AI message in chat history
@@ -357,8 +386,15 @@ class OmnichannelPipeline:
         except Exception:
             logger.exception("Failed to record outbound omnichannel assistant reply")
 
-        # 12. Quick replies
-        quick_replies = bot.get("whatsapp_quick_replies")
+        # 12. Channel-specific Quick Replies
+        if message.channel == ChannelType.MESSENGER:
+            quick_replies = bot.get("messenger_quick_replies") or bot.get("whatsapp_quick_replies")
+        elif message.channel == ChannelType.INSTAGRAM:
+            quick_replies = bot.get("instagram_quick_replies") or bot.get("whatsapp_quick_replies")
+        elif message.channel == ChannelType.TIKTOK:
+            quick_replies = bot.get("tiktok_quick_replies") or bot.get("whatsapp_quick_replies")
+        else:
+            quick_replies = bot.get("whatsapp_quick_replies")
         btn_list = list(quick_replies) if isinstance(quick_replies, list) else []
         if has_handoff_marker and not any("human" in str(b).lower() or "agent" in str(b).lower() for b in btn_list):
             btn_list = (["Talk to Human"] + btn_list)[:3]

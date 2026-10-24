@@ -36,7 +36,7 @@ export const nodeCatalog: NodeDefinition[] = [
     type: "chatty.event", title: "Chatty event", subtitle: "Omnichannel: Web, WhatsApp, Instagram, Mobile & Chat", kind: "trigger", icon: "chatty", color: "#f97316", provider: "Chatty", operations: ["Listen for event"], category: "triggers",
     fields: [
       { key: "event", label: "Event type", type: "select", required: true, options: ["session.started", "session.ended", "message.user", "message.assistant", "lead.created", "lead.updated", "meeting.booked", "csat.submitted"] },
-      { key: "channel", label: "Channel / Platform", type: "select", options: ["all", "whatsapp", "web", "instagram", "messenger", "telegram", "android_app", "ios_app"], helpText: "Use 'all' to trigger on every platform (Web, WhatsApp, Instagram, Messenger, Telegram, Android/iOS), or restrict to one channel." },
+      { key: "channel", label: "Channel / Platform", type: "select", options: ["all", "whatsapp", "messenger", "instagram", "tiktok", "telegram", "sms", "email", "web", "android_app", "ios_app"], helpText: "Use 'all' to trigger on every platform (Web, WhatsApp, Messenger, Instagram, TikTok, Telegram, SMS, Email, Android/iOS), or restrict to one channel." },
     ],
     defaultConfig: { event: "lead.created", channel: "all", operation: "Listen for event" }, n8nType: "chatty.event", n8nTypeVersion: 1,
   },

@@ -509,7 +509,7 @@ def test_bot_sanitization_masks_omnichannel_secrets():
     assert "instagram_access_token" not in sanitized
     assert "instagram_app_secret" not in sanitized
     assert "telegram_bot_token" not in sanitized
-    assert "telegram_secret_token" not in sanitized
+    assert sanitized.get("telegram_secret_token") == "tgsecret"  # Verify tokens/webhook secrets retained for owner dashboard
     assert "twilio_auth_token" not in sanitized
     assert "email_webhook_secret" not in sanitized
 

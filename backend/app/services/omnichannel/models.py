@@ -15,6 +15,7 @@ class ChannelType(str, Enum):
     SMS = "sms"
     INSTAGRAM = "instagram"
     MESSENGER = "messenger"
+    TIKTOK = "tiktok"
     TELEGRAM = "telegram"
 
 

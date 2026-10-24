@@ -391,12 +391,14 @@ SENSITIVE_BOT_COLUMNS = {
     "byok_keys",
     "whatsapp_access_token",
     "whatsapp_app_secret",
-    "whatsapp_verify_token",
+    "messenger_access_token",
+    "messenger_app_secret",
     "instagram_access_token",
     "instagram_app_secret",
-    "instagram_verify_token",
+    "tiktok_access_token",
+    "tiktok_refresh_token",
+    "tiktok_client_secret",
     "telegram_bot_token",
-    "telegram_secret_token",
     "twilio_auth_token",
     "email_webhook_secret",
     "voice_stt_byok_key_encrypted",
@@ -407,10 +409,14 @@ SENSITIVE_BOT_COLUMNS = {
 
 
 def _sanitize_bot_dict(bot: dict[str, Any], role: str = "owner") -> dict[str, Any]:
+    from app.services.omnichannel.config_store import unpack_omnichannel_bot_row
+    bot = unpack_omnichannel_bot_row(bot)
     sanitized = {k: v for k, v in bot.items() if k not in SENSITIVE_BOT_COLUMNS}
     sanitized["has_byok"] = bool(bot.get("byok_api_key_encrypted") or bot.get("byok_keys"))
     sanitized["whatsapp_configured"] = bool(bot.get("whatsapp_access_token"))
+    sanitized["messenger_configured"] = bool(bot.get("messenger_access_token") or bot.get("instagram_access_token"))
     sanitized["instagram_configured"] = bool(bot.get("instagram_access_token"))
+    sanitized["tiktok_configured"] = bool(bot.get("tiktok_access_token"))
     sanitized["telegram_configured"] = bool(bot.get("telegram_bot_token"))
     sanitized["sms_configured"] = bool(bot.get("twilio_auth_token") and bot.get("twilio_phone_number"))
     sanitized["email_configured"] = bool(bot.get("email_support_address"))
@@ -804,10 +810,17 @@ _DASHBOARD_BOT_UPDATE_FIELDS = frozenset({
     "microsoft_connected_account_id", "microsoft_calendar_id", "microsoft_calendar_name",
     "whatsapp_enabled", "whatsapp_phone_number_id", "whatsapp_waba_id", "whatsapp_access_token",
     "whatsapp_verify_token", "whatsapp_app_secret", "whatsapp_quick_replies", "onboarding_step",
-    "instagram_enabled", "instagram_page_id", "instagram_access_token", "instagram_verify_token", "instagram_app_secret",
+    "messenger_enabled", "messenger_page_id", "messenger_page_name", "messenger_access_token",
+    "messenger_verify_token", "messenger_app_secret", "messenger_quick_replies",
+    "instagram_enabled", "instagram_page_id", "instagram_username", "instagram_access_token",
+    "instagram_verify_token", "instagram_app_secret", "instagram_quick_replies",
+    "tiktok_enabled", "tiktok_open_id", "tiktok_business_id", "tiktok_display_name",
+    "tiktok_access_token", "tiktok_refresh_token", "tiktok_verify_token",
+    "tiktok_client_key", "tiktok_client_secret", "tiktok_quick_replies",
     "telegram_enabled", "telegram_bot_token", "telegram_secret_token", "telegram_bot_username",
     "sms_enabled", "twilio_account_sid", "twilio_auth_token", "twilio_phone_number",
     "email_channel_enabled", "email_support_address", "email_webhook_secret", "email_auto_reply_mode",
+    "slack_escalation_webhook_url",
     "onboarding_completed", "lead_fields", "lead_capture_enabled", "lead_required_fields",
     "voice_enabled", "voice_mode", "voice_expression_enabled", "voice_visualizer",
     "voice_agent_name", "voice_llm_provider", "voice_llm_model", "voice_stt_provider",
@@ -847,24 +860,8 @@ async def update_dashboard_bot(
     if updates.get("webhook_url"):
         await assert_safe_url_async(updates["webhook_url"])
 
-    try:
-        result = await run_db(lambda: supabase.table("chatty_bots").update(updates).eq(
-            "id", bot_id
-        ).execute())
-    except Exception as exc:
-        err_msg = str(exc).lower()
-        if "could not find" in err_msg or "column" in err_msg:
-            # Fallback for pending migrations on remote instance: drop newly added omnichannel fields and save core fields
-            omni_prefixes = ("instagram_", "telegram_", "sms_", "twilio_", "email_")
-            safe_updates = {k: v for k, v in updates.items() if not any(k.startswith(p) for p in omni_prefixes)}
-            if safe_updates:
-                result = await run_db(lambda: supabase.table("chatty_bots").update(safe_updates).eq("id", bot_id).execute())
-            else:
-                result = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
-        else:
-            raise
-
-    updated = result.data[0] if result.data else None
+    from app.services.omnichannel.config_store import update_bot_omnichannel_safe
+    updated = await update_bot_omnichannel_safe(supabase, bot_id, updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Bot not found")
     return _sanitize_bot_dict(updated, role=role)

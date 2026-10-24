@@ -56,11 +56,11 @@ def _detect_platform_metadata(raw_data: dict[str, Any], inputs: dict[str, Any]) 
     explicit_platform = str(raw_data.get("platform") or inputs.get("platform") or "").strip().lower()
     ua = str(raw_data.get("user_agent") or inputs.get("user_agent") or "").strip().lower()
 
-    if channel in {"whatsapp", "instagram", "messenger", "telegram", "sms", "email"}:
+    if channel in {"whatsapp", "instagram", "messenger", "tiktok", "telegram", "sms", "email"}:
         return {
             "channel": channel,
             "platform": explicit_platform or channel,
-            "device": str(raw_data.get("device") or ("mobile" if channel in {"whatsapp", "instagram", "telegram", "sms"} else "unknown")),
+            "device": str(raw_data.get("device") or ("mobile" if channel in {"whatsapp", "instagram", "tiktok", "telegram", "sms"} else "unknown")),
             "os": str(raw_data.get("os") or "unknown"),
         }
 

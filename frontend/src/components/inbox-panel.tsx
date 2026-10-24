@@ -161,7 +161,7 @@ interface Session {
   sla_status?: "on_track" | "met" | "breached";
   escalation_reason?: string;
   tags?: string[];
-  channel?: "web" | "email" | "slack" | "whatsapp";
+  channel?: "web" | "email" | "slack" | "whatsapp" | "messenger" | "instagram" | "tiktok" | "telegram" | "sms";
   subject?: string;
   visitor_email?: string;
   whatsapp_window?: {
@@ -1755,7 +1755,14 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       return false;
     }
 
-    const sChannel = s.channel || "web";
+    const sChannel = s.channel || (
+      s.session_id.startsWith("wa:") ? "whatsapp" :
+      s.session_id.startsWith("fb:") ? "messenger" :
+      s.session_id.startsWith("ig:") ? "instagram" :
+      s.session_id.startsWith("tt:") ? "tiktok" :
+      s.session_id.startsWith("tg:") ? "telegram" :
+      s.session_id.startsWith("sms:") ? "sms" : "web"
+    );
     if (selectedChannelFilter !== "all" && sChannel !== selectedChannelFilter) {
       return false;
     }
@@ -2098,7 +2105,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               align="right"
               options={[
                 { value: "all", label: "Channels" },
-                { value: "web", label: "Chat", icon: <MessageSquare className="size-2.5 text-emerald-500 shrink-0" /> },
+                { value: "web", label: "Web Chat", icon: <MessageSquare className="size-2.5 text-neutral-500 shrink-0" /> },
+                { value: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="size-2.5 text-[#25D366] shrink-0" /> },
+                { value: "messenger", label: "Messenger", icon: <MessageSquare className="size-2.5 text-blue-600 shrink-0" /> },
+                { value: "instagram", label: "Instagram", icon: <MessageSquare className="size-2.5 text-pink-500 shrink-0" /> },
+                { value: "tiktok", label: "TikTok", icon: <MessageSquare className="size-2.5 text-neutral-900 dark:text-neutral-100 shrink-0" /> },
+                { value: "telegram", label: "Telegram", icon: <MessageSquare className="size-2.5 text-sky-500 shrink-0" /> },
+                { value: "sms", label: "SMS", icon: <MessageSquare className="size-2.5 text-red-500 shrink-0" /> },
                 { value: "email", label: "Email", icon: <Mail className="size-2.5 text-blue-500 shrink-0" /> },
               ]}
             />
@@ -2201,12 +2214,42 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   {/* Badges Row: Priority, SLA, Channel, Assignee, Tags */}
                   <div className="flex flex-wrap items-center gap-1 mt-2">
                     {/* Channel Badge */}
-                    {s.channel === "email" && (
+                    {s.channel === "email" ? (
                       <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 flex items-center gap-0.5 font-medium">
                         <Mail className="size-2.5" />
                         <span>Email</span>
                       </span>
-                    )}
+                    ) : (s.channel === "whatsapp" || s.session_id.startsWith("wa:")) ? (
+                      <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-0.5 font-medium">
+                        <MessageSquare className="size-2.5" />
+                        <span>WhatsApp</span>
+                      </span>
+                    ) : (s.channel === "messenger" || s.session_id.startsWith("fb:")) ? (
+                      <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-600/30 flex items-center gap-0.5 font-medium">
+                        <MessageSquare className="size-2.5" />
+                        <span>Messenger</span>
+                      </span>
+                    ) : (s.channel === "instagram" || s.session_id.startsWith("ig:")) ? (
+                      <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/30 flex items-center gap-0.5 font-medium">
+                        <MessageSquare className="size-2.5" />
+                        <span>Instagram</span>
+                      </span>
+                    ) : (s.channel === "tiktok" || s.session_id.startsWith("tt:")) ? (
+                      <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-neutral-900/10 text-neutral-900 dark:bg-neutral-100/10 dark:text-neutral-100 border border-neutral-500/30 flex items-center gap-0.5 font-medium">
+                        <MessageSquare className="size-2.5" />
+                        <span>TikTok</span>
+                      </span>
+                    ) : (s.channel === "telegram" || s.session_id.startsWith("tg:")) ? (
+                      <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/30 flex items-center gap-0.5 font-medium">
+                        <MessageSquare className="size-2.5" />
+                        <span>Telegram</span>
+                      </span>
+                    ) : (s.channel === "sms" || s.session_id.startsWith("sms:")) ? (
+                      <span className="text-[8px] px-1.5 py-0.2 rounded-md bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30 flex items-center gap-0.5 font-medium">
+                        <MessageSquare className="size-2.5" />
+                        <span>SMS</span>
+                      </span>
+                    ) : null}
 
                     {/* Priority Badge */}
                     <span className={`text-[8px] px-1.5 py-0.2 rounded-md flex items-center gap-0.5 ${pConfig.badge}`}>
@@ -2282,6 +2325,31 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 {(current?.channel === "whatsapp" || selected.startsWith("wa:")) && (
                   <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                     <MessageSquare className="size-2.5" />WhatsApp
+                  </span>
+                )}
+                {(current?.channel === "messenger" || selected.startsWith("fb:")) && (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-600/30 flex items-center gap-1">
+                    <MessageSquare className="size-2.5" />Messenger
+                  </span>
+                )}
+                {(current?.channel === "instagram" || selected.startsWith("ig:")) && (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/30 flex items-center gap-1">
+                    <MessageSquare className="size-2.5" />Instagram
+                  </span>
+                )}
+                {(current?.channel === "tiktok" || selected.startsWith("tt:")) && (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-neutral-900/10 text-neutral-900 dark:bg-neutral-100/10 dark:text-neutral-100 border border-neutral-500/30 flex items-center gap-1">
+                    <MessageSquare className="size-2.5" />TikTok
+                  </span>
+                )}
+                {(current?.channel === "telegram" || selected.startsWith("tg:")) && (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/30 flex items-center gap-1">
+                    <MessageSquare className="size-2.5" />Telegram
+                  </span>
+                )}
+                {(current?.channel === "sms" || selected.startsWith("sms:")) && (
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-md bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/30 flex items-center gap-1">
+                    <MessageSquare className="size-2.5" />SMS
                   </span>
                 )}
                 {current?.visitor_email && (

@@ -33,6 +33,10 @@ from plugins import google_integrations as g
 from plugins import microsoft_integrations as ms
 
 from app.services.chatty_quota_service import plan_for
+from app.services.omnichannel.config_store import (
+    unpack_omnichannel_bot_row,
+    update_bot_omnichannel_safe,
+)
 
 logger = logging.getLogger("chatty")
 
@@ -157,33 +161,38 @@ async def whatsapp_callback(code: Optional[str] = None, state: Optional[str] = N
         "whatsapp_access_token": encrypt_secret(access_token),
         "whatsapp_verify_token": "wa_" + secrets.token_urlsafe(24),
     }
-    await run_db(lambda: supabase.table("chatty_bots").update(update).eq("id", bot_id).execute())
+    await update_bot_omnichannel_safe(supabase, bot_id, update)
     return _whatsapp_redirect(frontend, path, "connected")
 
 
 @router.post("/api/integrations/whatsapp/test")
-async def whatsapp_test(bot_id: str, user: dict[str, Any] = Depends(require_user)):
-    """Validate a bot's saved WhatsApp phone/token against Meta without sending a message."""
+async def whatsapp_test(
+    bot_id: str,
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Validate a bot's WhatsApp phone/token against Meta without sending a message."""
     bot_res = await run_db(lambda: supabase.table("chatty_bots")
-        .select("id,whatsapp_phone_number_id,whatsapp_access_token")
+        .select("*")
         .eq("id", bot_id)
         .eq("user_id", user["auth_user_id"])
         .limit(1)
         .execute())
     if not bot_res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
-    bot = bot_res.data[0]
-    phone_id = (bot.get("whatsapp_phone_number_id") or "").strip()
-    access_token = decrypt_secret((bot.get("whatsapp_access_token") or "").strip())
-    if not phone_id or not access_token:
-        raise HTTPException(status_code=400, detail="Save a WhatsApp phone number ID and access token first")
+    bot = unpack_omnichannel_bot_row(bot_res.data[0])
+    phone_id = (phone_number_id or bot.get("whatsapp_phone_number_id") or "").strip()
+    token = (access_token or "").strip() or decrypt_secret((bot.get("whatsapp_access_token") or "").strip())
+    if not phone_id or not token:
+        raise HTTPException(status_code=400, detail="Provide or save a WhatsApp Phone Number ID and Access Token first")
     version = os.environ.get("WHATSAPP_API_VERSION", "v25.0")
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
-                f"https://graph.facebook.com/{version}/{phone_id}",
+                f"https://graph.facebook.com/{version}/{quote(phone_id, safe='')}",
                 params={"fields": "id,display_phone_number,verified_name"},
-                headers={"Authorization": f"Bearer {access_token}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
         if response.status_code >= 400:
             try:
@@ -204,6 +213,579 @@ async def whatsapp_test(bot_id: str, user: dict[str, Any] = Depends(require_user
     except (httpx.HTTPError, ValueError):
         logger.exception("WhatsApp connection test failed")
         raise HTTPException(status_code=502, detail="Could not reach Meta to test the WhatsApp connection")
+
+
+# ---------------------------------------------------------------------------
+# Facebook Messenger & Instagram DM OAuth + Test + Disconnect
+# ---------------------------------------------------------------------------
+
+
+def _messenger_redirect_uri() -> str:
+    return os.environ.get("FACEBOOK_MESSENGER_REDIRECT_URI") or f"{CHATTY_BACKEND_URL}/auth/messenger/callback"
+
+
+def _instagram_redirect_uri() -> str:
+    return os.environ.get("FACEBOOK_INSTAGRAM_REDIRECT_URI") or f"{CHATTY_BACKEND_URL}/auth/instagram/callback"
+
+
+def _channel_redirect(frontend: str, path: str, param: str, status: str) -> RedirectResponse:
+    separator = "&" if "?" in path else "?"
+    return RedirectResponse(f"{frontend}{path}{separator}{param}={status}")
+
+
+@router.post("/api/integrations/messenger/start")
+async def messenger_start(
+    request: Request,
+    bot_id: str,
+    redirect_path: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Return Meta OAuth URL for 1-click Facebook Messenger Page onboarding."""
+    if not os.environ.get("FACEBOOK_APP_ID") or not os.environ.get("FACEBOOK_APP_SECRET"):
+        raise HTTPException(status_code=503, detail="Meta App credentials are not configured on the server")
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).limit(1).execute())
+    if not bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    origin = request.headers.get("origin", "").rstrip("/")
+    if origin not in ALLOWED_ORIGINS:
+        origin = ""
+    path = redirect_path or "/dashboard?tab=integrations"
+    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=path, mode="messenger", extra_claims={"bot_id": bot_id})
+    params = {
+        "client_id": os.environ["FACEBOOK_APP_ID"],
+        "redirect_uri": _messenger_redirect_uri(),
+        "state": state,
+        "response_type": "code",
+        "scope": "pages_messaging,pages_manage_metadata,pages_show_list,public_profile",
+    }
+    return {"url": "https://www.facebook.com/v23.0/dialog/oauth?" + urlencode(params)}
+
+
+@router.get("/auth/messenger/callback")
+async def messenger_callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    if not state:
+        return _channel_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "messenger", "error")
+    try:
+        claims = jwt.decode(state, FUNCTION_SECRET, algorithms=["HS256"])
+        auth_user_id = claims["sub"]
+        bot_id = claims["bot_id"]
+        origin = (claims.get("origin") or "").rstrip("/")
+        frontend = origin if origin in ALLOWED_ORIGINS else CHATTY_FRONTEND_URL
+        path = claims.get("path") or "/dashboard?tab=integrations"
+    except (jwt.PyJWTError, KeyError):
+        return _channel_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "messenger", "error")
+    if error or not code:
+        return _channel_redirect(frontend, path, "messenger", "error")
+
+    graph = "https://graph.facebook.com/v23.0"
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            token_res = await client.get(f"{graph}/oauth/access_token", params={
+                "client_id": os.environ["FACEBOOK_APP_ID"],
+                "client_secret": os.environ["FACEBOOK_APP_SECRET"],
+                "redirect_uri": _messenger_redirect_uri(),
+                "code": code,
+            })
+            token_res.raise_for_status()
+            user_token = token_res.json().get("access_token")
+            if not user_token:
+                raise ValueError("Meta did not return an access token")
+
+            pages_res = await client.get(
+                f"{graph}/me/accounts",
+                params={"fields": "id,name,access_token,category", "limit": 50},
+                headers={"Authorization": f"Bearer {user_token}"},
+            )
+            pages_res.raise_for_status()
+            pages = pages_res.json().get("data", [])
+            if not pages:
+                return _channel_redirect(frontend, path, "messenger", "no_page")
+
+            selected_page = pages[0]
+            page_id = str(selected_page["id"])
+            page_name = str(selected_page.get("name") or page_id)
+            page_token = str(selected_page.get("access_token") or user_token)
+
+            try:
+                await client.post(
+                    f"{graph}/{page_id}/subscribed_apps",
+                    params={"subscribed_fields": "messages,messaging_postbacks"},
+                    headers={"Authorization": f"Bearer {page_token}"},
+                )
+            except Exception:
+                logger.warning("Non-fatal: could not auto-subscribe Messenger page %s", page_id)
+    except (httpx.HTTPError, ValueError, KeyError):
+        logger.exception("Messenger Meta OAuth callback failed")
+        return _channel_redirect(frontend, path, "messenger", "error")
+
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", auth_user_id).limit(1).execute())
+    if not bot.data:
+        return _channel_redirect(frontend, path, "messenger", "error")
+
+    await update_bot_omnichannel_safe(supabase, bot_id, {
+        "messenger_enabled": True,
+        "messenger_page_id": page_id,
+        "messenger_page_name": page_name,
+        "messenger_access_token": encrypt_secret(page_token),
+        "messenger_verify_token": "fb_" + secrets.token_urlsafe(24),
+    })
+    return _channel_redirect(frontend, path, "messenger", "connected")
+
+
+@router.post("/api/integrations/messenger/test")
+async def messenger_test(
+    bot_id: str,
+    page_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Validate Facebook Messenger Page ID & Page Access Token against Meta Graph API."""
+    bot_res = await run_db(lambda: supabase.table("chatty_bots")
+        .select("*")
+        .eq("id", bot_id)
+        .eq("user_id", user["auth_user_id"])
+        .limit(1)
+        .execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    b = unpack_omnichannel_bot_row(bot_res.data[0])
+    pid = (page_id or b.get("messenger_page_id") or b.get("instagram_page_id") or "").strip()
+    token = (access_token or "").strip() or decrypt_secret((b.get("messenger_access_token") or b.get("instagram_access_token") or "").strip())
+
+    if not pid or not token:
+        raise HTTPException(status_code=400, detail="Provide or save Facebook Page ID and Page Access Token first")
+    if not re.match(r"^[0-9a-zA-Z_]{1,64}$", pid):
+        raise HTTPException(status_code=400, detail="Facebook Page ID must be alphanumeric (up to 64 characters)")
+
+    try:
+        safe_pid = quote(pid, safe="")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                f"https://graph.facebook.com/v21.0/{safe_pid}",
+                params={"fields": "id,name,category"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        data = resp.json() if resp.status_code == 200 else {}
+        if resp.status_code >= 400 or "error" in data:
+            err_msg = (data.get("error") or {}).get("message", "Meta Graph API rejected credentials")
+            raise HTTPException(status_code=400, detail=f"Meta error: {err_msg[:200]}")
+        return {
+            "ok": True,
+            "page_id": data.get("id", pid),
+            "name": data.get("name", "Facebook Page"),
+            "category": data.get("category"),
+            "message": f"Facebook Messenger Page '{data.get('name', pid)}' verified and connected",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Messenger test failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach Meta Graph API")
+
+
+@router.post("/api/integrations/messenger/disconnect")
+async def messenger_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Disable Facebook Messenger and clear stored Page credentials."""
+    updated = await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "messenger_enabled": False,
+            "messenger_page_id": None,
+            "messenger_page_name": None,
+            "messenger_access_token": None,
+            "messenger_verify_token": None,
+            "messenger_app_secret": None,
+            "messenger_quick_replies": [],
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return {"ok": True, "message": "Facebook Messenger disconnected"}
+
+
+@router.post("/api/integrations/instagram/start")
+async def instagram_start(
+    request: Request,
+    bot_id: str,
+    redirect_path: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Return Meta OAuth URL for 1-click Instagram Direct (Business) onboarding."""
+    if not os.environ.get("FACEBOOK_APP_ID") or not os.environ.get("FACEBOOK_APP_SECRET"):
+        raise HTTPException(status_code=503, detail="Meta App credentials are not configured on the server")
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", user["auth_user_id"]).limit(1).execute())
+    if not bot.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    origin = request.headers.get("origin", "").rstrip("/")
+    if origin not in ALLOWED_ORIGINS:
+        origin = ""
+    path = redirect_path or "/dashboard?tab=integrations"
+    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=path, mode="instagram", extra_claims={"bot_id": bot_id})
+    params = {
+        "client_id": os.environ["FACEBOOK_APP_ID"],
+        "redirect_uri": _instagram_redirect_uri(),
+        "state": state,
+        "response_type": "code",
+        "scope": "instagram_basic,instagram_manage_messages,pages_manage_metadata,pages_show_list,public_profile",
+    }
+    return {"url": "https://www.facebook.com/v23.0/dialog/oauth?" + urlencode(params)}
+
+
+@router.get("/auth/instagram/callback")
+async def instagram_callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    if not state:
+        return _channel_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "instagram", "error")
+    try:
+        claims = jwt.decode(state, FUNCTION_SECRET, algorithms=["HS256"])
+        auth_user_id = claims["sub"]
+        bot_id = claims["bot_id"]
+        origin = (claims.get("origin") or "").rstrip("/")
+        frontend = origin if origin in ALLOWED_ORIGINS else CHATTY_FRONTEND_URL
+        path = claims.get("path") or "/dashboard?tab=integrations"
+    except (jwt.PyJWTError, KeyError):
+        return _channel_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "instagram", "error")
+    if error or not code:
+        return _channel_redirect(frontend, path, "instagram", "error")
+
+    graph = "https://graph.facebook.com/v23.0"
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            token_res = await client.get(f"{graph}/oauth/access_token", params={
+                "client_id": os.environ["FACEBOOK_APP_ID"],
+                "client_secret": os.environ["FACEBOOK_APP_SECRET"],
+                "redirect_uri": _instagram_redirect_uri(),
+                "code": code,
+            })
+            token_res.raise_for_status()
+            user_token = token_res.json().get("access_token")
+            if not user_token:
+                raise ValueError("Meta did not return an access token")
+
+            pages_res = await client.get(
+                f"{graph}/me/accounts",
+                params={"fields": "id,name,access_token,instagram_business_account{id,username,name}", "limit": 50},
+                headers={"Authorization": f"Bearer {user_token}"},
+            )
+            pages_res.raise_for_status()
+            pages = pages_res.json().get("data", [])
+            if not pages:
+                return _channel_redirect(frontend, path, "instagram", "no_account")
+
+            selected_page = pages[0]
+            ig_acct = None
+            for p in pages:
+                if isinstance(p.get("instagram_business_account"), dict):
+                    selected_page = p
+                    ig_acct = p["instagram_business_account"]
+                    break
+
+            target_id = str((ig_acct or {}).get("id") or selected_page["id"])
+            ig_username = str((ig_acct or {}).get("username") or selected_page.get("name") or target_id)
+            page_token = str(selected_page.get("access_token") or user_token)
+    except (httpx.HTTPError, ValueError, KeyError):
+        logger.exception("Instagram Meta OAuth callback failed")
+        return _channel_redirect(frontend, path, "instagram", "error")
+
+    bot = await run_db(lambda: supabase.table("chatty_bots").select("id").eq("id", bot_id).eq("user_id", auth_user_id).limit(1).execute())
+    if not bot.data:
+        return _channel_redirect(frontend, path, "instagram", "error")
+
+    await update_bot_omnichannel_safe(supabase, bot_id, {
+        "instagram_enabled": True,
+        "instagram_page_id": target_id,
+        "instagram_username": ig_username,
+        "instagram_access_token": encrypt_secret(page_token),
+        "instagram_verify_token": "ig_" + secrets.token_urlsafe(24),
+    })
+    return _channel_redirect(frontend, path, "instagram", "connected")
+
+
+@router.post("/api/integrations/instagram/disconnect")
+async def instagram_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Disable Instagram Direct and clear stored credentials."""
+    updated = await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "instagram_enabled": False,
+            "instagram_page_id": None,
+            "instagram_username": None,
+            "instagram_access_token": None,
+            "instagram_verify_token": None,
+            "instagram_app_secret": None,
+            "instagram_quick_replies": [],
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return {"ok": True, "message": "Instagram Direct disconnected"}
+
+
+# ---------------------------------------------------------------------------
+# TikTok Business Messaging OAuth + Test + Disconnect
+# ---------------------------------------------------------------------------
+
+
+def _tiktok_redirect_uri() -> str:
+    return os.environ.get("TIKTOK_REDIRECT_URI") or f"{CHATTY_BACKEND_URL}/auth/tiktok/callback"
+
+
+@router.post("/api/integrations/tiktok/start")
+async def tiktok_start(
+    request: Request,
+    bot_id: str,
+    client_key: Optional[str] = None,
+    redirect_path: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Return TikTok OAuth v2 authorization URL for 1-click Business Messaging onboarding."""
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).eq("user_id", user["auth_user_id"]).limit(1).execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = unpack_omnichannel_bot_row(bot_res.data[0])
+    resolved_client_key = (client_key or bot.get("tiktok_client_key") or os.environ.get("TIKTOK_CLIENT_KEY") or "").strip()
+    if not resolved_client_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Enter your TikTok App Client Key in the configuration form below (or set TIKTOK_CLIENT_KEY) to launch 1-Click TikTok OAuth.",
+        )
+    origin = request.headers.get("origin", "").rstrip("/")
+    if origin not in ALLOWED_ORIGINS:
+        origin = ""
+    path = redirect_path or "/dashboard?tab=integrations"
+    state = _mint_state(user["auth_user_id"], origin_url=origin, redirect_path=path, mode="tiktok", extra_claims={"bot_id": bot_id})
+    params = {
+        "client_key": resolved_client_key,
+        "redirect_uri": _tiktok_redirect_uri(),
+        "state": state,
+        "response_type": "code",
+        "scope": "user.info.basic,business.message.manage",
+    }
+    return {"url": "https://www.tiktok.com/v2/auth/authorize/?" + urlencode(params)}
+
+
+@router.get("/auth/tiktok/callback")
+async def tiktok_callback(code: Optional[str] = None, state: Optional[str] = None, error: Optional[str] = None):
+    if not state:
+        return _channel_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "tiktok", "error")
+    try:
+        claims = jwt.decode(state, FUNCTION_SECRET, algorithms=["HS256"])
+        auth_user_id = claims["sub"]
+        bot_id = claims["bot_id"]
+        origin = (claims.get("origin") or "").rstrip("/")
+        frontend = origin if origin in ALLOWED_ORIGINS else CHATTY_FRONTEND_URL
+        path = claims.get("path") or "/dashboard?tab=integrations"
+    except (jwt.PyJWTError, KeyError):
+        return _channel_redirect(CHATTY_FRONTEND_URL, "/dashboard?tab=integrations", "tiktok", "error")
+    if error or not code:
+        return _channel_redirect(frontend, path, "tiktok", "error")
+
+    bot_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).eq("user_id", auth_user_id).limit(1).execute())
+    if not bot_res.data:
+        return _channel_redirect(frontend, path, "tiktok", "error")
+    bot = unpack_omnichannel_bot_row(bot_res.data[0])
+
+    client_key = (bot.get("tiktok_client_key") or os.environ.get("TIKTOK_CLIENT_KEY") or "").strip()
+    client_secret = decrypt_secret((bot.get("tiktok_client_secret") or "").strip()) or (os.environ.get("TIKTOK_CLIENT_SECRET") or "").strip()
+    if not client_key or not client_secret:
+        return _channel_redirect(frontend, path, "tiktok", "missing_app_secret")
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            token_res = await client.post(
+                "https://open.tiktokapis.com/v2/oauth/token/",
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                data={
+                    "client_key": client_key,
+                    "client_secret": client_secret,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": _tiktok_redirect_uri(),
+                },
+            )
+            token_res.raise_for_status()
+            tok_data = token_res.json()
+            if "data" in tok_data and isinstance(tok_data["data"], dict):
+                tok_data = tok_data["data"]
+            access_token = str(tok_data.get("access_token") or "").strip()
+            refresh_token = str(tok_data.get("refresh_token") or "").strip()
+            open_id = str(tok_data.get("open_id") or "").strip()
+            if not access_token:
+                raise ValueError("TikTok did not return an access_token")
+
+            display_name = open_id
+            try:
+                u_res = await client.get(
+                    "https://open.tiktokapis.com/v2/user/info/",
+                    params={"fields": "open_id,union_id,display_name,avatar_url"},
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                if u_res.status_code == 200:
+                    u_user = ((u_res.json().get("data") or {}).get("user") or {})
+                    display_name = str(u_user.get("display_name") or open_id)
+                    open_id = str(u_user.get("open_id") or open_id)
+            except Exception:
+                pass
+    except (httpx.HTTPError, ValueError, KeyError):
+        logger.exception("TikTok OAuth callback failed")
+        return _channel_redirect(frontend, path, "tiktok", "error")
+
+    await update_bot_omnichannel_safe(supabase, bot_id, {
+        "tiktok_enabled": True,
+        "tiktok_open_id": open_id,
+        "tiktok_business_id": bot.get("tiktok_business_id") or open_id,
+        "tiktok_display_name": display_name,
+        "tiktok_access_token": encrypt_secret(access_token),
+        "tiktok_refresh_token": encrypt_secret(refresh_token) if refresh_token else None,
+        "tiktok_verify_token": bot.get("tiktok_verify_token") or ("tt_" + secrets.token_urlsafe(24)),
+    })
+    return _channel_redirect(frontend, path, "tiktok", "connected")
+
+
+@router.post("/api/integrations/tiktok/test")
+async def tiktok_test(
+    bot_id: str,
+    open_id: Optional[str] = None,
+    business_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Validate TikTok Business Messaging credentials against TikTok Open API v2."""
+    bot_res = await run_db(lambda: supabase.table("chatty_bots")
+        .select("*")
+        .eq("id", bot_id)
+        .eq("user_id", user["auth_user_id"])
+        .limit(1)
+        .execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    b = unpack_omnichannel_bot_row(bot_res.data[0])
+    oid = (open_id or business_id or b.get("tiktok_business_id") or b.get("tiktok_open_id") or "").strip()
+    token = (access_token or "").strip() or decrypt_secret((b.get("tiktok_access_token") or "").strip())
+
+    if not oid or not token:
+        raise HTTPException(status_code=400, detail="Provide or save TikTok Business / Open ID and Access Token first")
+    if not re.match(r"^[0-9a-zA-Z_.-]{2,128}$", oid):
+        raise HTTPException(status_code=400, detail="TikTok Business / Open ID must be 2-128 alphanumeric characters")
+
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.get(
+                "https://open.tiktokapis.com/v2/user/info/",
+                params={"fields": "open_id,union_id,display_name"},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+        err_obj = data.get("error") if isinstance(data.get("error"), dict) else {}
+        err_code = str(err_obj.get("code") or "ok").lower()
+        if resp.status_code >= 400 or (err_code not in ("ok", "0", "")):
+            err_msg = err_obj.get("message") or data.get("message") or "TikTok Open API rejected the access token"
+            raise HTTPException(status_code=400, detail=f"TikTok API error: {str(err_msg)[:200]}")
+
+        user_info = (data.get("data") or {}).get("user") or {}
+        resolved_name = user_info.get("display_name") or b.get("tiktok_display_name") or oid
+        resolved_oid = user_info.get("open_id") or oid
+        return {
+            "ok": True,
+            "open_id": resolved_oid,
+            "display_name": resolved_name,
+            "message": f"TikTok Business account '{resolved_name}' verified and ready",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("TikTok connection test failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Could not reach TikTok Open API")
+
+
+@router.post("/api/integrations/tiktok/disconnect")
+async def tiktok_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Disable TikTok Business Messaging and clear stored credentials."""
+    updated = await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "tiktok_enabled": False,
+            "tiktok_open_id": None,
+            "tiktok_business_id": None,
+            "tiktok_display_name": None,
+            "tiktok_access_token": None,
+            "tiktok_refresh_token": None,
+            "tiktok_verify_token": None,
+            "tiktok_client_key": None,
+            "tiktok_client_secret": None,
+            "tiktok_quick_replies": [],
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return {"ok": True, "message": "TikTok Business disconnected"}
+
+
+@router.post("/api/integrations/telegram/disconnect")
+async def telegram_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Disable Telegram Bot and clear stored credentials."""
+    updated = await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "telegram_enabled": False,
+            "telegram_bot_token": None,
+            "telegram_secret_token": None,
+            "telegram_bot_username": None,
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return {"ok": True, "message": "Telegram Bot disconnected"}
+
+
+@router.post("/api/integrations/sms/disconnect")
+async def sms_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Disable Two-Way SMS and clear stored Twilio credentials."""
+    updated = await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "sms_enabled": False,
+            "twilio_account_sid": None,
+            "twilio_auth_token": None,
+            "twilio_phone_number": None,
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return {"ok": True, "message": "Two-Way SMS disconnected"}
+
+
+@router.post("/api/integrations/email/disconnect")
+async def email_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
+    """Disable Support Email channel and clear stored address/secret."""
+    updated = await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "email_channel_enabled": False,
+            "email_support_address": None,
+            "email_webhook_secret": None,
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    return {"ok": True, "message": "Support Email channel disconnected"}
 
 
 @router.post("/api/integrations/telegram/test")
@@ -388,24 +970,23 @@ async def email_test(
 @router.post("/api/integrations/whatsapp/disconnect")
 async def whatsapp_disconnect(bot_id: str, user: dict[str, Any] = Depends(require_user)):
     """Disable WhatsApp and remove the bot's stored Meta credentials."""
-    bot_res = await run_db(lambda: supabase.table("chatty_bots")
-        .select("id")
-        .eq("id", bot_id)
-        .eq("user_id", user["auth_user_id"])
-        .limit(1)
-        .execute())
-    if not bot_res.data:
+    updated = await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "whatsapp_enabled": False,
+            "whatsapp_phone_number_id": None,
+            "whatsapp_waba_id": None,
+            "whatsapp_access_token": None,
+            "whatsapp_verify_token": None,
+            "whatsapp_app_secret": None,
+            "whatsapp_quick_replies": [],
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
+    if not updated:
         raise HTTPException(status_code=404, detail="Bot not found")
-
-    await run_db(lambda: supabase.table("chatty_bots").update({
-        "whatsapp_enabled": False,
-        "whatsapp_phone_number_id": None,
-        "whatsapp_waba_id": None,
-        "whatsapp_access_token": None,
-        "whatsapp_verify_token": None,
-        "whatsapp_app_secret": None,
-        "whatsapp_quick_replies": [],
-    }).eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
     return {"ok": True, "message": "WhatsApp disconnected"}
 
 
@@ -442,15 +1023,21 @@ async def whatsapp_deauthorize(bot_id: str, user: dict[str, Any] = Depends(requi
             logger.exception("WhatsApp Meta deauthorization failed")
             raise HTTPException(status_code=502, detail="Could not reach Meta to revoke the WhatsApp authorization")
 
-    await run_db(lambda: supabase.table("chatty_bots").update({
-        "whatsapp_enabled": False,
-        "whatsapp_phone_number_id": None,
-        "whatsapp_waba_id": None,
-        "whatsapp_access_token": None,
-        "whatsapp_verify_token": None,
-        "whatsapp_app_secret": None,
-        "whatsapp_quick_replies": [],
-    }).eq("id", bot_id).eq("user_id", user["auth_user_id"]).execute())
+    await update_bot_omnichannel_safe(
+        supabase,
+        bot_id,
+        {
+            "whatsapp_enabled": False,
+            "whatsapp_phone_number_id": None,
+            "whatsapp_waba_id": None,
+            "whatsapp_access_token": None,
+            "whatsapp_verify_token": None,
+            "whatsapp_app_secret": None,
+            "whatsapp_quick_replies": [],
+        },
+        user_id=user["auth_user_id"],
+        allow_clear_secrets=True,
+    )
     return {"ok": True, "message": "Meta authorization revoked and WhatsApp disconnected"}
 
 # ---------------------------------------------------------------------------

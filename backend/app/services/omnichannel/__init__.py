@@ -50,10 +50,20 @@ from app.services.omnichannel.sms_adapter import (
     send_outbound_sms,
     verify_twilio_signature,
 )
+from app.services.omnichannel.config_store import (
+    find_bot_by_omnichannel_field,
+    unpack_omnichannel_bot_row,
+    update_bot_omnichannel_safe,
+)
 from app.services.omnichannel.telegram_adapter import (
     normalize_telegram_update,
     send_outbound_telegram,
     verify_telegram_secret,
+)
+from app.services.omnichannel.tiktok_adapter import (
+    normalize_tiktok_message,
+    send_outbound_tiktok,
+    verify_tiktok_signature,
 )
 from app.services.omnichannel.whatsapp_adapter import (
     format_whatsapp_reply,
@@ -77,6 +87,7 @@ __all__ = [
     "dispatch_whatsapp_booking_cancelled",
     "dispatch_whatsapp_booking_confirmation",
     "dispatch_whatsapp_booking_rescheduled",
+    "find_bot_by_omnichannel_field",
     "format_available_slots_for_whatsapp",
     "format_whatsapp_reply",
     "get_handoff_acknowledgement",
@@ -87,14 +98,19 @@ __all__ = [
     "normalize_meta_message",
     "normalize_sms_webhook",
     "normalize_telegram_update",
+    "normalize_tiktok_message",
     "send_outbound_email",
     "send_outbound_instagram",
     "send_outbound_sms",
     "send_outbound_telegram",
+    "send_outbound_tiktok",
     "send_outbound_whatsapp",
+    "unpack_omnichannel_bot_row",
+    "update_bot_omnichannel_safe",
     "verify_email_webhook_secret",
     "verify_instagram_signature",
     "verify_meta_signature",
     "verify_telegram_secret",
+    "verify_tiktok_signature",
     "verify_twilio_signature",
 ]

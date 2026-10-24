@@ -73,6 +73,7 @@ def build_channel_booking_cta(
         ChannelType.TELEGRAM: "tg",
         ChannelType.INSTAGRAM: "ig",
         ChannelType.MESSENGER: "fb",
+        ChannelType.TIKTOK: "tt",
         ChannelType.EMAIL: "email",
     }
     prefix = prefix_map.get(channel, "wa")
