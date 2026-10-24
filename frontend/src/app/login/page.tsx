@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AuthShell, GoogleIcon, MicrosoftIcon } from "@/components/auth/auth-shell";
+import { AuthShell, GoogleIcon, GithubIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 
-type BusyKey = "password" | "google" | "microsoft" | null;
+type BusyKey = "password" | "google" | "github" | null;
 
 export default function LoginPage() {
   return (
@@ -85,9 +85,9 @@ function LoginPageInner() {
     window.location.href = dest;
   }
 
-  async function handleOAuth(provider: "google" | "azure") {
+  async function handleOAuth(provider: "google" | "github") {
     if (busy) return;
-    setBusy(provider === "azure" ? "microsoft" : "google");
+    setBusy(provider);
     setError(null);
     if (SELF_HOST_MODE) {
       window.location.href = `/api/self-host/auth/start?next=${encodeURIComponent(dest)}`;
@@ -101,8 +101,7 @@ function LoginPageInner() {
         queryParams:
           provider === "google"
             ? { access_type: "offline", prompt: "consent" }
-            : { prompt: "select_account" },
-        scopes: provider === "azure" ? "email openid profile" : undefined,
+            : undefined,
       },
     });
     if (error) {
@@ -209,14 +208,14 @@ function LoginPageInner() {
           type="button"
           className="w-full h-10 font-medium flex items-center justify-center gap-2 cursor-pointer"
           disabled={busy !== null}
-          onClick={() => handleOAuth("azure")}
+          onClick={() => handleOAuth("github")}
         >
-          {busy === "microsoft" ? (
+          {busy === "github" ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
-            <MicrosoftIcon />
+            <GithubIcon />
           )}
-          Continue with Microsoft
+          Continue with GitHub
         </Button>
       </div>
 

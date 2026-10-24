@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AuthShell, GoogleIcon, MicrosoftIcon } from "@/components/auth/auth-shell";
+import { AuthShell, GoogleIcon, GithubIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
 import { captureAffiliateReferral, getAffiliateReferral } from "@/lib/affiliate-referral";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 
-type BusyKey = "password" | "google" | "microsoft" | null;
+type BusyKey = "password" | "google" | "github" | null;
 
 export default function SignupPage() {
   return (
@@ -32,7 +32,7 @@ function SignupPageInner() {
       : rawPlanParam === "business" || rawPlanParam === "chatty_business"
       ? "chatty_business"
       : "chatty_standard";
-  const [selectedPlan, setSelectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(initialPlan);
+  const [selectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(initialPlan);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -87,9 +87,9 @@ function SignupPageInner() {
     setSent(true);
   }
 
-  async function handleOAuth(provider: "google" | "azure") {
+  async function handleOAuth(provider: "google" | "github") {
     if (busy) return;
-    setBusy(provider === "azure" ? "microsoft" : "google");
+    setBusy(provider);
     setError(null);
     try {
       if (typeof window !== "undefined") {
@@ -103,8 +103,7 @@ function SignupPageInner() {
         queryParams:
           provider === "google"
             ? { access_type: "offline", prompt: "consent" }
-            : { prompt: "select_account" },
-        scopes: provider === "azure" ? "email openid profile" : undefined,
+            : undefined,
       },
     });
     if (error) {
@@ -118,7 +117,7 @@ function SignupPageInner() {
       <AuthShell title="Create your account" subtitle="Your identity provider manages self-hosted access">
         <div className="space-y-3 text-center">
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Self-hosted Chatty uses OIDC (Google, Microsoft, or your configured provider). Create the account there, then return to Chatty.
+            Self-hosted Chatty uses OIDC (Google, GitHub, or your configured provider). Create the account there, then return to Chatty.
           </p>
           <Link href={`/login?next=${encodeURIComponent(dest)}`} className="inline-flex w-full h-10 items-center justify-center rounded-md bg-foreground text-background text-sm font-medium">
             Continue to sign in
@@ -165,58 +164,8 @@ function SignupPageInner() {
       }
     >
       <div className="space-y-5">
-        {/* Plan preference picker */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-foreground/80 flex items-center justify-between">
-            <span>Select Free Trial Plan</span>
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">
-              14 Days Free
-            </span>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: "chatty_hobby", name: "Hobby", price: "$19/mo" },
-              { id: "chatty_standard", name: "Standard", price: "$99/mo", popular: true },
-              { id: "chatty_business", name: "Business", price: "$399/mo" },
-            ].map((p) => {
-              const isSelected = selectedPlan === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setSelectedPlan(p.id as typeof selectedPlan)}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer relative ${
-                    isSelected
-                      ? "border-foreground bg-foreground/5 font-bold ring-1 ring-foreground/10"
-                      : "border-border hover:border-foreground/30 bg-background text-muted-foreground"
-                  }`}
-                >
-                  {p.popular && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.2 rounded-full text-[8px] font-bold uppercase bg-orange-500 text-white">
-                      Popular
-                    </span>
-                  )}
-                  <div className="text-xs text-foreground font-semibold truncate">{p.name}</div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{p.price}</div>
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-muted-foreground text-center">
-            No credit card required for 14-day free trial.{" "}
-            <a
-              href="https://github.com/PersonaliAI/chatty"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              Self-host open source ($0)
-            </a>
-          </p>
-        </div>
-
         {/* OAuth Buttons */}
-        <div className="space-y-2 pt-1">
+        <div className="space-y-2">
           <Button
             variant="outline"
             type="button"
@@ -232,14 +181,14 @@ function SignupPageInner() {
             type="button"
             className="w-full h-11 font-medium flex items-center justify-center gap-2 cursor-pointer text-sm rounded-xl"
             disabled={busy !== null}
-            onClick={() => handleOAuth("azure")}
+            onClick={() => handleOAuth("github")}
           >
-            {busy === "microsoft" ? (
+            {busy === "github" ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              <MicrosoftIcon />
+              <GithubIcon />
             )}
-            Continue with Microsoft
+            Continue with GitHub
           </Button>
         </div>
 
@@ -307,6 +256,9 @@ function SignupPageInner() {
             {busy === "password" && <Loader2 className="size-4 animate-spin" />}
             Start Free Trial
           </Button>
+          <p className="text-[11px] text-muted-foreground text-center pt-1">
+            No credit card required for 14-day free trial.
+          </p>
         </form>
 
         {error && (
