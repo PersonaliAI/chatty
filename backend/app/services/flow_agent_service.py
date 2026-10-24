@@ -64,7 +64,7 @@ FLOW_NODE_CATALOG = [
     {
         "type": "chatty.event",
         "title": "Chatty event",
-        "subtitle": "New lead, message, call, booking",
+        "subtitle": "Omnichannel: Web, WhatsApp, Instagram, Mobile & Chat",
         "kind": "trigger",
         "icon": "chatty",
         "color": "#f97316",
@@ -75,7 +75,7 @@ FLOW_NODE_CATALOG = [
             "message.assistant", "lead.created", "lead.updated",
             "meeting.booked", "csat.submitted"
         ],
-        "default_config": {"event": "lead.created", "operation": "Listen for event"},
+        "default_config": {"event": "lead.created", "channel": "all", "operation": "Listen for event"},
     },
     {
         "type": "n8n.webhook",
@@ -467,12 +467,20 @@ def _enrich_and_validate_graph(
             if v is not None and str(v).strip() != "":
                 merged_cfg[str(k)] = str(v)
 
+        resolved_subtitle = str(n.get("subtitle") or cat_item["subtitle"])
+        if ntype == "chatty.event":
+            ch_val = str(merged_cfg.get("channel") or "all").strip().lower()
+            if ch_val in ("", "all"):
+                resolved_subtitle = cat_item["subtitle"]
+            else:
+                resolved_subtitle = f"Filtered to {ch_val} messages & events"
+
         enriched = {
             "id": raw_id,
             "type": ntype,
             "kind": cat_item["kind"],
             "title": str(n.get("title") or cat_item["title"]),
-            "subtitle": str(n.get("subtitle") or cat_item["subtitle"]),
+            "subtitle": resolved_subtitle,
             "icon": str(n.get("icon") or cat_item["icon"]),
             "color": str(n.get("color") or cat_item["color"]),
             "provider": str(n.get("provider") or cat_item["provider"]),

@@ -33,9 +33,12 @@ const method = { key: "method", label: "Method", type: "select" as const, requir
 /** Chatty owns this palette. External automation platforms use webhooks and the public API. */
 export const nodeCatalog: NodeDefinition[] = [
   {
-    type: "chatty.event", title: "Chatty event", subtitle: "New lead, message, call, booking", kind: "trigger", icon: "chatty", color: "#f97316", provider: "Chatty", operations: ["Listen for event"], category: "triggers",
-    fields: [{ key: "event", label: "Event type", type: "select", required: true, options: ["session.started", "session.ended", "message.user", "message.assistant", "lead.created", "lead.updated", "meeting.booked", "csat.submitted"] }],
-    defaultConfig: { event: "lead.created", operation: "Listen for event" }, n8nType: "chatty.event", n8nTypeVersion: 1,
+    type: "chatty.event", title: "Chatty event", subtitle: "Omnichannel: Web, WhatsApp, Instagram, Mobile & Chat", kind: "trigger", icon: "chatty", color: "#f97316", provider: "Chatty", operations: ["Listen for event"], category: "triggers",
+    fields: [
+      { key: "event", label: "Event type", type: "select", required: true, options: ["session.started", "session.ended", "message.user", "message.assistant", "lead.created", "lead.updated", "meeting.booked", "csat.submitted"] },
+      { key: "channel", label: "Channel / Platform", type: "select", options: ["all", "whatsapp", "web", "instagram", "messenger", "telegram", "android_app", "ios_app"], helpText: "Use 'all' to trigger on every platform (Web, WhatsApp, Instagram, Messenger, Telegram, Android/iOS), or restrict to one channel." },
+    ],
+    defaultConfig: { event: "lead.created", channel: "all", operation: "Listen for event" }, n8nType: "chatty.event", n8nTypeVersion: 1,
   },
   {
     type: "chatty.reply", title: "Reply in chat", subtitle: "Send a message to the visitor", kind: "chatty", icon: "chatty", color: "#f97316", provider: "Chatty", operations: ["Send reply"], category: "communication",

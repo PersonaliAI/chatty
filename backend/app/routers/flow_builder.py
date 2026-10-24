@@ -168,8 +168,12 @@ async def _validate_flow_connections(flow_data: dict[str, Any], bot_id: str, use
     stored_ids = references - {"google-primary", "microsoft-primary"}
     if not stored_ids:
         return
-    result = await run_db(lambda: supabase.table("chatty_flow_connections").select("id, bot_id, provider, status").eq("bot_id", bot_id).in_("id", list(stored_ids)).execute())
-    valid_rows = [row for row in (result.data or []) if row.get("status") == "connected"]
+    try:
+        result = await run_db(lambda: supabase.table("chatty_flow_connections").select("id, bot_id, provider, status").eq("bot_id", bot_id).in_("id", list(stored_ids)).execute())
+        data_rows = result.data or []
+    except Exception:
+        data_rows = []
+    valid_rows = [row for row in data_rows if row.get("status") == "connected"]
     valid = {str(row.get("id")) for row in valid_rows}
     missing = sorted(stored_ids - valid)
     if missing:
@@ -311,30 +315,49 @@ async def list_flows(bot_id: str, user: dict[str, Any] = Depends(require_flow_us
     placeholder flow for an empty bot.
     """
     await _authorize(bot_id, user)
-    flows_result = await run_db(
-        lambda: supabase.table("chatty_flows")
-        .select("id, bot_id, name, is_enabled, created_at, updated_at")
-        .eq("bot_id", bot_id)
-        .order("updated_at", desc=True)
-        .execute()
-    )
-    versions_result = await run_db(
-        lambda: supabase.table("chatty_flow_versions")
-        .select("id, flow_id, version, status, is_enabled, flow_data, created_at, published_at")
-        .eq("bot_id", bot_id)
-        .order("version", desc=True)
-        .limit(500)
-        .execute()
-    )
+    try:
+        flows_result = await run_db(
+            lambda: supabase.table("chatty_flows")
+            .select("id, bot_id, name, is_enabled, created_at, updated_at")
+            .eq("bot_id", bot_id)
+            .order("updated_at", desc=True)
+            .execute()
+        )
+        flow_rows = flows_result.data or []
+    except Exception:
+        flow_rows = []
+    try:
+        versions_result = await run_db(
+            lambda: supabase.table("chatty_flow_versions")
+            .select("id, flow_id, version, status, is_enabled, flow_data, created_at, published_at")
+            .eq("bot_id", bot_id)
+            .order("version", desc=True)
+            .limit(500)
+            .execute()
+        )
+        version_rows = versions_result.data or []
+    except Exception:
+        try:
+            versions_result = await run_db(
+                lambda: supabase.table("chatty_flow_versions")
+                .select("id, version, status, is_enabled, flow_data, created_at, published_at")
+                .eq("bot_id", bot_id)
+                .order("version", desc=True)
+                .limit(50)
+                .execute()
+            )
+            version_rows = versions_result.data or []
+        except Exception:
+            version_rows = []
 
     latest_by_flow: dict[str, dict[str, Any]] = {}
-    for version in versions_result.data or []:
+    for version in version_rows:
         flow_id = str(version.get("flow_id") or "")
         if flow_id and flow_id not in latest_by_flow:
             latest_by_flow[flow_id] = version
 
     summaries = []
-    for flow in flows_result.data or []:
+    for flow in flow_rows:
         flow_id = str(flow.get("id"))
         latest = latest_by_flow.get(flow_id)
         flow_data = latest.get("flow_data") if latest else {}
@@ -379,14 +402,18 @@ async def set_flow_state(body: FlowStateRequest, user: dict[str, Any] = Depends(
 async def list_flow_connections(bot_id: str, user: dict[str, Any] = Depends(require_flow_user)):
     """List safe connection metadata for the selected bot."""
     await _authorize(bot_id, user)
-    result = await run_db(
-        lambda: supabase.table("chatty_flow_connections")
-        .select("id, bot_id, provider, name, auth_type, status, metadata, created_at, updated_at")
-        .eq("bot_id", bot_id)
-        .order("created_at")
-        .execute()
-    )
-    connections = [_connection_view(row) for row in (result.data or [])]
+    try:
+        result = await run_db(
+            lambda: supabase.table("chatty_flow_connections")
+            .select("id, bot_id, provider, name, auth_type, status, metadata, created_at, updated_at")
+            .eq("bot_id", bot_id)
+            .order("created_at")
+            .execute()
+        )
+        rows = result.data or []
+    except Exception:
+        rows = []
+    connections = [_connection_view(row) for row in rows]
     if user.get("google_access_token"):
         connections.insert(0, {
             "id": "google-primary", "bot_id": bot_id, "provider": "Google", "name": user.get("google_email") or "Google account",

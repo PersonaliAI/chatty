@@ -507,7 +507,20 @@ async def _execute_graph(
         is_condition_node = False
         condition_matched = True
 
-        if node.get("kind") == "chatty" and node.get("type") == "chatty.reply":
+        if node.get("kind") == "trigger":
+            req_channel = str(config.get("channel") or "all").strip().lower()
+            if req_channel and req_channel != "all":
+                actual_platform = str(runtime_inputs.get("data", {}).get("platform") or "").strip().lower()
+                actual_channel = str(runtime_inputs.get("data", {}).get("channel") or "").strip().lower()
+                is_condition_node = True
+                condition_matched = (
+                    _evaluate_condition(actual_platform, "contains", req_channel)
+                    or _evaluate_condition(actual_channel, "contains", req_channel)
+                )
+                status = "observed" if condition_matched else "skipped"
+                trace_step["channel_filter"] = req_channel
+                trace_step["matched"] = condition_matched
+        elif node.get("kind") == "chatty" and node.get("type") == "chatty.reply":
             reply = _render_widget_reply(str(config.get("message") or ""), runtime_inputs)
             if not reply:
                 status = "failed"

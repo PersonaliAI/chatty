@@ -535,7 +535,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   right: 0;
   bottom: 0;
   z-index: 9;
-  width: min(420px, 92vw);
+  width: min(472px, 95vw);
   background: #ffffff;
   border-left: 1px solid var(--line);
   box-shadow: -8px 0 28px rgba(15, 23, 42, 0.08);
@@ -552,9 +552,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   background: #fafbfe;
+  flex-shrink: 0;
 }
 .flow-copilot-badge {
   display: grid;
@@ -781,24 +782,30 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 }
 
 .flow-copilot-suggestions {
-  padding: 10px 14px 6px;
+  padding: 6px 12px;
   border-top: 1px solid var(--line);
   background: #fafbfe;
+  flex-shrink: 0;
 }
 .flow-copilot-chips {
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  max-height: 90px;
-  overflow-y: auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
 }
 .flow-copilot-chip {
-  padding: 4px 8px;
-  border-radius: 6px;
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 999px;
   border: 1px solid #e2e8f0;
   background: #ffffff;
   color: #475569;
-  font-size: 10px;
+  font-size: 10.5px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.14s ease;

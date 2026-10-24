@@ -81,7 +81,7 @@ function summarizeNodeAction(data: FlowNode): string {
   }
   if (data.type === "chatty.ai" && cfg.instruction) {
     const outField = cfg.output_field ? ` → data.${cfg.output_field}` : "";
-    return `${cfg.operation || "Classify"}${outField}: ${cfg.instruction.slice(0, 42)}${cfg.instruction.length > 42 ? "…" : ""}`;
+    return `${cfg.operation || "Classify"}${outField}: ${cfg.instruction.slice(0, 34)}${cfg.instruction.length > 34 ? "…" : ""}`;
   }
   if (data.type === "action.slack" && cfg.channel) {
     return `Post to ${cfg.channel}`;
@@ -111,6 +111,17 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
   const triggerPill = data.type === "n8n.webhook"
     ? (data.config.path || "/incoming-event")
     : (data.config.event || "Chatty event");
+  const triggerChannel = (data.config.channel || "all").trim().toLowerCase();
+  const triggerChannelPill = data.type === "n8n.webhook"
+    ? "HTTP Webhook"
+    : triggerChannel === "all" || !triggerChannel
+      ? "All channels (Omnichannel)"
+      : `Channel: ${triggerChannel}`;
+  const triggerCopy = data.type === "n8n.webhook"
+    ? data.subtitle
+    : triggerChannel === "all" || !triggerChannel
+      ? "Omnichannel: Web, WhatsApp, Instagram, Mobile & Chat"
+      : `Filtered to ${triggerChannel} messages & events`;
 
   return (
     <div
@@ -155,8 +166,11 @@ function ChattyCanvasNode({ data, selected }: NodeProps<CanvasNode>) {
               <div className="intercom-trigger-icon" style={{ color: data.color, background: `${data.color}18` }}>
                 <NodeIcon icon={data.icon} size={24} />
               </div>
-              <p className="intercom-node-copy">{data.subtitle}</p>
-              <span className="intercom-pill">{triggerPill}</span>
+              <p className="intercom-node-copy">{triggerCopy}</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="intercom-pill">{triggerPill}</span>
+                <span className="intercom-pill">{triggerChannelPill}</span>
+              </div>
             </>
           ) : data.kind === "chatty" && data.type === "chatty.reply" && message ? (
             <div className="intercom-message-preview">{message}</div>

@@ -211,8 +211,9 @@ export function FlowCopilotDrawer({
 
       const hasPlatformCheck = /(platform|instagram|android_app|android|web)/i.test(lower);
       const nodes: FlowNode[] = [
-        makeCatalogNode("trig-wa-msg", "chatty.event", "Inbound WhatsApp / Chat message", {
+        makeCatalogNode("trig-wa-msg", "chatty.event", "Omnichannel User Message", {
           event: "message.user",
+          channel: "all",
           operation: "Listen for event",
         }),
       ];
@@ -791,9 +792,6 @@ export function FlowCopilotDrawer({
       </div>
 
       <div className="flow-copilot-suggestions">
-        <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 block mb-1">
-          Quick Actions:
-        </span>
         <div className="flow-copilot-chips">
           {QUICK_PROMPTS.map((q, idx) => (
             <button
