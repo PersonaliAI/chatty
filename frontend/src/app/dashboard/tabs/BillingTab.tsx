@@ -778,36 +778,42 @@ export function BillingTab({
               </div>
             </div>
             <div>
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-neutral-900 dark:text-white">
                   {liveAiCreditsUsed.toLocaleString()}
                 </span>
-                <span className="text-xs text-neutral-400 font-mono">
-                  / {liveAiCreditsLimit ? liveAiCreditsLimit.toLocaleString() : "∞"}
-                </span>
+                {liveAiCreditsLimit ? (
+                  <span className="text-xs text-neutral-400 font-mono">
+                    / {liveAiCreditsLimit.toLocaleString()}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                    <InfinityIcon className="size-3" /> Unlimited
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-neutral-400 mt-0.5">
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
                 {liveAiCreditsLimit
                   ? `${Math.min(100, Math.round((liveAiCreditsUsed / liveAiCreditsLimit) * 100))}% consumed this cycle`
-                  : "Unlimited AI token capacity"}
+                  : "0 credits consumed · No monthly cap"}
               </p>
             </div>
             {/* Meter Bar */}
             <div className="w-full h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  isAdmin
-                    ? "w-full bg-gradient-to-r from-emerald-500 to-teal-400"
-                    : liveAiCreditsLimit && (liveAiCreditsUsed / liveAiCreditsLimit) > 0.9
+                  !liveAiCreditsLimit
+                    ? "bg-emerald-500"
+                    : (liveAiCreditsUsed / liveAiCreditsLimit) > 0.9
                     ? "bg-rose-500"
-                    : liveAiCreditsLimit && (liveAiCreditsUsed / liveAiCreditsLimit) > 0.75
+                    : (liveAiCreditsUsed / liveAiCreditsLimit) > 0.75
                     ? "bg-amber-500"
                     : "bg-emerald-500"
                 }`}
                 style={{
-                  width: isAdmin
-                    ? "100%"
-                    : `${Math.min(100, Math.max(3, liveAiCreditsLimit ? (liveAiCreditsUsed / liveAiCreditsLimit) * 100 : 100))}%`,
+                  width: liveAiCreditsLimit
+                    ? `${Math.min(100, Math.max(3, (liveAiCreditsUsed / liveAiCreditsLimit) * 100))}%`
+                    : "0%",
                 }}
               />
             </div>
@@ -822,32 +828,38 @@ export function BillingTab({
               </div>
             </div>
             <div>
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-neutral-900 dark:text-white">
                   {liveBotsCount}
                 </span>
-                <span className="text-xs text-neutral-400 font-mono">
-                  / {liveBotsLimit ? liveBotsLimit : "∞"}
-                </span>
+                {liveBotsLimit ? (
+                  <span className="text-xs text-neutral-400 font-mono">
+                    / {liveBotsLimit}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-950/60 border border-sky-200 dark:border-sky-800 text-[10px] font-bold text-sky-700 dark:text-sky-300">
+                    <InfinityIcon className="size-3" /> Unlimited
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-neutral-400 mt-0.5">
-                {liveBotsLimit ? `${liveBotsCount} of ${liveBotsLimit} assistants in use` : "Unlimited assistant creation"}
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                {liveBotsLimit
+                  ? `${liveBotsCount} of ${liveBotsLimit} assistants in use`
+                  : `${liveBotsCount} assistants deployed · Unlimited creation`}
               </p>
             </div>
             {/* Meter Bar */}
             <div className="w-full h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  isAdmin
-                    ? "w-full bg-gradient-to-r from-sky-500 to-blue-400"
-                    : liveBotsLimit && liveBotsCount >= liveBotsLimit
+                  liveBotsLimit && liveBotsCount >= liveBotsLimit
                     ? "bg-amber-500"
                     : "bg-sky-500"
                 }`}
                 style={{
-                  width: isAdmin
-                    ? "100%"
-                    : `${Math.min(100, Math.max(5, liveBotsLimit ? (liveBotsCount / liveBotsLimit) * 100 : 100))}%`,
+                  width: liveBotsLimit
+                    ? `${Math.min(100, Math.max(5, (liveBotsCount / liveBotsLimit) * 100))}%`
+                    : `${Math.min(100, Math.max(10, liveBotsCount * 12))}%`,
                 }}
               />
             </div>
@@ -862,16 +874,24 @@ export function BillingTab({
               </div>
             </div>
             <div>
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-neutral-900 dark:text-white">
                   {formatNumber(liveCharsCount)}
                 </span>
-                <span className="text-xs text-neutral-400 font-mono">
-                  / {liveCharsLimit ? formatNumber(liveCharsLimit) : "∞"}
-                </span>
+                {liveCharsLimit ? (
+                  <span className="text-xs text-neutral-400 font-mono">
+                    / {formatNumber(liveCharsLimit)}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800 text-[10px] font-bold text-orange-700 dark:text-orange-300">
+                    <InfinityIcon className="size-3" /> Unlimited
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-neutral-400 mt-0.5">
-                Indexed in pgvector knowledge base
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                {liveCharsLimit
+                  ? `${formatNumber(liveCharsCount)} of ${formatNumber(liveCharsLimit)} characters indexed`
+                  : `${liveCharsCount.toLocaleString()} indexed characters · Unlimited pgvector storage`}
               </p>
             </div>
             {/* Meter Bar */}
@@ -879,9 +899,9 @@ export function BillingTab({
               <div
                 className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-500"
                 style={{
-                  width: isAdmin
-                    ? "100%"
-                    : `${Math.min(100, Math.max(4, liveCharsLimit ? (liveCharsCount / liveCharsLimit) * 100 : 100))}%`,
+                  width: liveCharsLimit
+                    ? `${Math.min(100, Math.max(4, (liveCharsCount / liveCharsLimit) * 100))}%`
+                    : `${Math.min(100, Math.max(8, Math.round((liveCharsCount / 1_000_000) * 20)))}%`,
                 }}
               />
             </div>
@@ -896,16 +916,24 @@ export function BillingTab({
               </div>
             </div>
             <div>
-              <div className="flex items-baseline gap-1">
+              <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-neutral-900 dark:text-white">
                   {liveTeamCount}
                 </span>
-                <span className="text-xs text-neutral-400 font-mono">
-                  / {liveTeamLimit ? liveTeamLimit : "∞"}
-                </span>
+                {liveTeamLimit ? (
+                  <span className="text-xs text-neutral-400 font-mono">
+                    / {liveTeamLimit}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 dark:bg-violet-950/60 border border-violet-200 dark:border-violet-800 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+                    <InfinityIcon className="size-3" /> Unlimited
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-neutral-400 mt-0.5">
-                {liveTeamLimit ? `${liveTeamCount} of ${liveTeamLimit} seat occupied` : "Unlimited teammate seats"}
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                {liveTeamLimit
+                  ? `${liveTeamCount} of ${liveTeamLimit} seat occupied`
+                  : "0 teammates added · Unlimited team seats"}
               </p>
             </div>
             {/* Meter Bar */}
@@ -913,9 +941,9 @@ export function BillingTab({
               <div
                 className="h-full rounded-full bg-gradient-to-r from-violet-500 to-indigo-400 transition-all duration-500"
                 style={{
-                  width: isAdmin
-                    ? "100%"
-                    : `${Math.min(100, Math.max(6, liveTeamLimit ? (liveTeamCount / liveTeamLimit) * 100 : 100))}%`,
+                  width: liveTeamLimit
+                    ? `${Math.min(100, Math.max(6, (liveTeamCount / liveTeamLimit) * 100))}%`
+                    : "0%",
                 }}
               />
             </div>
