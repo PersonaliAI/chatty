@@ -791,3 +791,61 @@ def test_resolve_omnichannel_visitor_timezone_fallback_to_bot():
 
 
 
+
+
+def test_pipeline_deduplicates_echoed_telegram_booking_cta(monkeypatch):
+    """When the LLM echoes an old '📅 *Schedule your appointment:*' link from
+    previous turns, the pipeline must strip the echoed link so only a single
+    fresh booking CTA appears in the outbound message."""
+    inbound = InboundMessage(
+        channel=ChannelType.TELEGRAM,
+        sender_id="7848543218",
+        recipient_id="bot",
+        session_id="tg:7848543218",
+        message_id="msg_tg_02",
+        text="check again tomorrow at 2pm",
+    )
+    bot = {
+        "id": "ad32f373-7694-43f4-9465-f8d65ce291e3",
+        "user_id": "owner_tg",
+        "calendar_scheduling_enabled": True,
+        "whatsapp_app_secret": "test_secret",
+    }
+    owner = {"auth_user_id": "owner_tg", "email": "owner@example.com"}
+
+    fake_sb = MagicMock()
+    fake_sb.table.return_value.insert.return_value.execute.return_value = MagicMock(data=[])
+    fake_sb.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+        data=[{"ai_paused": False}]
+    )
+    monkeypatch.setattr("app.services.omnichannel.pipeline.supabase", fake_sb)
+    monkeypatch.setattr("app.services.omnichannel.pipeline.run_db", lambda cb: asyncio.sleep(0, result=cb()))
+    monkeypatch.setattr("app.services.omnichannel.pipeline.chatty_quota_exceeded", AsyncMock(return_value=False))
+    monkeypatch.setattr("app.services.omnichannel.pipeline._upsert_session", AsyncMock())
+
+    with patch("app.services.omnichannel.pipeline.run_widget_assistant", new_callable=AsyncMock) as mock_ai, \
+         patch("app.services.omnichannel.pipeline.send_outbound_telegram", new_callable=AsyncMock) as mock_tg:
+
+        mock_ai.return_value = {
+            "reply": (
+                "Monday, Oct 26 at 2:00 PM (Asia/Colombo) is available!\n\n"
+                "📅 *Schedule your appointment:*\n"
+                "https://chatty.personaliai.com/book/ad32f373-7694-43f4-9465-f8d65ce291e3?session_id=tg:7848543218&t=1792928952&sig=oldsig123\n"
+                "[BOOKING_WIDGET]"
+            )
+        }
+        mock_tg.return_value = True
+
+        pipeline = OmnichannelPipeline()
+        res = asyncio.run(
+            pipeline.process_inbound(
+                message=inbound,
+                bot=bot,
+                owner_user=owner,
+                access_token="tg_token_123",
+            )
+        )
+
+        assert res["status"] == "delivered"
+        assert res["reply"].count("Schedule your appointment:") == 1
+        assert "oldsig123" not in res["reply"]

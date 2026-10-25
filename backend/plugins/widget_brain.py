@@ -323,6 +323,17 @@ async def run_widget_assistant(
         if not raw:
             continue
         role = "user" if row["role"] == "user" else "assistant"
+        if role == "assistant":
+            raw = re.sub(
+                r"(?:📅\s*)?(?:\*{0,2})schedule your appointment(?:\s+here)?:(?:\*{0,2})\s*"
+                r"https?://[^\s)]+/book/[^\s)]+"
+                r"(?:\s*(?:_?tap|click) the link to choose your preferred date (?:&|and) time slot\.?_?)?",
+                "",
+                raw,
+                flags=re.IGNORECASE,
+            ).strip()
+            if not raw:
+                continue
         if role == last_role and messages and isinstance(messages[-1]["content"], str):
             messages[-1]["content"] += "\n" + raw
             continue
@@ -651,12 +662,13 @@ async def run_widget_assistant(
     use_ms_calendar = provider == "teams"
     avail_instruction = (
         "Availability Check: Once you have the visitor's preferred date/time, call `get_available_slots` with "
-        "near=<the ISO datetime the visitor asked for in the visitor's timezone, including the timezone offset e.g. 2026-09-10T10:00:00+05:30>. It already accounts for "
-        "business hours, working days, buffer time, minimum notice, and daily/weekly caps - it returns REAL, "
-        "guaranteed-bookable slots, nearest to what the visitor asked for first. NEVER compute availability "
-        "yourself from raw calendar data, and never invent or guess a slot - only offer times `get_available_slots` "
-        "actually returned. If the visitor's exact requested time isn't the first slot returned, that means it "
-        "wasn't available; present the returned slots as alternatives instead."
+        f"near=<the ISO datetime the visitor asked for in the visitor's timezone ({visitor_timezone or 'UTC'}), e.g. 2026-09-10T14:00:00>. It already accounts for "
+        "business hours, team member recurring schedules, working days, buffer time, minimum notice, and daily/weekly caps - it returns REAL, "
+        "guaranteed-bookable slots. NEVER compute availability yourself from raw calendar data, and never invent or guess a slot. "
+        "CRITICAL: Check `exact_requested_time_available` in the `get_available_slots` response! "
+        "If `exact_requested_time_available` is `true`, the visitor's exact requested time (`matched_slot.visitor_local_label`) IS OPEN AND AVAILABLE! "
+        "When `exact_requested_time_available` is `true`, NEVER say the requested time is unavailable (even if earlier messages in the conversation history said it wasn't) and DO NOT list other times as 'alternatives' to a time that is actually open! "
+        "Only state that a requested time is unavailable if `exact_requested_time_available` is `false`."
     )
     if use_ms_calendar:
         book_instruction = (
@@ -709,19 +721,20 @@ async def run_widget_assistant(
             f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n\n"
             f"MANDATORY BOOKING & LEAD CAPTURE WORKFLOW:\n"
             f"CRITICAL UI INSTRUCTION:\n"
-            f"- Whenever the visitor asks to book a demo, meeting, or appointment, or inquires about scheduling or open slots, ALWAYS warmly confirm and append the exact marker `[BOOKING_WIDGET]` at the end of your message. This automatically opens the interactive booking slot picker and contact form directly in the chat!\n\n"
+            f"- Whenever the visitor asks to book a demo, meeting, or appointment, or inquires about scheduling or open slots, ALWAYS warmly confirm and append the exact marker `[BOOKING_WIDGET]` at the end of your message. This automatically opens the interactive booking slot picker and contact form directly in the chat!\n"
+            f"- NEVER write or repeat raw 'https://.../book/...' links or '📅 *Schedule your appointment:*' lines yourself; only append `[BOOKING_WIDGET]` and the platform will automatically attach a single signed booking link.\n\n"
             f"1. PREFERRED DAY & TIME INQUIRY:\n"
             f"   - When the visitor asks to book a demo, meeting, or appointment, warmly confirm: 'Yes, you can book a demo! You can pick a time slot below or let me know what day and time works best for you.' and append `[BOOKING_WIDGET]`.\n"
             f"   - Timezone context: Active timezone is {visitor_timezone or 'UTC'}. Always show times with their timezone tag in brackets (e.g. '10:00 AM ({visitor_timezone or 'UTC'})'). If the visitor mentions their city, country, or preferred timezone (or asks to change it), immediately call `update_visitor_timezone` to align all future slots and existing meetings with their local clock.\n"
             f"   - RELATIVE DATES: When the visitor gives a relative date (such as 'tomorrow', 'tomorrow at 10 am', 'next Monday', 'day after tomorrow'), you MUST resolve it to the exact calendar date immediately using 'Current Time in Visitor's Location' ({current_time_visitor}). NEVER ask the visitor to confirm what date tomorrow is - calculate it yourself!\n\n"
             f"2. AVAILABILITY CHECK & SLOT SELECTION:\n"
             f"   - {avail_instruction}\n"
-            f"   - Present 2 to 4 of the returned slots using their `visitor_local_label` (which is already computed in the visitor's local timezone). State times cleanly and naturally, showing simple time aligned with the visitor's timezone and inside brackets show the timezone (e.g. 'Thursday, September 10th at 10:00 AM ({visitor_timezone or 'UTC'})' or '10:00 AM ({visitor_timezone or 'UTC'})'). NEVER output 'GMT', 'GMT+...', or raw offset strings in your responses.\n"
+            f"   - Present times using their `visitor_local_label` (which is already computed in the visitor's local timezone). State times cleanly and naturally, showing simple time aligned with the visitor's timezone and inside brackets show the timezone (e.g. 'Thursday, September 10th at 10:00 AM ({visitor_timezone or 'UTC'})' or '10:00 AM ({visitor_timezone or 'UTC'})'). NEVER output 'GMT', 'GMT+...', or raw offset strings in your responses.\n"
             f"   - Append `[BOOKING_WIDGET]` so the visitor can click their desired slot or enter their details directly in the UI card.\n"
-            f"   - If the exact requested time IS AVAILABLE:\n"
-            f"     * Acknowledge that the slot is open, and proceed to Step 3.\n"
-            f"   - If the requested time is NOT AVAILABLE or was general:\n"
-            f"     * Call `get_available_slots` near their requested time. If slots are found, politely present the available times returned by `get_available_slots`. NEVER state that a day or weekday is unavailable without first checking `get_available_slots`.\n"
+            f"   - If `exact_requested_time_available` is `true` (the exact requested time IS AVAILABLE):\n"
+            f"     * NEVER say the time is unavailable! Warmly confirm that `matched_slot.visitor_local_label` ({visitor_timezone or 'UTC'}) is open and available! If the visitor already has an upcoming meeting, offer to reschedule it to that slot; otherwise proceed directly to Step 3 (hold the slot and request their contact details if not already known). Do NOT list other times as 'alternatives' when their exact requested time is open.\n"
+            f"   - If `exact_requested_time_available` is `false` (or the visitor only asked generally for a day without a specific time):\n"
+            f"     * Call `get_available_slots` near their requested time. If slots are found, politely present 2 to 5 of the available times returned by `get_available_slots`. NEVER state that a day or weekday is unavailable without first checking `get_available_slots`.\n"
             f"     * STRICT RULE: DO NOT ask for contact details (name/email) yet when presenting alternatives! Ask which of the offered slots works best for them, and WAIT for the visitor to choose a slot first!\n\n"
             f"3. SLOT CONFIRMED -> ALLOCATE TIME & REQUEST DETAILS (Required & Optional):\n"
             f"   - As soon as the visitor confirms or picks a specific slot (e.g. 'yes 9.30 am ok', '10:30 am is good', 'let's do 10:00 AM'):\n"

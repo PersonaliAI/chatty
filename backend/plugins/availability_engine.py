@@ -242,8 +242,12 @@ class AvailableSlot:
         }
         if self.visitor_tz_str:
             try:
-                visitor_local = self.start_utc.astimezone(pytz.timezone(self.visitor_tz_str))
+                v_tz = pytz.timezone(self.visitor_tz_str)
+                visitor_local = self.start_utc.astimezone(v_tz)
+                visitor_end_local = self.end_utc.astimezone(v_tz)
                 out["visitor_local_label"] = _format_slot_label(visitor_local, self.visitor_tz_str)
+                out["visitor_start_iso"] = visitor_local.isoformat()
+                out["visitor_end_iso"] = visitor_end_local.isoformat()
             except Exception:
                 pass
         return out

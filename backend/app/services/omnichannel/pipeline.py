@@ -432,7 +432,30 @@ class OmnichannelPipeline:
         # 9. Conversational Booking Intent & CTA Injection
         calendar_enabled = bool(bot.get("calendar_scheduling_enabled"))
         booking_url = None
-        if is_booking_intent(message.text, reply, calendar_enabled=calendar_enabled):
+        should_inject_booking = is_booking_intent(message.text, reply, calendar_enabled=calendar_enabled)
+
+        # Always strip any echoed booking CTA blocks or raw /book/<bot_id> URLs from LLM output first
+        reply = re.sub(
+            r"(?:📅\s*)?(?:\*{0,2})schedule your appointment(?:\s+here)?:(?:\*{0,2})\s*"
+            r"https?://[^\s)]+/book/[^\s)]+"
+            r"(?:\s*(?:_?tap|click) the link to choose your preferred date (?:&|and) time slot\.?_?)?",
+            "",
+            reply,
+            flags=re.IGNORECASE,
+        ).strip()
+        reply = re.sub(
+            r"https?://[^\s)]+/book/[0-9a-fA-F-]{36}[^\s)]*",
+            "",
+            reply,
+        ).strip()
+        reply = re.sub(
+            r"(?:📅\s*)?(?:\*{0,2})schedule your appointment(?:\s+here)?:?(?:\*{0,2})\s*$",
+            "",
+            reply,
+            flags=re.IGNORECASE,
+        ).strip()
+
+        if should_inject_booking:
             secret = get_bot_whatsapp_secret(bot)
             booking_cta, booking_url = build_channel_booking_cta(
                 channel=message.channel,
@@ -440,14 +463,6 @@ class OmnichannelPipeline:
                 identifier=message.sender_id,
                 secret=secret,
             )
-            reply = re.sub(
-                r"(?:📅\s*)?(?:\*{0,2})schedule your appointment here:(?:\*{0,2})\s*"
-                r"https?://[^\s)]+/book/[^\s)]+"
-                r"(?:\s*_?tap the link to choose your preferred date & time slot\.?_?)?",
-                "",
-                reply,
-                flags=re.IGNORECASE,
-            ).strip()
             reply = reply.replace("[BOOKING_WIDGET]", "").strip() + booking_cta
         else:
             reply = reply.replace("[BOOKING_WIDGET]", "").strip()

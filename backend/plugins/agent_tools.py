@@ -257,8 +257,8 @@ DECLARATIONS: list[dict] = [
         {
             "near": {
                 "type": "string",
-                "description": "ISO 8601 datetime the visitor asked for (e.g. '2026-09-10T10:00:00+05:30' or '2026-09-10T10:00:00'). "
-                                "Returned slots are sorted by closeness to this. Omit to get the soonest slots instead.",
+                "description": "ISO 8601 datetime the visitor asked for in the VISITOR'S LOCAL TIMEZONE (e.g. '2026-09-10T14:00:00+05:30' or '2026-09-10T14:00:00'). "
+                                "Do NOT convert to UTC or append 'Z' when the visitor is in a non-UTC timezone. Returned slots are sorted by closeness to this.",
             },
             "count": {"type": "integer", "description": "How many slots to return (default 5)."},
         },
@@ -641,7 +641,16 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
     near_utc = None
     if args.get("near"):
         try:
-            near_dt = _parse_iso(args["near"])
+            raw_near = str(args["near"]).strip()
+            # When the visitor is in a non-UTC timezone, LLMs sometimes mistakenly append 'Z'
+            # to a wall-clock time in the visitor's local timezone (e.g. '2026-10-26T14:00:00Z' for 2 PM Colombo).
+            if (
+                raw_near.endswith("Z")
+                and (context or {}).get("visitor_timezone")
+                and str((context or {}).get("visitor_timezone")).strip().upper() not in ("UTC", "GMT", "ETC/UTC")
+            ):
+                raw_near = raw_near[:-1]
+            near_dt = _parse_iso(raw_near)
             if near_dt.tzinfo is None:
                 try:
                     target_tz = pytz.timezone(visitor_tz_str)
@@ -666,7 +675,7 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
             return _need_microsoft(user, required_scope="Calendars.ReadWrite") if use_ms_calendar else _need_google(user)
         slots = await avail.get_team_available_slots(
             supabase, bot_id=bot_id, bot=bot, members=members, owner_tz_str=owner_tz_str,
-            now_utc=now_utc, visitor_tz_str=(context or {}).get("visitor_timezone"),
+            now_utc=now_utc, visitor_tz_str=visitor_tz_str,
             near_utc=near_utc, max_results=count,
         )
     except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
@@ -678,9 +687,47 @@ async def _get_available_slots(args: dict, user: dict, supabase, context: Option
     if not slots:
         return {
             "slots": [],
+            "exact_requested_time_available": False,
             "message": "No open slots found in the next few weeks - the calendar is fully booked "
                        "within business hours. Let the visitor know and offer to have someone follow up.",
         }
+
+    if near_utc is not None:
+        exact_match = None
+        for s in slots:
+            try:
+                s_dt = _parse_iso(s["start"])
+                if abs((s_dt - near_utc).total_seconds()) < 60:
+                    exact_match = s
+                    s["is_exact_requested_time"] = True
+                    break
+            except Exception:
+                pass
+
+        if exact_match is not None:
+            lbl = exact_match.get("visitor_local_label") or exact_match.get("owner_local_label") or exact_match.get("start")
+            return {
+                "exact_requested_time_available": True,
+                "matched_slot": exact_match,
+                "message": (
+                    f"EXACT REQUESTED TIME IS AVAILABLE: {lbl} ({visitor_tz_str}) IS OPEN! "
+                    f"CRITICAL INSTRUCTION: Do NOT say {lbl} is unavailable, even if earlier messages in the conversation history said it wasn't. "
+                    f"Do NOT list other times as alternatives when the visitor's requested time is open! "
+                    f"Warmly confirm that {lbl} ({visitor_tz_str}) is available and open for them."
+                ),
+                "slots": slots,
+            }
+        else:
+            slots = sorted(slots, key=lambda x: x.get("start") or "")
+            return {
+                "exact_requested_time_available": False,
+                "message": (
+                    f"The exact requested time is not available. Politely offer the open alternative times in `slots` "
+                    f"using their `visitor_local_label` ({visitor_tz_str})."
+                ),
+                "slots": slots,
+            }
+
     return {"slots": slots}
 
 

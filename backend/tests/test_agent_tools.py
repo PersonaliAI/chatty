@@ -1453,3 +1453,37 @@ def test_execute_triggers_otp_and_verifies_code(monkeypatch):
         context=context,
     ))
     assert res3 == {"id": "evt-verified", "assigned_to_email": "owner@example.com"}
+
+
+def test_get_available_slots_marks_exact_requested_time_available(monkeypatch):
+    from plugins import availability_engine as avail
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]))
+    team_mock = AsyncMock(return_value=[
+        {"start": "2026-10-26T08:30:00Z", "end": "2026-10-26T09:00:00Z", "visitor_local_label": "Monday, Oct 26 at 2:00 PM"},
+        {"start": "2026-10-26T08:00:00Z", "end": "2026-10-26T08:30:00Z", "visitor_local_label": "Monday, Oct 26 at 1:30 PM"},
+    ])
+    monkeypatch.setattr(avail, "get_team_available_slots", team_mock)
+
+    context = {"bot": {"meeting_provider": "google_meet", "bot_timezone": "Asia/Colombo"}, "bot_id": "bot-1", "visitor_timezone": "Asia/Colombo"}
+    # Even if LLM mistakenly appends 'Z' to 14:00 (2:00 PM Colombo), it localizes to Asia/Colombo (08:30 UTC) and matches!
+    result = asyncio.run(at._get_available_slots({"near": "2026-10-26T14:00:00Z"}, {"google_access_token": "tok"}, MagicMock(), context=context))
+    assert result["exact_requested_time_available"] is True
+    assert result["matched_slot"]["visitor_local_label"] == "Monday, Oct 26 at 2:00 PM"
+    assert "EXACT REQUESTED TIME IS AVAILABLE" in result["message"]
+
+
+def test_get_available_slots_marks_exact_requested_time_false_when_busy(monkeypatch):
+    from plugins import availability_engine as avail
+    monkeypatch.setattr(avail, "get_bookable_members", AsyncMock(return_value=[{"email": "a@example.com", "user": {}, "use_ms_calendar": False}]))
+    team_mock = AsyncMock(return_value=[
+        {"start": "2026-10-26T09:00:00Z", "end": "2026-10-26T09:30:00Z", "visitor_local_label": "Monday, Oct 26 at 2:30 PM"},
+        {"start": "2026-10-26T08:00:00Z", "end": "2026-10-26T08:30:00Z", "visitor_local_label": "Monday, Oct 26 at 1:30 PM"},
+    ])
+    monkeypatch.setattr(avail, "get_team_available_slots", team_mock)
+
+    context = {"bot": {"meeting_provider": "google_meet", "bot_timezone": "Asia/Colombo"}, "bot_id": "bot-1", "visitor_timezone": "Asia/Colombo"}
+    result = asyncio.run(at._get_available_slots({"near": "2026-10-26T14:00:00+05:30"}, {"google_access_token": "tok"}, MagicMock(), context=context))
+    assert result["exact_requested_time_available"] is False
+    # Alternatives sorted chronologically: 08:00Z (1:30 PM) before 09:00Z (2:30 PM)
+    assert result["slots"][0]["start"] == "2026-10-26T08:00:00Z"
+    assert result["slots"][1]["start"] == "2026-10-26T09:00:00Z"
