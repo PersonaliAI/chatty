@@ -2,7 +2,7 @@
 
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Check,
   Copy,
@@ -23,6 +23,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Zap,
+  Search,
+  ArrowLeft,
+  Store,
+  Calendar,
+  Smartphone,
+  AudioWaveform,
+  SlidersHorizontal,
+  RefreshCw,
+  Sliders,
+  Layers,
 } from "lucide-react";
 
 const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
@@ -42,6 +52,31 @@ const EMAIL_AUTO_REPLY_MODE_OPTIONS: ModernSelectOption[] = [
     hint: "Leaves drafts in the inbox for human agent approval",
   },
 ];
+
+export type IntegrationCategory =
+  | "all"
+  | "messaging"
+  | "ecommerce"
+  | "voice"
+  | "calendar"
+  | "collaboration"
+  | "embeds"
+  | "mobile"
+  | "developer"
+  | "security"
+  | "automation" // future-ready extensible category
+  | "crm"; // future-ready extensible category
+
+export interface WooCommerceStatus {
+  connected: boolean;
+  store_url?: string;
+  total_products?: number;
+  last_synced_at?: string;
+  sync_status?: "idle" | "syncing" | "failed" | "success";
+  sync_error?: string;
+  webhook_secret?: string;
+  consumer_key_preview?: string;
+}
 
 function PlatformIcon({ domain, label }: { domain: string; label: string }) {
   return (
@@ -272,6 +307,11 @@ interface IntegrationsTabProps {
 
   showToast?: (msg: string, type?: "success" | "error" | "info") => void;
   authToken?: string;
+  googleConnected?: boolean;
+  googleEmail?: string | null;
+  onNavigateTab?: (tab: string) => void;
+  slackWebhookUrl?: string;
+  setSlackWebhookUrl?: (v: string) => void;
 }
 
 export function IntegrationsTab({
@@ -397,6 +437,11 @@ export function IntegrationsTab({
   setEmailConfigured,
   showToast,
   authToken = "",
+  googleConnected = false,
+  googleEmail = null,
+  onNavigateTab,
+  slackWebhookUrl,
+  setSlackWebhookUrl,
 }: IntegrationsTabProps) {
   const { confirm, confirmationDialog } = useConfirmDialog();
 
@@ -472,6 +517,29 @@ export function IntegrationsTab({
   const [newIgQuickReply, setNewIgQuickReply] = useState("");
   const [newTtQuickReply, setNewTtQuickReply] = useState("");
 
+  // Marketplace / Catalog Navigation State
+  const [selectedIntegrationId, setSelectedIntegrationId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<IntegrationCategory>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "connected" | "available">("all");
+  const [viewMode, setViewMode] = useState<"catalog" | "expanded">("catalog");
+
+  // WooCommerce Integration State
+  const [wcStatus, setWcStatus] = useState<WooCommerceStatus | null>(null);
+  const [loadingWc, setLoadingWc] = useState(false);
+  const [syncingWc, setSyncingWc] = useState(false);
+  const [wcStoreUrl, setWcStoreUrl] = useState("");
+  const [wcConsumerKey, setWcConsumerKey] = useState("");
+  const [wcConsumerSecret, setWcConsumerSecret] = useState("");
+  const [wcAuthMode, setWcAuthMode] = useState<"oauth" | "manual">("oauth");
+  const [wcError, setWcError] = useState<string | null>(null);
+  const [wcSuccessMsg, setWcSuccessMsg] = useState<string | null>(null);
+  const [copiedWcWebhook, setCopiedWcWebhook] = useState(false);
+
+  // Slack Escalation Local State
+  const [slackUrlDraft, setSlackUrlDraft] = useState(slackWebhookUrl || "");
+  const [testingSlack, setTestingSlack] = useState(false);
+
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
   // Webhook URLs
@@ -482,6 +550,137 @@ export function IntegrationsTab({
   const TG_CALLBACK_URL = `${backendUrl}/webhook/telegram${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
   const SMS_CALLBACK_URL = `${backendUrl}/webhook/twilio/sms${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
   const EMAIL_CALLBACK_URL = `${backendUrl}/webhook/email/inbound${botId ? `?bot_id=${encodeURIComponent(botId)}` : ""}`;
+  const WC_WEBHOOK_URL = `${backendUrl}/api/integrations/woocommerce/webhook/${botId || ""}`;
+
+  // WooCommerce Load & Actions
+  const loadWcStatus = useCallback(async () => {
+    if (!botId) return;
+    try {
+      setLoadingWc(true);
+      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWcStatus(data);
+        if (data.store_url && !wcStoreUrl) setWcStoreUrl(data.store_url);
+        setSyncingWc(data.sync_status === "syncing");
+      }
+    } catch (err) {
+      console.error("Failed to load WooCommerce status", err);
+    } finally {
+      setLoadingWc(false);
+    }
+  }, [botId, authToken, wcStoreUrl]);
+
+  useEffect(() => {
+    if (botId) {
+      void loadWcStatus();
+    }
+  }, [botId, loadWcStatus]);
+
+  const handleConnectWcOAuth = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!botId || !wcStoreUrl) return;
+    try {
+      setLoadingWc(true);
+      setWcError(null);
+      const returnUrl = typeof window !== "undefined" ? window.location.href : "";
+      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce/authorize-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({ store_url: wcStoreUrl, return_url: returnUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to initialize 1-click authorization");
+      if (data.authorize_url) {
+        window.location.href = data.authorize_url;
+      }
+    } catch (err: any) {
+      setWcError(err.message || "Failed to start 1-click connect");
+    } finally {
+      setLoadingWc(false);
+    }
+  };
+
+  const handleConnectWcManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!botId || !wcStoreUrl || !wcConsumerKey || !wcConsumerSecret) return;
+    try {
+      setLoadingWc(true);
+      setWcError(null);
+      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce/connect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          store_url: wcStoreUrl,
+          consumer_key: wcConsumerKey,
+          consumer_secret: wcConsumerSecret,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to connect WooCommerce store");
+      setWcSuccessMsg("WooCommerce store connected successfully! Starting initial sync...");
+      showToast?.("WooCommerce store connected successfully!", "success");
+      await loadWcStatus();
+    } catch (err: any) {
+      setWcError(err.message || "Failed to connect store");
+      showToast?.(err.message || "Connection failed", "error");
+    } finally {
+      setLoadingWc(false);
+    }
+  };
+
+  const handleDisconnectWc = async () => {
+    if (!botId) return;
+    if (
+      !(await confirm(
+        "Disconnect WooCommerce from this bot and stop automatic catalog syncing? Synced products will remain in your catalog."
+      ))
+    )
+      return;
+    try {
+      setLoadingWc(true);
+      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce`, {
+        method: "DELETE",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        setWcStatus(null);
+        setWcSuccessMsg("WooCommerce disconnected successfully");
+        showToast?.("WooCommerce disconnected", "info");
+      }
+    } catch (err: any) {
+      setWcError(err.message || "Failed to disconnect");
+    } finally {
+      setLoadingWc(false);
+    }
+  };
+
+  const handleSyncWc = async () => {
+    if (!botId) return;
+    try {
+      setSyncingWc(true);
+      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce/sync`, {
+        method: "POST",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to trigger sync");
+      showToast?.("WooCommerce product sync started", "success");
+      setTimeout(() => void loadWcStatus(), 2500);
+    } catch (err: any) {
+      showToast?.(err.message || "Sync failed", "error");
+    } finally {
+      setSyncingWc(false);
+    }
+  };
 
   /* -------------------------------------------------------------------------- */
   /* Connection States Calculation (supports saved backend encrypted state)     */
@@ -522,6 +721,288 @@ export function IntegrationsTab({
     isSmsConnected,
     isEmailConnected,
   ].filter(Boolean).length;
+
+  const isWcConnected = Boolean(wcStatus?.connected);
+  const isWcConfigured = Boolean(wcStatus?.connected || wcStatus?.store_url);
+  const isCalendarConnected = Boolean(googleConnected);
+
+  const activeIntegrationsCount = [
+    isWaConnected,
+    isFbConnected,
+    isIgConnected,
+    isTtConnected,
+    isTgConnected,
+    isSmsConnected,
+    isEmailConnected,
+    isWcConnected,
+    isCalendarConnected,
+    true, // voice
+    true, // embed
+    true, // mobile
+    true, // mcp
+    allowedDomains.length > 0, // domains
+  ].filter(Boolean).length;
+
+  const integrationItems = useMemo(() => {
+    return [
+      {
+        id: "whatsapp",
+        name: "WhatsApp Business",
+        category: "messaging" as IntegrationCategory,
+        categoryLabel: "Messaging",
+        icon: <WhatsAppBrandIcon className="size-6" />,
+        iconBg: "bg-[#25D366]/10 text-[#25D366]",
+        description: "Deploy your AI assistant to WhatsApp Cloud API with interactive quick replies, calendar booking, and media support.",
+        statsHighlight: "Meta Cloud API",
+        isConnected: isWaConnected,
+        isConfigured: isWaConfigured,
+        tags: ["whatsapp", "meta", "cloud api", "messaging", "chat"],
+      },
+      {
+        id: "telegram",
+        name: "Telegram Bot",
+        category: "messaging" as IntegrationCategory,
+        categoryLabel: "Messaging",
+        icon: <TelegramBrandIcon className="size-6" />,
+        iconBg: "bg-[#229ED9]/10 text-[#229ED9]",
+        description: "Connect your Telegram bot with automatic webhook registration, Markdown formatting, and calendar scheduling.",
+        statsHighlight: "Bot API 7.0",
+        isConnected: isTgConnected,
+        isConfigured: isTgConfigured,
+        tags: ["telegram", "bot", "messaging", "tg"],
+      },
+      {
+        id: "instagram",
+        name: "Instagram DM",
+        category: "messaging" as IntegrationCategory,
+        categoryLabel: "Messaging",
+        icon: <InstagramBrandIcon className="size-6" />,
+        iconBg: "bg-pink-500/10 text-pink-600 dark:text-pink-400",
+        description: "Automate Instagram Direct Messages to qualify leads, answer product questions, and book appointments instantly.",
+        statsHighlight: "Direct Messages",
+        isConnected: isIgConnected,
+        isConfigured: isIgConfigured,
+        tags: ["instagram", "meta", "dm", "social"],
+      },
+      {
+        id: "messenger",
+        name: "Facebook Messenger",
+        category: "messaging" as IntegrationCategory,
+        categoryLabel: "Messaging",
+        icon: <MessengerBrandIcon className="size-6" />,
+        iconBg: "bg-blue-600/10 text-blue-600 dark:text-blue-400",
+        description: "Respond to page visitors on Facebook Messenger with AI knowledge retrieval and seamless human handoff.",
+        statsHighlight: "Page PSID",
+        isConnected: isFbConnected,
+        isConfigured: isFbConfigured,
+        tags: ["facebook", "messenger", "meta", "page"],
+      },
+      {
+        id: "tiktok",
+        name: "TikTok Business",
+        category: "messaging" as IntegrationCategory,
+        categoryLabel: "Messaging",
+        icon: <TikTokBrandIcon className="size-6" />,
+        iconBg: "bg-neutral-900/10 text-neutral-900 dark:bg-neutral-100/10 dark:text-neutral-100",
+        description: "Engage prospective buyers inside TikTok Direct Messages with AI conversational commerce.",
+        statsHighlight: "Business API",
+        isConnected: isTtConnected,
+        isConfigured: isTtConfigured,
+        tags: ["tiktok", "bytedance", "video", "social"],
+      },
+      {
+        id: "sms",
+        name: "Twilio Two-Way SMS",
+        category: "messaging" as IntegrationCategory,
+        categoryLabel: "Messaging",
+        icon: <SmsBrandIcon className="size-6" />,
+        iconBg: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+        description: "Carrier-grade two-way SMS messaging via Twilio with built-in TCPA STOP/START compliance.",
+        statsHighlight: "CTIA Compliant",
+        isConnected: isSmsConnected,
+        isConfigured: isSmsConfigured,
+        tags: ["sms", "twilio", "text", "phone", "tcpa"],
+      },
+      {
+        id: "email",
+        name: "Two-Way Support Email",
+        category: "messaging" as IntegrationCategory,
+        categoryLabel: "Messaging",
+        icon: <EmailBrandIcon className="size-6" />,
+        iconBg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+        description: "Forward your customer support inbox to Chatty. Choose Instant AI Replies or Agent Review Draft Co-Pilot.",
+        statsHighlight: "Inbound MX",
+        isConnected: isEmailConnected,
+        isConfigured: isEmailConfigured,
+        tags: ["email", "smtp", "helpdesk", "support", "inbox"],
+      },
+      {
+        id: "woocommerce",
+        name: "WooCommerce Store",
+        category: "ecommerce" as IntegrationCategory,
+        categoryLabel: "E-Commerce",
+        icon: <PlatformIcon domain="woocommerce.com" label="WooCommerce" />,
+        iconBg: "bg-[#9b51e0]/10 text-[#9b51e0]",
+        description: "Bidirectional product sync, real-time stock levels, pricing updates, and order lookups directly in AI chat.",
+        statsHighlight: wcStatus?.connected ? `${wcStatus.total_products ?? 0} Products Synced` : "1-Click Connect",
+        isConnected: Boolean(wcStatus?.connected),
+        isConfigured: Boolean(wcStatus?.connected || wcStatus?.store_url),
+        tags: ["woocommerce", "wordpress", "store", "ecommerce", "catalog", "products"],
+      },
+      {
+        id: "voice",
+        name: "LiveKit Voice Agent",
+        category: "voice" as IntegrationCategory,
+        categoryLabel: "Voice AI",
+        icon: <AudioWaveform className="size-6 text-cyan-500" />,
+        iconBg: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
+        description: "Real-time speech-to-speech AI voice assistant powered by WebRTC with dynamic audio visualizers.",
+        statsHighlight: "WebRTC Audio",
+        isConnected: true,
+        isConfigured: true,
+        tags: ["voice", "livekit", "audio", "webrtc", "speech", "call"],
+      },
+      {
+        id: "calendar",
+        name: "Google Calendar & Meet",
+        category: "calendar" as IntegrationCategory,
+        categoryLabel: "Meetings",
+        icon: <PlatformIcon domain="google.com" label="Google Calendar" />,
+        iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+        description: "Synchronize live team availability, enforce working hours, and automatically generate Google Meet video links.",
+        statsHighlight: googleConnected ? "OAuth Live" : "Smart Booking",
+        isConnected: Boolean(googleConnected),
+        isConfigured: Boolean(googleConnected),
+        tags: ["google", "calendar", "meet", "booking", "schedule", "appointments"],
+      },
+      {
+        id: "slack",
+        name: "Slack Escalation",
+        category: "collaboration" as IntegrationCategory,
+        categoryLabel: "Teamwork",
+        icon: <PlatformIcon domain="slack.com" label="Slack" />,
+        iconBg: "bg-[#4A154B]/10 text-[#4A154B] dark:text-[#E01E5A]",
+        description: "Receive instant notifications in your Slack channels whenever a customer requests a human agent or shows frustration.",
+        statsHighlight: "Handoff Alerts",
+        isConnected: Boolean(slackWebhookUrl),
+        isConfigured: Boolean(slackWebhookUrl),
+        tags: ["slack", "escalation", "alerts", "handoff", "team", "notifications"],
+      },
+      {
+        id: "embed",
+        name: "Website Chatbot & CMS",
+        category: "embeds" as IntegrationCategory,
+        categoryLabel: "Website & CMS",
+        icon: <Globe className="size-6 text-orange-500" />,
+        iconBg: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+        description: "Embed the interactive chat widget on your website. Includes guides for WordPress, Shopify, Webflow, and Wix.",
+        statsHighlight: "HTML & React",
+        isConnected: true,
+        isConfigured: true,
+        tags: ["website", "widget", "embed", "wordpress", "shopify", "webflow", "wix", "cms"],
+      },
+      {
+        id: "mobile",
+        name: "Mobile App SDKs",
+        category: "mobile" as IntegrationCategory,
+        categoryLabel: "Mobile SDKs",
+        icon: <Smartphone className="size-6 text-violet-500" />,
+        iconBg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+        description: "Official mobile SDKs and starter templates for React Native, Flutter, iOS (Swift), and Android (Kotlin).",
+        statsHighlight: "4 SDK Platforms",
+        isConnected: true,
+        isConfigured: true,
+        tags: ["mobile", "react native", "flutter", "ios", "swift", "android", "kotlin", "sdk"],
+      },
+      {
+        id: "mcp",
+        name: "Model Context Protocol",
+        category: "developer" as IntegrationCategory,
+        categoryLabel: "AI Protocols",
+        icon: <Zap className="size-6 text-amber-500" />,
+        iconBg: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+        description: "Open industry standard giving your AI assistant 81 native tools to query databases, manage tickets, and run external actions.",
+        statsHighlight: "81 Native Tools",
+        isConnected: true,
+        isConfigured: true,
+        tags: ["mcp", "model context protocol", "tools", "developer", "api"],
+      },
+      {
+        id: "domains",
+        name: "Domain Security (CORS)",
+        category: "security" as IntegrationCategory,
+        categoryLabel: "Security",
+        icon: <ShieldCheck className="size-6 text-emerald-500" />,
+        iconBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+        description: "Restrict chat widget rendering and API responses strictly to your authorized origin domains.",
+        statsHighlight: `${allowedDomains.length} Allowed`,
+        isConnected: allowedDomains.length > 0,
+        isConfigured: allowedDomains.length > 0,
+        tags: ["domain", "security", "cors", "allowlist", "iframe"],
+      },
+    ];
+  }, [
+    isWaConnected,
+    isWaConfigured,
+    isTgConnected,
+    isTgConfigured,
+    isIgConnected,
+    isIgConfigured,
+    isFbConnected,
+    isFbConfigured,
+    isTtConnected,
+    isTtConfigured,
+    isSmsConnected,
+    isSmsConfigured,
+    isEmailConnected,
+    isEmailConfigured,
+    isWcConnected,
+    isWcConfigured,
+    wcStatus,
+    googleConnected,
+    slackWebhookUrl,
+    allowedDomains,
+  ]);
+
+  const categories = useMemo(() => {
+    return [
+      { id: "all" as IntegrationCategory, label: "All Integrations", count: integrationItems.length },
+      { id: "messaging" as IntegrationCategory, label: "Omnichannel Messaging", count: integrationItems.filter((i) => i.category === "messaging").length },
+      { id: "ecommerce" as IntegrationCategory, label: "E-Commerce & Orders", count: integrationItems.filter((i) => i.category === "ecommerce").length },
+      { id: "voice" as IntegrationCategory, label: "Voice AI & Telephony", count: integrationItems.filter((i) => i.category === "voice").length },
+      { id: "calendar" as IntegrationCategory, label: "Calendar & Meetings", count: integrationItems.filter((i) => i.category === "calendar").length },
+      { id: "collaboration" as IntegrationCategory, label: "Team Collaboration", count: integrationItems.filter((i) => i.category === "collaboration").length },
+      { id: "embeds" as IntegrationCategory, label: "Website & CMS Embeds", count: integrationItems.filter((i) => i.category === "embeds").length },
+      { id: "mobile" as IntegrationCategory, label: "Mobile App SDKs", count: integrationItems.filter((i) => i.category === "mobile").length },
+      { id: "developer" as IntegrationCategory, label: "AI Tools & Protocols", count: integrationItems.filter((i) => i.category === "developer").length },
+      { id: "security" as IntegrationCategory, label: "Security & Domains", count: integrationItems.filter((i) => i.category === "security").length },
+    ];
+  }, [integrationItems]);
+
+  const filteredItems = useMemo(() => {
+    return integrationItems.filter((item) => {
+      if (selectedCategory !== "all" && item.category !== selectedCategory) return false;
+      if (statusFilter === "connected" && !item.isConnected) return false;
+      if (statusFilter === "available" && item.isConnected) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = item.name.toLowerCase().includes(q);
+        const matchDesc = item.description.toLowerCase().includes(q);
+        const matchCategory = item.categoryLabel.toLowerCase().includes(q);
+        const matchTags = item.tags.some((t) => t.toLowerCase().includes(q));
+        if (!matchName && !matchDesc && !matchCategory && !matchTags) return false;
+      }
+      return true;
+    });
+  }, [integrationItems, selectedCategory, statusFilter, searchQuery]);
+
+  const handleCardClick = (id: string) => {
+    if (["whatsapp", "messenger", "instagram", "tiktok", "telegram", "sms", "email"].includes(id)) {
+      setActiveChannel(id as OmnichannelChannelKey);
+    }
+    setSelectedIntegrationId(id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   /* -------------------------------------------------------------------------- */
   /* Copy & Secret Helpers                                                      */
@@ -1401,50 +1882,747 @@ export function IntegrationsTab({
     },
   };
 
+  const renderWooCommerceSection = () => (
+    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-start gap-3.5">
+          <div className="size-12 rounded-2xl bg-[#9b51e0]/10 text-[#9b51e0] flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
+            <PlatformIcon domain="woocommerce.com" label="WooCommerce" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+              WooCommerce Store Integration
+              {isWcConnected ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Store
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                  Ready to Connect
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
+              Bi-directional sync for WooCommerce product catalogs, inventory levels, prices, and order tracking. Your AI agent can recommend products, share photos, and check stock in real time.
+            </p>
+          </div>
+        </div>
+
+        {isWcConnected && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSyncWc}
+              disabled={syncingWc || !botId}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {syncingWc ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+              <span>{syncingWc ? "Syncing Catalog..." : "Sync Products Now"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDisconnectWc}
+              disabled={loadingWc}
+              className="px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
+      </div>
+
+      {wcSuccessMsg && (
+        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-start gap-2.5 text-emerald-700 dark:text-emerald-300 text-xs">
+          <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+          <span>{wcSuccessMsg}</span>
+        </div>
+      )}
+
+      {wcError && (
+        <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 flex items-start gap-2.5 text-red-600 dark:text-red-400 text-xs">
+          <AlertCircle className="size-4 shrink-0 mt-0.5" />
+          <span>{wcError}</span>
+        </div>
+      )}
+
+      {loadingWc ? (
+        <div className="py-12 flex flex-col items-center justify-center gap-2 text-neutral-400">
+          <Loader2 className="size-6 animate-spin text-orange-500" />
+          <span className="text-xs">Checking store status...</span>
+        </div>
+      ) : isWcConnected ? (
+        /* Connected Status Card */
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Store URL</div>
+              <div className="text-xs font-mono font-bold text-neutral-900 dark:text-neutral-100 truncate mt-1">
+                {wcStatus?.store_url || "Connected"}
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Synced Products</div>
+              <div className="text-base font-extrabold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                {wcStatus?.total_products ?? 0} Items
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Sync Status</div>
+              <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1 capitalize flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                {wcStatus?.sync_status || "Active"}
+              </div>
+            </div>
+          </div>
+
+          {/* Webhook Auto-Sync Box */}
+          <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5 text-emerald-500" /> WooCommerce Instant Sync Webhook
+              </span>
+              <button
+                type="button"
+                onClick={() => copyText(WC_WEBHOOK_URL, setCopiedWcWebhook, "WooCommerce Webhook URL copied")}
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-100 cursor-pointer"
+              >
+                {copiedWcWebhook ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                <span>{copiedWcWebhook ? "Copied" : "Copy Webhook URL"}</span>
+              </button>
+            </div>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+              Add this webhook in your WordPress admin under <b>WooCommerce → Settings → Advanced → Webhooks</b> with topic <code>action.woocommerce_update_product</code> to trigger automatic real-time catalog syncing whenever inventory changes.
+            </p>
+          </div>
+        </div>
+      ) : (
+        /* Connection Modes */
+        <div className="space-y-5">
+          <div className="flex border-b border-neutral-200 dark:border-neutral-800">
+            <button
+              type="button"
+              onClick={() => setWcAuthMode("oauth")}
+              className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                wcAuthMode === "oauth"
+                  ? "border-orange-500 text-orange-600 dark:text-orange-400"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              }`}
+            >
+              <Sparkles className="size-3.5" />
+              <span>1-Click Automatic (Recommended)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWcAuthMode("manual")}
+              className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+                wcAuthMode === "manual"
+                  ? "border-orange-500 text-orange-600 dark:text-orange-400"
+                  : "border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              }`}
+            >
+              <Key className="size-3.5" />
+              <span>Manual REST API Keys</span>
+            </button>
+          </div>
+
+          {wcAuthMode === "oauth" ? (
+            <form onSubmit={handleConnectWcOAuth} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  WordPress / WooCommerce Store URL
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="url"
+                    required
+                    value={wcStoreUrl}
+                    onChange={(e) => setWcStoreUrl(e.target.value)}
+                    placeholder="https://yourstore.com"
+                    className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-orange-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loadingWc || !wcStoreUrl.trim()}
+                    className="px-4 py-2 bg-[#9b51e0] hover:bg-[#8640c4] text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    {loadingWc ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                    <span>Connect with WooCommerce (1-Click)</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-neutral-400">
+                  You will be redirected to your WordPress admin to approve read-only product access with 1 click.
+                </p>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleConnectWcManual} className="space-y-3.5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  Store URL
+                </label>
+                <input
+                  type="url"
+                  required
+                  value={wcStoreUrl}
+                  onChange={(e) => setWcStoreUrl(e.target.value)}
+                  placeholder="https://yourstore.com"
+                  className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-orange-500"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Consumer Key (ck_...)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={wcConsumerKey}
+                    onChange={(e) => setWcConsumerKey(e.target.value)}
+                    placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Consumer Secret (cs_...)
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={wcConsumerSecret}
+                    onChange={(e) => setWcConsumerSecret(e.target.value)}
+                    placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-orange-500"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={loadingWc || !wcStoreUrl || !wcConsumerKey || !wcConsumerSecret}
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {loadingWc ? <Loader2 className="size-3.5 animate-spin" /> : <Store className="size-3.5" />}
+                <span>Save &amp; Connect Store</span>
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderCalendarSection = () => (
+    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-start gap-3.5">
+          <div className="size-12 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
+            <PlatformIcon domain="google.com" label="Google Calendar" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+              Google Calendar &amp; Meet Scheduling
+              {googleConnected ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Connected
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                  Ready to Connect
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
+              Autonomous appointment booking across all channels. Live availability engine checks working hours, least-recently-assigned team member rotations, and generates secure anti-tampering booking links.
+            </p>
+          </div>
+        </div>
+
+        {onNavigateTab && (
+          <button
+            type="button"
+            onClick={() => onNavigateTab("settings")}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+          >
+            <Calendar className="size-3.5" />
+            <span>Open Calendar Settings</span>
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Account Status</div>
+          <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mt-1">
+            {googleConnected ? (googleEmail ? `Connected (${googleEmail})` : "Workspace Connected") : "Not Connected"}
+          </div>
+        </div>
+        <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Meeting Links</div>
+          <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mt-1">
+            Google Meet (Auto-generated)
+          </div>
+        </div>
+        <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Assignment Engine</div>
+          <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+            LRU Team Rotation
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderSlackSection = () => (
+    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-start gap-3.5">
+          <div className="size-12 rounded-2xl bg-[#4A154B]/10 text-[#4A154B] dark:text-[#E01E5A] flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
+            <PlatformIcon domain="slack.com" label="Slack" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+              Slack Live Agent Escalation
+              {slackUrlDraft ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Alert Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                  Ready to Configure
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
+              Receive instant alerts in your team&apos;s Slack channel (#support or #leads) whenever a customer triggers human handoff or expresses negative sentiment.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+          Slack Incoming Webhook URL
+        </label>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            type="url"
+            value={slackUrlDraft}
+            onChange={(e) => setSlackUrlDraft(e.target.value)}
+            placeholder="https://hooks.slack.com/services/T000/B000/XXXXX"
+            className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-orange-500"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (setSlackWebhookUrl) setSlackWebhookUrl(slackUrlDraft);
+              showToast?.("Slack Webhook URL saved", "success");
+            }}
+            disabled={!slackUrlDraft.trim()}
+            className="px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl text-xs font-bold hover:bg-neutral-800 cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            Save Webhook
+          </button>
+        </div>
+        <p className="text-[10px] text-neutral-400">
+          Create an Incoming Webhook in your Slack Workspace settings and paste the URL here.
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderMcpSection = () => (
+    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
+        <div className="flex items-start gap-3.5">
+          <div className="size-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
+            <Zap className="size-6 text-amber-500" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+              Model Context Protocol (MCP) Server
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                81 Built-in Tools
+              </span>
+            </h3>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
+              Connect external AI tools, IDEs (Cursor, Windsurf), and agent frameworks directly to Chatty over the open Model Context Protocol.
+            </p>
+          </div>
+        </div>
+
+        {onNavigateTab && (
+          <button
+            type="button"
+            onClick={() => onNavigateTab("mcp")}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+          >
+            <Zap className="size-3.5" />
+            <span>Open MCP Hub</span>
+          </button>
+        )}
+      </div>
+
+      <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">MCP Endpoint URL</div>
+        <code className="text-xs font-mono font-bold text-neutral-900 dark:text-neutral-100 block">
+          {backendUrl}/api/mcp
+        </code>
+        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed pt-1">
+          Provides full tool access for Knowledge RAG retrieval, conversation inspection, omnichannel message dispatch, and WooCommerce synchronization.
+        </p>
+      </div>
+    </div>
+  );
+
   const mobileSelected = embedMobilePlatform ? mobileInstructions[embedMobilePlatform] : null;
 
   return (
-    <div className="max-w-5xl mx-auto w-full py-6 px-4 flex flex-col gap-6">
+    <div className="max-w-7xl mx-auto w-full py-6 px-4 sm:px-6 flex flex-col gap-6">
       {confirmationDialog}
 
-      {/* Sticky Navigation Bar */}
-      <nav
-        className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95"
-        aria-label="Integration sections"
-      >
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
-          {[
-            { id: "omnichannel", label: "Omnichannel Hub", badge: "7 Channels" },
-            { id: "voice", label: "LiveKit Voice" },
-            { id: "embed", label: "Embed & SDKs" },
-            { id: "domains", label: "Domain Security" },
-          ].map((item) => (
+      {/* Global Executive Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex size-9 items-center justify-center rounded-xl bg-orange-500/10 text-[#f97316] border border-orange-500/20 shadow-xs shrink-0">
+              <Sparkles className="size-5" />
+            </span>
+            <h1 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2 flex-wrap">
+              Integrations &amp; Connections Hub
+              <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 border border-emerald-500/20">
+                15 Built-in
+              </span>
+            </h1>
+          </div>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-2xl leading-relaxed">
+            Connect your AI assistant across global messaging channels, e-commerce stores, live WebRTC voice, and developer protocols. All channels route natively to your unified AI reasoning core.
+          </p>
+        </div>
+
+        {/* View Mode & Active Counter */}
+        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto shrink-0">
+          <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 py-1.5 px-3 flex items-center gap-2 text-xs">
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-semibold text-neutral-800 dark:text-neutral-200">{activeIntegrationsCount} of {integrationItems.length} Active</span>
+          </div>
+          <div className="flex items-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950 p-1">
             <button
-              key={item.id}
               type="button"
-              onClick={() =>
-                document.getElementById(`integration-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
-              }
-              className="inline-flex items-center gap-1.5 whitespace-nowrap min-h-8 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:text-neutral-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 cursor-pointer shrink-0"
+              onClick={() => { setViewMode("catalog"); setSelectedIntegrationId(null); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === "catalog"
+                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
+                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              }`}
+              title="Marketplace Grid view"
             >
-              <span>{item.label}</span>
-              {item.badge && (
-                <span className="rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 text-[9px] font-extrabold px-1.5 py-0.5">
-                  {item.badge}
-                </span>
-              )}
+              <Layers className="size-3.5" />
+              <span>Catalog</span>
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setViewMode("expanded")}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === "expanded"
+                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
+                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+              }`}
+              title="Expanded scrollable view"
+            >
+              <Sliders className="size-3.5" />
+              <span>All Expanded</span>
+            </button>
+          </div>
         </div>
-        <div className="hidden sm:flex items-center gap-2 px-3 text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
-          <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-semibold text-neutral-700 dark:text-neutral-300">{activeChannelsCount} of 7 Channels Live</span>
+      </div>
+
+      {/* CATALOG VIEW (DEFAULT MARKETPLACE GRID) */}
+      {viewMode === "catalog" && selectedIntegrationId === null && (
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+          {/* LEFT SIDEBAR: Categories & Filters */}
+          <aside className="w-full lg:w-64 shrink-0 space-y-4">
+            {/* Quick Status Filters */}
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 space-y-1 shadow-xs">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 pb-1">
+                Filter Status
+              </div>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("all")}
+                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
+                  statusFilter === "all"
+                    ? "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300"
+                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <span>All Integrations</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                  {integrationItems.length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("connected")}
+                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
+                  statusFilter === "connected"
+                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-emerald-500" />
+                  Connected
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold">
+                  {integrationItems.filter((i) => i.isConnected).length}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("available")}
+                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
+                  statusFilter === "available"
+                    ? "bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white"
+                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                }`}
+              >
+                <span>Available to Connect</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                  {integrationItems.filter((i) => !i.isConnected).length}
+                </span>
+              </button>
+            </div>
+
+            {/* Categories List */}
+            <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 space-y-1 shadow-xs">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 px-2 pb-1">
+                Categories
+              </div>
+              {categories.map((cat) => {
+                const active = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer ${
+                      active
+                        ? "bg-orange-500 text-white font-bold shadow-xs"
+                        : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    }`}
+                  >
+                    <span className="truncate">{cat.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                      active
+                        ? "bg-white/20 text-white"
+                        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+                    }`}>
+                      {cat.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          {/* RIGHT PANEL: Search + Cards Grid */}
+          <main className="flex-1 min-w-0 space-y-4">
+            {/* Search Bar & Header */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl">
+              <div className="relative flex-1">
+                <Search className="size-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search integrations by name or keyword (e.g. WhatsApp, WooCommerce, Voice)..."
+                  className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl pl-9 pr-8 py-2 text-xs focus:outline-none focus:border-orange-500 transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 cursor-pointer"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400 px-2 shrink-0 font-medium">
+                Showing <strong className="text-neutral-900 dark:text-neutral-100 font-bold">{filteredItems.length}</strong> integrations
+              </div>
+            </div>
+
+            {/* Catalog Grid */}
+            {filteredItems.length === 0 ? (
+              <div className="p-12 text-center bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-3">
+                <div className="size-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-neutral-400 flex items-center justify-center mx-auto">
+                  <Search className="size-6" />
+                </div>
+                <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">No integrations found</h3>
+                <p className="text-xs text-neutral-400 max-w-sm mx-auto">
+                  No matching integration found for &quot;{searchQuery}&quot;. Try searching for another keyword or clearing your filter.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(""); setSelectedCategory("all"); setStatusFilter("all"); }}
+                  className="px-3.5 py-1.5 bg-orange-50 text-[#f97316] rounded-xl text-xs font-semibold hover:bg-orange-100 cursor-pointer"
+                >
+                  Reset All Filters
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredItems.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => handleCardClick(item.id)}
+                    className="group relative flex flex-col justify-between p-5 rounded-2xl border border-neutral-200/90 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-orange-500/50 hover:shadow-md dark:hover:border-orange-500/40 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+                  >
+                    {/* Top Row: Icon + Status */}
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className={`size-11 rounded-xl flex items-center justify-center shrink-0 p-2 shadow-2xs ${item.iconBg}`}>
+                          {item.icon}
+                        </div>
+                        {item.isConnected ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+                            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                          </span>
+                        ) : item.isConfigured ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60">
+                            Saved
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                            Ready
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Middle: Category, Title, Description */}
+                      <div className="mt-3.5 space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                          {item.categoryLabel}
+                        </div>
+                        <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+                          {item.name}
+                        </h3>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed line-clamp-2 pt-0.5">
+                          {item.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Stat Pill + Action Button */}
+                    <div className="pt-4 mt-4 border-t border-neutral-100 dark:border-neutral-800/80 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-semibold text-neutral-500 dark:text-neutral-400 truncate bg-neutral-100 dark:bg-neutral-800/60 px-2 py-0.5 rounded-md">
+                        {item.statsHighlight}
+                      </span>
+                      <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300 group-hover:text-orange-600 dark:group-hover:text-orange-400 flex items-center gap-1 transition-all group-hover:translate-x-0.5">
+                        {item.isConnected ? "Manage" : "Configure"} →
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
         </div>
-      </nav>
+      )}
+
+      {/* FOCUSED VIEW BREADCRUMB (WHEN VIEWING SPECIFIC INTEGRATION) */}
+      {viewMode === "catalog" && selectedIntegrationId !== null && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xs">
+          <button
+            type="button"
+            onClick={() => setSelectedIntegrationId(null)}
+            className="inline-flex items-center gap-2 text-xs font-bold text-neutral-700 dark:text-neutral-200 hover:text-orange-600 dark:hover:text-orange-400 px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="size-4" />
+            <span>Back to Integrations Catalog</span>
+          </button>
+
+          {/* Quick Sibling Switcher for Messaging Channels */}
+          {["whatsapp", "messenger", "instagram", "tiktok", "telegram", "sms", "email"].includes(selectedIntegrationId) && (
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+              {[
+                { id: "whatsapp", label: "WhatsApp", icon: <WhatsAppBrandIcon className="size-3.5" /> },
+                { id: "telegram", label: "Telegram", icon: <TelegramBrandIcon className="size-3.5" /> },
+                { id: "instagram", label: "Instagram", icon: <InstagramBrandIcon className="size-3.5" /> },
+                { id: "messenger", label: "Messenger", icon: <MessengerBrandIcon className="size-3.5" /> },
+                { id: "tiktok", label: "TikTok", icon: <TikTokBrandIcon className="size-3.5" /> },
+                { id: "sms", label: "SMS", icon: <SmsBrandIcon className="size-3.5" /> },
+                { id: "email", label: "Email", icon: <EmailBrandIcon className="size-3.5" /> },
+              ].map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveChannel(s.id as OmnichannelChannelKey);
+                    setSelectedIntegrationId(s.id);
+                  }}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                    activeChannel === s.id
+                      ? "bg-orange-500 text-white shadow-xs"
+                      : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  }`}
+                >
+                  {s.icon}
+                  <span>{s.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* STICKY NAV BAR (SHOWN IN EXPANDED VIEW) */}
+      {viewMode === "expanded" && (
+        <nav
+          className="dashboard-action-bar sticky top-2 z-20 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-2 shadow-sm backdrop-blur dark:border-neutral-800 dark:bg-neutral-900/95"
+          aria-label="Integration sections"
+        >
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+            {[
+              { id: "omnichannel", label: "Omnichannel Hub", badge: "7 Channels" },
+              { id: "woocommerce", label: "WooCommerce" },
+              { id: "voice", label: "LiveKit Voice" },
+              { id: "embed", label: "Embed & SDKs" },
+              { id: "domains", label: "Domain Security" },
+              { id: "calendar", label: "Google Calendar" },
+              { id: "slack", label: "Slack" },
+              { id: "mcp", label: "MCP Hub" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() =>
+                  document.getElementById(`integration-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+                className="inline-flex items-center gap-1.5 whitespace-nowrap min-h-8 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-600 transition-colors hover:bg-orange-50 hover:text-orange-700 dark:text-neutral-300 dark:hover:bg-orange-950/30 dark:hover:text-orange-300 cursor-pointer shrink-0"
+              >
+                <span>{item.label}</span>
+                {item.badge && (
+                  <span className="rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 text-[9px] font-extrabold px-1.5 py-0.5">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="hidden sm:flex items-center gap-2 px-3 text-xs text-neutral-500 dark:text-neutral-400 shrink-0">
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-semibold text-neutral-700 dark:text-neutral-300">{activeIntegrationsCount} of {integrationItems.length} Live</span>
+          </div>
+        </nav>
+      )}
 
       {/* ==================================================================== */}
       {/* SECTION 1: OMNICHANNEL MESSAGING HUB                                 */}
       {/* ==================================================================== */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && ["whatsapp", "messenger", "instagram", "tiktok", "telegram", "sms", "email"].includes(selectedIntegrationId || ""))) && (
       <div
         id="integration-omnichannel"
         className="scroll-mt-24 p-4 sm:p-6 lg:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
@@ -3735,10 +4913,28 @@ export function IntegrationsTab({
           )}
         </div>
       </div>
+      )}
+
+      {/* SECTION WOOCOMMERCE */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "woocommerce")) &&
+        renderWooCommerceSection()}
+
+      {/* SECTION GOOGLE CALENDAR */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "calendar")) &&
+        renderCalendarSection()}
+
+      {/* SECTION SLACK ESCALATION */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "slack")) &&
+        renderSlackSection()}
+
+      {/* SECTION MCP */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "mcp")) &&
+        renderMcpSection()}
 
       {/* ==================================================================== */}
       {/* SECTION 2: LIVEKIT VOICE AGENT                                       */}
       {/* ==================================================================== */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "voice")) && (
       <div
         id="integration-voice"
         className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-violet-200/80 dark:border-violet-900/60 rounded-3xl space-y-6 shadow-sm"
@@ -3857,10 +5053,12 @@ export function IntegrationsTab({
           <span className="rounded-full bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1">Smooth adaptive interruption</span>
         </div>
       </div>
+      )}
 
       {/* ==================================================================== */}
       {/* SECTION 3: EMBED CHATBOT & CMS INTEGRATIONS                          */}
       {/* ==================================================================== */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "embed")) && (
       <div
         id="integration-embed"
         className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
@@ -3972,10 +5170,12 @@ export function IntegrationsTab({
           </div>
         )}
       </div>
+      )}
 
       {/* ==================================================================== */}
       {/* SECTION 4: MOBILE APP SDKS (IOS / ANDROID / REACT NATIVE)            */}
       {/* ==================================================================== */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "mobile")) && (
       <div
         id="integration-mobile"
         className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
@@ -4045,10 +5245,12 @@ export function IntegrationsTab({
           </div>
         )}
       </div>
+      )}
 
       {/* ==================================================================== */}
       {/* SECTION 5: DOMAIN SECURITY (ALLOWED DOMAINS)                         */}
       {/* ==================================================================== */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "domains")) && (
       <div
         id="integration-domains"
         className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-4 shadow-sm"
@@ -4125,6 +5327,21 @@ export function IntegrationsTab({
           </p>
         )}
       </div>
+      )}
+
+      {/* Focused View Bottom Return Bar */}
+      {viewMode === "catalog" && selectedIntegrationId !== null && (
+        <div className="pt-2 flex justify-start">
+          <button
+            type="button"
+            onClick={() => setSelectedIntegrationId(null)}
+            className="inline-flex items-center gap-2 text-xs font-bold text-neutral-600 dark:text-neutral-300 hover:text-orange-600 dark:hover:text-orange-400 px-4 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="size-4" />
+            <span>Back to Integrations Catalog</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
