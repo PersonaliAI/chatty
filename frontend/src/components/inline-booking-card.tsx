@@ -79,6 +79,7 @@ export interface ConfirmedMeeting {
   attendee_name: string;
   attendee_email: string;
   assigned_to_email?: string;
+  assigned_to_name?: string;
   status?: string;
 }
 
@@ -776,6 +777,7 @@ export function InlineBookingCard({
         attendee_name: data.attendee_name || trimmedName,
         attendee_email: data.attendee_email || trimmedEmail,
         assigned_to_email: data.assigned_to_email,
+        assigned_to_name: data.assigned_to_name,
       };
 
       setConfirmedMeeting(confirmed);
@@ -1251,12 +1253,7 @@ export function InlineBookingCard({
                             color: (isSlotSelected && cardMode === "reschedule") ? primaryTextColor : undefined,
                           }}
                         >
-                          <span className="block text-center whitespace-normal leading-tight">{formatSlotTime(slot, activeTimezone)}</span>
-                          {slot.eligible_hosts && slot.eligible_hosts.length > 0 && (
-                            <span className={`mt-1 block truncate text-center text-[9px] ${isSlotSelected && cardMode === "reschedule" ? "opacity-75" : "text-neutral-400 dark:text-neutral-500"}`}>
-                              {slotHostLabel(slot)}
-                            </span>
-                          )}
+                          <span className="block text-center whitespace-normal leading-tight font-medium">{formatSlotTime(slot, activeTimezone)}</span>
                         </button>
                       );
                     })}
@@ -1335,11 +1332,9 @@ export function InlineBookingCard({
                 <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
                   {slotsData?.duration_minutes || 30} min video demo
                 </div>
-                {selectedSlot.eligible_hosts && selectedSlot.eligible_hosts.length > 0 && (
-                  <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5 break-words">
-                    Host: {slotHostLabel(selectedSlot)}
-                  </div>
-                )}
+                <div className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-0.5">
+                  Automated assignment to available specialist
+                </div>
               </div>
             </div>
             <button
@@ -1606,9 +1601,12 @@ export function InlineBookingCard({
             </div>
             {confirmedMeeting.assigned_to_email && (
               <div className="flex items-start gap-2">
-                <ShieldCheck className="size-3.5 text-neutral-400 mt-0.5 shrink-0" />
-                <div className="text-neutral-500 dark:text-neutral-400 text-[11px] break-all">
-                  Host: {confirmedMeeting.assigned_to_email}
+                <ShieldCheck className="size-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                <div className="text-neutral-600 dark:text-neutral-300 text-[11px] break-all">
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-200">Meeting Coordinator:</span>{" "}
+                  {confirmedMeeting.assigned_to_name && confirmedMeeting.assigned_to_name !== confirmedMeeting.assigned_to_email
+                    ? `${confirmedMeeting.assigned_to_name} (${confirmedMeeting.assigned_to_email})`
+                    : confirmedMeeting.assigned_to_email}
                 </div>
               </div>
             )}

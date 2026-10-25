@@ -211,10 +211,15 @@ async def process_widget_booking(
             "provider_event_id": result.get("id"),
         }).execute())
 
-        meeting_id = meet_res.data[0]["id"] if meet_res.data else None
-        if isinstance(result, dict) and meeting_id:
-            result["meeting_id"] = meeting_id
-            result["chatty_meeting_id"] = meeting_id
+        meeting_id = meet_res.data[0]["id"] if meet_res and isinstance(meet_res.data, list) and len(meet_res.data) > 0 and isinstance(meet_res.data[0], dict) and "id" in meet_res.data[0] else None
+        if isinstance(result, dict):
+            if meeting_id:
+                result["meeting_id"] = meeting_id
+                result["chatty_meeting_id"] = meeting_id
+            raw_a_email = args.get("_assigned_to_email") or (user.get("email") or "")
+            result["assigned_to_email"] = raw_a_email.strip().lower() if isinstance(raw_a_email, str) and raw_a_email.strip() else None
+            raw_a_name = args.get("_assigned_to_name") or result["assigned_to_email"]
+            result["assigned_to_name"] = raw_a_name.strip() if isinstance(raw_a_name, str) and raw_a_name.strip() else None
 
         owner_email = user.get("email") or "admin@personaliai.com"
         bot_owner_auth_id = bot.get("user_id")

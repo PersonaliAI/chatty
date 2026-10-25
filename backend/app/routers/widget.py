@@ -2639,7 +2639,28 @@ async def widget_booking_confirm(
         or "https://meet.google.com/"
     )
 
-    assigned_email = exec_res.get("assigned_to_email") or (owner_user.get("email") or "").strip().lower()
+    raw_assigned_email = exec_res.get("assigned_to_email") or (owner_user.get("email") or "")
+    assigned_email = raw_assigned_email.strip().lower() if isinstance(raw_assigned_email, str) else None
+
+    raw_assigned_name = exec_res.get("assigned_to_name") or exec_res.get("_assigned_to_name")
+    assigned_name = raw_assigned_name.strip() if isinstance(raw_assigned_name, str) else None
+
+    if not assigned_name and assigned_email:
+        try:
+            tm_res = await run_db(lambda: supabase.table("chatty_team_members").select("name").eq("bot_id", body.bot_id).ilike("email", assigned_email).limit(1).execute())
+            if tm_res and isinstance(tm_res.data, list) and len(tm_res.data) > 0 and isinstance(tm_res.data[0], dict):
+                raw_n = tm_res.data[0].get("name")
+                if isinstance(raw_n, str) and raw_n.strip():
+                    assigned_name = raw_n.strip()
+        except Exception:
+            pass
+    if not assigned_name and assigned_email and assigned_email == (owner_user.get("email") or "").strip().lower():
+        raw_owner_name = owner_user.get("name") or owner_user.get("full_name")
+        if isinstance(raw_owner_name, str) and raw_owner_name.strip():
+            assigned_name = raw_owner_name.strip()
+        else:
+            assigned_name = assigned_email
+
     meeting_id_val = exec_res.get("meeting_id") or exec_res.get("id")
     booking_meta = json.dumps({
         "id": meeting_id_val,
@@ -2651,6 +2672,7 @@ async def widget_booking_confirm(
         "attendee_name": visitor_name,
         "attendee_email": visitor_email,
         "assigned_to_email": assigned_email,
+        "assigned_to_name": assigned_name or assigned_email,
     })
 
     # Append confirmation to chatty_conversations so the chat history records the scheduled event
@@ -2727,6 +2749,7 @@ async def widget_booking_confirm(
         "attendee_name": visitor_name,
         "attendee_email": visitor_email,
         "assigned_to_email": assigned_email,
+        "assigned_to_name": assigned_name or assigned_email,
     }
 
 
@@ -2913,7 +2936,7 @@ async def widget_booking_reschedule(
     # 6. Industrial-standard cross-timezone business schedule validation
     bh_start = int(bot.get("business_hours_start") if bot.get("business_hours_start") is not None else 9)
     bh_end = int(bot.get("business_hours_end") if bot.get("business_hours_end") is not None else 17)
-    work_days = bot.get("working_days") or ["mon", "tue", "wed", "thu", "fri"]
+    work_days = await avail.get_effective_working_days(supabase, body.bot_id, bot)
     adv_hours = int(bot.get("advance_notice_hours") or 0)
 
     sched_err = avail.validate_slot_against_business_schedule(
@@ -3043,6 +3066,7 @@ async def widget_booking_reschedule(
         "attendee_name": meeting.get("attendee_name") or "Guest",
         "attendee_email": visitor_email,
         "assigned_to_email": assigned_email,
+        "assigned_to_name": assigned_name or assigned_email,
     }
 
 
@@ -3187,6 +3211,41 @@ async def widget_booking_cancel(
     }
 
 
+async def _format_meeting_obj(m: dict[str, Any], bot_id: str) -> dict[str, Any]:
+    from plugins.agent_tools import _format_invitation_time
+    raw_email = m.get("assigned_to_email")
+    assigned_email = raw_email.strip().lower() if isinstance(raw_email, str) else None
+    coordinator_name = assigned_email
+    if assigned_email:
+        try:
+            tm_res = await run_db(lambda: supabase.table("chatty_team_members").select("name").eq("bot_id", bot_id).ilike("email", assigned_email).limit(1).execute())
+            if tm_res and isinstance(tm_res.data, list) and len(tm_res.data) > 0 and isinstance(tm_res.data[0], dict):
+                raw_n = tm_res.data[0].get("name")
+                if isinstance(raw_n, str) and raw_n.strip():
+                    coordinator_name = raw_n.strip()
+            else:
+                u_res = await run_db(lambda: supabase.table("users").select("name, full_name").ilike("email", assigned_email).limit(1).execute())
+                if u_res and isinstance(u_res.data, list) and len(u_res.data) > 0 and isinstance(u_res.data[0], dict):
+                    raw_un = u_res.data[0].get("name") or u_res.data[0].get("full_name")
+                    if isinstance(raw_un, str) and raw_un.strip():
+                        coordinator_name = raw_un.strip()
+        except Exception:
+            pass
+
+    return {
+        "id": m["id"],
+        "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
+        "summary": m.get("title") or f"Demo Meeting with {m.get('attendee_name') or 'Guest'}",
+        "start_time": m["start_time"],
+        "end_time": m["end_time"],
+        "attendee_name": m.get("attendee_name") or "Guest",
+        "attendee_email": m["attendee_email"],
+        "meeting_link": m.get("meeting_link") or "https://meet.google.com/",
+        "assigned_to_email": assigned_email,
+        "assigned_to_name": coordinator_name or assigned_email,
+    }
+
+
 @router.get("/api/widget/booking/active")
 async def widget_booking_active(
     bot_id: str,
@@ -3211,22 +3270,10 @@ async def widget_booking_active(
             .execute()
         )
         if res.data:
-            m = res.data[0]
-            from plugins.agent_tools import _format_invitation_time
             return {
                 "success": True,
                 "has_active": True,
-                "meeting": {
-                    "id": m["id"],
-                    "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
-                    "summary": m.get("title") or f"Demo Meeting with {m.get('attendee_name') or 'Guest'}",
-                    "start_time": m["start_time"],
-                    "end_time": m["end_time"],
-                    "attendee_name": m.get("attendee_name") or "Guest",
-                    "attendee_email": m["attendee_email"],
-                    "meeting_link": m.get("meeting_link") or "https://meet.google.com/",
-                    "assigned_to_email": m.get("assigned_to_email"),
-                },
+                "meeting": await _format_meeting_obj(res.data[0], bot_id),
             }
 
     # 2. Search by session leads
@@ -3281,21 +3328,10 @@ async def widget_booking_active(
                             pass
 
             if m:
-                from plugins.agent_tools import _format_invitation_time
                 return {
                     "success": True,
                     "has_active": True,
-                    "meeting": {
-                        "id": m["id"],
-                        "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
-                        "summary": m.get("title") or f"Demo Meeting with {m.get('attendee_name') or 'Guest'}",
-                        "start_time": m["start_time"],
-                        "end_time": m["end_time"],
-                        "attendee_name": m.get("attendee_name") or "Guest",
-                        "attendee_email": m["attendee_email"],
-                        "meeting_link": m.get("meeting_link") or "https://meet.google.com/",
-                        "assigned_to_email": m.get("assigned_to_email"),
-                    },
+                    "meeting": await _format_meeting_obj(m, bot_id),
                 }
         except Exception:
             logger.exception("Failed looking up active meeting by session")

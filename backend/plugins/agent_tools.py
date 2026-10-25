@@ -1964,7 +1964,11 @@ async def execute(
                         booking_user["_table"] = assignee["table"]
                     if assignee.get("calendar_id"):
                         args = {**args, "calendar_id": assignee["calendar_id"]}
-                    args = {**args, "_assigned_to_email": assignee["email"]}
+                    args = {
+                        **args,
+                        "_assigned_to_email": assignee["email"],
+                        "_assigned_to_name": assignee.get("name") or assignee["email"],
+                    }
                 except (g.GoogleNotConnected, ms.MicrosoftNotConnected):
                     raise
                 except Exception:

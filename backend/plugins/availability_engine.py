@@ -34,6 +34,44 @@ from plugins import microsoft_integrations as ms
 _DAY_NUM = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
 _DAY_LABEL = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday",
               4: "Friday", 5: "Saturday", 6: "Sunday"}
+_NUM_TO_DAY = {0: "mon", 1: "tue", 2: "wed", 3: "thu", 4: "fri", 5: "sat", 6: "sun"}
+
+
+async def get_effective_working_days(
+    supabase,
+    bot_id: str,
+    bot: dict[str, Any],
+) -> list[str]:
+    """Calculate the union of working days across the bot and all active team members.
+    If the bot is configured with working_days, and team members have their own
+    chatty_availability_rules, this returns all unique days of the week where at least
+    one bookable member is active.
+    """
+    days: set[str] = set()
+    for d in (bot.get("working_days") or ["mon", "tue", "wed", "thu", "fri"]):
+        if d and str(d).lower()[:3] in _DAY_NUM:
+            days.add(str(d).lower()[:3])
+
+    if supabase and bot_id:
+        try:
+            res = await run_db(
+                lambda: supabase.table("chatty_availability_rules")
+                .select("day_of_week")
+                .eq("bot_id", bot_id)
+                .execute()
+            )
+            for r in res.data or []:
+                dow = r.get("day_of_week")
+                if dow is not None and dow in _NUM_TO_DAY:
+                    days.add(_NUM_TO_DAY[dow])
+        except Exception:
+            pass
+
+    if not days:
+        days = {"mon", "tue", "wed", "thu", "fri"}
+
+    # Sort days in standard calendar order (mon=0 to sun=6)
+    return sorted(list(days), key=lambda d: _DAY_NUM.get(d, 99))
 
 
 def resolve_owner_timezone(bot: dict[str, Any], owner_user: dict[str, Any]) -> str:
@@ -780,7 +818,26 @@ async def pick_assignee(
     except Exception:
         pass
 
-    free.sort(key=lambda m: counts.get(m["email"], 0))
+    # Industrial-standard round-robin:
+    # 1. Primary metric: Load balancing (fewest meetings scheduled this week).
+    # 2. Secondary metric: Least-recently-assigned (oldest last assignment timestamp in chatty_meetings).
+    last_assigned: dict[str, str] = {}
+    try:
+        free_emails = [m["email"].lower() for m in free if m.get("email")]
+        res_last = await run_db(lambda: supabase.table("chatty_meetings").select(
+            "assigned_to_email, created_at").eq(
+            "bot_id", bot_id).neq("status", "cancelled").in_(
+            "assigned_to_email", free_emails).order("created_at", desc=True).limit(50).execute())
+        for row in res_last.data or []:
+            em = (row.get("assigned_to_email") or "").strip().lower()
+            if em and em not in last_assigned:
+                last_assigned[em] = row.get("created_at") or ""
+    except Exception:
+        pass
+
+    # Sort key: (weekly_meeting_count, last_assigned_iso_timestamp)
+    # Empty string "" for last_assigned sorts first, so never-assigned members get prioritized.
+    free.sort(key=lambda m: (counts.get(m["email"].lower(), 0), last_assigned.get(m["email"].lower(), "")))
     return free[0]
 
 

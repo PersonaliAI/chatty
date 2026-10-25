@@ -604,7 +604,8 @@ async def run_widget_assistant(
     bh_start = 9 if bh_start is None else int(bh_start)
     bh_end = bot.get("business_hours_end")
     bh_end = 17 if bh_end is None else int(bh_end)
-    work_days = bot.get("working_days") or ["mon", "tue", "wed", "thu", "fri"]
+    from plugins import availability_engine as avail
+    work_days = await avail.get_effective_working_days(supabase, bot_id, bot)
     _day_names = {"mon": "Monday", "tue": "Tuesday", "wed": "Wednesday",
                   "thu": "Thursday", "fri": "Friday", "sat": "Saturday", "sun": "Sunday"}
     work_days_str = ", ".join(_day_names.get(d, d) for d in work_days)
@@ -698,7 +699,8 @@ async def run_widget_assistant(
             f"- Current Time at Business Owner's Location: {current_time_owner}\n\n"
             f"SCHEDULING RULES:\n"
             f"- Meeting Duration: Exactly {duration_min} minutes. The difference between start and end must be exactly {duration_min} minutes.\n"
-            f"- Allowed Business Hours: Only schedule meetings between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)} in the Business Owner's timezone ({owner_tz_str}), on these days only: {work_days_str}. Never book outside these hours or on other days.\n"
+            f"- Team Working Days & Hours: Team coverage spans {work_days_str} between {_fmt_hour(bh_start)} and {_fmt_hour(bh_end)} in the Business Owner's timezone ({owner_tz_str}).\n"
+            f"- LIVE AVAILABILITY IS THE SOLE SOURCE OF TRUTH: Different team specialists and coordinators have individual recurring availability schedules across different days. NEVER assume a day or time is unavailable or claim our team is only available on specific days without calling `get_available_slots`. Whenever a visitor mentions or inquires about ANY day or time (e.g. 'tomorrow', 'Monday', 'next Tuesday', '2 pm'), you MUST call `get_available_slots` to query live team availability for that date. Only state that a day or time is unavailable if `get_available_slots` actually returns zero open slots for that date.\n"
             f"{buffer_line}"
             f"{advance_line}"
             f"{max_daily_line}"
@@ -719,7 +721,7 @@ async def run_widget_assistant(
             f"   - If the exact requested time IS AVAILABLE:\n"
             f"     * Acknowledge that the slot is open, and proceed to Step 3.\n"
             f"   - If the requested time is NOT AVAILABLE or was general:\n"
-            f"     * Explain politely that the requested time is not available or outside business hours, and list the alternative available slots returned by `get_available_slots`.\n"
+            f"     * Call `get_available_slots` near their requested time. If slots are found, politely present the available times returned by `get_available_slots`. NEVER state that a day or weekday is unavailable without first checking `get_available_slots`.\n"
             f"     * STRICT RULE: DO NOT ask for contact details (name/email) yet when presenting alternatives! Ask which of the offered slots works best for them, and WAIT for the visitor to choose a slot first!\n\n"
             f"3. SLOT CONFIRMED -> ALLOCATE TIME & REQUEST DETAILS (Required & Optional):\n"
             f"   - As soon as the visitor confirms or picks a specific slot (e.g. 'yes 9.30 am ok', '10:30 am is good', 'let's do 10:00 AM'):\n"
