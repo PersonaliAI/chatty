@@ -434,26 +434,23 @@ class OmnichannelPipeline:
         booking_url = None
         should_inject_booking = is_booking_intent(message.text, reply, calendar_enabled=calendar_enabled)
 
-        # Always strip any echoed booking CTA blocks or raw /book/<bot_id> URLs from LLM output first
+        # Clean any echoed booking CTAs, raw /book/ URLs, or markers from LLM output before attaching fresh CTA
+        reply = reply.replace("[BOOKING_WIDGET]", "").strip()
+        reply = re.sub(r"\[[^\]]*\]\(https?://[^\s)]+/book/[^\s)]+\)", "", reply, flags=re.IGNORECASE)
+        reply = re.sub(r"https?://[^\s)\]]+/book/[0-9a-fA-F-]{36}[^\s)\]]*", "", reply, flags=re.IGNORECASE)
         reply = re.sub(
-            r"(?:📅\s*)?(?:\*{0,2})schedule your appointment(?:\s+here)?:(?:\*{0,2})\s*"
-            r"https?://[^\s)]+/book/[^\s)]+"
-            r"(?:\s*(?:_?tap|click) the link to choose your preferred date (?:&|and) time slot\.?_?)?",
+            r"(?:📅\s*)?(?:\*{0,2}|_{0,2})schedule your appointment(?:\s+here)?:?(?:\*{0,2}|_{0,2})",
             "",
             reply,
             flags=re.IGNORECASE,
-        ).strip()
+        )
         reply = re.sub(
-            r"https?://[^\s)]+/book/[0-9a-fA-F-]{36}[^\s)]*",
-            "",
-            reply,
-        ).strip()
-        reply = re.sub(
-            r"(?:📅\s*)?(?:\*{0,2})schedule your appointment(?:\s+here)?:?(?:\*{0,2})\s*$",
+            r"(?:_|\*)?(?:tap|click) the link to choose your preferred date (?:&|and) time slot\.?(?:_|\*)?",
             "",
             reply,
             flags=re.IGNORECASE,
-        ).strip()
+        )
+        reply = re.sub(r"\n{3,}", "\n\n", reply).strip()
 
         if should_inject_booking:
             secret = get_bot_whatsapp_secret(bot)
@@ -463,9 +460,7 @@ class OmnichannelPipeline:
                 identifier=message.sender_id,
                 secret=secret,
             )
-            reply = reply.replace("[BOOKING_WIDGET]", "").strip() + booking_cta
-        else:
-            reply = reply.replace("[BOOKING_WIDGET]", "").strip()
+            reply = reply + booking_cta
 
         # 10. Format response for channel (order cards, product cards, etc.)
         has_handoff_marker = "[HANDOFF_ACTIONS]" in reply

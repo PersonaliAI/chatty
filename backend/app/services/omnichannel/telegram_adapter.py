@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+import re
 from typing import Any, Optional
 
 import httpx
@@ -82,6 +83,16 @@ def normalize_telegram_update(update: dict[str, Any]) -> Optional[InboundMessage
     )
 
 
+def format_telegram_markdown(text: str) -> str:
+    """Escapes underscores in URLs so Telegram Markdown v1 parser doesn't
+    treat them as italic tags (which corrupts 'session_id=' into 'sessionid=')."""
+    if not text:
+        return ""
+    def _escape_url(match):
+        return match.group(0).replace("_", r"\_")
+    return re.sub(r"https?://[^\s)]+", _escape_url, text)
+
+
 async def send_outbound_telegram(
     bot_token: str,
     chat_id: str | int,
@@ -96,8 +107,9 @@ async def send_outbound_telegram(
 
     url = f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage"
 
+    formatted_text = format_telegram_markdown(text)
     # Telegram caps messages at 4096 UTF-8 characters
-    chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)] or [text]
+    chunks = [formatted_text[i:i + 4000] for i in range(0, len(formatted_text), 4000)] or [formatted_text]
 
     reply_markup: dict[str, Any] = {}
     if inline_buttons:

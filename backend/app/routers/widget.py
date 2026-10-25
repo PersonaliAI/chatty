@@ -2981,6 +2981,20 @@ async def widget_booking_reschedule(
 
     # 9. Record confirmation message in chatty_conversations
     assigned_email = meeting.get("assigned_to_email") or host_user.get("email")
+    assigned_name = meeting.get("assigned_to_name")
+    if not assigned_name and assigned_email:
+        try:
+            tm_res = await run_db(lambda: supabase.table("chatty_team_members").select("name").eq("bot_id", body.bot_id).ilike("email", assigned_email).limit(1).execute())
+            if tm_res and isinstance(tm_res.data, list) and len(tm_res.data) > 0 and isinstance(tm_res.data[0], dict):
+                raw_n = tm_res.data[0].get("name")
+                if isinstance(raw_n, str) and raw_n.strip():
+                    assigned_name = raw_n.strip()
+            if not assigned_name and host_user:
+                u_name = host_user.get("name") or host_user.get("full_name")
+                if isinstance(u_name, str) and u_name.strip():
+                    assigned_name = u_name.strip()
+        except Exception:
+            pass
     resched_summary = meeting.get("title") or f"Demo Meeting with {meeting.get('attendee_name') or 'Guest'}"
     if body.session_id:
         try:
