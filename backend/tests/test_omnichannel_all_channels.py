@@ -707,4 +707,87 @@ def test_update_visitor_timezone_tool():
         assert context["visitor_timezone"] == "Asia/Tokyo"
 
 
+def test_resolve_omnichannel_visitor_timezone_from_lead():
+    from app.services.omnichannel.pipeline import _resolve_omnichannel_visitor_timezone
+
+    mock_supabase = MagicMock()
+    fake_lead = {
+        "id": "lead-1",
+        "email": "visitor@example.com",
+        "custom_fields": {"visitor_timezone": "Asia/Colombo"},
+    }
+
+    with patch("app.services.omnichannel.pipeline.run_db", new_callable=AsyncMock) as mock_db:
+        mock_db.return_value = MagicMock(data=[fake_lead])
+
+        bot = {"bot_timezone": "UTC"}
+        user = {"timezone": "UTC"}
+
+        tz = asyncio.run(_resolve_omnichannel_visitor_timezone(
+            supabase=mock_supabase,
+            bot_id="bot-1",
+            bot=bot,
+            owner_user=user,
+            session_id="tg:7848543218",
+            sender_id="7848543218",
+        ))
+        assert tz == "Asia/Colombo"
+
+
+def test_resolve_omnichannel_visitor_timezone_from_meeting():
+    from app.services.omnichannel.pipeline import _resolve_omnichannel_visitor_timezone
+
+    mock_supabase = MagicMock()
+    fake_lead = {
+        "id": "lead-1",
+        "email": "visitor@example.com",
+        "custom_fields": {},
+    }
+    fake_meeting = {
+        "timezone": "Asia/Colombo",
+    }
+
+    with patch("app.services.omnichannel.pipeline.run_db", new_callable=AsyncMock) as mock_db:
+        mock_db.side_effect = [
+            MagicMock(data=[fake_lead]),
+            MagicMock(data=[fake_meeting]),
+        ]
+
+        bot = {"bot_timezone": "UTC"}
+        user = {"timezone": "UTC"}
+
+        tz = asyncio.run(_resolve_omnichannel_visitor_timezone(
+            supabase=mock_supabase,
+            bot_id="bot-1",
+            bot=bot,
+            owner_user=user,
+            session_id="tg:7848543218",
+            sender_id="7848543218",
+        ))
+        assert tz == "Asia/Colombo"
+
+
+def test_resolve_omnichannel_visitor_timezone_fallback_to_bot():
+    from app.services.omnichannel.pipeline import _resolve_omnichannel_visitor_timezone
+
+    mock_supabase = MagicMock()
+
+    with patch("app.services.omnichannel.pipeline.run_db", new_callable=AsyncMock) as mock_db:
+        mock_db.return_value = MagicMock(data=[])
+
+        bot = {"bot_timezone": "America/New_York"}
+        user = {"timezone": "UTC"}
+
+        tz = asyncio.run(_resolve_omnichannel_visitor_timezone(
+            supabase=mock_supabase,
+            bot_id="bot-1",
+            bot=bot,
+            owner_user=user,
+            session_id="tg:7848543218",
+            sender_id="7848543218",
+        ))
+        assert tz == "America/New_York"
+
+
+
 

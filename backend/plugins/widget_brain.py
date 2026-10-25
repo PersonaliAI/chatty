@@ -478,6 +478,102 @@ async def run_widget_assistant(
     except Exception:
         logger.exception("Multimodal RAG search failed")
 
+    # ── VISITOR MEMORY & ACTIVE APPOINTMENTS (Context Awareness) ──
+    lead_row = None
+    lead_memory_lines: list[str] = []
+    try:
+        lead_res = await run_db(
+            lambda: supabase.table("chatty_leads")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("session_id", session_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        # If not found by session_id and it's a WhatsApp session (wa:<phone>), query by phone number
+        if not (lead_res and lead_res.data) and session_id and session_id.startswith("wa:"):
+            wa_phone = session_id[3:].strip()
+            lead_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("*")
+                .eq("bot_id", bot_id)
+                .ilike("phone", f"%{wa_phone[-10:]}%")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+        if lead_res and lead_res.data:
+            lead_row = lead_res.data[0]
+            if lead_row.get("name"):
+                lead_memory_lines.append(f"- Visitor Name: {lead_row['name']}")
+            if lead_row.get("email"):
+                lead_memory_lines.append(f"- Visitor Email: {lead_row['email']}")
+            if lead_row.get("phone"):
+                lead_memory_lines.append(f"- Visitor Phone: {lead_row['phone']}")
+            if lead_row.get("custom_fields") and isinstance(lead_row["custom_fields"], dict):
+                for k, v in lead_row["custom_fields"].items():
+                    if v and str(v).strip():
+                        lead_memory_lines.append(f"- {k.capitalize()}: {v}")
+                cf_tz = lead_row["custom_fields"].get("visitor_timezone")
+                if cf_tz and (not visitor_timezone or visitor_timezone == "UTC"):
+                    visitor_timezone = str(cf_tz).strip()
+    except Exception:
+        logger.exception("Error loading lead profile into widget brain memory")
+
+    active_meetings_lines: list[str] = []
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        filter_parts: list[str] = []
+        if lead_row:
+            if lead_row.get("id"):
+                filter_parts.append(f"lead_id.eq.{lead_row['id']}")
+            if lead_row.get("email"):
+                filter_parts.append(f"attendee_email.eq.{lead_row['email'].strip().lower()}")
+
+        if filter_parts:
+            meet_res = await run_db(
+                lambda: supabase.table("chatty_meetings")
+                .select("id, title, start_time, end_time, attendee_name, attendee_email, meeting_link, status, timezone")
+                .eq("bot_id", bot_id)
+                .neq("status", "cancelled")
+                .gte("end_time", now_iso)
+                .or_(",".join(filter_parts))
+                .order("start_time", desc=False)
+                .limit(3)
+                .execute()
+            )
+            if meet_res and meet_res.data:
+                for m in meet_res.data:
+                    m_tz = (m.get("timezone") or "").strip() or visitor_timezone
+                    m_start = agent_tools._format_invitation_time(m["start_time"], m_tz)
+                    m_link = m.get("meeting_link") or "Online Meeting Link"
+                    m_title = m.get("title") or "Scheduled Appointment"
+                    m_status = m.get("status") or "scheduled"
+                    active_meetings_lines.append(
+                        f"- '{m_title}' scheduled for {m_start} (Status: {m_status}). Link: {m_link}"
+                    )
+                    if m.get("timezone") and (not visitor_timezone or visitor_timezone == "UTC"):
+                        visitor_timezone = str(m["timezone"]).strip()
+    except Exception:
+        logger.exception("Error loading active meetings into widget brain memory")
+
+    visitor_memory_block = ""
+    if lead_memory_lines or active_meetings_lines:
+        mem_sections = ["VISITOR MEMORY & BOOKING CONTEXT:"]
+        if lead_memory_lines:
+            mem_sections.append("KNOWN VISITOR PROFILE:")
+            mem_sections.extend(lead_memory_lines)
+        if active_meetings_lines:
+            mem_sections.append("ACTIVE UPCOMING APPOINTMENTS:")
+            mem_sections.extend(active_meetings_lines)
+        mem_sections.append(
+            "CRITICAL MEMORY INSTRUCTION: You already know this visitor and their appointments. "
+            "Address them personally. If they ask about their booking or appointment details, provide their confirmed time and meeting link directly. "
+            "DO NOT ask for their name, email, or contact details again because you already have them on file!"
+        )
+        visitor_memory_block = "\n".join(mem_sections) + "\n\n"
+
     # 3. Timezone Calculations
     import pytz
     now_utc = datetime.now(timezone.utc)
@@ -614,7 +710,7 @@ async def run_widget_assistant(
             f"- Whenever the visitor asks to book a demo, meeting, or appointment, or inquires about scheduling or open slots, ALWAYS warmly confirm and append the exact marker `[BOOKING_WIDGET]` at the end of your message. This automatically opens the interactive booking slot picker and contact form directly in the chat!\n\n"
             f"1. PREFERRED DAY & TIME INQUIRY:\n"
             f"   - When the visitor asks to book a demo, meeting, or appointment, warmly confirm: 'Yes, you can book a demo! You can pick a time slot below or let me know what day and time works best for you.' and append `[BOOKING_WIDGET]`.\n"
-            f"   - The visitor's timezone is ALREADY known as {visitor_timezone or 'UTC'}. NEVER ask the visitor what timezone they are in.\n"
+            f"   - Timezone context: Active timezone is {visitor_timezone or 'UTC'}. Always show times with their timezone tag in brackets (e.g. '10:00 AM ({visitor_timezone or 'UTC'})'). If the visitor mentions their city, country, or preferred timezone (or asks to change it), immediately call `update_visitor_timezone` to align all future slots and existing meetings with their local clock.\n"
             f"   - RELATIVE DATES: When the visitor gives a relative date (such as 'tomorrow', 'tomorrow at 10 am', 'next Monday', 'day after tomorrow'), you MUST resolve it to the exact calendar date immediately using 'Current Time in Visitor's Location' ({current_time_visitor}). NEVER ask the visitor to confirm what date tomorrow is - calculate it yourself!\n\n"
             f"2. AVAILABILITY CHECK & SLOT SELECTION:\n"
             f"   - {avail_instruction}\n"
@@ -891,96 +987,6 @@ async def run_widget_assistant(
             "NOTE: No business knowledge has been added yet. Be upfront that you don't have specific information yet, "
             "collect the visitor's name and email so the team can follow up, and keep it friendly.\n\n"
         )
-
-    # ── VISITOR MEMORY & ACTIVE APPOINTMENTS (Context Awareness) ──
-    lead_row = None
-    lead_memory_lines: list[str] = []
-    try:
-        lead_res = await run_db(
-            lambda: supabase.table("chatty_leads")
-            .select("*")
-            .eq("bot_id", bot_id)
-            .eq("session_id", session_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        # If not found by session_id and it's a WhatsApp session (wa:<phone>), query by phone number
-        if not (lead_res and lead_res.data) and session_id and session_id.startswith("wa:"):
-            wa_phone = session_id[3:].strip()
-            lead_res = await run_db(
-                lambda: supabase.table("chatty_leads")
-                .select("*")
-                .eq("bot_id", bot_id)
-                .ilike("phone", f"%{wa_phone[-10:]}%")
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-        if lead_res and lead_res.data:
-            lead_row = lead_res.data[0]
-            if lead_row.get("name"):
-                lead_memory_lines.append(f"- Visitor Name: {lead_row['name']}")
-            if lead_row.get("email"):
-                lead_memory_lines.append(f"- Visitor Email: {lead_row['email']}")
-            if lead_row.get("phone"):
-                lead_memory_lines.append(f"- Visitor Phone: {lead_row['phone']}")
-            if lead_row.get("custom_fields") and isinstance(lead_row["custom_fields"], dict):
-                for k, v in lead_row["custom_fields"].items():
-                    if v and str(v).strip():
-                        lead_memory_lines.append(f"- {k.capitalize()}: {v}")
-    except Exception:
-        logger.exception("Error loading lead profile into widget brain memory")
-
-    active_meetings_lines: list[str] = []
-    try:
-        now_iso = datetime.now(timezone.utc).isoformat()
-        filter_parts: list[str] = []
-        if lead_row:
-            if lead_row.get("id"):
-                filter_parts.append(f"lead_id.eq.{lead_row['id']}")
-            if lead_row.get("email"):
-                filter_parts.append(f"attendee_email.eq.{lead_row['email'].strip().lower()}")
-
-        if filter_parts:
-            meet_res = await run_db(
-                lambda: supabase.table("chatty_meetings")
-                .select("id, title, start_time, end_time, attendee_name, attendee_email, meeting_link, status")
-                .eq("bot_id", bot_id)
-                .neq("status", "cancelled")
-                .gte("end_time", now_iso)
-                .or_(",".join(filter_parts))
-                .order("start_time", desc=False)
-                .limit(3)
-                .execute()
-            )
-            if meet_res and meet_res.data:
-                for m in meet_res.data:
-                    m_start = agent_tools._format_invitation_time(m["start_time"], visitor_timezone)
-                    m_link = m.get("meeting_link") or "Online Meeting Link"
-                    m_title = m.get("title") or "Scheduled Appointment"
-                    m_status = m.get("status") or "scheduled"
-                    active_meetings_lines.append(
-                        f"- '{m_title}' scheduled for {m_start} (Status: {m_status}). Link: {m_link}"
-                    )
-    except Exception:
-        logger.exception("Error loading active meetings into widget brain memory")
-
-    visitor_memory_block = ""
-    if lead_memory_lines or active_meetings_lines:
-        mem_sections = ["VISITOR MEMORY & BOOKING CONTEXT:"]
-        if lead_memory_lines:
-            mem_sections.append("KNOWN VISITOR PROFILE:")
-            mem_sections.extend(lead_memory_lines)
-        if active_meetings_lines:
-            mem_sections.append("ACTIVE UPCOMING APPOINTMENTS:")
-            mem_sections.extend(active_meetings_lines)
-        mem_sections.append(
-            "CRITICAL MEMORY INSTRUCTION: You already know this visitor and their appointments. "
-            "Address them personally. If they ask about their booking or appointment details, provide their confirmed time and meeting link directly. "
-            "DO NOT ask for their name, email, or contact details again because you already have them on file!"
-        )
-        visitor_memory_block = "\n".join(mem_sections) + "\n\n"
 
     flow_directive_block = ""
     if flow_context:

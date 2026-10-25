@@ -65,6 +65,86 @@ DEFAULT_QUOTA_REPLY = (
 logger = logging.getLogger("chatty.omnichannel.pipeline")
 
 
+async def _resolve_omnichannel_visitor_timezone(
+    supabase,
+    bot_id: str,
+    bot: dict[str, Any],
+    owner_user: dict[str, Any],
+    session_id: str,
+    sender_id: str,
+) -> str:
+    """Resolve the visitor's local timezone for omnichannel sessions.
+    1. Checks chatty_leads for this session or sender ID (custom_fields.visitor_timezone).
+    2. Checks chatty_meetings for any active/scheduled appointment for this lead.
+    3. Falls back to bot_timezone -> owner_user timezone -> UTC.
+    """
+    import pytz
+    try:
+        lead_res = await run_db(
+            lambda: supabase.table("chatty_leads")
+            .select("id, email, phone, custom_fields")
+            .eq("bot_id", bot_id)
+            .eq("session_id", session_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not (lead_res and lead_res.data) and session_id.startswith("wa:"):
+            wa_phone = sender_id.replace("+", "").strip()
+            lead_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("id, email, phone, custom_fields")
+                .eq("bot_id", bot_id)
+                .ilike("phone", f"%{wa_phone[-10:]}%")
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+
+        if lead_res and lead_res.data:
+            lead = lead_res.data[0]
+            cf = lead.get("custom_fields") or {}
+            if isinstance(cf, dict) and cf.get("visitor_timezone"):
+                candidate = str(cf["visitor_timezone"]).strip()
+                try:
+                    pytz.timezone(candidate)
+                    return candidate
+                except Exception:
+                    pass
+
+            lead_id = lead.get("id")
+            lead_email = (lead.get("email") or "").strip().lower()
+            filters: list[str] = []
+            if lead_id:
+                filters.append(f"lead_id.eq.{lead_id}")
+            if lead_email:
+                filters.append(f"attendee_email.eq.{lead_email}")
+            if filters:
+                meet_res = await run_db(
+                    lambda: supabase.table("chatty_meetings")
+                    .select("timezone")
+                    .eq("bot_id", bot_id)
+                    .neq("status", "cancelled")
+                    .or_(",".join(filters))
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if meet_res and meet_res.data:
+                    m_tz = (meet_res.data[0].get("timezone") or "").strip()
+                    if m_tz:
+                        try:
+                            pytz.timezone(m_tz)
+                            return m_tz
+                        except Exception:
+                            pass
+    except Exception:
+        logger.exception("Failed resolving visitor timezone for omnichannel session %s", session_id)
+
+    from plugins.availability_engine import resolve_owner_timezone
+    return resolve_owner_timezone(bot, owner_user)
+
+
 class OmnichannelPipeline:
     """Industrial-grade orchestrator for omnichannel customer communications."""
 
@@ -299,7 +379,14 @@ class OmnichannelPipeline:
 
         # 7b. Execute Published Flow Builder Workflows (e.g., WhatsApp time-based offer campaigns)
         flow_reply = ""
-        bot_tz = str(bot.get("timezone") or owner_user.get("timezone") or "UTC")
+        visitor_tz = await _resolve_omnichannel_visitor_timezone(
+            supabase=supabase,
+            bot_id=bot_id,
+            bot=bot,
+            owner_user=owner_user,
+            session_id=session_id,
+            sender_id=message.sender_id,
+        )
         try:
             flow_res = await run_widget_flow(
                 supabase,
@@ -312,7 +399,7 @@ class OmnichannelPipeline:
                     "platform": message.channel.value,
                     "sender_id": message.sender_id,
                     "visitor_name": getattr(message, "sender_name", None) or message.sender_id,
-                    "timezone": bot_tz,
+                    "timezone": visitor_tz,
                 },
             )
             flow_reply = str(flow_res.get("reply") or "").strip()
@@ -330,7 +417,7 @@ class OmnichannelPipeline:
                     bot=bot,
                     session_id=session_id,
                     text=message.text,
-                    visitor_timezone=bot_tz,
+                    visitor_timezone=visitor_tz,
                     media_bytes=message.media_bytes,
                     media_mime=message.media_mime,
                 )

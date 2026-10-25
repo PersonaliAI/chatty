@@ -1655,10 +1655,38 @@ export function InlineBookingCard({
             )}
           </div>
 
+          {/* Reschedule & Cancel Actions */}
+          <div className="pt-2 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedSlot(null);
+                setRescheduleError(null);
+                setCardMode("reschedule");
+                fetchSlots(activeTimezone);
+              }}
+              className="flex-1 py-2 px-3 rounded-xl border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Clock className="size-3.5 text-neutral-500" />
+              <span>Reschedule</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCancelError(null);
+                setCardMode("cancel_confirm");
+              }}
+              className="flex-1 py-2 px-3 rounded-xl border border-red-200/80 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <XCircle className="size-3.5 text-red-500" />
+              <span>Cancel Meeting</span>
+            </button>
+          </div>
+
           {/* Locked Confirmation Footer */}
           <div className="pt-2.5 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-center gap-1.5 text-[10px] text-neutral-400 dark:text-neutral-500 text-center">
             <ShieldCheck className="size-3 text-emerald-500 shrink-0" />
-            <span className="leading-snug">Booking confirmed & locked · Check your email for calendar invite</span>
+            <span className="leading-snug">Booking confirmed & synced · Check your email for calendar invite</span>
           </div>
         </div>
       )}

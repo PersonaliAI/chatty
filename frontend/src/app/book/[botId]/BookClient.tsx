@@ -218,8 +218,8 @@ export default function BookClient({
         )}
 
         {/* Hero Card Header */}
-        <div className="mb-4 text-center sm:text-left sm:flex sm:items-center sm:justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800/80">
-          <div>
+        <div className="mb-4 text-center sm:text-left sm:flex sm:items-center sm:justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800/80 gap-3">
+          <div className="min-w-0 flex-1">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
               {activeMeeting ? "Your Scheduled Appointment" : "Select an Appointment Time"}
             </h2>
@@ -229,15 +229,15 @@ export default function BookClient({
                 : `Choose your preferred slot below to reserve your meeting with ${botName}.`}
             </p>
           </div>
-          <div className="mt-2 sm:mt-0 flex items-center justify-center sm:justify-end gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
-            <span className="flex items-center gap-1">
+          <div className="mt-2 sm:mt-0 flex items-center justify-center sm:justify-end gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 shrink-0 whitespace-nowrap">
+            <span className="flex items-center gap-1 shrink-0 whitespace-nowrap">
               <Video className="size-3 text-neutral-400" />
-              {provider}
+              <span>{provider}</span>
             </span>
-            <span>•</span>
-            <span className="flex items-center gap-1">
+            <span className="shrink-0">•</span>
+            <span className="flex items-center gap-1 shrink-0 whitespace-nowrap">
               <ShieldCheck className="size-3 text-emerald-500" />
-              Protected
+              <span>Protected</span>
             </span>
           </div>
         </div>

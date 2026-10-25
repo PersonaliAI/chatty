@@ -2618,8 +2618,12 @@ async def widget_booking_confirm(
             custom_fields["company"] = visitor_company
         if visitor_notes:
             custom_fields["notes"] = visitor_notes
+        if body.visitor_timezone:
+            custom_fields["visitor_timezone"] = body.visitor_timezone
         if custom_fields:
             lead_update["custom_fields"] = custom_fields
+        if body.session_id:
+            lead_update["session_id"] = body.session_id
 
         if lead_update:
             await run_db(lambda: supabase.table("chatty_leads").update(lead_update).eq("bot_id", body.bot_id).eq("email", visitor_email).execute())

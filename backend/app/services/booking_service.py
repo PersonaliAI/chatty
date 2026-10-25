@@ -71,7 +71,8 @@ async def process_widget_booking(
         visitor_name = dedupe_doubled(raw_name) or "Guest"
 
         invalid_names = {"guest", "visitor", "user", "attendee", "none", "null", "ues", "uesues", "yes"}
-        session_id = context.get("session_id")
+        session_id = (context or {}).get("session_id")
+        visitor_tz = (context or {}).get("visitor_timezone") or bot.get("bot_timezone") or "UTC"
         if (not visitor_name or visitor_name.lower() in invalid_names) and session_id:
             try:
                 lead_res = await run_db(lambda: supabase.table("chatty_leads").select("name").eq("bot_id", bot_id).eq("session_id", session_id).order("created_at", desc=True).limit(1).execute())
@@ -85,9 +86,21 @@ async def process_widget_booking(
         res_lead = await run_db(lambda: supabase.table("chatty_leads").select("*").eq("bot_id", bot_id).eq("email", visitor_email).execute())
         lead_id = None
         if res_lead.data:
-            lead_id = res_lead.data[0]["id"]
+            existing_lead = res_lead.data[0]
+            lead_id = existing_lead["id"]
+            lead_upd: dict[str, Any] = {}
             if visitor_name and visitor_name.lower() not in invalid_names:
-                await run_db(lambda: supabase.table("chatty_leads").update({"name": visitor_name}).eq("id", lead_id).execute())
+                lead_upd["name"] = visitor_name
+            if session_id and not existing_lead.get("session_id"):
+                lead_upd["session_id"] = session_id
+            cf = existing_lead.get("custom_fields") or {}
+            if not isinstance(cf, dict):
+                cf = {}
+            if visitor_tz and cf.get("visitor_timezone") != visitor_tz:
+                cf["visitor_timezone"] = visitor_tz
+                lead_upd["custom_fields"] = cf
+            if lead_upd:
+                await run_db(lambda: supabase.table("chatty_leads").update(lead_upd).eq("id", lead_id).execute())
         else:
             lead_by_session = None
             if session_id:
@@ -99,18 +112,27 @@ async def process_widget_booking(
                     pass
             if lead_by_session:
                 lead_id = lead_by_session["id"]
-                update_fields = {"email": visitor_email}
+                update_fields: dict[str, Any] = {"email": visitor_email}
                 if visitor_name and visitor_name.lower() not in invalid_names:
                     update_fields["name"] = visitor_name
+                cf = lead_by_session.get("custom_fields") or {}
+                if not isinstance(cf, dict):
+                    cf = {}
+                if visitor_tz and cf.get("visitor_timezone") != visitor_tz:
+                    cf["visitor_timezone"] = visitor_tz
+                    update_fields["custom_fields"] = cf
                 await run_db(lambda: supabase.table("chatty_leads").update(update_fields).eq("id", lead_id).execute())
             else:
-                lead_res = await run_db(lambda: supabase.table("chatty_leads").insert({
+                insert_data: dict[str, Any] = {
                     "bot_id": bot_id,
                     "session_id": session_id,
                     "name": visitor_name,
                     "email": visitor_email,
                     "phone": "",
-                }).execute())
+                }
+                if visitor_tz:
+                    insert_data["custom_fields"] = {"visitor_timezone": visitor_tz}
+                lead_res = await run_db(lambda: supabase.table("chatty_leads").insert(insert_data).execute())
                 if lead_res.data:
                     lead_id = lead_res.data[0]["id"]
                     try:
