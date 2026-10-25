@@ -582,3 +582,37 @@ def test_email_test_endpoint():
     assert res["ok"] is True
     assert res["support_address"] == "support@company.com"
 
+
+def test_dispatch_channel_booking_notification_telegram():
+    from app.services.omnichannel.booking_bridge import dispatch_channel_booking_notification
+
+    bot = {
+        "id": "bot_tg_book",
+        "omnichannel_config": {
+            "telegram_bot_token": "token_tg_123",
+        },
+    }
+
+    with patch("app.services.omnichannel.booking_bridge.send_outbound_telegram", new_callable=AsyncMock) as mock_send:
+        mock_send.return_value = True
+
+        res = asyncio.run(
+            dispatch_channel_booking_notification(
+                bot=bot,
+                session_id="tg:7848543218",
+                event_type="confirmed",
+                formatted_time="Today at 4:30 PM",
+                meeting_link="https://meet.google.com/abc-defg-hij",
+                attendee_email="guest@example.com",
+                attendee_name="Guest User",
+            )
+        )
+        assert res is True
+        mock_send.assert_called_once()
+        call_kwargs = mock_send.call_args[1]
+        assert call_kwargs["chat_id"] == "7848543218"
+        assert "Your appointment has been confirmed!" in call_kwargs["text"]
+        assert "Today at 4:30 PM" in call_kwargs["text"]
+        assert call_kwargs["inline_buttons"] == [{"text": "🔗 Join Meeting", "url": "https://meet.google.com/abc-defg-hij"}]
+
+

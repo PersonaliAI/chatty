@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -8,10 +8,14 @@ import {
   Video,
   ExternalLink,
   MessageCircle,
+  MessageSquare,
+  Send,
+  PhoneCall,
   Sparkles,
 } from "lucide-react";
 import {
   InlineBookingCard,
+  type ConfirmedMeeting,
 } from "@/components/inline-booking-card";
 
 interface BotThemeData {
@@ -57,18 +61,100 @@ export default function BookClient({
   const primaryColor = botData?.primary_color || "#f97316";
   const hideBranding = Boolean(botData?.hide_branding);
   const provider = botData?.meeting_provider === "teams" ? "Microsoft Teams" : "Google Meet";
-  const isWhatsAppSession = sessionId?.startsWith("wa:");
 
   const avatarUrl = botData?.logo_url || botData?.avatar_url;
 
+  // Active meeting state for existing sessions or reloaded confirmations
+  const [activeMeeting, setActiveMeeting] = useState<ConfirmedMeeting | null>(null);
+
+  useEffect(() => {
+    if (!sessionId && !initialEmail) return;
+
+    let isCancelled = false;
+    const fetchActiveMeeting = async () => {
+      try {
+        const base = backendUrl || process.env.NEXT_PUBLIC_BACKEND_URL || "";
+        const params = new URLSearchParams({ bot_id: botId });
+        if (sessionId) params.set("session_id", sessionId);
+        if (initialEmail) params.set("email", initialEmail);
+        const res = await fetch(`${base}/api/widget/booking/active?${params.toString()}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.has_active && data.meeting && !isCancelled) {
+          setActiveMeeting(data.meeting);
+        }
+      } catch {
+        // Silently fall back to standard booking UI
+      }
+    };
+
+    fetchActiveMeeting();
+    return () => {
+      isCancelled = true;
+    };
+  }, [botId, sessionId, initialEmail, backendUrl]);
+
+  // Omnichannel integration awareness (WhatsApp, Telegram, SMS, Messenger, Instagram, TikTok)
+  const channelInfo = useMemo(() => {
+    if (!sessionId) return null;
+    if (sessionId.startsWith("wa:")) {
+      return {
+        name: "WhatsApp",
+        icon: MessageCircle,
+        bg: "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60",
+        iconBg: "bg-emerald-500",
+        textColor: "text-emerald-900 dark:text-emerald-200",
+        subTextColor: "text-emerald-700 dark:text-emerald-300/90",
+        desc: "You are booking via WhatsApp. Once confirmed, your calendar invite and meeting details will be sent directly to your WhatsApp chat.",
+      };
+    }
+    if (sessionId.startsWith("tg:")) {
+      return {
+        name: "Telegram",
+        icon: Send,
+        bg: "bg-sky-50/80 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800/60",
+        iconBg: "bg-sky-500",
+        textColor: "text-sky-900 dark:text-sky-200",
+        subTextColor: "text-sky-700 dark:text-sky-300/90",
+        desc: "You are booking via Telegram. Once confirmed, your calendar invite and meeting details will be sent directly to your Telegram chat.",
+      };
+    }
+    if (sessionId.startsWith("sms:")) {
+      return {
+        name: "SMS",
+        icon: PhoneCall,
+        bg: "bg-blue-50/80 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60",
+        iconBg: "bg-blue-500",
+        textColor: "text-blue-900 dark:text-blue-200",
+        subTextColor: "text-blue-700 dark:text-blue-300/90",
+        desc: "You are booking via SMS. Once confirmed, your calendar invite and meeting details will be sent directly to your phone.",
+      };
+    }
+    if (sessionId.startsWith("fb:") || sessionId.startsWith("ig:") || sessionId.startsWith("tt:")) {
+      const channelName = sessionId.startsWith("ig:") ? "Instagram" : sessionId.startsWith("tt:") ? "TikTok" : "Messenger";
+      return {
+        name: channelName,
+        icon: MessageSquare,
+        bg: "bg-indigo-50/80 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800/60",
+        iconBg: "bg-indigo-500",
+        textColor: "text-indigo-900 dark:text-indigo-200",
+        subTextColor: "text-indigo-700 dark:text-indigo-300/90",
+        desc: `You are booking via ${channelName}. Once confirmed, your calendar invite and meeting details will be sent directly to your chat.`,
+      };
+    }
+    return null;
+  }, [sessionId]);
+
+  const ChannelIcon = channelInfo?.icon;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-neutral-50 via-white to-neutral-100 dark:from-neutral-950 dark:via-neutral-900 dark:to-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col font-sans transition-colors">
-      {/* Top Banner Navigation Bar */}
+      {/* Top Banner Navigation Bar - Clean, Compact & Mobile-Responsive */}
       <header className="w-full border-b border-neutral-200/80 dark:border-neutral-800/80 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="max-w-4xl mx-auto px-3.5 sm:px-6 h-16 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
             {avatarUrl ? (
-              <div className="relative size-9 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 shrink-0 bg-neutral-100 dark:bg-neutral-800">
+              <div className="relative size-8 sm:size-9 rounded-full overflow-hidden border border-neutral-200 dark:border-neutral-700 shrink-0 bg-neutral-100 dark:bg-neutral-800">
                 <Image
                   src={avatarUrl}
                   alt={botName}
@@ -79,44 +165,53 @@ export default function BookClient({
               </div>
             ) : (
               <div
-                className="size-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-2xs shrink-0"
+                className="size-8 sm:size-9 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm shadow-2xs shrink-0"
                 style={{ backgroundColor: primaryColor }}
               >
                 {botName.charAt(0).toUpperCase()}
               </div>
             )}
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <h1 className="text-sm sm:text-base font-bold truncate text-neutral-900 dark:text-neutral-100">
                 {botName}
               </h1>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate flex items-center gap-1">
-                <Sparkles className="size-3 text-amber-500" />
-                Verified Appointment Scheduler
+                <Sparkles className="size-3 text-amber-500 shrink-0" />
+                <span className="truncate">
+                  <span className="hidden sm:inline">Verified </span>Appointment Scheduler
+                </span>
               </p>
             </div>
           </div>
 
-          <div className="flex min-w-0 items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
-            <span className="inline-flex max-w-full items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[11px] font-medium">
-              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="truncate">Live Availability</span>
-            </span>
+          <div className="flex shrink-0 items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400">
+            {activeMeeting ? (
+              <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[10px] sm:text-[11px] font-medium">
+                <ShieldCheck className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>Confirmed</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[10px] sm:text-[11px] font-medium">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live Availability</span>
+              </span>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-1 w-full max-w-2xl mx-auto px-3 py-6 sm:px-6 sm:py-10 flex flex-col justify-center">
-        {/* WhatsApp Context Banner */}
-        {isWhatsAppSession && (
-          <div className="mb-4 p-3.5 rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3 shadow-2xs">
-            <div className="p-1.5 rounded-lg bg-emerald-500 text-white shrink-0 mt-0.5">
-              <MessageCircle className="size-4" />
+        {/* Omnichannel Context Banner (Telegram, WhatsApp, SMS, etc.) */}
+        {channelInfo && ChannelIcon && (
+          <div className={`mb-4 p-3.5 rounded-xl border flex items-start gap-3 shadow-2xs ${channelInfo.bg}`}>
+            <div className={`p-1.5 rounded-lg text-white shrink-0 mt-0.5 ${channelInfo.iconBg}`}>
+              <ChannelIcon className="size-4" />
             </div>
-            <div className="text-xs text-emerald-900 dark:text-emerald-200">
-              <p className="font-semibold text-[13px]">WhatsApp Booking Integration</p>
-              <p className="text-emerald-700 dark:text-emerald-300/90 mt-0.5 leading-relaxed">
-                You are booking via WhatsApp. Once confirmed, you will immediately receive your calendar invite and meeting details right back in your WhatsApp chat thread.
+            <div className={`text-xs ${channelInfo.textColor}`}>
+              <p className="font-semibold text-[13px]">{channelInfo.name} Booking Integration</p>
+              <p className={`mt-0.5 leading-relaxed ${channelInfo.subTextColor}`}>
+                {channelInfo.desc}
               </p>
             </div>
           </div>
@@ -126,10 +221,12 @@ export default function BookClient({
         <div className="mb-4 text-center sm:text-left sm:flex sm:items-center sm:justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800/80">
           <div>
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-              Select an Appointment Time
+              {activeMeeting ? "Your Scheduled Appointment" : "Select an Appointment Time"}
             </h2>
             <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1 break-words">
-              Choose your preferred slot below to reserve your meeting with {botName}.
+              {activeMeeting
+                ? `Here are the details for your upcoming meeting with ${botName}.`
+                : `Choose your preferred slot below to reserve your meeting with ${botName}.`}
             </p>
           </div>
           <div className="mt-2 sm:mt-0 flex items-center justify-center sm:justify-end gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -153,12 +250,16 @@ export default function BookClient({
             sig={sig}
             t={t}
             primaryColor={primaryColor}
+            initialMeeting={activeMeeting || undefined}
             initialName={initialName}
             initialEmail={initialEmail}
             initialPhone={initialPhone}
             initialCompany={initialCompany}
             visitorTimezone={visitorTimezone}
             backendUrl={backendUrl}
+            onBookingSuccess={(meeting) => setActiveMeeting(meeting)}
+            onMeetingRescheduled={(meeting) => setActiveMeeting(meeting)}
+            onMeetingCancelled={() => setActiveMeeting(null)}
           />
         </div>
 

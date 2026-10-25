@@ -35,5 +35,5 @@ def decrypt_secret(value: str) -> str:
         return value
     try:
         return _fernet().decrypt(value.encode()).decode()
-    except InvalidToken:
+    except (InvalidToken, RuntimeError):
         return value

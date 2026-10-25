@@ -3116,9 +3116,11 @@ export function IntegrationsTab({
                 </div>
 
                 {/* Secret Token */}
-                <div className="space-y-1.5">
-                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 flex items-center justify-between">
-                    <span>Webhook Secret Token (X-Telegram-Bot-Api-Secret-Token)</span>
+                <div className="space-y-1.5 flex flex-col justify-between">
+                  <div className="flex items-center justify-between min-h-[20px]">
+                    <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                      Webhook Secret Token
+                    </label>
                     <button
                       type="button"
                       onClick={() => {
@@ -3126,11 +3128,11 @@ export function IntegrationsTab({
                         if (setTelegramSecretToken) handleInputChange(setTelegramSecretToken, token);
                         showToast?.("Generated new Telegram Secret Token", "info");
                       }}
-                      className="text-[10px] text-sky-600 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      className="text-[10px] text-sky-600 dark:text-sky-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer shrink-0"
                     >
                       <Sparkles className="size-2.5" /> Generate Secret
                     </button>
-                  </label>
+                  </div>
                   <div className="relative">
                     <input
                       type={showTgSecret ? "text" : "password"}
@@ -3147,14 +3149,16 @@ export function IntegrationsTab({
                       {showTgSecret ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
                     </button>
                   </div>
-                  <p className="text-[10px] text-neutral-400">Cryptographically authenticates incoming requests from Telegram.</p>
+                  <p className="text-[10px] text-neutral-400">Authenticates <code>X-Telegram-Bot-Api-Secret-Token</code>.</p>
                 </div>
 
                 {/* Bot Username */}
-                <div className="space-y-1.5">
-                  <label className="font-semibold text-neutral-700 dark:text-neutral-300">
-                    Bot Username (Optional)
-                  </label>
+                <div className="space-y-1.5 flex flex-col justify-between">
+                  <div className="flex items-center justify-between min-h-[20px]">
+                    <label className="font-semibold text-neutral-700 dark:text-neutral-300">
+                      Bot Username (Optional)
+                    </label>
+                  </div>
                   <input
                     type="text"
                     value={telegramBotUsername}
@@ -3185,7 +3189,7 @@ export function IntegrationsTab({
                       {copiedTgCurl ? "Copied!" : "Copy cURL"}
                     </button>
                   </div>
-                  <pre className="p-2.5 rounded-lg bg-neutral-950 text-neutral-200 text-[11px] font-mono overflow-x-auto leading-relaxed">
+                  <pre className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-800 text-[11px] font-mono overflow-x-auto leading-relaxed">
                     {`curl -F "url=${TG_CALLBACK_URL}" ${telegramSecretToken ? `-F "secret_token=${telegramSecretToken}" ` : ""}https://api.telegram.org/bot${telegramBotToken}/setWebhook`}
                   </pre>
                 </div>
@@ -3687,7 +3691,7 @@ export function IntegrationsTab({
             </div>
           </div>
           <div className="relative">
-            <pre className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-200 leading-relaxed">{`<script
+            <pre className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-800 dark:text-neutral-200 leading-relaxed">{`<script
   src="https://chatty.personaliai.com/widget.js"
   data-id="${botId || "YOUR_BOT_ID"}"
   data-mode="voice"
@@ -3701,9 +3705,9 @@ export function IntegrationsTab({
                   "script"
                 )
               }
-              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors cursor-pointer"
+              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer shadow-xs"
             >
-              {copiedVoiceSnippet === "script" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              {copiedVoiceSnippet === "script" ? <Check className="size-3 text-emerald-500 dark:text-emerald-400" /> : <Copy className="size-3" />}
               {copiedVoiceSnippet === "script" ? "Copied!" : "Copy"}
             </button>
           </div>
@@ -3739,7 +3743,7 @@ export function IntegrationsTab({
             </div>
           </div>
           <div className="relative">
-            <pre className="p-3.5 rounded-xl bg-neutral-950 border border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-200 leading-relaxed">{`<!-- Custom button anywhere on your site -->
+            <pre className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 overflow-x-auto text-[11px] font-mono text-neutral-800 dark:text-neutral-200 leading-relaxed">{`<!-- Custom button anywhere on your site -->
 <button onclick="window.Chatty.openVoice()">
   🎙️ Talk with Voice AI
 </button>`}</pre>
@@ -3751,9 +3755,9 @@ export function IntegrationsTab({
                   "btn"
                 )
               }
-              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-300 hover:text-white bg-neutral-800 hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-700 transition-colors cursor-pointer"
+              className="absolute top-2.5 right-2.5 inline-flex items-center gap-1 text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-white dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer shadow-xs"
             >
-              {copiedVoiceSnippet === "btn" ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+              {copiedVoiceSnippet === "btn" ? <Check className="size-3 text-emerald-500 dark:text-emerald-400" /> : <Copy className="size-3" />}
               {copiedVoiceSnippet === "btn" ? "Copied!" : "Copy"}
             </button>
           </div>

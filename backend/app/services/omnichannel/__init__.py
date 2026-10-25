@@ -14,6 +14,7 @@ from __future__ import annotations
 from app.services.omnichannel.booking_bridge import (
     build_channel_booking_cta,
     build_whatsapp_booking_cta,
+    dispatch_channel_booking_notification,
     dispatch_whatsapp_booking_cancelled,
     dispatch_whatsapp_booking_confirmation,
     dispatch_whatsapp_booking_rescheduled,
@@ -84,6 +85,7 @@ __all__ = [
     "check_tcpa_opt_out",
     "clean_email_body",
     "detect_human_handoff_request",
+    "dispatch_channel_booking_notification",
     "dispatch_whatsapp_booking_cancelled",
     "dispatch_whatsapp_booking_confirmation",
     "dispatch_whatsapp_booking_rescheduled",

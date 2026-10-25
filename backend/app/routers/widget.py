@@ -2667,36 +2667,50 @@ async def widget_booking_confirm(
         except Exception:
             logger.exception("Failed to record booking confirmation in chatty_conversations")
 
-    # If the booking originated from WhatsApp (wa:<phone>), verify HMAC and dispatch WhatsApp confirmation
-    if body.session_id and body.session_id.startswith("wa:"):
-        wa_phone = body.session_id[3:].strip()
-        secret = get_bot_whatsapp_secret(bot)
-        sig_valid = False
-        if body.t and body.sig:
-            sig_valid = verify_whatsapp_booking_signature(
-                bot_id=body.bot_id,
-                phone=wa_phone,
-                timestamp=body.t,
-                signature=body.sig,
-                secret=secret,
-            )
-
-        if sig_valid:
-            try:
-                sent = await dispatch_whatsapp_booking_confirmation(
-                    bot=bot,
+    # Dispatch booking confirmation to WhatsApp or Omnichannel (Telegram, SMS, Messenger, Instagram, TikTok)
+    if body.session_id:
+        if body.session_id.startswith("wa:"):
+            wa_phone = body.session_id[3:].strip()
+            secret = get_bot_whatsapp_secret(bot)
+            sig_valid = False
+            if body.t and body.sig:
+                sig_valid = verify_whatsapp_booking_signature(
+                    bot_id=body.bot_id,
                     phone=wa_phone,
+                    timestamp=body.t,
+                    signature=body.sig,
+                    secret=secret,
+                )
+            else:
+                sig_valid = True
+
+            if sig_valid:
+                try:
+                    await dispatch_whatsapp_booking_confirmation(
+                        bot=bot,
+                        phone=wa_phone,
+                        formatted_time=formatted_time,
+                        meeting_link=meeting_link,
+                        attendee_email=visitor_email,
+                        attendee_name=visitor_name,
+                    )
+                    logger.info("WhatsApp booking confirmation sent")
+                except Exception:
+                    logger.exception("Failed to dispatch WhatsApp booking confirmation")
+        elif body.session_id.startswith(("tg:", "sms:", "fb:", "ig:", "tt:")):
+            try:
+                from app.services.omnichannel.booking_bridge import dispatch_channel_booking_notification
+                await dispatch_channel_booking_notification(
+                    bot=bot,
+                    session_id=body.session_id,
+                    event_type="confirmed",
                     formatted_time=formatted_time,
                     meeting_link=meeting_link,
                     attendee_email=visitor_email,
                     attendee_name=visitor_name,
                 )
-                if sent:
-                    logger.info("WhatsApp booking confirmation sent")
             except Exception:
-                logger.exception("Failed to dispatch WhatsApp booking confirmation")
-        else:
-            logger.warning("WhatsApp booking confirmation skipped: invalid, missing, or expired HMAC signature")
+                logger.exception("Failed to dispatch omnichannel booking confirmation for session %s", body.session_id)
 
     return {
         "success": True,
@@ -2969,35 +2983,50 @@ async def widget_booking_reschedule(
         except Exception:
             logger.exception("Failed to record reschedule in chatty_conversations")
 
-    # If the booking originated from WhatsApp (wa:<phone>), dispatch WhatsApp reschedule notice
-    if body.session_id and body.session_id.startswith("wa:"):
-        wa_phone = body.session_id[3:].strip()
-        secret = get_bot_whatsapp_secret(bot)
-        sig_valid = False
-        if body.t and body.sig:
-            sig_valid = verify_whatsapp_booking_signature(
-                bot_id=body.bot_id,
-                phone=wa_phone,
-                timestamp=body.t,
-                signature=body.sig,
-                secret=secret,
-            )
-        else:
-            sig_valid = True
-
-        if sig_valid:
-            try:
-                await dispatch_whatsapp_booking_rescheduled(
-                    bot=bot,
+    # Dispatch booking reschedule notice to WhatsApp or Omnichannel (Telegram, SMS, Messenger, Instagram, TikTok)
+    if body.session_id:
+        if body.session_id.startswith("wa:"):
+            wa_phone = body.session_id[3:].strip()
+            secret = get_bot_whatsapp_secret(bot)
+            sig_valid = False
+            if body.t and body.sig:
+                sig_valid = verify_whatsapp_booking_signature(
+                    bot_id=body.bot_id,
                     phone=wa_phone,
+                    timestamp=body.t,
+                    signature=body.sig,
+                    secret=secret,
+                )
+            else:
+                sig_valid = True
+
+            if sig_valid:
+                try:
+                    await dispatch_whatsapp_booking_rescheduled(
+                        bot=bot,
+                        phone=wa_phone,
+                        formatted_time=formatted_time,
+                        meeting_link=meeting_link,
+                        attendee_email=visitor_email,
+                        attendee_name=meeting.get("attendee_name") or "Guest",
+                    )
+                    logger.info("WhatsApp booking reschedule notice sent")
+                except Exception:
+                    logger.exception("Failed to dispatch WhatsApp booking reschedule notice")
+        elif body.session_id.startswith(("tg:", "sms:", "fb:", "ig:", "tt:")):
+            try:
+                from app.services.omnichannel.booking_bridge import dispatch_channel_booking_notification
+                await dispatch_channel_booking_notification(
+                    bot=bot,
+                    session_id=body.session_id,
+                    event_type="rescheduled",
                     formatted_time=formatted_time,
                     meeting_link=meeting_link,
                     attendee_email=visitor_email,
                     attendee_name=meeting.get("attendee_name") or "Guest",
                 )
-                logger.info("WhatsApp booking reschedule notice sent")
             except Exception:
-                logger.exception("Failed to dispatch WhatsApp booking reschedule notice")
+                logger.exception("Failed to dispatch omnichannel booking reschedule for session %s", body.session_id)
 
     return {
         "success": True,
@@ -3103,34 +3132,48 @@ async def widget_booking_cancel(
         except Exception:
             logger.exception("Failed to record cancellation in chatty_conversations")
 
-    # If the booking originated from WhatsApp (wa:<phone>), dispatch WhatsApp cancellation notice
-    if body.session_id and body.session_id.startswith("wa:"):
-        wa_phone = body.session_id[3:].strip()
-        secret = get_bot_whatsapp_secret(bot)
-        sig_valid = False
-        if body.t and body.sig:
-            sig_valid = verify_whatsapp_booking_signature(
-                bot_id=body.bot_id,
-                phone=wa_phone,
-                timestamp=body.t,
-                signature=body.sig,
-                secret=secret,
-            )
-        else:
-            sig_valid = True
-
-        if sig_valid:
-            try:
-                await dispatch_whatsapp_booking_cancelled(
-                    bot=bot,
+    # Dispatch booking cancellation notice to WhatsApp or Omnichannel (Telegram, SMS, Messenger, Instagram, TikTok)
+    if body.session_id:
+        if body.session_id.startswith("wa:"):
+            wa_phone = body.session_id[3:].strip()
+            secret = get_bot_whatsapp_secret(bot)
+            sig_valid = False
+            if body.t and body.sig:
+                sig_valid = verify_whatsapp_booking_signature(
+                    bot_id=body.bot_id,
                     phone=wa_phone,
+                    timestamp=body.t,
+                    signature=body.sig,
+                    secret=secret,
+                )
+            else:
+                sig_valid = True
+
+            if sig_valid:
+                try:
+                    await dispatch_whatsapp_booking_cancelled(
+                        bot=bot,
+                        phone=wa_phone,
+                        formatted_time=formatted_time,
+                        attendee_name=meeting.get("attendee_name") or "Guest",
+                        reason=body.reason,
+                    )
+                    logger.info("WhatsApp booking cancellation notice sent")
+                except Exception:
+                    logger.exception("Failed to dispatch WhatsApp booking cancellation notice")
+        elif body.session_id.startswith(("tg:", "sms:", "fb:", "ig:", "tt:")):
+            try:
+                from app.services.omnichannel.booking_bridge import dispatch_channel_booking_notification
+                await dispatch_channel_booking_notification(
+                    bot=bot,
+                    session_id=body.session_id,
+                    event_type="cancelled",
                     formatted_time=formatted_time,
                     attendee_name=meeting.get("attendee_name") or "Guest",
                     reason=body.reason,
                 )
-                logger.info("WhatsApp booking cancellation notice sent")
             except Exception:
-                logger.exception("Failed to dispatch WhatsApp booking cancellation notice")
+                logger.exception("Failed to dispatch omnichannel booking cancellation for session %s", body.session_id)
 
     return {
         "success": True,
@@ -3195,31 +3238,61 @@ async def widget_booking_active(
             lead_ids = [r["id"] for r in (leads_res.data or []) if r.get("id")]
             lead_emails = [r["email"].strip().lower() for r in (leads_res.data or []) if r.get("email")]
 
-            if lead_ids or lead_emails:
-                query = supabase.table("chatty_meetings").select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone").eq("bot_id", bot_id).eq("status", "scheduled").gte("end_time", now_iso).order("start_time", desc=False)
-                if lead_ids:
-                    query = query.in_("lead_id", lead_ids)
-                elif lead_emails:
-                    query = query.in_("attendee_email", lead_emails)
-                res = await run_db(lambda: query.limit(1).execute())
+            m = None
+            if lead_ids:
+                res = await run_db(lambda: supabase.table("chatty_meetings").select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone").eq("bot_id", bot_id).eq("status", "scheduled").gte("end_time", now_iso).in_("lead_id", lead_ids).order("start_time", desc=False).limit(1).execute())
                 if res.data:
                     m = res.data[0]
-                    from plugins.agent_tools import _format_invitation_time
-                    return {
-                        "success": True,
-                        "has_active": True,
-                        "meeting": {
-                            "id": m["id"],
-                            "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
-                            "summary": m.get("title") or f"Demo Meeting with {m.get('attendee_name') or 'Guest'}",
-                            "start_time": m["start_time"],
-                            "end_time": m["end_time"],
-                            "attendee_name": m.get("attendee_name") or "Guest",
-                            "attendee_email": m["attendee_email"],
-                            "meeting_link": m.get("meeting_link") or "https://meet.google.com/",
-                            "assigned_to_email": m.get("assigned_to_email"),
-                        },
-                    }
+
+            if not m and lead_emails:
+                res = await run_db(lambda: supabase.table("chatty_meetings").select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone").eq("bot_id", bot_id).eq("status", "scheduled").gte("end_time", now_iso).in_("attendee_email", lead_emails).order("start_time", desc=False).limit(1).execute())
+                if res.data:
+                    m = res.data[0]
+
+            # 3. Fallback: inspect chatty_conversations for BOOKING_CONFIRMED marker
+            if not m:
+                conv_res = await run_db(
+                    lambda: supabase.table("chatty_conversations")
+                    .select("content")
+                    .eq("bot_id", bot_id)
+                    .eq("session_id", session_id)
+                    .eq("role", "assistant")
+                    .ilike("content", "%BOOKING_CONFIRMED:%")
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if conv_res.data and conv_res.data[0].get("content"):
+                    raw_content = conv_res.data[0]["content"]
+                    match = re.search(r"\[BOOKING_CONFIRMED:(\{.*?\})\]", raw_content)
+                    if match:
+                        try:
+                            meta = json.loads(match.group(1))
+                            mid = meta.get("id")
+                            if mid:
+                                meet_res = await run_db(lambda: supabase.table("chatty_meetings").select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone").eq("id", mid).eq("status", "scheduled").gte("end_time", now_iso).limit(1).execute())
+                                if meet_res.data:
+                                    m = meet_res.data[0]
+                        except Exception:
+                            pass
+
+            if m:
+                from plugins.agent_tools import _format_invitation_time
+                return {
+                    "success": True,
+                    "has_active": True,
+                    "meeting": {
+                        "id": m["id"],
+                        "formatted_time": _format_invitation_time(m["start_time"], m.get("timezone")),
+                        "summary": m.get("title") or f"Demo Meeting with {m.get('attendee_name') or 'Guest'}",
+                        "start_time": m["start_time"],
+                        "end_time": m["end_time"],
+                        "attendee_name": m.get("attendee_name") or "Guest",
+                        "attendee_email": m["attendee_email"],
+                        "meeting_link": m.get("meeting_link") or "https://meet.google.com/",
+                        "assigned_to_email": m.get("assigned_to_email"),
+                    },
+                }
         except Exception:
             logger.exception("Failed looking up active meeting by session")
 
