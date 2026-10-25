@@ -2372,48 +2372,53 @@ export function SettingsTab({
                           </div>
 
                           {/* Quick Switch Dropdown if multiple accounts exist */}
-                          {hasOtherAccounts && (
-                            <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 flex flex-wrap items-center justify-between text-xs text-neutral-500 gap-2">
-                              <span>Assigned Account:</span>
-                              <select
-                                value={googleConnectedAccountId || (isWorkspaceAccount ? "primary" : "none")}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val === "none") {
-                                    handleDisconnectCloud("google", botId || undefined);
-                                  } else if (val === "primary") {
-                                    handleInputChange(setGoogleConnectedAccountId, null);
-                                    handleInputChange(setCalendarSchedulingEnabled, true);
-                                    handleInputChange(setGoogleCalendarId, "primary");
-                                    handleMeetingProviderChange("google_meet");
-                                    showToast("Switched to workspace default Google account", "success");
-                                  } else if (val === "connect_new") {
-                                    handleConnectCloud("google", "add", botId || undefined);
-                                  } else {
-                                    handleInputChange(setGoogleConnectedAccountId, val);
-                                    handleInputChange(setCalendarSchedulingEnabled, true);
-                                    handleInputChange(setGoogleCalendarId, "primary");
-                                    handleMeetingProviderChange("google_meet");
-                                    showToast("Switched to dedicated Google account", "success");
-                                  }
-                                }}
-                                className="px-2.5 py-1 text-xs rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 cursor-pointer"
-                              >
-                                <option value="none">Isolated (No sync)</option>
-                                {googleConnected && (
-                                  <option value="primary">Workspace Default ({googleEmail || "Google"})</option>
-                                )}
-                                {googleAccounts
-                                  .filter((a) => a.id !== null)
-                                  .map((a) => (
-                                    <option key={a.id!} value={a.id!}>
-                                      Dedicated: {a.label || a.email}
-                                    </option>
-                                  ))}
-                                <option value="connect_new">+ Connect Dedicated Account...</option>
-                              </select>
-                            </div>
-                          )}
+                          {hasOtherAccounts && (() => {
+                            const accountOptions: ModernSelectOption[] = [
+                              { value: "none", label: "Isolated (No sync)" },
+                              ...(googleConnected
+                                ? [{ value: "primary", label: `Workspace Default (${googleEmail || "Google"})` }]
+                                : []),
+                              ...googleAccounts
+                                .filter((a) => a.id !== null)
+                                .map((a) => ({
+                                  value: a.id!,
+                                  label: `Dedicated: ${a.label || a.email}`,
+                                })),
+                              { value: "connect_new", label: "+ Connect Dedicated Account..." },
+                            ];
+                            return (
+                              <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 flex flex-wrap items-center justify-between text-xs text-neutral-500 gap-2">
+                                <span>Assigned Account:</span>
+                                <div className="w-64">
+                                  <ModernSelect
+                                    value={googleConnectedAccountId || (isWorkspaceAccount ? "primary" : "none")}
+                                    options={accountOptions}
+                                    onChange={(val) => {
+                                      if (val === "none") {
+                                        handleDisconnectCloud("google", botId || undefined);
+                                      } else if (val === "primary") {
+                                        handleInputChange(setGoogleConnectedAccountId, null);
+                                        handleInputChange(setCalendarSchedulingEnabled, true);
+                                        handleInputChange(setGoogleCalendarId, "primary");
+                                        handleMeetingProviderChange("google_meet");
+                                        showToast("Switched to workspace default Google account", "success");
+                                      } else if (val === "connect_new") {
+                                        handleConnectCloud("google", "add", botId || undefined);
+                                      } else {
+                                        handleInputChange(setGoogleConnectedAccountId, val);
+                                        handleInputChange(setCalendarSchedulingEnabled, true);
+                                        handleInputChange(setGoogleCalendarId, "primary");
+                                        handleMeetingProviderChange("google_meet");
+                                        showToast("Switched to dedicated Google account", "success");
+                                      }
+                                    }}
+                                    size="sm"
+                                    aria-label="Assigned Account"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* Workspace Shared Account Footnote */}
                           {googleConnected && (

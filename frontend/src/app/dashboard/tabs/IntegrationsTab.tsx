@@ -1,6 +1,7 @@
 "use client";
 
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import React, { useState } from "react";
 import {
   Check,
@@ -28,6 +29,19 @@ const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
 
 const logoUrl = (domain: string) =>
   `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
+
+const EMAIL_AUTO_REPLY_MODE_OPTIONS: ModernSelectOption[] = [
+  {
+    value: "instant_ai",
+    label: "Instant Autonomous AI Auto-Reply (Direct Send)",
+    hint: "Autonomous replies immediately with full AI reasoning",
+  },
+  {
+    value: "draft_copilot",
+    label: "AI Draft Co-Pilot (Helpdesk / Agent Review)",
+    hint: "Leaves drafts in the inbox for human agent approval",
+  },
+];
 
 function PlatformIcon({ domain, label }: { domain: string; label: string }) {
   return (
@@ -3636,17 +3650,17 @@ export function IntegrationsTab({
                   <label className="font-semibold text-neutral-700 dark:text-neutral-300">
                     AI Response Mode
                   </label>
-                  <select
-                    value={emailAutoReplyMode}
-                    onChange={(e) =>
+                  <ModernSelect
+                    value={emailAutoReplyMode || "instant_ai"}
+                    options={EMAIL_AUTO_REPLY_MODE_OPTIONS}
+                    onChange={(val) =>
                       setEmailAutoReplyMode &&
-                      handleInputChange(setEmailAutoReplyMode, e.target.value as "instant_ai" | "draft_copilot")
+                      handleInputChange(setEmailAutoReplyMode, val as "instant_ai" | "draft_copilot")
                     }
-                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-neutral-400 cursor-pointer"
-                  >
-                    <option value="instant_ai">Instant Autonomous AI Auto-Reply (Direct Send)</option>
-                    <option value="draft_copilot">AI Draft Co-Pilot (Helpdesk / Agent Review)</option>
-                  </select>
+                    size="md"
+                    className="w-full text-xs"
+                    aria-label="AI Response Mode"
+                  />
                   <p className="text-[10px] text-neutral-400">
                     Autonomous replies immediately; Co-Pilot leaves drafts for your agents to review.
                   </p>
