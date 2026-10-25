@@ -295,3 +295,72 @@ async def test_widget_booking_slots_returns_prefilled_lead():
         assert res["prefilled_lead"]["email"] == "sarah@cyberdyne.com"
         assert res["prefilled_lead"]["phone"] == "+1-555-0199"
         assert res["prefilled_lead"]["company"] == "Cyberdyne Systems"
+
+
+@pytest.mark.anyio
+async def test_widget_booking_confirm_and_active_coordinator_resolution():
+    from app.routers.widget import widget_booking_active
+
+    with patch("app.routers.widget.run_db") as mock_db, \
+         patch("plugins.agent_tools.execute", new_callable=AsyncMock) as mock_exec:
+
+        mock_bot = MagicMock(data=[{
+            "id": "bot-1",
+            "calendar_scheduling_enabled": True,
+            "user_id": "u-1",
+            "meeting_provider": "google_meet",
+        }])
+        mock_owner = MagicMock(data=[{"auth_user_id": "u-1", "email": "owner@acme.com", "name": "Owner Admin"}])
+        mock_db.side_effect = [mock_bot, mock_owner, MagicMock(data=[]), MagicMock(data=[])]
+
+        mock_exec.return_value = {
+            "id": "evt-999",
+            "meeting_id": "11111111-2222-3333-4444-555555555555",
+            "hangout_link": "https://meet.google.com/coord-test",
+            "summary": "Demo Meeting with Bob Vance",
+            "assigned_to_email": "tharindu@acme.com",
+            "assigned_to_name": "Tharindu",
+        }
+
+        future_start = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        future_end = (datetime.now(timezone.utc) + timedelta(days=3, minutes=30)).isoformat()
+
+        req = WidgetBookingConfirmRequest(
+            bot_id="bot-1",
+            session_id="tg:7848543218",
+            start_time=future_start,
+            end_time=future_end,
+            visitor_timezone="Asia/Colombo",
+            name="Bob Vance",
+            email="bob@vance.com",
+        )
+
+        res = await widget_booking_confirm(req)
+        assert res["success"] is True
+        assert res["assigned_to_email"] == "tharindu@acme.com"
+        assert res["assigned_to_name"] == "Tharindu"
+
+        # Now simulate re-opening the booking link -> widget_booking_active
+        active_meeting_row = {
+            "id": "11111111-2222-3333-4444-555555555555",
+            "title": "Demo Meeting with Bob Vance",
+            "start_time": future_start,
+            "end_time": future_end,
+            "timezone": "Asia/Colombo",
+            "attendee_name": "Bob Vance",
+            "attendee_email": "bob@vance.com",
+            "meeting_link": "https://meet.google.com/coord-test",
+            "assigned_to_email": "tharindu@acme.com",
+            "status": "scheduled",
+        }
+        mock_db.side_effect = [
+            MagicMock(data=[{"id": "lead-1", "email": "bob@vance.com"}]),  # session lead lookup
+            MagicMock(data=[active_meeting_row]),                          # chatty_meetings by lead_id
+            MagicMock(data=[{"name": "Tharindu"}]),                        # chatty_team_members name lookup
+        ]
+
+        active_res = await widget_booking_active(bot_id="bot-1", session_id="tg:7848543218")
+        assert active_res["has_active"] is True
+        assert active_res["meeting"]["assigned_to_email"] == "tharindu@acme.com"
+        assert active_res["meeting"]["assigned_to_name"] == "Tharindu"
+        assert active_res["meeting"]["attendee_name"] == "Bob Vance"

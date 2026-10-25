@@ -673,3 +673,81 @@ def test_get_team_available_slots_uses_member_timezone_for_own_calendar(monkeypa
         "timezone": "Asia/Colombo",
         "uses_own_calendar": True,
     }]
+
+
+# ---------------------------------------------------------------------------
+# get_effective_working_days & LRU Round-Robin Tie-Breaking
+# ---------------------------------------------------------------------------
+
+
+def test_get_effective_working_days_unions_bot_and_team_rules():
+    """When bot working_days only has ['sun'] but team members have custom
+    availability rules on Mon (0), Tue (1), and Thu (3), effective working days
+    must return the union in canonical order."""
+    fake = FakeSupabase()
+    fake.queue([
+        {"day_of_week": 0},
+        {"day_of_week": 1},
+        {"day_of_week": 3},
+    ])
+    bot = {"working_days": ["sun"]}
+    effective = asyncio.run(avail.get_effective_working_days(fake, "bot-1", bot))
+    assert effective == ["mon", "tue", "thu", "sun"]
+
+
+def test_get_effective_working_days_fallback_when_no_team_rules():
+    fake = FakeSupabase()
+    fake.queue([])
+    bot = {"working_days": ["sun"]}
+    effective = asyncio.run(avail.get_effective_working_days(fake, "bot-1", bot))
+    assert effective == ["sun"]
+
+
+def test_pick_assignee_lru_tie_breaker(monkeypatch):
+    """When two members have the same weekly meeting count (1 each), pick_assignee
+    breaks the tie using least-recently-assigned (older timestamp wins)."""
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
+    fake = FakeSupabase()
+    # 1st query: weekly counts (both have 1 meeting this week)
+    fake.queue([
+        {"assigned_to_email": "tharindu@example.com"},
+        {"assigned_to_email": "damayantha@example.com"},
+    ])
+    # 2nd query: recent history for LRU tie-breaking
+    fake.queue([
+        {"assigned_to_email": "tharindu@example.com", "created_at": "2026-01-05T14:00:00Z", "start_time": "2026-01-06T10:00:00Z"},
+        {"assigned_to_email": "damayantha@example.com", "created_at": "2026-01-04T09:00:00Z", "start_time": "2026-01-05T10:00:00Z"},
+    ])
+    members = [
+        {"email": "tharindu@example.com", "name": "Tharindu", "user": {}, "use_ms_calendar": False},
+        {"email": "damayantha@example.com", "name": "Damayantha", "user": {}, "use_ms_calendar": False},
+    ]
+    chosen = asyncio.run(avail.pick_assignee(
+        fake, bot_id="bot-1", members=members, owner_tz_str="UTC", buffer_minutes=0,
+        slot_start_utc=_utc(2026, 1, 5, 10, 0), slot_end_utc=_utc(2026, 1, 5, 10, 30),
+    ))
+    assert chosen["email"] == "damayantha@example.com"
+    assert chosen["name"] == "Damayantha"
+
+
+def test_pick_assignee_lru_prefers_never_assigned_on_tie(monkeypatch):
+    """When two members have 0 meetings this week, the member who has never had
+    a historical meeting ('') beats one who had a meeting last month."""
+    monkeypatch.setattr(avail, "fetch_busy_intervals", AsyncMock(return_value=[]))
+    fake = FakeSupabase()
+    # 1st query: 0 meetings this week
+    fake.queue([])
+    # 2nd query: historical meetings
+    fake.queue([
+        {"assigned_to_email": "a@example.com", "created_at": "2025-12-20T10:00:00Z", "start_time": "2025-12-21T10:00:00Z"},
+    ])
+    members = [
+        {"email": "a@example.com", "name": "Member A", "user": {}, "use_ms_calendar": False},
+        {"email": "b@example.com", "name": "Member B", "user": {}, "use_ms_calendar": False},
+    ]
+    chosen = asyncio.run(avail.pick_assignee(
+        fake, bot_id="bot-1", members=members, owner_tz_str="UTC", buffer_minutes=0,
+        slot_start_utc=_utc(2026, 1, 5, 10, 0), slot_end_utc=_utc(2026, 1, 5, 10, 30),
+    ))
+    assert chosen["email"] == "b@example.com"
+    assert chosen["name"] == "Member B"
