@@ -43,6 +43,17 @@ export interface AgentConfig {
 
 const MCP_URL = "https://api.chatty.personaliai.com/mcp";
 
+const BRAND_ACCENT = "#c67139";
+const BRAND_ACCENT_HOVER = "#b2622d";
+const BRAND_ACCENT_BG = "#fff2eb";
+const BRAND_ACCENT_BORDER = "#ffe1d0";
+const BRAND_ACCENT_DARK = "#643312";
+const BRAND_TEXT = "#201e1d";
+const BRAND_TEXT_MUTED = "#57534e";
+const BRAND_TEXT_BODY = "#44403c";
+const BRAND_SURFACE = "#f5ead8";
+const BRAND_DIVIDER = "rgba(32, 30, 29, 0.16)";
+
 export const AGENTS: AgentConfig[] = [
   {
     id: "chatgpt",
@@ -460,8 +471,8 @@ export function McpHub({
         <div
           className="flex flex-wrap items-center justify-center gap-1.5 p-1.5 rounded-full border shadow-sm max-w-full overflow-x-auto"
           style={{
-            background: "color-mix(in srgb, var(--color-bg, #f5ead8) 85%, white 15%)",
-            borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+            background: "color-mix(in srgb, #f5ead8 85%, white 15%)",
+            borderColor: BRAND_DIVIDER,
           }}
         >
           {AGENTS.map((agent) => {
@@ -477,8 +488,8 @@ export function McpHub({
                     : "hover:bg-black/5"
                 }`}
                 style={{
-                  background: isSelected ? "var(--color-accent, #c67139)" : "transparent",
-                  color: isSelected ? "#ffffff" : "var(--color-text, #201e1d)",
+                  background: isSelected ? BRAND_ACCENT : "transparent",
+                  color: isSelected ? "#ffffff" : BRAND_TEXT,
                 }}
               >
                 {agent.iconFile ? (
@@ -490,7 +501,7 @@ export function McpHub({
                 {agent.badge && isSelected && (
                   <span
                     className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full font-bold"
-                    style={{ background: "rgba(0,0,0,0.2)", color: "#ffffff" }}
+                    style={{ background: "rgba(0,0,0,0.25)", color: "#ffffff" }}
                   >
                     {agent.badge}
                   </span>
@@ -505,8 +516,8 @@ export function McpHub({
       <div
         className="rounded-[24px] sm:rounded-[32px] p-6 sm:p-10 border text-center shadow-sm relative overflow-hidden"
         style={{
-          background: "color-mix(in srgb, var(--color-bg, #f5ead8) 70%, white 30%)",
-          borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+          background: "color-mix(in srgb, #f5ead8 70%, white 30%)",
+          borderColor: BRAND_DIVIDER,
         }}
       >
         <div className="relative z-10 max-w-3xl mx-auto space-y-5">
@@ -514,8 +525,8 @@ export function McpHub({
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-xs"
             style={{
               background: "#ffffff",
-              borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
-              color: "var(--color-accent-800, #643312)",
+              borderColor: BRAND_DIVIDER,
+              color: BRAND_ACCENT_DARK,
             }}
           >
             <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -524,10 +535,10 @@ export function McpHub({
 
           <h2
             className="text-[26px] sm:text-[34px] tracking-tight leading-tight"
-            style={{ fontFamily: "var(--font-heading)", color: "var(--color-text, #201e1d)", fontWeight: 400 }}
+            style={{ fontFamily: "var(--font-heading)", color: BRAND_TEXT, fontWeight: 400 }}
           >
             Deploy & Manage Chatbots in{" "}
-            <span style={{ color: "var(--color-accent, #c67139)", fontWeight: 600 }}>
+            <span style={{ color: BRAND_ACCENT, fontWeight: 700 }}>
               {activeAgent.headlineName}
             </span>{" "}
             with Chatty
@@ -535,7 +546,7 @@ export function McpHub({
 
           <p
             className="text-[14.5px] sm:text-[15.5px] leading-relaxed max-w-2xl mx-auto"
-            style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 82%, transparent)" }}
+            style={{ color: BRAND_TEXT_BODY }}
           >
             Run your entire Chatty workspace directly inside {activeAgent.name}. Build bots, crawl websites for RAG
             knowledge, customize widget themes, audit WCAG contrast, and review captured leads right from your chat prompt.
@@ -549,11 +560,11 @@ export function McpHub({
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold border shadow-xs hover:shadow-sm transition cursor-pointer"
               style={{
                 background: "#ffffff",
-                borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
-                color: "var(--color-text, #201e1d)",
+                borderColor: BRAND_DIVIDER,
+                color: BRAND_TEXT,
               }}
             >
-              <HelpCircle className="size-4" style={{ color: "var(--color-accent, #c67139)" }} />
+              <HelpCircle className="size-4" style={{ color: BRAND_ACCENT }} />
               How to connect?
             </button>
 
@@ -562,8 +573,8 @@ export function McpHub({
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium shadow-sm hover:brightness-105 transition cursor-pointer"
               style={{
                 fontFamily: "var(--font-heading)",
-                background: "var(--color-accent, #c67139)",
-                color: "var(--color-bg, #f5ead8)",
+                background: BRAND_ACCENT,
+                color: "#ffffff",
               }}
             >
               <span>Create Free Account</span>
@@ -577,12 +588,12 @@ export function McpHub({
               className="flex items-center gap-2 p-1.5 pl-4 rounded-full border shadow-xs text-left"
               style={{
                 background: "#ffffff",
-                borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+                borderColor: BRAND_DIVIDER,
               }}
             >
               <span
                 className="text-[10px] uppercase font-bold tracking-wider shrink-0"
-                style={{ color: "var(--color-accent, #c67139)" }}
+                style={{ color: BRAND_ACCENT }}
               >
                 MCP URL
               </span>
@@ -591,7 +602,7 @@ export function McpHub({
                 type="button"
                 onClick={() => copyText(MCP_URL, "url")}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition shrink-0 cursor-pointer text-white shadow-xs"
-                style={{ background: "var(--color-accent, #c67139)" }}
+                style={{ background: BRAND_ACCENT }}
               >
                 {copiedUrl ? (
                   <>
@@ -608,7 +619,7 @@ export function McpHub({
             </div>
             <p
               className="text-[11.5px] mt-2"
-              style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 70%, transparent)" }}
+              style={{ color: BRAND_TEXT_MUTED }}
             >
               Supports automated Dynamic Client Registration (RFC 7591) and native loopback authentication (RFC 8252).
             </p>
@@ -620,18 +631,18 @@ export function McpHub({
       <div
         className="rounded-[24px] p-6 sm:p-8 border shadow-xs space-y-6"
         style={{
-          background: "color-mix(in srgb, var(--color-bg, #f5ead8) 80%, white 20%)",
-          borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+          background: "color-mix(in srgb, #f5ead8 80%, white 20%)",
+          borderColor: BRAND_DIVIDER,
         }}
       >
         <div
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5"
-          style={{ borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))" }}
+          style={{ borderColor: BRAND_DIVIDER }}
         >
           <div className="flex items-center gap-3">
             <div
               className="size-10 rounded-xl flex items-center justify-center p-1.5 border shadow-xs shrink-0"
-              style={{ background: "#ffffff", borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))" }}
+              style={{ background: "#ffffff", borderColor: BRAND_DIVIDER }}
             >
               {activeAgent.iconFile ? (
                 <AgentImgIcon name={activeAgent.iconFile} alt={activeAgent.name} className="size-6" />
@@ -642,13 +653,13 @@ export function McpHub({
             <div>
               <h3
                 className="text-base font-bold flex items-center gap-2"
-                style={{ fontFamily: "var(--font-heading)", color: "var(--color-text, #201e1d)" }}
+                style={{ fontFamily: "var(--font-heading)", color: BRAND_TEXT }}
               >
                 Connecting with {activeAgent.name}
               </h3>
               <p
                 className="text-xs font-mono"
-                style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 70%, transparent)" }}
+                style={{ color: BRAND_TEXT_MUTED }}
               >
                 Target config: {activeAgent.settingsPath}
               </p>
@@ -658,16 +669,16 @@ export function McpHub({
           <div className="flex items-center gap-2">
             <span
               className="text-xs"
-              style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 70%, transparent)" }}
+              style={{ color: BRAND_TEXT_MUTED }}
             >
               Auth mode:
             </span>
             <span
               className="text-xs font-semibold px-2.5 py-1 rounded-full border"
               style={{
-                background: "var(--color-accent-100, #fff2eb)",
-                color: "var(--color-accent-800, #643312)",
-                borderColor: "var(--color-accent-200, #ffe1d0)",
+                background: BRAND_ACCENT_BG,
+                color: BRAND_ACCENT_DARK,
+                borderColor: BRAND_ACCENT_BORDER,
               }}
             >
               OAuth 2.0 PKCE + Account Token
@@ -683,29 +694,29 @@ export function McpHub({
               className="p-5 rounded-2xl border shadow-xs flex flex-col justify-between space-y-3"
               style={{
                 background: "#ffffff",
-                borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+                borderColor: BRAND_DIVIDER,
               }}
             >
               <div>
                 <div
-                  className="size-6 rounded-full text-xs font-bold flex items-center justify-center mb-2.5"
+                  className="size-7 rounded-full text-xs font-bold flex items-center justify-center mb-2.5"
                   style={{
-                    background: "var(--color-accent-100, #fff2eb)",
-                    color: "var(--color-accent, #c67139)",
-                    border: "1px solid var(--color-accent-200, #ffe1d0)",
+                    background: BRAND_ACCENT_BG,
+                    color: BRAND_ACCENT_DARK,
+                    border: `1px solid ${BRAND_ACCENT_BORDER}`,
                   }}
                 >
                   {idx + 1}
                 </div>
                 <h4
-                  className="text-sm font-semibold"
-                  style={{ color: "var(--color-text, #201e1d)" }}
+                  className="text-sm font-bold"
+                  style={{ color: BRAND_TEXT }}
                 >
                   {step.title}
                 </h4>
                 <p
-                  className="text-xs mt-1.5 leading-relaxed"
-                  style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 78%, transparent)" }}
+                  className="text-xs mt-1.5 leading-relaxed font-normal"
+                  style={{ color: BRAND_TEXT_BODY }}
                 >
                   {step.desc}
                 </p>
@@ -719,7 +730,7 @@ export function McpHub({
           <div className="flex items-center justify-between mb-2">
             <span
               className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 75%, transparent)" }}
+              style={{ color: BRAND_TEXT_MUTED }}
             >
               {activeAgent.configFilename ? `Configuration (${activeAgent.configFilename})` : "Connection Command / Snippet"}
             </span>
@@ -727,7 +738,7 @@ export function McpHub({
               type="button"
               onClick={() => copyText(activeAgent.codeSnippet, "code")}
               className="flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer"
-              style={{ color: "var(--color-accent, #c67139)" }}
+              style={{ color: BRAND_ACCENT }}
             >
               {copiedCode ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
               <span>{copiedCode ? "Copied" : "Copy snippet"}</span>
@@ -748,10 +759,10 @@ export function McpHub({
         {/* Starter Prompts for this Agent */}
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="size-4" style={{ color: "var(--color-accent, #c67139)" }} />
+            <Sparkles className="size-4" style={{ color: BRAND_ACCENT }} />
             <h4
               className="text-xs font-bold uppercase tracking-wider"
-              style={{ color: "var(--color-text, #201e1d)" }}
+              style={{ color: BRAND_TEXT }}
             >
               Starter Prompts for {activeAgent.name}
             </h4>
@@ -765,18 +776,18 @@ export function McpHub({
                 className="text-left p-4 rounded-xl border transition flex flex-col justify-between group cursor-pointer shadow-xs"
                 style={{
                   background: "#ffffff",
-                  borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+                  borderColor: BRAND_DIVIDER,
                 }}
               >
                 <p
                   className="text-xs leading-relaxed font-medium"
-                  style={{ color: "var(--color-text, #201e1d)" }}
+                  style={{ color: BRAND_TEXT }}
                 >
                   &quot;{prompt}&quot;
                 </p>
                 <div
                   className="mt-3 flex items-center justify-between text-[11px]"
-                  style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 65%, transparent)" }}
+                  style={{ color: BRAND_TEXT_MUTED }}
                 >
                   <span>Click to copy</span>
                   {copiedPromptIdx === pIdx ? (
@@ -800,13 +811,13 @@ export function McpHub({
             <div>
               <h3
                 className="text-lg font-bold flex items-center gap-2"
-                style={{ fontFamily: "var(--font-heading)", color: "var(--color-text, #201e1d)" }}
+                style={{ fontFamily: "var(--font-heading)", color: BRAND_TEXT }}
               >
-                <Layers className="size-4" style={{ color: "var(--color-accent, #c67139)" }} /> 81 Production MCP Tools
+                <Layers className="size-4" style={{ color: BRAND_ACCENT }} /> 81 Production MCP Tools
               </h3>
               <p
                 className="text-xs mt-1"
-                style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 75%, transparent)" }}
+                style={{ color: BRAND_TEXT_MUTED }}
               >
                 Every tool interacts directly with live PostgreSQL data. No mocks, no synthetic delays.
               </p>
@@ -820,19 +831,19 @@ export function McpHub({
                 className="p-4 rounded-xl border shadow-xs space-y-2"
                 style={{
                   background: "#ffffff",
-                  borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
+                  borderColor: BRAND_DIVIDER,
                 }}
               >
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold" style={{ color: "var(--color-text, #201e1d)" }}>
+                  <h4 className="text-xs font-bold" style={{ color: BRAND_TEXT }}>
                     {cat.name}
                   </h4>
                   <span
                     className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
                     style={{
-                      background: "var(--color-accent-100, #fff2eb)",
-                      color: "var(--color-accent-800, #643312)",
-                      borderColor: "var(--color-accent-200, #ffe1d0)",
+                      background: BRAND_ACCENT_BG,
+                      color: BRAND_ACCENT_DARK,
+                      borderColor: BRAND_ACCENT_BORDER,
                     }}
                   >
                     {cat.count} tools
@@ -840,7 +851,7 @@ export function McpHub({
                 </div>
                 <p
                   className="text-[11px] leading-relaxed"
-                  style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 78%, transparent)" }}
+                  style={{ color: BRAND_TEXT_BODY }}
                 >
                   {cat.desc}
                 </p>
@@ -850,9 +861,9 @@ export function McpHub({
                       key={t}
                       className="text-[9.5px] font-mono px-1.5 py-0.5 rounded border"
                       style={{
-                        background: "color-mix(in srgb, var(--color-bg, #f5ead8) 60%, white 40%)",
-                        borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))",
-                        color: "var(--color-text, #201e1d)",
+                        background: "color-mix(in srgb, #f5ead8 60%, white 40%)",
+                        borderColor: BRAND_DIVIDER,
+                        color: BRAND_TEXT,
                       }}
                     >
                       {t}
@@ -861,7 +872,7 @@ export function McpHub({
                   {cat.tools.length > 3 && (
                     <span
                       className="text-[9.5px] font-mono px-1.5 py-0.5 rounded"
-                      style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 65%, transparent)" }}
+                      style={{ color: BRAND_TEXT_MUTED }}
                     >
                       +{cat.tools.length - 3} more
                     </span>
@@ -879,9 +890,9 @@ export function McpHub({
           <div
             className="relative w-full max-w-2xl rounded-2xl border p-6 sm:p-8 shadow-xl space-y-6 max-h-[90vh] overflow-y-auto"
             style={{
-              background: "var(--color-bg, #f5ead8)",
-              borderColor: "var(--color-divider, rgba(32, 30, 29, 0.2))",
-              color: "var(--color-text, #201e1d)",
+              background: BRAND_SURFACE,
+              borderColor: "rgba(32, 30, 29, 0.2)",
+              color: BRAND_TEXT,
             }}
           >
             <div className="flex items-start justify-between">
@@ -891,7 +902,7 @@ export function McpHub({
                 </h3>
                 <p
                   className="text-xs mt-1"
-                  style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 75%, transparent)" }}
+                  style={{ color: BRAND_TEXT_MUTED }}
                 >
                   Follow these 3 simple steps to integrate Chatty into {activeAgent.name}.
                 </p>
@@ -908,7 +919,7 @@ export function McpHub({
             {/* Inner Agent Tabs in Modal */}
             <div
               className="flex items-center gap-1.5 overflow-x-auto pb-2 border-b"
-              style={{ borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))" }}
+              style={{ borderColor: BRAND_DIVIDER }}
             >
               {AGENTS.map((agent) => (
                 <button
@@ -921,8 +932,8 @@ export function McpHub({
                       : "hover:bg-black/5"
                   }`}
                   style={{
-                    background: activeTab === agent.id ? "var(--color-accent, #c67139)" : "transparent",
-                    color: activeTab === agent.id ? "#ffffff" : "var(--color-text, #201e1d)",
+                    background: activeTab === agent.id ? BRAND_ACCENT : "transparent",
+                    color: activeTab === agent.id ? "#ffffff" : BRAND_TEXT,
                   }}
                 >
                   {agent.iconFile ? (
@@ -939,29 +950,29 @@ export function McpHub({
             <div className="space-y-4">
               <div
                 className="flex items-start gap-4 p-4 rounded-xl border shadow-xs"
-                style={{ background: "#ffffff", borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))" }}
+                style={{ background: "#ffffff", borderColor: BRAND_DIVIDER }}
               >
                 <div
                   className="size-7 rounded-full text-xs font-bold flex items-center justify-center shrink-0"
                   style={{
-                    background: "var(--color-accent-100, #fff2eb)",
-                    color: "var(--color-accent, #c67139)",
-                    border: "1px solid var(--color-accent-200, #ffe1d0)",
+                    background: BRAND_ACCENT_BG,
+                    color: BRAND_ACCENT_DARK,
+                    border: `1px solid ${BRAND_ACCENT_BORDER}`,
                   }}
                 >
                   1
                 </div>
                 <div className="flex-1 space-y-1">
-                  <h4 className="text-sm font-semibold">Open {activeAgent.name} connector settings</h4>
+                  <h4 className="text-sm font-bold" style={{ color: BRAND_TEXT }}>Open {activeAgent.name} connector settings</h4>
                   <p
-                    className="text-xs"
-                    style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 78%, transparent)" }}
+                    className="text-xs font-normal"
+                    style={{ color: BRAND_TEXT_BODY }}
                   >
                     {activeAgent.steps[0].desc}
                   </p>
                   <p
                     className="text-[11px] font-mono pt-1"
-                    style={{ color: "var(--color-accent-800, #643312)" }}
+                    style={{ color: BRAND_ACCENT_DARK }}
                   >
                     Location: {activeAgent.settingsPath}
                   </p>
@@ -970,23 +981,23 @@ export function McpHub({
 
               <div
                 className="flex items-start gap-4 p-4 rounded-xl border shadow-xs"
-                style={{ background: "#ffffff", borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))" }}
+                style={{ background: "#ffffff", borderColor: BRAND_DIVIDER }}
               >
                 <div
                   className="size-7 rounded-full text-xs font-bold flex items-center justify-center shrink-0"
                   style={{
-                    background: "var(--color-accent-100, #fff2eb)",
-                    color: "var(--color-accent, #c67139)",
-                    border: "1px solid var(--color-accent-200, #ffe1d0)",
+                    background: BRAND_ACCENT_BG,
+                    color: BRAND_ACCENT_DARK,
+                    border: `1px solid ${BRAND_ACCENT_BORDER}`,
                   }}
                 >
                   2
                 </div>
                 <div className="flex-1 space-y-2">
-                  <h4 className="text-sm font-semibold">Copy the Chatty MCP configuration</h4>
+                  <h4 className="text-sm font-bold" style={{ color: BRAND_TEXT }}>Copy the Chatty MCP configuration</h4>
                   <p
-                    className="text-xs"
-                    style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 78%, transparent)" }}
+                    className="text-xs font-normal"
+                    style={{ color: BRAND_TEXT_BODY }}
                   >
                     {activeAgent.steps[1].desc}
                   </p>
@@ -996,7 +1007,7 @@ export function McpHub({
                       type="button"
                       onClick={() => copyText(activeAgent.codeSnippet, "code")}
                       className="px-3 py-1.5 rounded-md text-xs font-semibold text-white shrink-0 cursor-pointer shadow-xs"
-                      style={{ background: "var(--color-accent, #c67139)" }}
+                      style={{ background: BRAND_ACCENT }}
                     >
                       {copiedCode ? "Copied" : "Copy"}
                     </button>
@@ -1006,35 +1017,35 @@ export function McpHub({
 
               <div
                 className="flex items-start gap-4 p-4 rounded-xl border shadow-xs"
-                style={{ background: "#ffffff", borderColor: "var(--color-divider, rgba(32, 30, 29, 0.16))" }}
+                style={{ background: "#ffffff", borderColor: BRAND_DIVIDER }}
               >
                 <div
                   className="size-7 rounded-full text-xs font-bold flex items-center justify-center shrink-0"
                   style={{
-                    background: "var(--color-accent-100, #fff2eb)",
-                    color: "var(--color-accent, #c67139)",
-                    border: "1px solid var(--color-accent-200, #ffe1d0)",
+                    background: BRAND_ACCENT_BG,
+                    color: BRAND_ACCENT_DARK,
+                    border: `1px solid ${BRAND_ACCENT_BORDER}`,
                   }}
                 >
                   3
                 </div>
                 <div className="flex-1 space-y-1.5">
-                  <h4 className="text-sm font-semibold">Sign in or create account during OAuth consent</h4>
+                  <h4 className="text-sm font-bold" style={{ color: BRAND_TEXT }}>Sign in or create account during OAuth consent</h4>
                   <p
-                    className="text-xs"
-                    style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 78%, transparent)" }}
+                    className="text-xs font-normal"
+                    style={{ color: BRAND_TEXT_BODY }}
                   >
                     {activeAgent.name} will trigger the browser authorization flow at{" "}
-                    <code className="text-[11px] font-bold" style={{ color: "var(--color-accent, #c67139)" }}>
+                    <code className="text-[11px] font-bold" style={{ color: BRAND_ACCENT }}>
                       https://chatty.personaliai.com/oauth/consent
                     </code>.
                   </p>
                   <div
                     className="p-3 rounded-lg border text-xs leading-relaxed"
                     style={{
-                      background: "var(--color-accent-100, #fff2eb)",
-                      borderColor: "var(--color-accent-200, #ffe1d0)",
-                      color: "var(--color-accent-800, #643312)",
+                      background: BRAND_ACCENT_BG,
+                      borderColor: BRAND_ACCENT_BORDER,
+                      color: BRAND_ACCENT_DARK,
                     }}
                   >
                     <b>No account yet?</b> You don&apos;t need an invite. Simply click &quot;Create account&quot; right on the
@@ -1050,7 +1061,7 @@ export function McpHub({
                 onClick={() => setModalOpen(false)}
                 className="px-6 py-2.5 rounded-full text-xs font-bold shadow-xs transition cursor-pointer"
                 style={{
-                  background: "var(--color-accent, #c67139)",
+                  background: BRAND_ACCENT,
                   color: "#ffffff",
                 }}
               >

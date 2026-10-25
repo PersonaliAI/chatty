@@ -38,7 +38,7 @@ function McpPageContent() {
             </Link>
             <span className="opacity-30">|</span>
             <div className="flex items-center gap-2">
-              <span className="size-2 rounded-full" style={{ background: "var(--color-accent, #c67139)" }} />
+              <span className="size-2 rounded-full" style={{ background: "#c67139" }} />
               <span className="text-sm font-bold tracking-tight" style={{ fontFamily: "var(--font-heading)" }}>
                 Chatty MCP
               </span>
@@ -56,7 +56,7 @@ function McpPageContent() {
             <Link
               href="/signup?next=/oauth/consent"
               className="px-4 py-1.5 rounded-full text-xs font-bold text-white transition shadow-sm hover:brightness-105"
-              style={{ background: "var(--color-accent, #c67139)" }}
+              style={{ background: "#c67139" }}
             >
               Sign up
             </Link>
