@@ -261,6 +261,7 @@ def scheduling_tool_names(
             names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
     names.append("lookup_woocommerce_order")
+    names.append("update_visitor_timezone")
     return names
 
 
@@ -655,6 +656,14 @@ async def run_widget_assistant(
             f"CANCELLING AN EXISTING MEETING:\n"
             f"   - If a visitor with an existing booking asks to cancel (not reschedule), first ask for the email address it was booked under (if not already known), confirm they really want to cancel "
             f"(not move it to a new time), and then call `cancel_meeting` with that visitor_email. It cannot be undone - never call it on an ambiguous request; ask a clarifying question instead.\n\n"
+            f"DYNAMIC TIMEZONE CHANGES & EXISTING APPOINTMENT REALIGNMENT:\n"
+            f"   - The visitor can state or change their timezone, city, or location at any time (e.g. 'I am in Tokyo now', 'change timezone to London / GMT', 'my timezone is PST', 'switch to EST').\n"
+            f"   - Whenever a visitor mentions their timezone or city, immediately call `update_visitor_timezone` with their requested timezone.\n"
+            f"   - When `update_visitor_timezone` returns an active booked meeting (`has_booked_meeting: true`):\n"
+            f"     * State clearly what their scheduled meeting translates to in their new local time (e.g. 'Your demo meeting originally scheduled for Thursday at 10:00 AM EDT will be at 11:00 PM in your new Tokyo time').\n"
+            f"     * Intelligently and proactively ask: 'Would you like to keep this scheduled time, or would you like to reschedule it to a convenient daytime slot in your new timezone?'\n"
+            f"     * If they ask to reschedule, call `get_available_slots` to find open slots in their new timezone and present them.\n"
+            f"   - If no existing meeting exists, confirm their timezone has been updated and that all future slot recommendations will be presented in their new timezone.\n\n"
         )
     else:
         scheduling_block = (
@@ -1319,6 +1328,8 @@ async def run_widget_assistant(
                         order_card_tokens.append(tok)
                 if result.get("requires_human_review"):
                     order_requires_handoff = True
+            if fn_name == "update_visitor_timezone" and isinstance(result, dict) and result.get("timezone"):
+                visitor_timezone = result["timezone"]
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
 
     # Exceeded tool rounds - force a final, tool-free answer (streamed too).

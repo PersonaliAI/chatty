@@ -832,6 +832,95 @@ async def telegram_test(bot_id: str, bot_token: Optional[str] = None, user: dict
         raise HTTPException(status_code=502, detail="Could not reach Telegram Bot API")
 
 
+class TelegramSetWebhookRequest(BaseModel):
+    bot_id: str
+    bot_token: Optional[str] = None
+    secret_token: Optional[str] = None
+    webhook_url: Optional[str] = None
+    drop_pending_updates: bool = False
+
+
+@router.post("/api/integrations/telegram/set-webhook")
+async def telegram_set_webhook(
+    body: TelegramSetWebhookRequest,
+    request: Request,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Register or refresh the Telegram webhook for this bot directly with the Telegram Bot API.
+    Eliminates the need for users to run manual cURL terminal commands.
+    """
+    bot_res = await run_db(lambda: supabase.table("chatty_bots")
+        .select("id,telegram_bot_token,telegram_secret_token")
+        .eq("id", body.bot_id)
+        .eq("user_id", user["auth_user_id"])
+        .limit(1)
+        .execute())
+    if not bot_res.data:
+        raise HTTPException(status_code=404, detail="Bot not found or access denied")
+
+    bot_row = bot_res.data[0]
+    token = (body.bot_token or "").strip()
+    if not token:
+        token = decrypt_secret((bot_row.get("telegram_bot_token") or "").strip())
+    if not token:
+        raise HTTPException(status_code=400, detail="Provide or save a Telegram Bot Token first")
+    if not re.match(r"^[0-9]{5,16}:[A-Za-z0-9_-]{5,80}$", token):
+        raise HTTPException(status_code=400, detail="Invalid Telegram Bot Token format")
+
+    secret = (body.secret_token or "").strip()
+    if not secret:
+        secret = (bot_row.get("telegram_secret_token") or "").strip()
+
+    target_url = (body.webhook_url or "").strip()
+    if not target_url:
+        backend_base = (CHATTY_BACKEND_URL or str(request.base_url).rstrip("/")).rstrip("/")
+        target_url = f"{backend_base}/webhook/telegram?bot_id={quote(body.bot_id)}"
+
+    safe_token = quote(token, safe=":")
+    payload: dict[str, Any] = {
+        "url": target_url,
+        "allowed_updates": ["message", "edited_message", "callback_query"],
+        "drop_pending_updates": body.drop_pending_updates,
+    }
+    if secret:
+        payload["secret_token"] = secret
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                f"https://api.telegram.org/bot{safe_token}/setWebhook",
+                json=payload,
+            )
+        data = resp.json() if resp.status_code == 200 else {}
+        if not data.get("ok"):
+            err_desc = data.get("description", f"Telegram rejected webhook registration (HTTP {resp.status_code})")
+            raise HTTPException(status_code=400, detail=f"Telegram error: {err_desc}")
+
+        updates_to_save: dict[str, Any] = {
+            "telegram_enabled": True,
+        }
+        if secret:
+            updates_to_save["telegram_secret_token"] = secret
+        await update_bot_omnichannel_safe(
+            supabase,
+            body.bot_id,
+            updates_to_save,
+            user_id=user["auth_user_id"],
+        )
+
+        return {
+            "ok": True,
+            "message": "Telegram Webhook successfully registered with Telegram!",
+            "description": data.get("description", "Webhook was set"),
+            "webhook_url": target_url,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to register Telegram webhook: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Could not reach Telegram Bot API: {exc}")
+
+
 @router.post("/api/integrations/sms/test")
 async def sms_test(
     bot_id: str,

@@ -21,6 +21,7 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  Zap,
 } from "lucide-react";
 
 const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
@@ -442,6 +443,7 @@ export function IntegrationsTab({
   const [disconnectingTiktok, setDisconnectingTiktok] = useState(false);
 
   const [testingTelegram, setTestingTelegram] = useState(false);
+  const [registeringTgWebhook, setRegisteringTgWebhook] = useState(false);
   const [disconnectingTelegram, setDisconnectingTelegram] = useState(false);
 
   const [testingSms, setTestingSms] = useState(false);
@@ -944,6 +946,42 @@ export function IntegrationsTab({
       showToast?.(err instanceof Error ? err.message : "Telegram connection test failed", "error");
     } finally {
       setTestingTelegram(false);
+    }
+  };
+
+  const handleRegisterTelegramWebhook = async () => {
+    if (!botId || !authToken) {
+      showToast?.("Your session is still loading. Please try again.", "error");
+      return;
+    }
+    if (!telegramBotToken && !telegramConfigured) {
+      showToast?.("Please enter or save your Telegram Bot Token first.", "error");
+      return;
+    }
+    setRegisteringTgWebhook(true);
+    try {
+      const res = await fetch(`${backendUrl}/api/integrations/telegram/set-webhook`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          bot_id: botId,
+          bot_token: telegramBotToken || undefined,
+          secret_token: telegramSecretToken || undefined,
+          webhook_url: TG_CALLBACK_URL,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Telegram webhook registration failed");
+      setTelegramEnabled?.(true);
+      setTelegramConfigured?.(true);
+      showToast?.(data.message || "Telegram Webhook registered successfully! Bot is live.", "success");
+    } catch (err) {
+      showToast?.(err instanceof Error ? err.message : "Failed to register Telegram webhook", "error");
+    } finally {
+      setRegisteringTgWebhook(false);
     }
   };
 
@@ -3055,6 +3093,16 @@ export function IntegrationsTab({
                     {testingTelegram ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
                     {testingTelegram ? "Validating…" : "Test Bot Token"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleRegisterTelegramWebhook}
+                    disabled={registeringTgWebhook || !botId || (!telegramBotToken && !telegramConfigured)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-bold text-white disabled:opacity-50 cursor-pointer shadow-xs"
+                    title="Register bot webhook directly with Telegram API"
+                  >
+                    {registeringTgWebhook ? <Loader2 className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
+                    {registeringTgWebhook ? "Registering…" : "Register Webhook"}
+                  </button>
                   {isTgConnected && (
                     <button
                       type="button"
@@ -3170,28 +3218,51 @@ export function IntegrationsTab({
                 </div>
               </div>
 
-              {/* 1-Click SetWebhook Command */}
-              {telegramBotToken && (
-                <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                      Quick Webhook Registration Command (cURL)
-                    </span>
+              {/* Webhook Registration Status & 1-Click Action */}
+              {(telegramBotToken || telegramConfigured) && (
+                <div className="p-3.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-800 shrink-0">
+                        <Zap className="size-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                          Automatic Webhook Registration
+                        </div>
+                        <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                          Registers the webhook URL directly with Telegram&apos;s Bot API. No terminal or manual cURL commands needed.
+                        </div>
+                      </div>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        const curl = `curl -F "url=${TG_CALLBACK_URL}" ${telegramSecretToken ? `-F "secret_token=${telegramSecretToken}" ` : ""}https://api.telegram.org/bot${telegramBotToken}/setWebhook`;
-                        copyText(curl, setCopiedTgCurl, "cURL command copied to clipboard");
-                      }}
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-200 cursor-pointer"
+                      onClick={handleRegisterTelegramWebhook}
+                      disabled={registeringTgWebhook || !botId || (!telegramBotToken && !telegramConfigured)}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 px-3.5 py-2 text-xs font-bold text-white transition-all shadow-xs disabled:opacity-50 cursor-pointer shrink-0"
                     >
-                      {copiedTgCurl ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-                      {copiedTgCurl ? "Copied!" : "Copy cURL"}
+                      {registeringTgWebhook ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin" />
+                          <span>Registering Webhook…</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="size-3.5" />
+                          <span>Register Webhook</span>
+                        </>
+                      )}
                     </button>
                   </div>
-                  <pre className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-800 text-[11px] font-mono overflow-x-auto leading-relaxed">
-                    {`curl -F "url=${TG_CALLBACK_URL}" ${telegramSecretToken ? `-F "secret_token=${telegramSecretToken}" ` : ""}https://api.telegram.org/bot${telegramBotToken}/setWebhook`}
-                  </pre>
+
+                  <details className="text-[11px] text-neutral-500 dark:text-neutral-400 border-t border-neutral-100 dark:border-neutral-800 pt-2">
+                    <summary className="cursor-pointer hover:text-neutral-700 dark:hover:text-neutral-300 font-medium select-none">
+                      Show manual cURL command (Advanced)
+                    </summary>
+                    <pre className="mt-2 p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-800 text-[11px] font-mono overflow-x-auto leading-relaxed">
+                      {`curl -F "url=${TG_CALLBACK_URL}" ${telegramSecretToken ? `-F "secret_token=${telegramSecretToken}" ` : ""}https://api.telegram.org/bot${telegramBotToken || "<YOUR_TOKEN>"}/setWebhook`}
+                    </pre>
+                  </details>
                 </div>
               )}
 
@@ -3221,7 +3292,7 @@ export function IntegrationsTab({
                     </div>
                     <div className="flex items-start gap-2.5">
                       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-sky-500 text-white text-[10px] font-bold">4</span>
-                      <div><b>Run Webhook cURL</b>: Run the 1-click cURL snippet above in your terminal, or click Test Bot Token.</div>
+                      <div><b>Register Webhook</b>: Click <b>Register Webhook</b> above. Chatty will automatically register your bot via Telegram&apos;s API and confirm with a toast.</div>
                     </div>
                   </div>
                 )}

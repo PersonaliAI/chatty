@@ -347,6 +347,25 @@ DECLARATIONS: list[dict] = [
         },
         ["order_number"],
     ),
+    _tool(
+        "update_visitor_timezone",
+        "Update the visitor's active timezone for this conversation and appointment scheduling. "
+        "Call this whenever a visitor mentions, updates, or changes their timezone, city, or location in chat "
+        "(e.g. 'I am in Tokyo now', 'my timezone is London / GMT', 'change timezone to America/New_York', 'I'm in PST', 'switch to EST'). "
+        "Returns the normalized IANA timezone, current local time, and details of any currently booked meetings "
+        "converted to the new timezone, so you can proactively ask if they want to reschedule or keep their meeting.",
+        {
+            "timezone": {
+                "type": "string",
+                "description": "The requested timezone name or city (e.g. 'Asia/Tokyo', 'Europe/London', 'America/New_York', 'PST', 'EST', 'Tokyo', 'London', 'Colombo', 'Sydney', 'Paris').",
+            },
+            "visitor_email": {
+                "type": "string",
+                "description": "Optional email address if already known, used to look up existing booked meetings.",
+            },
+        },
+        ["timezone"],
+    ),
 ]
 
 
@@ -870,6 +889,38 @@ async def reschedule_meeting_core(
     except Exception:
         logger.exception("Failed to send reschedule notification emails")
 
+    # Dispatch omnichannel notification to chat channels (Telegram, WhatsApp, SMS, Messenger, Instagram, TikTok)
+    try:
+        from app.services.omnichannel import dispatch_channel_booking_notification
+        meeting_session_id = None
+        lead_id = meeting.get("lead_id")
+        if lead_id:
+            l_res = await run_db(lambda: supabase.table("chatty_leads").select("session_id").eq("id", lead_id).limit(1).execute())
+            if l_res.data and l_res.data[0].get("session_id"):
+                meeting_session_id = l_res.data[0]["session_id"]
+        if not meeting_session_id and attendee_email:
+            l_res = await run_db(lambda: supabase.table("chatty_leads").select("session_id").eq("bot_id", bot_id).eq("email", attendee_email).order("created_at", desc=True).limit(1).execute())
+            if l_res.data and l_res.data[0].get("session_id"):
+                meeting_session_id = l_res.data[0]["session_id"]
+
+        if meeting_session_id and any(meeting_session_id.startswith(p) for p in ("tg:", "wa:", "sms:", "fb:", "ig:", "tt:")):
+            resched_data = {
+                **meeting,
+                "start_time": new_start.isoformat(),
+                "end_time": new_end.isoformat(),
+                "formatted_time": start_invitation_label,
+            }
+            await dispatch_channel_booking_notification(
+                supabase,
+                bot_id=bot_id,
+                session_id=meeting_session_id,
+                meeting_data=resched_data,
+                event_type="rescheduled",
+            )
+            logger.info("Dispatched omnichannel reschedule notification to session %s", meeting_session_id)
+    except Exception:
+        logger.exception("Failed to dispatch omnichannel reschedule notification to chat channel")
+
     return {
         "success": True,
         "message": f"Meeting rescheduled to {start_invitation_label}.",
@@ -1016,6 +1067,32 @@ async def cancel_meeting_core(
         )
     except Exception:
         logger.exception("Failed to send cancellation notification emails")
+
+    # Dispatch omnichannel notification to chat channels (Telegram, WhatsApp, SMS, Messenger, Instagram, TikTok)
+    try:
+        from app.services.omnichannel import dispatch_channel_booking_notification
+        meeting_session_id = None
+        lead_id = meeting.get("lead_id")
+        if lead_id:
+            l_res = await run_db(lambda: supabase.table("chatty_leads").select("session_id").eq("id", lead_id).limit(1).execute())
+            if l_res.data and l_res.data[0].get("session_id"):
+                meeting_session_id = l_res.data[0]["session_id"]
+        if not meeting_session_id and attendee_email:
+            l_res = await run_db(lambda: supabase.table("chatty_leads").select("session_id").eq("bot_id", bot_id).eq("email", attendee_email).order("created_at", desc=True).limit(1).execute())
+            if l_res.data and l_res.data[0].get("session_id"):
+                meeting_session_id = l_res.data[0]["session_id"]
+
+        if meeting_session_id and any(meeting_session_id.startswith(p) for p in ("tg:", "wa:", "sms:", "fb:", "ig:", "tt:")):
+            await dispatch_channel_booking_notification(
+                supabase,
+                bot_id=bot_id,
+                session_id=meeting_session_id,
+                meeting_data=meeting,
+                event_type="cancelled",
+            )
+            logger.info("Dispatched omnichannel cancellation notification to session %s", meeting_session_id)
+    except Exception:
+        logger.exception("Failed to dispatch omnichannel cancellation notification to chat channel")
 
     return {"success": True, "message": "Meeting cancelled."}
 
@@ -1344,6 +1421,213 @@ async def _create_lead(args: dict, user: dict, supabase) -> dict:
     except Exception as e:
         logger.exception("create_lead failed")
         return {"error": str(e)}
+
+
+def _normalize_timezone_string(raw_tz: str) -> str:
+    """Normalize user-supplied timezone text (e.g. 'tokyo', 'gmt', 'pst') into a canonical IANA timezone name."""
+    clean = (raw_tz or "").strip().lower()
+    clean = re.sub(r"^(in|at|my timezone is|timezone|tz)\s+", "", clean).strip()
+
+    CITY_ALIAS_MAP = {
+        "tokyo": "Asia/Tokyo",
+        "japan": "Asia/Tokyo",
+        "jst": "Asia/Tokyo",
+        "london": "Europe/London",
+        "uk": "Europe/London",
+        "gmt": "UTC",
+        "utc": "UTC",
+        "bst": "Europe/London",
+        "colombo": "Asia/Colombo",
+        "sri lanka": "Asia/Colombo",
+        "india": "Asia/Kolkata",
+        "ist": "Asia/Kolkata",
+        "delhi": "Asia/Kolkata",
+        "mumbai": "Asia/Kolkata",
+        "new york": "America/New_York",
+        "nyc": "America/New_York",
+        "est": "America/New_York",
+        "edt": "America/New_York",
+        "eastern": "America/New_York",
+        "chicago": "America/Chicago",
+        "cst": "America/Chicago",
+        "cdt": "America/Chicago",
+        "central": "America/Chicago",
+        "denver": "America/Denver",
+        "mst": "America/Denver",
+        "mdt": "America/Denver",
+        "mountain": "America/Denver",
+        "los angeles": "America/Los_Angeles",
+        "la": "America/Los_Angeles",
+        "sf": "America/Los_Angeles",
+        "california": "America/Los_Angeles",
+        "pst": "America/Los_Angeles",
+        "pdt": "America/Los_Angeles",
+        "pacific": "America/Los_Angeles",
+        "dubai": "Asia/Dubai",
+        "uae": "Asia/Dubai",
+        "gst": "Asia/Dubai",
+        "singapore": "Asia/Singapore",
+        "sgt": "Asia/Singapore",
+        "hong kong": "Asia/Hong_Kong",
+        "hkt": "Asia/Hong_Kong",
+        "sydney": "Australia/Sydney",
+        "aest": "Australia/Sydney",
+        "melbourne": "Australia/Sydney",
+        "brisbane": "Australia/Brisbane",
+        "auckland": "Pacific/Auckland",
+        "nzst": "Pacific/Auckland",
+        "new zealand": "Pacific/Auckland",
+        "paris": "Europe/Paris",
+        "berlin": "Europe/Berlin",
+        "cet": "Europe/Paris",
+        "cest": "Europe/Paris",
+        "madrid": "Europe/Madrid",
+        "rome": "Europe/Rome",
+        "amsterdam": "Europe/Amsterdam",
+        "toronto": "America/Toronto",
+        "vancouver": "America/Vancouver",
+        "sao paulo": "America/Sao_Paulo",
+        "buenos aires": "America/Argentina/Buenos_Aires",
+    }
+
+    if clean in CITY_ALIAS_MAP:
+        return CITY_ALIAS_MAP[clean]
+
+    try:
+        import pytz
+        for tz_name in pytz.all_timezones:
+            if tz_name.lower() == clean or tz_name.split("/")[-1].lower() == clean:
+                return tz_name
+    except Exception:
+        pass
+
+    return "UTC"
+
+
+async def _update_visitor_timezone(args: dict, user: dict, supabase, context: Optional[dict] = None) -> dict:
+    """Updates visitor active timezone, records in lead record, and realigns booked meetings."""
+    raw_tz = str(args.get("timezone") or "").strip()
+    norm_tz = _normalize_timezone_string(raw_tz)
+
+    bot_id = (context or {}).get("bot_id") or ""
+    session_id = (context or {}).get("session_id") or ""
+    visitor_email = (args.get("visitor_email") or "").strip().lower()
+
+    if context is not None:
+        context["visitor_timezone"] = norm_tz
+
+    current_time_str = ""
+    try:
+        import pytz
+        now_dt = datetime.now(timezone.utc).astimezone(pytz.timezone(norm_tz))
+        hour12 = now_dt.hour % 12 or 12
+        ampm = "AM" if now_dt.hour < 12 else "PM"
+        current_time_str = f"{hour12}:{now_dt.minute:02d} {ampm} ({now_dt.tzname() or norm_tz})"
+    except Exception:
+        current_time_str = ""
+
+    lead_id = None
+    try:
+        if bot_id and (session_id or visitor_email):
+            query = supabase.table("chatty_leads").select("id, email, custom_fields").eq("bot_id", bot_id)
+            if session_id:
+                query = query.eq("session_id", session_id)
+            elif visitor_email:
+                query = query.eq("email", visitor_email)
+            lead_res = await run_db(lambda: query.order("created_at", desc=True).limit(1).execute())
+            if lead_res.data:
+                lead_row = lead_res.data[0]
+                lead_id = lead_row["id"]
+                if not visitor_email and lead_row.get("email"):
+                    visitor_email = lead_row["email"]
+                custom_fields = lead_row.get("custom_fields") or {}
+                custom_fields["visitor_timezone"] = norm_tz
+                await run_db(lambda: supabase.table("chatty_leads").update({
+                    "custom_fields": custom_fields,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", lead_id).execute())
+    except Exception:
+        logger.exception("Failed to update visitor timezone in chatty_leads")
+
+    active_meeting = None
+    if bot_id:
+        try:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            meet_res = None
+            if visitor_email:
+                meet_res = await run_db(lambda: supabase.table("chatty_meetings")
+                    .select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone")
+                    .eq("bot_id", bot_id)
+                    .eq("attendee_email", visitor_email)
+                    .eq("status", "scheduled")
+                    .gte("end_time", now_iso)
+                    .order("start_time", desc=False)
+                    .limit(1)
+                    .execute())
+            if (not meet_res or not meet_res.data) and lead_id:
+                meet_res = await run_db(lambda: supabase.table("chatty_meetings")
+                    .select("id, bot_id, attendee_name, attendee_email, start_time, end_time, title, status, meeting_link, assigned_to_email, timezone")
+                    .eq("bot_id", bot_id)
+                    .eq("lead_id", lead_id)
+                    .eq("status", "scheduled")
+                    .gte("end_time", now_iso)
+                    .order("start_time", desc=False)
+                    .limit(1)
+                    .execute())
+
+            if meet_res and meet_res.data:
+                m = meet_res.data[0]
+                old_tz = m.get("timezone") or (context or {}).get("bot_timezone") or "UTC"
+                start_iso = m["start_time"]
+                old_formatted = _format_invitation_time(start_iso, old_tz)
+                new_formatted = _format_invitation_time(start_iso, norm_tz)
+
+                import pytz
+                dt_new = _parse_iso(start_iso)
+                if dt_new.tzinfo is None:
+                    dt_new = pytz.timezone(old_tz).localize(dt_new)
+                dt_new_local = dt_new.astimezone(pytz.timezone(norm_tz))
+                is_unusual_hour = dt_new_local.hour < 8 or dt_new_local.hour >= 20
+
+                active_meeting = {
+                    "meeting_id": m["id"],
+                    "summary": m.get("title") or "Scheduled Appointment",
+                    "meeting_link": m.get("meeting_link"),
+                    "original_timezone": old_tz,
+                    "original_time": old_formatted,
+                    "new_timezone": norm_tz,
+                    "time_in_new_timezone": new_formatted,
+                    "is_unusual_hour": is_unusual_hour,
+                }
+        except Exception:
+            logger.exception("Failed to check active meetings on timezone update")
+
+    if active_meeting:
+        return {
+            "success": True,
+            "timezone": norm_tz,
+            "current_local_time": current_time_str,
+            "has_booked_meeting": True,
+            "active_meeting": active_meeting,
+            "instruction": (
+                f"Inform the visitor their active timezone has been updated to {norm_tz}"
+                + (f" (current local time: {current_time_str}). " if current_time_str else ". ")
+                + f"Notify them that their upcoming meeting '{active_meeting['summary']}' was originally scheduled at "
+                f"{active_meeting['original_time']}, which translates to {active_meeting['time_in_new_timezone']} in their new timezone. "
+                + (f"Note that {active_meeting['time_in_new_timezone']} may be outside regular daytime hours. " if active_meeting['is_unusual_hour'] else "")
+                + f"Ask the visitor: 'Would you like to keep this scheduled time ({active_meeting['time_in_new_timezone']}), "
+                f"or would you like to reschedule it to a convenient daytime slot in your new {norm_tz} timezone?' "
+                f"If they want to reschedule, use `get_available_slots` to offer fresh slots in {norm_tz}."
+            ),
+        }
+
+    return {
+        "success": True,
+        "timezone": norm_tz,
+        "current_local_time": current_time_str,
+        "has_booked_meeting": False,
+        "message": f"Timezone successfully updated to {norm_tz}. All meeting slots and availability will now be presented in {norm_tz}.",
+    }
 
 
 async def _process_widget_booking(args: dict, user: dict, supabase, result: dict, context: dict):
@@ -1707,6 +1991,8 @@ async def execute(
             return await _cancel_meeting(args, user, supabase, context=context)
         if name == "create_lead":
             return await _create_lead(args, user, supabase)
+        if name == "update_visitor_timezone":
+            return await _update_visitor_timezone(args, user, supabase, context=context)
         if name == "lookup_woocommerce_order":
             from app.services import woocommerce_service
             bot_id_val = (context or {}).get("bot_id") or args.get("bot_id") or ((context or {}).get("bot") or {}).get("id")

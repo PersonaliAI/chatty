@@ -616,3 +616,95 @@ def test_dispatch_channel_booking_notification_telegram():
         assert call_kwargs["inline_buttons"] == [{"text": "🔗 Join Meeting", "url": "https://meet.google.com/abc-defg-hij"}]
 
 
+def test_telegram_set_webhook_endpoint():
+    from app.routers.integrations import telegram_set_webhook, TelegramSetWebhookRequest
+    from unittest.mock import MagicMock
+
+    user = {"auth_user_id": "usr_owner_1"}
+    body = TelegramSetWebhookRequest(
+        bot_id="bot_123",
+        bot_token="123456789:ABCDefGhIjKlMnOpQrStUvWxYz",
+        secret_token="my_secret_token",
+        webhook_url="https://api.personaliai.com/webhook/telegram?bot_id=bot_123",
+    )
+
+    request = MagicMock()
+    request.base_url = "https://api.personaliai.com"
+
+    fake_bot = {
+        "id": "bot_123",
+        "user_id": "usr_owner_1",
+        "telegram_bot_token": "123456789:ABCDefGhIjKlMnOpQrStUvWxYz",
+        "telegram_secret_token": "my_secret_token",
+    }
+
+    class FakeHttpxResp:
+        status_code = 200
+        def json(self):
+            return {"ok": True, "description": "Webhook was set"}
+
+    async def fake_post(url, json=None, timeout=None):
+        assert "setWebhook" in url
+        assert json["url"] == "https://api.personaliai.com/webhook/telegram?bot_id=bot_123"
+        assert json["secret_token"] == "my_secret_token"
+        return FakeHttpxResp()
+
+    with patch("app.routers.integrations.run_db", new_callable=AsyncMock) as mock_db, \
+         patch("app.routers.integrations.update_bot_omnichannel_safe", new_callable=AsyncMock) as mock_safe_upd, \
+         patch("httpx.AsyncClient.post", side_effect=fake_post):
+
+        mock_db.return_value = MagicMock(data=[fake_bot])
+        mock_safe_upd.return_value = True
+
+        res = asyncio.run(telegram_set_webhook(body, request, user=user))
+        assert res["ok"] is True
+        assert "successfully registered" in res["message"]
+
+
+def test_update_visitor_timezone_tool():
+    from plugins.agent_tools import _normalize_timezone_string, _update_visitor_timezone
+    from unittest.mock import MagicMock
+
+    # 1. Verify aliases normalization
+    assert _normalize_timezone_string("Tokyo") == "Asia/Tokyo"
+    assert _normalize_timezone_string("London") == "Europe/London"
+    assert _normalize_timezone_string("PST") == "America/Los_Angeles"
+    assert _normalize_timezone_string("EST") == "America/New_York"
+    assert _normalize_timezone_string("Colombo") == "Asia/Colombo"
+    assert _normalize_timezone_string("Sri Lanka") == "Asia/Colombo"
+
+    # 2. Test tool execution with existing booked meeting
+    fake_meeting = {
+        "id": "meet_test_1",
+        "title": "Strategy Consultation",
+        "start_time": "2026-11-05T14:00:00Z",  # 2:00 PM UTC = 11:00 PM JST
+        "end_time": "2026-11-05T14:30:00Z",
+        "timezone": "America/New_York",
+        "meeting_link": "https://meet.google.com/test-meet",
+        "attendee_email": "alex@example.com",
+    }
+
+    mock_supabase = MagicMock()
+
+    with patch("plugins.agent_tools.run_db", new_callable=AsyncMock) as mock_db:
+        # Mock leads lookup returning empty, meetings lookup returning fake_meeting
+        mock_db.side_effect = [
+            MagicMock(data=[]),             # leads lookup
+            MagicMock(data=[fake_meeting]), # meetings lookup
+        ]
+
+        context = {"bot_id": "bot_tz_1", "session_id": "tg:999888777", "visitor_timezone": "America/New_York"}
+        args = {"timezone": "Tokyo", "visitor_email": "alex@example.com"}
+
+        res = asyncio.run(_update_visitor_timezone(args, user={}, supabase=mock_supabase, context=context))
+        assert res["success"] is True
+        assert res["timezone"] == "Asia/Tokyo"
+        assert res["has_booked_meeting"] is True
+        assert res["active_meeting"]["new_timezone"] == "Asia/Tokyo"
+        assert "Tokyo" in res["instruction"]
+        assert "reschedule" in res["instruction"].lower()
+        # Ensure context was updated in-memory
+        assert context["visitor_timezone"] == "Asia/Tokyo"
+
+
+
