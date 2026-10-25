@@ -5423,8 +5423,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setEmailConfigured={setEmailConfigured}
               showToast={showToast}
               authToken={authToken}
-              googleConnected={googleConnected}
-              googleEmail={googleEmail}
+              fetchWithFallback={fetchWithFallback}
               onNavigateTab={(tab) => setActiveTab(tab as any)}
             />
           )}

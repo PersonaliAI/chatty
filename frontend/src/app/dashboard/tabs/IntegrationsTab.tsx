@@ -26,7 +26,6 @@ import {
   Search,
   ArrowLeft,
   Store,
-  Calendar,
   Smartphone,
   AudioWaveform,
   SlidersHorizontal,
@@ -58,7 +57,6 @@ export type IntegrationCategory =
   | "messaging"
   | "ecommerce"
   | "voice"
-  | "calendar"
   | "collaboration"
   | "embeds"
   | "mobile"
@@ -307,8 +305,7 @@ interface IntegrationsTabProps {
 
   showToast?: (msg: string, type?: "success" | "error" | "info") => void;
   authToken?: string;
-  googleConnected?: boolean;
-  googleEmail?: string | null;
+  fetchWithFallback?: (url: string, init?: RequestInit) => Promise<Response>;
   onNavigateTab?: (tab: string) => void;
   slackWebhookUrl?: string;
   setSlackWebhookUrl?: (v: string) => void;
@@ -437,8 +434,7 @@ export function IntegrationsTab({
   setEmailConfigured,
   showToast,
   authToken = "",
-  googleConnected = false,
-  googleEmail = null,
+  fetchWithFallback,
   onNavigateTab,
   slackWebhookUrl,
   setSlackWebhookUrl,
@@ -557,7 +553,8 @@ export function IntegrationsTab({
     if (!botId) return;
     try {
       setLoadingWc(true);
-      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce`, {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/woocommerce`, {
         headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       });
       if (res.ok) {
@@ -571,13 +568,37 @@ export function IntegrationsTab({
     } finally {
       setLoadingWc(false);
     }
-  }, [botId, authToken, wcStoreUrl]);
+  }, [botId, authToken, wcStoreUrl, fetchWithFallback]);
 
   useEffect(() => {
     if (botId) {
       void loadWcStatus();
     }
   }, [botId, loadWcStatus]);
+
+  // Real-time catalog sync poll when syncing
+  useEffect(() => {
+    if (!syncingWc || !botId) return;
+    const fetcher = fetchWithFallback || fetch;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetcher(`/api/bots/${botId}/integrations/woocommerce`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+        });
+        if (res.ok) {
+          const data: WooCommerceStatus = await res.json();
+          setWcStatus(data);
+          if (data.sync_status !== "syncing") {
+            setSyncingWc(false);
+            clearInterval(interval);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [syncingWc, botId, authToken, fetchWithFallback]);
 
   const handleConnectWcOAuth = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -586,7 +607,8 @@ export function IntegrationsTab({
       setLoadingWc(true);
       setWcError(null);
       const returnUrl = typeof window !== "undefined" ? window.location.href : "";
-      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce/authorize-url`, {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/woocommerce/authorize-url`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -612,7 +634,8 @@ export function IntegrationsTab({
     try {
       setLoadingWc(true);
       setWcError(null);
-      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce/connect`, {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/woocommerce/connect`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -647,7 +670,8 @@ export function IntegrationsTab({
       return;
     try {
       setLoadingWc(true);
-      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce`, {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/woocommerce`, {
         method: "DELETE",
         headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       });
@@ -667,7 +691,8 @@ export function IntegrationsTab({
     if (!botId) return;
     try {
       setSyncingWc(true);
-      const res = await fetch(`/api/bots/${botId}/integrations/woocommerce/sync`, {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/woocommerce/sync`, {
         method: "POST",
         headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
       });
@@ -724,7 +749,6 @@ export function IntegrationsTab({
 
   const isWcConnected = Boolean(wcStatus?.connected);
   const isWcConfigured = Boolean(wcStatus?.connected || wcStatus?.store_url);
-  const isCalendarConnected = Boolean(googleConnected);
 
   const activeIntegrationsCount = [
     isWaConnected,
@@ -735,7 +759,6 @@ export function IntegrationsTab({
     isSmsConnected,
     isEmailConnected,
     isWcConnected,
-    isCalendarConnected,
     true, // voice
     true, // embed
     true, // mobile
@@ -863,19 +886,6 @@ export function IntegrationsTab({
         tags: ["voice", "livekit", "audio", "webrtc", "speech", "call"],
       },
       {
-        id: "calendar",
-        name: "Google Calendar & Meet",
-        category: "calendar" as IntegrationCategory,
-        categoryLabel: "Meetings",
-        icon: <PlatformIcon domain="google.com" label="Google Calendar" />,
-        iconBg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-        description: "Synchronize live team availability, enforce working hours, and automatically generate Google Meet video links.",
-        statsHighlight: googleConnected ? "OAuth Live" : "Smart Booking",
-        isConnected: Boolean(googleConnected),
-        isConfigured: Boolean(googleConnected),
-        tags: ["google", "calendar", "meet", "booking", "schedule", "appointments"],
-      },
-      {
         id: "slack",
         name: "Slack Escalation",
         category: "collaboration" as IntegrationCategory,
@@ -959,7 +969,6 @@ export function IntegrationsTab({
     isWcConnected,
     isWcConfigured,
     wcStatus,
-    googleConnected,
     slackWebhookUrl,
     allowedDomains,
   ]);
@@ -970,7 +979,6 @@ export function IntegrationsTab({
       { id: "messaging" as IntegrationCategory, label: "Omnichannel Messaging", count: integrationItems.filter((i) => i.category === "messaging").length },
       { id: "ecommerce" as IntegrationCategory, label: "E-Commerce & Orders", count: integrationItems.filter((i) => i.category === "ecommerce").length },
       { id: "voice" as IntegrationCategory, label: "Voice AI & Telephony", count: integrationItems.filter((i) => i.category === "voice").length },
-      { id: "calendar" as IntegrationCategory, label: "Calendar & Meetings", count: integrationItems.filter((i) => i.category === "calendar").length },
       { id: "collaboration" as IntegrationCategory, label: "Team Collaboration", count: integrationItems.filter((i) => i.category === "collaboration").length },
       { id: "embeds" as IntegrationCategory, label: "Website & CMS Embeds", count: integrationItems.filter((i) => i.category === "embeds").length },
       { id: "mobile" as IntegrationCategory, label: "Mobile App SDKs", count: integrationItems.filter((i) => i.category === "mobile").length },
@@ -1883,7 +1891,10 @@ export function IntegrationsTab({
   };
 
   const renderWooCommerceSection = () => (
-    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
+    <div
+      id="integration-woocommerce"
+      className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+    >
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
         <div className="flex items-start gap-3.5">
           <div className="size-12 rounded-2xl bg-[#9b51e0]/10 text-[#9b51e0] flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
@@ -2112,69 +2123,11 @@ export function IntegrationsTab({
     </div>
   );
 
-  const renderCalendarSection = () => (
-    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
-        <div className="flex items-start gap-3.5">
-          <div className="size-12 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
-            <PlatformIcon domain="google.com" label="Google Calendar" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-              Google Calendar &amp; Meet Scheduling
-              {googleConnected ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Connected
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-                  Ready to Connect
-                </span>
-              )}
-            </h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
-              Autonomous appointment booking across all channels. Live availability engine checks working hours, least-recently-assigned team member rotations, and generates secure anti-tampering booking links.
-            </p>
-          </div>
-        </div>
-
-        {onNavigateTab && (
-          <button
-            type="button"
-            onClick={() => onNavigateTab("settings")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
-          >
-            <Calendar className="size-3.5" />
-            <span>Open Calendar Settings</span>
-          </button>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Account Status</div>
-          <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mt-1">
-            {googleConnected ? (googleEmail ? `Connected (${googleEmail})` : "Workspace Connected") : "Not Connected"}
-          </div>
-        </div>
-        <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Meeting Links</div>
-          <div className="text-xs font-bold text-neutral-900 dark:text-neutral-100 mt-1">
-            Google Meet (Auto-generated)
-          </div>
-        </div>
-        <div className="p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Assignment Engine</div>
-          <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-            LRU Team Rotation
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   const renderSlackSection = () => (
-    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
+    <div
+      id="integration-slack"
+      className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+    >
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
         <div className="flex items-start gap-3.5">
           <div className="size-12 rounded-2xl bg-[#4A154B]/10 text-[#4A154B] dark:text-[#E01E5A] flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
@@ -2232,7 +2185,10 @@ export function IntegrationsTab({
   );
 
   const renderMcpSection = () => (
-    <div className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm">
+    <div
+      id="integration-mcp"
+      className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+    >
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
         <div className="flex items-start gap-3.5">
           <div className="size-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
@@ -2291,7 +2247,7 @@ export function IntegrationsTab({
             <h1 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2 flex-wrap">
               Integrations &amp; Connections Hub
               <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 border border-emerald-500/20">
-                15 Built-in
+                {integrationItems.length} Built-in
               </span>
             </h1>
           </div>
@@ -2589,9 +2545,9 @@ export function IntegrationsTab({
               { id: "omnichannel", label: "Omnichannel Hub", badge: "7 Channels" },
               { id: "woocommerce", label: "WooCommerce" },
               { id: "voice", label: "LiveKit Voice" },
-              { id: "embed", label: "Embed & SDKs" },
+              { id: "embed", label: "Embed Websites" },
+              { id: "mobile", label: "Mobile SDKs" },
               { id: "domains", label: "Domain Security" },
-              { id: "calendar", label: "Google Calendar" },
               { id: "slack", label: "Slack" },
               { id: "mcp", label: "MCP Hub" },
             ].map((item) => (
@@ -4919,10 +4875,6 @@ export function IntegrationsTab({
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "woocommerce")) &&
         renderWooCommerceSection()}
 
-      {/* SECTION GOOGLE CALENDAR */}
-      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "calendar")) &&
-        renderCalendarSection()}
-
       {/* SECTION SLACK ESCALATION */}
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "slack")) &&
         renderSlackSection()}
@@ -5178,7 +5130,7 @@ export function IntegrationsTab({
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "mobile")) && (
       <div
         id="integration-mobile"
-        className="p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
       >
         <div>
           <h3 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">Embed within Mobile Apps (Native SDKs)</h3>
