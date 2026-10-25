@@ -51,6 +51,9 @@ Supabase project.
 - [Flow Builder & Integrations](https://docs.chatty.personaliai.com/guides/flow-architect)
 - [Widget Integration (3-Line Embed)](https://docs.chatty.personaliai.com/guides/embed-widget)
 - [Features](#-features)
+- [7-Channel Omnichannel Hub](#-7-channel-omnichannel-hub)
+- [Visual Flow Builder Engine & Conditional Runtime](#️-visual-flow-builder-engine--conditional-runtime)
+- [WooCommerce Store Integration & Multimodal RAG](#-woocommerce-store-integration--multimodal-rag)
 - [LiveKit Voice Agent & SDKs](#-livekit-voice-agent--sdks)
 - [Architecture](#architecture)
 - [Requirements](#-requirements)
@@ -177,16 +180,18 @@ All 22 core modules are captured from live production ([`chatty.personaliai.com/
 
 ## ✨ Features
 
+- 🔌 **7-Channel Omnichannel Hub** — Production-grade native messaging across WhatsApp Cloud API, Facebook Messenger, Instagram Direct, TikTok Business Messaging, Telegram Bot, Twilio Two-Way SMS (with automated TCPA opt-outs), and Inbound Support Email with quote-stripping.
+- 🗺️ **Visual Flow Builder Engine** — Drag-and-drop interactive canvas (`@xyflow/react`) featuring declarative time-of-day condition branches (e.g. before 6:00 PM vs after 6:00 PM dynamic offers), lead capture, calendar booking, API webhooks, platform metadata detection, and AI Flow Copilot.
+- ⚡ **Live Human Takeover & Inbox** — Real-time Server-Sent Events (SSE) streaming inbox enabling human agents to pause bot automation with one click and chat directly into WhatsApp, Instagram, TikTok, or SMS.
+- 🛒 **WooCommerce & Multimodal RAG** — Direct WooCommerce store sync (order status lookup, live inventory, cart links) alongside PDF, DOCX, CSV, TXT ingestion, web crawling, and multimodal image context.
 - 🎙️ **LiveKit Voice Agent** — Real-time WebRTC bidirectional voice conversations with 5 audio visualizers (`wave`, `bar`, `grid`, `radial`, `aura`), live speech transcription, pipeline & realtime multimodal models, and native embed support across Web, React, iOS, Android, Flutter, and React Native.
-- 💬 **Embeddable Chat Widget** — One `<script>` tag, streaming SSE replies, crisp vector Shadow DOM rendering on any site.
-- 📚 **RAG Knowledge Hub** — Ingest PDF, DOCX, TXT, CSV, or crawl website sitemaps with `pgvector` semantic retrieval.
-- 🛠️ **Autonomous Tool-Calling** — Schedules real meetings (Google Meet, Teams, Zoom), qualifies leads, and checks calendars.
-- 🔌 **Omnichannel Ingress** — Web widget, WhatsApp Cloud API, Slack events, and inbound email ticketing.
+- 💬 **Embeddable Chat Widget** — One `<script>` tag, streaming SSE replies, crisp vector Shadow DOM rendering on any site with zero CSS bleed.
+- 📚 **RAG Knowledge Hub** — Deep semantic retrieval powered by PostgreSQL `pgvector`, HNSW indexing, and hybrid lexical/vector search.
+- 🛠️ **Autonomous Tool-Calling** — Schedules real meetings (Google Meet, Microsoft Teams, Zoom), qualifies leads, and checks calendars.
 - 🔑 **Bring Your Own Key (BYOK)** — Free-tier Gemini by default, or per-bot OpenAI/Anthropic/Groq with AES-128 encryption.
 - 🤖 **65-Tool FastMCP Server** — Control the entire dashboard programmatically from Claude Desktop, Cursor, or Codex via OAuth 2.0 / API Keys (including complete Voice Agent configuration, screenshot telemetry, and autonomous workflows).
 - 📊 **5-Pillar Scorecard** — Independent A–F performance auditing across Conversion, Deflection, Accuracy, Reliability, and CSAT.
 - 🎯 **Proactive Campaigns** — Behavioral triggers (exit-intent, time-on-page, scroll-depth) with timezone-aware cadence planning.
-- 🗺️ **Visual Flow Architect** — Interactive `@xyflow/react` canvas with AI flow generation and deterministic dry-run simulations.
 - 🐳 **One-Command Self-Host** — `docker compose up`, point to Supabase, and launch in 60 seconds.
 
 <details>
@@ -203,6 +208,57 @@ The AI Flow Architect endpoint (`POST /api/flow/generate`) requires authenticate
 
 Published widget flows execute their control nodes too: `delay` is capped at five minutes, `condition` accepts only the declarative `input ==`, `!=`, `contains`, `starts_with`, and `ends_with` grammar, and `loop` has a 100-iteration hard ceiling plus an explicit `done`, `complete`, or `exit` route. A `webhook` node is dispatched through `POST /api/widget/flow/webhook`, not from browser JavaScript. The API reloads the current active flow and permits only the selected published node's `config.url` (or `config.webhook_url`), posts a bounded mapped body, adds an idempotency key, disables redirects, and pins DNS through the SSRF guard. Browser-supplied destinations, headers, and methods are never accepted. A webhook can set bounded `max_attempts` (1–5), `backoff_ms` (0–5,000), and `timeout_ms` (500–30,000); only connection errors, timeouts, and 5xx responses are retried. Use labeled `success`/`true` and `error`/`failed`/`timeout` edges to make the outcome path explicit. Operators can inspect an immutable run snapshot and trace at `GET /api/bots/{bot_id}/flow/runs/{run_id}` before replaying it.
 </details>
+
+## 🔌 7-Channel Omnichannel Hub
+
+Chatty provides native, industrial-standard bidirectional messaging across all major customer conversation surfaces from a single, unified workspace. Messages from every platform normalize into an internal event pipeline, allowing automated flows, the AI brain, and human operators to interact seamlessly.
+
+| Channel | Protocol / Provider | Payloads & UI Controls | Webhook Auth & Verification | Session Prefix | Human Takeover |
+| :--- | :--- | :--- | :--- | :---: | :---: |
+| **WhatsApp** | Meta Cloud API | Text, Media, Templates, Interactive Buttons (Max 3), Lists | `X-Hub-Signature-256` (HMAC-SHA256) | `wa:` | ✅ Real-time |
+| **Messenger** | Meta Graph API | Text, Attachments, Quick Replies (Max 13), Postbacks | `X-Hub-Signature-256` (HMAC-SHA256) | `fb:` | ✅ Real-time |
+| **Instagram DM** | Meta Graph API | Direct Messages, Story Mentions, Quick Replies | `X-Hub-Signature-256` (HMAC-SHA256) | `ig:` | ✅ Real-time |
+| **TikTok** | TikTok Business Messaging | Text, Quick-Reply Buttons (Max 3) | Timestamped HMAC (`t=...,s=...`) | `tt:` | ✅ Real-time |
+| **Telegram** | Telegram Bot API | Text, Markdown, Multi-row Dynamic Inline Keyboards | `X-Telegram-Bot-Api-Secret-Token` | `tg:` | ✅ Real-time |
+| **Two-Way SMS** | Twilio Messaging | Plain Text, Automated TCPA STOP/UNSUBSCRIBE Opt-out | Twilio Cryptographic Signature | `sms:` | ✅ Real-time |
+| **Support Email** | Resend / SendGrid Inbound | Clean Body, Automatic Quoted-Reply Stripping | Webhook Secret Challenge | `email:` | ✅ Real-time |
+
+### Key Architectural Highlights
+* **Zero-Latency Ingestion Queue:** Webhook endpoints perform HMAC verification and return `HTTP 200 OK` in <40ms, preventing Meta and TikTok from triggering exponential 3-second webhook retry storms while the AI reasons.
+* **Smart UI Normalization:** Interactive buttons automatically adapt across channels (rendered as native inline keyboard grids on Telegram, sliced to 3 quick-reply buttons on WhatsApp and TikTok, and transpiled into numbered text options like `Reply [1] or [2]` for SMS).
+* **24-Hour Messaging Window Enforcement:** Tracks `last_inbound_at` on Meta channels to prevent API rejection codes (`131047`), automatically falling back to pre-approved WhatsApp Business templates when the window expires.
+* **TCPA Compliance Interceptor:** Deterministically halts automation and registers opt-outs when users text regulatory keywords (`STOP`, `UNSUBSCRIBE`, `CANCEL`, `QUIT`).
+* **Non-Destructive Secret Store:** Credentials and webhook verify tokens are stored in an encrypted PostgreSQL JSONB envelope (`omnichannel_config`), ensuring updates to one channel never wipe keys from another.
+
+---
+
+## 🗺️ Visual Flow Builder Engine & Conditional Runtime
+
+Chatty includes a visual node-based conversation engine built on `@xyflow/react`. You can design rigid conversational paths for high-stakes business logic (lead qualification, appointment scheduling, promotional campaigns) and let the AI brain handle open-ended questions.
+
+* **Time-Conditional Branching:** Condition nodes support 24-hour and 12-hour time comparisons (e.g. `< 18:00` vs `>= 18:00`). Build time-variable marketing campaigns where visitors chatting before 6:00 PM receive early-bird offers expiring at 6:30 PM, while evening visitors receive offers valid until 9:00 PM.
+* **Platform & Device Metadata:** Nodes inspect normalized incoming request metadata (`platform`, `channel`, `device`, `os`) to serve channel-specific answers or routing rules.
+* **Deterministic Flow Nodes:**
+  * **Trigger:** Activates on events (`session.started`, `message.user`, `lead.created`).
+  * **Message & Question:** Sends rich markdown with multiple-choice buttons.
+  * **Condition:** Declarative branching based on text input, captured variables, tags, or time-of-day.
+  * **Lead Capture:** Gathers name, email, phone, and company into the CRM ledger.
+  * **Book Meeting:** Generates real Google Meet, Microsoft Teams, or Zoom appointment links.
+  * **Webhook:** Issues secure outbound HTTP requests with SSRF protection and retry policies.
+  * **AI Fallback:** Seamlessly delegates conversation turns to the RAG knowledge base.
+
+---
+
+## 🛒 WooCommerce Store Integration & Multimodal RAG
+
+Chatty connects directly to WooCommerce stores to deliver conversational e-commerce experiences:
+
+* **Real-Time Order Tracking:** Visitors can query order status, shipping updates, and delivery tracking numbers using their order ID or billing email.
+* **Live Product Search & Inventory:** Queries active catalog stock, regular and sale pricing, and product descriptions directly through WooCommerce REST APIs.
+* **Multimodal Document RAG:** Indexes PDFs, DOCX, CSV tables, plain text, and recursive website sitemaps using PostgreSQL `pgvector` with HNSW indexing and hybrid semantic search.
+* **Image Context:** Multimodal vision processing allows visitors to upload product photos or screenshots for troubleshooting and visual inquiry.
+
+---
 
 ## 🎙️ LiveKit Voice Agent & SDKs
 
@@ -245,9 +301,76 @@ Choose from 5 reactive audio representations in the dashboard or via SDK props:
 
 ## Architecture
 
-The public repository has one canonical application layout: `frontend/` contains the Next.js dashboard and widget, while
-`backend/` contains the FastAPI API, workers, integrations, and migrations. The application runs against a managed
-Supabase project (the same contract used by Chatty Cloud).
+The public repository has one canonical application layout: `frontend/` contains the Next.js dashboard, embeddable widget, and visual flow builder canvas, while `backend/` contains the FastAPI API, omnichannel adapters, background queue workers, and database migrations.
+
+### Omnichannel Dual-Engine Architecture
+
+```mermaid
+flowchart TB
+    subgraph INBOUND["Omnichannel Ingress & Clients"]
+        direction LR
+        WIDGET["Web Widget & LiveKit Voice"]
+        WA["WhatsApp Cloud API"]
+        META["Messenger & Instagram Direct"]
+        TT["TikTok Business Messaging"]
+        TG["Telegram Bot"]
+        SMS["Twilio Two-Way SMS"]
+        MAIL["Support Inbound Email"]
+    end
+
+    subgraph GATEWAY["Security & Webhook Ingestion Gateway"]
+        direction TB
+        HMAC["Cryptographic Auth (HMAC-SHA256 / Tokens)"]
+        ACK["Sub-40ms HTTP 200 OK Fast ACK"]
+        QUEUE["Async Deduplication & Event Pipeline"]
+        DLP["Real-time PII & Sensitive Data Scrubber"]
+    end
+
+    subgraph CORE["Dual-Engine Execution Brain"]
+        direction LR
+        subgraph FLOW["Visual Flow Builder Runtime"]
+            FNODES["Flow Nodes (@xyflow/react)"]
+            FCOND["Time & Condition Routing"]
+            FLEAD["Lead Capture & CRM Sync"]
+            FBOOK["Calendar Meeting Dispatch"]
+        end
+        subgraph BRAIN["Multimodal RAG & AI Reasoning"]
+            VECT["pgvector Hybrid Semantic Search"]
+            KB["Knowledge Docs (PDF/DOCX/CSV/TXT)"]
+            WOO["WooCommerce Store & Orders API"]
+            LLM["BYOK LLMs (Gemini / Claude / GPT / Groq)"]
+        end
+    end
+
+    subgraph TAKEOVER["Live Operator Desk"]
+        direction TB
+        SSE["Real-Time SSE Event Stream"]
+        INBOX["Unified Helpdesk & SLA Inbox"]
+        HUMAN["1-Click Human Agent Takeover"]
+    end
+
+    subgraph OUTBOUND["Channel UI Normalizer & Dispatch"]
+        direction LR
+        OUT_WA["WhatsApp 24h Window & Templates"]
+        OUT_TT["TikTok Quick Replies (Max 3)"]
+        OUT_TG["Telegram Dynamic Inline Keyboards"]
+        OUT_SMS["SMS Numbered Choices & TCPA Opt-out"]
+        OUT_MAIL["Email Clean Threaded Replies"]
+        OUT_WEB["Widget Streamdown & Rich Cards"]
+    end
+
+    INBOUND --> GATEWAY
+    HMAC --> ACK
+    ACK --> QUEUE
+    QUEUE --> DLP
+    DLP --> CORE
+
+    CORE <--> TAKEOVER
+    CORE --> OUTBOUND
+    TAKEOVER --> OUTBOUND
+```
+
+### Component & Data Architecture
 
 ```mermaid
 flowchart TB
@@ -258,46 +381,47 @@ flowchart TB
     classDef integration fill:#fff7ed,stroke:#ea580c,color:#7c2d12
     classDef deploy fill:#f5f3ff,stroke:#7c3aed,color:#4c1d95
 
-    subgraph clients["Clients and channels"]
+    subgraph clients["Clients & Channels"]
         direction LR
-        visitor(("Website visitor")):::actor
-        operator(("Workspace operator")):::actor
-        channels["WhatsApp · Slack · MCP"]:::actor
+        visitor(("Website Visitor")):::actor
+        operator(("Support Agent")):::actor
+        omni["WhatsApp · Messenger · IG · TikTok · TG · SMS · Email · MCP"]:::actor
     end
-    subgraph edge["Public edge"]
+    subgraph edge["Public Edge"]
         direction LR
-        tls["TLS · domains · rate limits"]:::edge
-        web["Next.js frontend"]:::app
+        tls["TLS · Domain Allowlist · Rate Limits"]:::edge
+        web["Next.js 15+ Frontend (App Router)"]:::app
     end
-    subgraph runtime["Chatty runtime"]
+    subgraph runtime["Chatty Runtime"]
         direction LR
-        api["FastAPI API · chat · RAG · webhooks"]:::app
+        api["FastAPI Backend · Flow Engine · RAG · Webhooks"]:::app
+        mcp["FastMCP 65-Tool Server (OAuth 2.0 / API Keys)"]:::app
     end
-    subgraph managed["Managed Supabase — default profile"]
+    subgraph managed["Managed Supabase Tier"]
         direction LR
         auth["Supabase Auth"]:::data
-        postgres["Postgres + pgvector · RLS"]:::data
-        storage["Supabase Storage"]:::data
+        postgres["Postgres + pgvector · JSONB Configs · RLS"]:::data
+        storage["Supabase Storage (Documents & Audio)"]:::data
         realtime["Supabase Realtime"]:::data
     end
-    subgraph integrations["Optional integrations"]
+    subgraph integrations["External Services"]
         direction TB
-        llm["LLM providers"]:::integration
-        calendar["Calendar providers"]:::integration
-        channelsApi["WhatsApp / Slack"]:::integration
-        billing["Billing + webhooks"]:::integration
+        llm["LLM Providers (Gemini / OpenAI / Anthropic / Groq)"]:::integration
+        calendar["Google Calendar & Microsoft 365"]:::integration
+        wooCommerce["WooCommerce Store API"]:::integration
+        voiceLiveKit["LiveKit WebRTC Audio Mesh"]:::integration
     end
-    subgraph targets["Deployment targets"]
+    subgraph targets["Deployment Targets"]
         direction LR
         docker["Docker Compose / VPS"]:::deploy
         railway["Railway"]:::deploy
         render["Render Blueprint"]:::deploy
-        heroku["Heroku-style host"]:::deploy
+        cloudrun["Google Cloud Run"]:::deploy
     end
 
     visitor --> tls
     operator --> web
-    channels --> api
+    omni --> api
     tls --> web
     web -->|HTTPS| api
     api --> auth
@@ -306,8 +430,8 @@ flowchart TB
     api --> realtime
     api --> llm
     api --> calendar
-    api --> channelsApi
-    api --> billing
+    api --> wooCommerce
+    api --> voiceLiveKit
     targets -. runs .-> runtime
     linkStyle default stroke:#64748b,stroke-width:1.5px
 ```
