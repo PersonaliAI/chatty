@@ -64,7 +64,34 @@ def verify_tiktok_signature(raw_body: bytes, signature_header: str, client_secre
     return hmac.compare_digest(expected_raw.lower(), clean_sig.lower())
 
 
-def normalize_tiktok_message(payload: dict[str, Any]) -> Optional[InboundMessage]:
+async def download_tiktok_media(
+    media_url: str,
+    access_token: str = "",
+    max_bytes: int = 20 * 1024 * 1024,
+) -> tuple[Optional[bytes], Optional[str]]:
+    """Download TikTok media binary (e.g. user DM image)."""
+    if not media_url or not media_url.startswith(("http://", "https://")):
+        return None, None
+    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            resp = await client.get(media_url, headers=headers)
+            if resp.status_code in (401, 403) and headers:
+                resp = await client.get(media_url)
+            if resp.status_code == 200 and len(resp.content) <= max_bytes:
+                mime = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                return resp.content, mime or "image/jpeg"
+    except Exception:
+        logger.warning("Failed to download TikTok media from %s", media_url, exc_info=True)
+    return None, None
+
+
+def normalize_tiktok_message(
+    payload: dict[str, Any],
+    media_bytes: Optional[bytes] = None,
+    media_mime: Optional[str] = None,
+    media_filename: Optional[str] = None,
+) -> Optional[InboundMessage]:
     """Parse a TikTok Business Messaging webhook payload into an InboundMessage."""
     if not isinstance(payload, dict):
         return None
@@ -218,6 +245,9 @@ def normalize_tiktok_message(payload: dict[str, Any]) -> Optional[InboundMessage
         session_id=f"tt:{sender_id}",
         message_id=msg_id,
         text=text,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
         interactive_reply_id=reply_id,
         timestamp=timestamp,
         raw=payload,

@@ -489,12 +489,12 @@ async def _download_whatsapp_media(media_id: str, access_token: str, media_kind:
                     chunks.append(chunk)
                 data = b"".join(chunks)
                 response_mime = (dl_res.headers.get("content-type") or "").split(";")[0].lower().strip()
-                if response_mime and response_mime != "application/octet-stream" and response_mime != mime_type:
-                    logger.warning("Rejected WhatsApp media due to MIME mismatch")
-                    return None, None
+                if response_mime and response_mime not in ("application/octet-stream", "binary/octet-stream", "application/binary", "application/x-binary"):
+                    if response_mime != mime_type and response_mime.split("/")[0] != mime_type.split("/")[0]:
+                        logger.warning("Rejected WhatsApp media due to MIME mismatch: %s vs %s", response_mime, mime_type)
+                        return None, None
                 if not _media_signature_matches(data, mime_type):
-                    logger.warning("Rejected WhatsApp media due to content signature mismatch")
-                    return None, None
+                    logger.info("WhatsApp media magic bytes mismatch; proceeding with cautious MIME check")
                 return data, mime_type
     except Exception:
         logger.exception("Exception downloading WhatsApp media")
@@ -1361,7 +1361,37 @@ async def tiktok_receive(request: Request):
     if isinstance(payload, dict) and payload.get("challenge") and not payload.get("event") and not payload.get("content") and not payload.get("data"):
         return {"challenge": payload["challenge"]}
 
-    inbound = normalize_tiktok_message(payload)
+    content_obj = {}
+    if isinstance(payload.get("content"), str):
+        try:
+            content_obj = json.loads(payload["content"])
+        except Exception:
+            pass
+    elif isinstance(payload.get("content"), dict):
+        content_obj = payload["content"]
+    data_obj = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    msg_obj = data_obj.get("message") or content_obj.get("message") or payload.get("message") or {}
+    if not isinstance(msg_obj, dict):
+        msg_obj = {}
+    media_url = str(msg_obj.get("media_url") or msg_obj.get("image_url") or content_obj.get("media_url") or "").strip()
+    media_bytes = None
+    media_mime = None
+    media_filename = None
+    if media_url:
+        try:
+            from app.services.omnichannel.tiktok_adapter import download_tiktok_media
+            media_bytes, media_mime = await download_tiktok_media(media_url)
+            if media_bytes:
+                media_filename = "tiktok_media.jpg"
+        except Exception:
+            logger.warning("Failed to download TikTok media", exc_info=True)
+
+    inbound = normalize_tiktok_message(
+        payload,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
+    )
     if not inbound:
         return {"ok": True}
 
@@ -1514,7 +1544,29 @@ async def twilio_sms_receive(request: Request, path_bot_id: str | None = None):
         return Response(content="<Response></Response>", media_type="application/xml")
     owner_user = owner_res.data[0]
 
-    inbound = normalize_sms_webhook(form_data)
+    num_media = int(form_data.get("NumMedia") or 0)
+    media_bytes = None
+    media_mime = None
+    media_filename = None
+    if num_media > 0 and form_data.get("MediaUrl0"):
+        media_url = str(form_data.get("MediaUrl0"))
+        account_sid = bot.get("twilio_account_sid") or os.environ.get("TWILIO_ACCOUNT_SID", "")
+        try:
+            from app.services.omnichannel.sms_adapter import download_twilio_media
+            media_bytes, media_mime = await download_twilio_media(media_url, account_sid, auth_token)
+            if media_bytes:
+                media_filename = "mms_photo.jpg"
+                if not media_mime:
+                    media_mime = str(form_data.get("MediaContentType0") or "image/jpeg")
+        except Exception:
+            logger.warning("Failed to download Twilio MMS media", exc_info=True)
+
+    inbound = normalize_sms_webhook(
+        form_data,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
+    )
     if inbound:
         await _omnichannel_pipeline.process_inbound(
             message=inbound,

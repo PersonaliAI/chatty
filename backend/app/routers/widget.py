@@ -855,6 +855,21 @@ async def widget_chat(
         raise HTTPException(status_code=502, detail="widget assistant failed")
 
     reply = result["reply"]
+    has_notified_team = "[NOTIFIED_TEAM]" in reply
+    reply = reply.replace("[NOTIFIED_TEAM]", "").strip()
+
+    try:
+        from app.services.omnichannel.escalation_bridge import is_team_handoff_promised
+        if has_notified_team or is_team_handoff_promised(reply):
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "needs_attention": True,
+                "ai_paused": True,
+                "escalation_reason": "Assistant notified support team of visitor inquiry",
+                "priority": "high",
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+    except Exception:
+        logger.exception("Failed to update session handoff state in widget_chat")
+
     if looks_unanswered(reply) and "[HANDOFF_ACTIONS]" not in reply:
         reply = f"{reply.rstrip()}\n\n[HANDOFF_ACTIONS]"
 
@@ -1222,6 +1237,21 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
                 flow_context=body.flow_context,
             )
             reply = result["reply"]
+            has_notified_team = "[NOTIFIED_TEAM]" in reply
+            reply = reply.replace("[NOTIFIED_TEAM]", "").strip()
+
+            try:
+                from app.services.omnichannel.escalation_bridge import is_team_handoff_promised
+                if has_notified_team or is_team_handoff_promised(reply):
+                    await run_db(lambda: supabase.table("chatty_sessions").update({
+                        "needs_attention": True,
+                        "ai_paused": True,
+                        "escalation_reason": "Assistant notified support team of visitor inquiry",
+                        "priority": "high",
+                    }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+            except Exception:
+                logger.exception("Failed to update session handoff state in widget_chat_stream")
+
             if looks_unanswered(reply) and "[HANDOFF_ACTIONS]" not in reply:
                 reply = f"{reply.rstrip()}\n\n[HANDOFF_ACTIONS]"
             try:
@@ -1496,6 +1526,21 @@ async def widget_chat_media(
         raise HTTPException(status_code=502, detail="assistant failed")
 
     reply = result["reply"]
+    has_notified_team = "[NOTIFIED_TEAM]" in reply
+    reply = reply.replace("[NOTIFIED_TEAM]", "").strip()
+
+    try:
+        from app.services.omnichannel.escalation_bridge import is_team_handoff_promised
+        if has_notified_team or is_team_handoff_promised(reply):
+            await run_db(lambda: supabase.table("chatty_sessions").update({
+                "needs_attention": True,
+                "ai_paused": True,
+                "escalation_reason": "Assistant notified support team of visitor inquiry",
+                "priority": "high",
+            }).eq("bot_id", bot_id).eq("session_id", session_id).execute())
+    except Exception:
+        logger.exception("Failed to update session handoff state in widget_chat_media")
+
     transcript = result.get("transcript") or ""
 
     # If audio was transcribed and visitor had not typed a caption, update the user's conversation row

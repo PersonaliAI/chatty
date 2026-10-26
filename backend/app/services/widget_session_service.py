@@ -214,22 +214,53 @@ def needs_human(text: str) -> bool:
 
 def detect_sentiment_escalation(text: str, previous_message: Optional[str] = None) -> Optional[str]:
     lowered = (text or "").strip().lower()
+    try:
+        from app.services.omnichannel.escalation_bridge import detect_human_handoff_request
+        is_handoff, reason, _ = detect_human_handoff_request(text)
+        if is_handoff:
+            return reason or "Customer requested human agent"
+    except Exception:
+        pass
+
     if any(pattern in lowered for pattern in _HANDOFF_PATTERNS):
         return "Customer requested human agent"
     if any(pattern in lowered for pattern in _NEGATIVE_PATTERNS):
         return "Negative sentiment detected"
+
     if previous_message:
         prev_lowered = previous_message.lower()
         has_handoff_context = (
             looks_unanswered(previous_message)
             or "[handoff_actions]" in prev_lowered
-            or any(kw in prev_lowered for kw in ("connect you", "team member", "human agent", "support team", "live agent", "follow up"))
+            or any(kw in prev_lowered for kw in (
+                "connect you", "team member", "human agent", "support team", "live agent",
+                "follow up", "සම්බන්ධ කිරීමට", "කණ්ඩායම", "නියෝජිත", "කතා කරන්න",
+            ))
         )
-        if has_handoff_context and any(
-            lowered == aff or lowered.startswith(aff + " ") or lowered.endswith(" " + aff)
-            for aff in _AFFIRMATIVE_HANDOFF_PATTERNS
-        ):
-            return "Customer accepted human handoff offer"
+        if not has_handoff_context:
+            try:
+                from app.services.omnichannel.escalation_bridge import is_handoff_prompt
+                has_handoff_context = is_handoff_prompt(previous_message)
+            except Exception:
+                pass
+
+        if has_handoff_context:
+            try:
+                from app.services.omnichannel.escalation_bridge import AFFIRMATIVE_RESPONSES
+                all_affirmatives = set(_AFFIRMATIVE_HANDOFF_PATTERNS) | set(AFFIRMATIVE_RESPONSES)
+            except Exception:
+                all_affirmatives = set(_AFFIRMATIVE_HANDOFF_PATTERNS)
+
+            clean_words = set(re.findall(r"\w+", lowered, flags=re.UNICODE))
+            if any(
+                lowered == aff
+                or lowered.startswith(aff + " ")
+                or lowered.endswith(" " + aff)
+                or f" {aff} " in f" {lowered} "
+                or aff in clean_words
+                for aff in all_affirmatives
+            ):
+                return "Customer accepted human handoff offer"
     return None
 
 

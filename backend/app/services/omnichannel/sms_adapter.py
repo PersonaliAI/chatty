@@ -57,7 +57,35 @@ def verify_twilio_signature(
     return hmac.compare_digest(expected.strip(), signature_header.strip())
 
 
-def normalize_sms_webhook(form_data: dict[str, Any]) -> Optional[InboundMessage]:
+async def download_twilio_media(
+    media_url: str,
+    account_sid: str = "",
+    auth_token: str = "",
+    max_bytes: int = 20 * 1024 * 1024,
+) -> tuple[Optional[bytes], Optional[str]]:
+    """Download MMS media binary from Twilio, using HTTP basic auth if credentials are provided."""
+    if not media_url or not media_url.startswith(("http://", "https://")):
+        return None, None
+    auth = (account_sid, auth_token) if (account_sid and auth_token) else None
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+            resp = await client.get(media_url, auth=auth)
+            if resp.status_code in (401, 403) and auth:
+                resp = await client.get(media_url)
+            if resp.status_code == 200 and len(resp.content) <= max_bytes:
+                mime = resp.headers.get("content-type", "").split(";")[0].strip().lower()
+                return resp.content, mime or "image/jpeg"
+    except Exception:
+        logger.warning("Failed to download Twilio MMS media from %s", media_url, exc_info=True)
+    return None, None
+
+
+def normalize_sms_webhook(
+    form_data: dict[str, Any],
+    media_bytes: Optional[bytes] = None,
+    media_mime: Optional[str] = None,
+    media_filename: Optional[str] = None,
+) -> Optional[InboundMessage]:
     """Parse Twilio webhook form-urlencoded payload into InboundMessage."""
     frm = str(form_data.get("From") or "").strip()
     to = str(form_data.get("To") or "").strip()
@@ -72,7 +100,7 @@ def normalize_sms_webhook(form_data: dict[str, Any]) -> Optional[InboundMessage]
 
     # Check for MMS attachments
     num_media = int(form_data.get("NumMedia") or 0)
-    if not body and num_media > 0:
+    if not body and not media_bytes and num_media > 0:
         media_url = form_data.get("MediaUrl0") or ""
         body = f"[MMS attachment: {media_url}]" if media_url else "[MMS attachment]"
 
@@ -83,6 +111,9 @@ def normalize_sms_webhook(form_data: dict[str, Any]) -> Optional[InboundMessage]
         session_id=session_id,
         message_id=msg_id,
         text=body,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
         raw=form_data,
     )
 

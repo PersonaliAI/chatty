@@ -70,7 +70,64 @@ def clean_email_body(text: str) -> str:
     return "\n".join(clean_lines).strip()
 
 
-def normalize_email_message(payload: dict[str, Any]) -> Optional[InboundMessage]:
+def extract_email_media(payload: dict[str, Any]) -> tuple[Optional[bytes], Optional[str], Optional[str]]:
+    """Extract image attachment from Resend Inbound, Postmark, or SendGrid payload."""
+    import base64
+    attachments = (
+        payload.get("attachments")
+        or payload.get("Attachments")
+        or []
+    )
+    if not isinstance(attachments, list):
+        return None, None, None
+
+    for att in attachments:
+        if not isinstance(att, dict):
+            continue
+        filename = str(att.get("filename") or att.get("Name") or att.get("name") or "attachment.jpg")
+        mime = str(att.get("content_type") or att.get("ContentType") or att.get("type") or "").split(";")[0].strip().lower()
+        if not mime and filename:
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            if ext in ("jpg", "jpeg"):
+                mime = "image/jpeg"
+            elif ext == "png":
+                mime = "image/png"
+            elif ext == "webp":
+                mime = "image/webp"
+
+        if mime and not mime.startswith("image/"):
+            continue
+
+        # Check for base64 content
+        content_raw = att.get("content") or att.get("Content") or att.get("data")
+        if isinstance(content_raw, str) and content_raw.strip():
+            try:
+                data = base64.b64decode(content_raw.strip())
+                if len(data) <= 20 * 1024 * 1024:
+                    return data, mime or "image/jpeg", filename
+            except Exception:
+                pass
+
+        # Check for download URL
+        att_url = att.get("url") or att.get("download_url") or att.get("Path")
+        if isinstance(att_url, str) and att_url.startswith(("http://", "https://")):
+            try:
+                with httpx.Client(timeout=10, follow_redirects=True) as client:
+                    resp = client.get(att_url)
+                    if resp.status_code == 200 and len(resp.content) <= 20 * 1024 * 1024:
+                        return resp.content, mime or resp.headers.get("content-type", "image/jpeg"), filename
+            except Exception:
+                pass
+
+    return None, None, None
+
+
+def normalize_email_message(
+    payload: dict[str, Any],
+    media_bytes: Optional[bytes] = None,
+    media_mime: Optional[str] = None,
+    media_filename: Optional[str] = None,
+) -> Optional[InboundMessage]:
     """Parse an inbound email webhook payload into InboundMessage."""
     raw_from = str(payload.get("from") or payload.get("sender") or "").strip()
     raw_to = payload.get("to") or payload.get("recipient") or ""
@@ -100,6 +157,10 @@ def normalize_email_message(payload: dict[str, Any]) -> Optional[InboundMessage]
 
     session_id = f"email:{sender_email}"
 
+    if media_bytes is None:
+        mb, mm, mf = extract_email_media(payload)
+        media_bytes, media_mime, media_filename = mb, mm, mf
+
     return InboundMessage(
         channel=ChannelType.EMAIL,
         sender_id=sender_email,
@@ -107,6 +168,9 @@ def normalize_email_message(payload: dict[str, Any]) -> Optional[InboundMessage]
         session_id=session_id,
         message_id=msg_id,
         text=full_text,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
         raw={
             "subject": subject,
             "message_id": msg_id,
