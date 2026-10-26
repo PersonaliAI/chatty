@@ -21,7 +21,9 @@ import {
   ChevronLeft,
   ChevronRight,
   HardDrive,
+  X,
 } from "lucide-react";
+import { StorageManagementPanel } from "@/components/storage-management-panel";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -639,76 +641,112 @@ function MetricTile({ label, value, detail }: { label: string; value: string; de
 function StorageProgressBar({ plan, botId, backendUrl, authToken }: { plan: string; botId: string; backendUrl: string; authToken: string }) {
   const [usedBytes, setUsedBytes] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [dynamicLimit, setDynamicLimit] = useState<{ label: string; bytes: number } | null>(null);
 
-  useEffect(() => {
+  const fetchStorage = useCallback(async () => {
     if (!botId) return;
-    let cancelled = false;
-    async function fetchStorage() {
-      try {
-        setLoading(true);
-        const headers: Record<string, string> = {};
-        if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-        const res = await fetch(`${backendUrl}/api/bots/${botId}/media-items`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          const items = Array.isArray(data) ? data : data.items || [];
-          const total = items.reduce((acc: number, item: any) => acc + (Number(item.size_bytes || item.size) || 0), 0);
-          if (!cancelled) setUsedBytes(total > 0 ? total : 0);
-        } else {
-          // Fallback to knowledge sources content calculation
-          const sRes = await fetch(`${backendUrl}/api/widget/kb-sources?bot_id=${encodeURIComponent(botId)}`);
-          if (sRes.ok) {
-            const sData = await sRes.json();
-            const sources = sData.sources || [];
-            const approxBytes = sources.reduce((acc: number, s: any) => acc + (s.content ? s.content.length : 0), 0);
-            if (!cancelled) setUsedBytes(approxBytes);
-          }
+    try {
+      setLoading(true);
+      const headers: Record<string, string> = {};
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+      const res = await fetch(`${backendUrl}/api/bots/${botId}/storage`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const total = Number(data.total_bytes) || 0;
+        setUsedBytes(total);
+        if (data.limit_mb) {
+          setDynamicLimit({
+            label: data.limit_mb >= 1024 ? `${data.limit_mb / 1024} GB` : `${data.limit_mb} MB`,
+            bytes: data.limit_mb * 1024 * 1024,
+          });
         }
-      } catch {
-        if (!cancelled) setUsedBytes(0);
-      } finally {
-        if (!cancelled) setLoading(false);
+      } else {
+        // Fallback to billing summary
+        const bRes = await fetch(`${backendUrl}/api/billing/summary`, { headers });
+        if (bRes.ok) {
+          const bData = await bRes.json();
+          const sMb = bData?.usage?.storage_mb?.used || 0;
+          setUsedBytes(sMb * 1024 * 1024);
+        }
       }
+    } catch {
+      setUsedBytes(0);
+    } finally {
+      setLoading(false);
     }
-    fetchStorage();
-    return () => { cancelled = true; };
   }, [botId, backendUrl, authToken]);
 
-  const getStorageLimit = (p: string) => {
-    if (p.includes("business")) return { label: "10 GB", bytes: 10 * 1024 * 1024 * 1024 };
-    if (p.includes("standard")) return { label: "2 GB", bytes: 2 * 1024 * 1024 * 1024 };
-    if (p.includes("hobby")) return { label: "500 MB", bytes: 500 * 1024 * 1024 };
-    return { label: "100 MB", bytes: 100 * 1024 * 1024 };
-  };
+  useEffect(() => {
+    fetchStorage();
+  }, [fetchStorage]);
 
-  const limit = getStorageLimit(plan);
+  const defaultLimit = (() => {
+    if (plan.includes("business")) return { label: "10 GB", bytes: 10 * 1024 * 1024 * 1024 };
+    if (plan.includes("standard")) return { label: "2 GB", bytes: 2 * 1024 * 1024 * 1024 };
+    if (plan.includes("hobby")) return { label: "500 MB", bytes: 500 * 1024 * 1024 };
+    return { label: "100 MB", bytes: 100 * 1024 * 1024 };
+  })();
+
+  const limit = dynamicLimit || defaultLimit;
   const pct = Math.min((usedBytes / limit.bytes) * 100, 100);
 
+  // Format used display
+  const displayMb = (usedBytes / (1024 * 1024)).toFixed(1);
+
   return (
-    <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex flex-col justify-center gap-2">
-      <div className="flex justify-between items-center">
-         <span className="text-[9px] text-neutral-400 uppercase font-bold tracking-wide flex items-center gap-1">
-           <HardDrive className="size-3" /> Storage Capacity
-         </span>
-         <span className="text-[9px] text-[#f97316] font-bold bg-[#f97316]/10 px-2 py-0.5 rounded-full tracking-wider uppercase">
-           {plan.replace('chatty_', '')} PLAN
-         </span>
-      </div>
-      <div className="flex justify-between items-end mt-1">
-         <div>
+    <>
+      <div className="p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex flex-col justify-center gap-2">
+        <div className="flex justify-between items-center">
+          <span className="text-[9px] text-neutral-400 uppercase font-bold tracking-wide flex items-center gap-1">
+            <HardDrive className="size-3" /> Storage Capacity
+          </span>
+          <span className="text-[9px] text-[#f97316] font-bold bg-[#f97316]/10 px-2 py-0.5 rounded-full tracking-wider uppercase">
+            {plan.replace('chatty_', '')} PLAN
+          </span>
+        </div>
+        <div className="flex justify-between items-end mt-1">
+          <div>
             <h4 className="text-xl font-bold tabular-nums">
-               {loading ? "..." : (usedBytes / (1024 * 1024)).toFixed(1)} <span className="text-sm font-normal text-neutral-400">MB</span>
+              {loading ? "..." : displayMb} <span className="text-sm font-normal text-neutral-400">MB</span>
             </h4>
             <p className="text-[10px] text-neutral-400 mt-0.5">used of {limit.label}</p>
-         </div>
+          </div>
+          <button
+            onClick={() => setShowManageModal(true)}
+            className="text-[10px] text-sky-600 dark:text-sky-400 font-semibold hover:underline flex items-center gap-0.5 mb-0.5"
+          >
+            Manage Storage &rarr;
+          </button>
+        </div>
+        <div className="mt-1 h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+          <div 
+            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000" 
+            style={{ width: `${Math.max(usedBytes > 0 ? 3 : 0, pct)}%` }} 
+          />
+        </div>
       </div>
-      <div className="mt-1 h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-        <div 
-           className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-1000" 
-           style={{ width: `${pct}%` }} 
-        />
-      </div>
-    </div>
+
+      {/* Storage Management Modal */}
+      {showManageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl p-6">
+            <button
+              onClick={() => setShowManageModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors"
+            >
+              <X className="size-5" />
+            </button>
+            <StorageManagementPanel
+              botId={botId}
+              onStorageUpdated={() => {
+                fetchStorage();
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
