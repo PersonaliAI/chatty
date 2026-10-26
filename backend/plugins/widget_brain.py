@@ -297,6 +297,65 @@ def _extract_flow_actions(reply: str) -> tuple[str, Optional[dict[str, Any]]]:
     return clean_reply, flow_action if flow_action else None
 
 
+
+def _detect_conversation_language(text: str, messages: list[dict[str, Any]] | None = None) -> str:
+    """Detect the language of the conversation from recent turns and current text."""
+    sample_texts = [text or ""]
+    if messages:
+        for m in reversed(messages):
+            if isinstance(m, dict) and m.get("role") in ("user", "assistant"):
+                c = m.get("content")
+                if isinstance(c, str):
+                    sample_texts.append(c)
+                elif isinstance(c, list):
+                    for part in c:
+                        if isinstance(part, dict) and part.get("type") == "text":
+                            sample_texts.append(part.get("text", ""))
+            if len(sample_texts) > 5:
+                break
+    combined = " ".join(sample_texts)
+
+    # Sinhala Unicode block (඀-෿) or common Singlish tokens
+    if re.search(r"[඀-෿]", combined) or any(
+        w in combined.lower() for w in (
+            "kandayama", "sambanda", "ganna", "puluwand", "thiyenawad", "tiyenawada",
+            "mokakda", "ow", "owu", "oyala", "karanna", "thiyeda", "mila", "ganan"
+        )
+    ):
+        return "si"
+    # Tamil Unicode block (஀-௿)
+    if re.search(r"[஀-௿]", combined):
+        return "ta"
+    # Arabic
+    if re.search(r"[؀-ۿ]", combined):
+        return "ar"
+    # Russian / Cyrillic
+    if re.search(r"[Ѐ-ӿ]", combined):
+        return "ru"
+    # Spanish
+    if any(w in combined.lower() for w in ("hola", "gracias", "¿", "por favor", "buenos días", "buenas tardes")):
+        return "es"
+    # French
+    if any(w in combined.lower() for w in ("bonjour", "merci", "s'il vous plaît", "salut")):
+        return "fr"
+    # German
+    if any(w in combined.lower() for w in ("hallo", "guten tag", "danke", "bitte")):
+        return "de"
+    return "en"
+
+
+def _get_localized_fallback(lang: str) -> str:
+    fallbacks = {
+        "si": "සමාවෙන්න, මට එම ඉල්ලීම සැකසීමට නොහැකි විය. කරුණාකර ඔබගේ ප්‍රශ්නය නැවත විස්තර කර එවන්න පුළුවන්ද?",
+        "ta": "மன்னிக்கவும், அந்த கோரிக்கையை என்னால் செயல்படுத்த முடியவில்லை. உங்கள் கேள்வியை மீண்டும் விளக்க முடியுமா?",
+        "es": "Lo siento, no pude procesar esa solicitud. ¿Podrías intentar reformular tu pregunta?",
+        "fr": "Désolé, je n'ai pas pu traiter cette demande. Pourriez-vous reformuler votre question ?",
+        "de": "Entschuldigung, das konnte ich leider nicht verarbeiten. Könnten Sie Ihre Frage bitte umformulieren?",
+        "ar": "عذراً، لم أتمكن من معالجة هذا الطلب. هل يمكنك إعادة صياغة سؤالك؟",
+    }
+    return fallbacks.get(lang, "I'm sorry, I wasn't able to process that. Could you try rephrasing your request?")
+
+
 async def run_widget_assistant(
     *,
     bot_id: str,
@@ -931,11 +990,12 @@ async def run_widget_assistant(
         )
     else:
         language_continuity_block = (
-            "LANGUAGE CONTINUITY (highest priority for visible replies):\n"
-            "- Detect the language of the latest visitor message and reply in that same language.\n"
-            "- Keep the established conversation language across every turn unless the visitor clearly switches languages.\n"
-            "- Never switch to English merely because the knowledge base, tool output, calendar data, internal instructions, or fallback model is in English.\n"
-            "- Translate booking confirmations, availability labels, lead-capture questions, error messages, and workflow prompts into the visitor's language.\n\n"
+            "LANGUAGE CONTINUITY (HIGHEST PRIORITY PROTOCOL FOR ALL VISIBLE REPLIES):\n"
+            "- STRICT LANGUAGE MIRRORING: You MUST reply in the EXACT SAME LANGUAGE the visitor is writing or speaking in.\n"
+            "- If the visitor writes in Sinhala (or Sinhala written using English script / Singlish, e.g. 'me bag eka ganna thiyenawad', 'kandayama samaga sambanda karanna'), you MUST respond fluently and completely in Sinhala (සිංහල භාෂාවෙන්).\n"
+            "- NEVER reply in English when the visitor is conversing in Sinhala or another non-English language. Even if product titles, knowledge articles, tool outputs, or internal labels are in English, seamlessly translate everything into the visitor's language!\n"
+            "- Keep the established conversation language across every single turn unless the visitor explicitly asks to switch to English.\n"
+            "- Translate all product details, stock availability confirmations, pricing, handoff messages, and error explanations directly into the visitor's language.\n\n"
             + browser_language_hint
         )
 
@@ -1240,7 +1300,7 @@ async def run_widget_assistant(
         if not tool_calls:
             reply = (
                 gen["text"]
-                or "I'm sorry, I wasn't able to process that. Could you try rephrasing your request?"
+                or _get_localized_fallback(_detect_conversation_language(text, messages))
             )
             if not booking_tool_succeeded and _claims_booking_success(reply):
                 if not booking_correction_attempted:
@@ -1384,7 +1444,7 @@ async def run_widget_assistant(
         session_id=session_id,
         call_type="widget_chat_final",
     )
-    reply = final["text"] or "I'm sorry, I wasn't able to complete that request."
+    reply = final["text"] or _get_localized_fallback(_detect_conversation_language(text, messages))
     if not booking_tool_succeeded and _claims_booking_success(reply):
         reply = (
             "Sorry - I wasn't actually able to complete that booking due to a technical "

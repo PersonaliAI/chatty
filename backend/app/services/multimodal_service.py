@@ -582,15 +582,27 @@ async def search_multimodal_catalog(
                     continue
                 if not catalog_item_is_recommendable(item, in_stock_only=in_stock_only):
                     continue
-                sim_v = 0.0
+                sim_img = 0.0
                 if image_vector and item.get("image_embedding"):
-                    sim_v = max(sim_v, _cosine_similarity(image_vector, item["image_embedding"]))
+                    sim_img = _cosine_similarity(image_vector, item["image_embedding"])
+                
+                sim_text = 0.0
                 if query_vector and item.get("embedding"):
-                    sim_v = max(sim_v, _cosine_similarity(query_vector, item["embedding"]))
+                    sim_text = _cosine_similarity(query_vector, item["embedding"])
 
                 lex_score = fallback_catalog_score(item, tokens) if tokens else 0.0
-                combined_score = max(sim_v, lex_score)
-                if combined_score >= 0.20:
+
+                if image_vector:
+                    # Industrial standard visual search: image similarity is the anchor (80% weight)
+                    # Low visual similarity (< 0.62) cannot be rescued by text matches
+                    if sim_img < 0.62:
+                        combined_score = sim_img * 0.4
+                    else:
+                        combined_score = (sim_img * 0.80) + (max(sim_text, lex_score) * 0.20)
+                else:
+                    combined_score = max(sim_text, lex_score)
+
+                if combined_score >= 0.25:
                     item["similarity"] = combined_score
                     direct_candidates.append((combined_score, item))
 
@@ -716,7 +728,13 @@ def format_multimodal_context_for_prompt(
         lines.append("2. Include pricing, size/variant details, and direct links.")
         lines.append("3. The catalog results above are ranked best-first. Use the BEST MATCH first; never reorder them.")
         lines.append("4. Show at most 3 product cards. For an availability/photo query, show the BEST MATCH and only add alternatives when they are genuinely useful or the visitor asks for options.")
-        lines.append("5. VISUAL VECTOR MATCH RULE: When the visitor uploads or sends a photo, the catalog results above are ranked by Gemini visual vector embedding similarity directly against the store catalog photos. If an item is returned as BEST MATCH based on the photo, confirm that the item is in stock/available in the store, state its price, and present it proudly, even if internal inventory naming slightly differs.")
+        lines.append("5. INDUSTRIAL MULTIMODAL VERIFICATION & ZERO-HALLUCINATION RULE (HIGHEST PRIORITY):")
+        lines.append("   • Cross-Modal Verification: The visitor sent an image. Look closely at the visitor's image (item category, shape, color, and design).")
+        lines.append("   • Strict Category Check: Verify that the candidate item belongs to the EXACT SAME ITEM CATEGORY. If the visitor sent a photo of a handbag or purse, and a candidate is a bracelet, jewelry, shoe, or clothing, DO NOT recommend it as the visitor's item under any circumstances, even if its database title contains words like 'bag'!")
+        lines.append("   • When an item is a verified visual match (such as a matching handbag in our store):")
+        lines.append("     Directly and warmly confirm its availability in the visitor's language, state its price, and append the [PRODUCT_CARD] structured token.")
+        lines.append("   • If no item in our inventory genuinely matches the photo:")
+        lines.append("     State politely and clearly in the visitor's language that we do not have this exact model in our current stock, and offer to have our team check if it can be ordered or sourced for them.")
         lines.append("6. Whenever recommending or answering about a specific catalog product, append a structured card token:")
         lines.append('   [PRODUCT_CARD:{"id": "...", "variant_id": "...", "variant_sku": "...", "title": "...", "price": "...", "currency": "...", "url": "...", "image_url": "...", "in_stock": true}]')
         lines.append("6. For variable products, select a concrete in-stock variant matching the visitor's requested attributes; use that variant's id, SKU, price, availability, and URL in PRODUCT_CARD. Never present the parent price as a confirmed variant price.")

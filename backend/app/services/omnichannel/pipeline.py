@@ -433,7 +433,12 @@ class OmnichannelPipeline:
                 reply = str(result.get("reply") or "").strip()
             except Exception:
                 logger.exception("Omnichannel assistant run failed for bot %s", bot_id)
-                reply = "I apologize, but I encountered an error processing your request. Please try again in a moment."
+                try:
+                    from plugins.widget_brain import _detect_conversation_language, _get_localized_fallback
+                    conv_lang = _detect_conversation_language(message.text, [])
+                    reply = _get_localized_fallback(conv_lang)
+                except Exception:
+                    reply = "I apologize, but I encountered an error processing your request. Please try again in a moment."
 
         if not reply:
             return {"status": "empty_reply", "delivered": False}
