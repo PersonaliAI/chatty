@@ -57,6 +57,8 @@ from app.services.omnichannel.config_store import (
     update_bot_omnichannel_safe,
 )
 from app.services.omnichannel.telegram_adapter import (
+    download_telegram_file,
+    extract_telegram_media,
     normalize_telegram_update,
     send_outbound_telegram,
     verify_telegram_secret,
@@ -89,6 +91,8 @@ __all__ = [
     "dispatch_whatsapp_booking_cancelled",
     "dispatch_whatsapp_booking_confirmation",
     "dispatch_whatsapp_booking_rescheduled",
+    "download_telegram_file",
+    "extract_telegram_media",
     "find_bot_by_omnichannel_field",
     "format_available_slots_for_whatsapp",
     "format_whatsapp_reply",

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+import mimetypes
 import re
 from typing import Any, Optional
 
@@ -28,8 +29,142 @@ def verify_telegram_secret(secret_token_header: str, expected_secret: str) -> bo
     return hmac.compare_digest(secret_token_header.strip(), expected_secret.strip())
 
 
-def normalize_telegram_update(update: dict[str, Any]) -> Optional[InboundMessage]:
-    """Parse a Telegram Update JSON object into InboundMessage."""
+def extract_telegram_media(update: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Extract media attachment metadata from a Telegram update."""
+    message = update.get("message") or update.get("edited_message")
+    if not message or not isinstance(message, dict):
+        return None
+
+    # 1. Photo (array of PhotoSize, last is largest)
+    photos = message.get("photo")
+    if photos and isinstance(photos, list):
+        largest = photos[-1]
+        file_id = largest.get("file_id")
+        if file_id:
+            return {
+                "file_id": str(file_id),
+                "media_type": "photo",
+                "mime_type": "image/jpeg",
+                "file_name": "photo.jpg",
+            }
+
+    # 2. Document (e.g. raw product image or pdf)
+    doc = message.get("document")
+    if doc and isinstance(doc, dict):
+        file_id = doc.get("file_id")
+        if file_id:
+            fname = str(doc.get("file_name") or "document.bin")
+            mime = doc.get("mime_type")
+            if not mime or mime == "application/octet-stream":
+                guessed, _ = mimetypes.guess_type(fname)
+                mime = guessed or "application/octet-stream"
+            m_type = "photo" if mime.startswith("image/") else "document"
+            return {
+                "file_id": str(file_id),
+                "media_type": m_type,
+                "mime_type": mime,
+                "file_name": fname,
+            }
+
+    # 3. Voice note (ogg opus)
+    voice = message.get("voice")
+    if voice and isinstance(voice, dict):
+        file_id = voice.get("file_id")
+        if file_id:
+            return {
+                "file_id": str(file_id),
+                "media_type": "voice",
+                "mime_type": voice.get("mime_type") or "audio/ogg",
+                "file_name": "voice.ogg",
+            }
+
+    # 4. Audio
+    audio = message.get("audio")
+    if audio and isinstance(audio, dict):
+        file_id = audio.get("file_id")
+        if file_id:
+            fname = str(audio.get("file_name") or "audio.mp3")
+            return {
+                "file_id": str(file_id),
+                "media_type": "audio",
+                "mime_type": audio.get("mime_type") or "audio/mpeg",
+                "file_name": fname,
+            }
+
+    # 5. Video
+    video = message.get("video")
+    if video and isinstance(video, dict):
+        file_id = video.get("file_id")
+        if file_id:
+            return {
+                "file_id": str(file_id),
+                "media_type": "video",
+                "mime_type": video.get("mime_type") or "video/mp4",
+                "file_name": "video.mp4",
+            }
+
+    return None
+
+
+async def download_telegram_file(
+    bot_token: str,
+    file_id: str,
+    max_bytes: int = 20 * 1024 * 1024,
+) -> tuple[Optional[bytes], Optional[str]]:
+    """Download a file from Telegram Bot API using file_id.
+    Returns (file_bytes, mime_type).
+    """
+    if not bot_token or not file_id:
+        return None, None
+
+    get_file_url = f"{TELEGRAM_API_BASE}/bot{bot_token}/getFile"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(get_file_url, params={"file_id": file_id})
+            if resp.status_code != 200:
+                logger.error("Telegram getFile error (%s): %s", resp.status_code, resp.text)
+                return None, None
+            file_meta = resp.json()
+            if not file_meta.get("ok"):
+                logger.error("Telegram getFile returned not ok: %s", file_meta)
+                return None, None
+
+            file_path = (file_meta.get("result") or {}).get("file_path")
+            if not file_path:
+                logger.error("Telegram getFile result missing file_path")
+                return None, None
+
+            file_size = (file_meta.get("result") or {}).get("file_size") or 0
+            if file_size > max_bytes:
+                logger.warning("Telegram file %s exceeds max bytes (%s > %s)", file_path, file_size, max_bytes)
+                return None, None
+
+            download_url = f"{TELEGRAM_API_BASE}/file/bot{bot_token}/{file_path}"
+            file_resp = await client.get(download_url)
+            if file_resp.status_code != 200:
+                logger.error("Telegram file download error (%s): %s", file_resp.status_code, file_resp.text)
+                return None, None
+
+            content = file_resp.content
+            if len(content) > max_bytes:
+                return None, None
+
+            mime, _ = mimetypes.guess_type(file_path)
+            if not mime:
+                mime = file_resp.headers.get("content-type", "").split(";")[0].strip() or None
+            return content, mime
+    except Exception:
+        logger.exception("Failed to download file %s from Telegram", file_id)
+        return None, None
+
+
+def normalize_telegram_update(
+    update: dict[str, Any],
+    media_bytes: Optional[bytes] = None,
+    media_mime: Optional[str] = None,
+    media_filename: Optional[str] = None,
+) -> Optional[InboundMessage]:
+    """Parse a Telegram Update JSON object into InboundMessage with optional media attachment."""
     callback_query = update.get("callback_query")
     message = update.get("message") or update.get("edited_message")
 
@@ -61,7 +196,7 @@ def normalize_telegram_update(update: dict[str, Any]) -> Optional[InboundMessage
         if not text and message.get("location"):
             loc = message["location"]
             text = f"📍 Location: https://maps.google.com/?q={loc.get('latitude')},{loc.get('longitude')}"
-        elif not text and (message.get("photo") or message.get("document") or message.get("voice")):
+        elif not text and not media_bytes and (message.get("photo") or message.get("document") or message.get("voice")):
             media_type = "voice" if message.get("voice") else "photo" if message.get("photo") else "document"
             text = f"[{media_type} attachment]"
 
@@ -77,6 +212,9 @@ def normalize_telegram_update(update: dict[str, Any]) -> Optional[InboundMessage
         session_id=session_id,
         message_id=msg_id,
         text=text,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
         interactive_reply_id=reply_id,
         timestamp=timestamp,
         raw=update,

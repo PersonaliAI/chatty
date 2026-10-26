@@ -37,9 +37,11 @@ from app.services.omnichannel.config_store import unpack_omnichannel_bot_row
 from app.services.omnichannel.email_adapter import send_outbound_email
 from app.services.omnichannel.escalation_bridge import (
     apply_human_takeover,
+    check_affirmative_handoff,
     detect_human_handoff_request,
     get_handoff_acknowledgement,
     is_session_ai_paused,
+    is_team_handoff_promised,
 )
 from app.services.omnichannel.instagram_adapter import send_outbound_instagram
 from app.services.omnichannel.models import ChannelType, InboundMessage
@@ -338,6 +340,13 @@ class OmnichannelPipeline:
 
         # 7. Check for human handoff request / escalation
         is_escalation, reason, priority = detect_human_handoff_request(message.text)
+        if not is_escalation:
+            # Check if user responded affirmatively to an assistant handoff proposal
+            if await check_affirmative_handoff(bot_id=bot_id, session_id=session_id, text=message.text):
+                is_escalation = True
+                reason = "Visitor confirmed request to connect with team"
+                priority = "high"
+
         if is_escalation:
             logger.info(
                 "Escalation requested on session %s (reason: %s, priority: %s)",
@@ -353,7 +362,7 @@ class OmnichannelPipeline:
                 priority=priority,
                 owner_user=owner_user,
             )
-            ack_text = get_handoff_acknowledgement()
+            ack_text = get_handoff_acknowledgement(channel=message.channel)
 
             try:
                 await run_db(
@@ -465,6 +474,21 @@ class OmnichannelPipeline:
         # 10. Format response for channel (order cards, product cards, etc.)
         has_handoff_marker = "[HANDOFF_ACTIONS]" in reply
         reply = reply.replace("[HANDOFF_ACTIONS]", "").strip()
+
+        has_notified_team_marker = "[NOTIFIED_TEAM]" in reply
+        reply = reply.replace("[NOTIFIED_TEAM]", "").strip()
+
+        # If assistant reply confirms human team notification (via token or multilingual regex), apply takeover immediately
+        if has_notified_team_marker or is_team_handoff_promised(reply):
+            logger.info("Assistant reply confirmed human team notification on session %s; applying takeover", session_id)
+            await apply_human_takeover(
+                bot_id=bot_id,
+                session_id=session_id,
+                reason="Assistant notified support team of visitor inquiry",
+                text=message.text,
+                priority="high",
+                owner_user=owner_user,
+            )
 
         if message.channel in (ChannelType.WHATSAPP, ChannelType.TELEGRAM, ChannelType.INSTAGRAM, ChannelType.MESSENGER, ChannelType.TIKTOK):
             reply = format_whatsapp_reply(reply)

@@ -422,6 +422,21 @@ def fallback_catalog_score(item: dict[str, Any], tokens: list[str]) -> float:
     )
 
 
+def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    """Calculate cosine similarity between two float vectors."""
+    if not vec_a or not vec_b:
+        return 0.0
+    dim = min(len(vec_a), len(vec_b))
+    if dim == 0:
+        return 0.0
+    dot = sum(vec_a[i] * vec_b[i] for i in range(dim))
+    norm_a = math.sqrt(sum(vec_a[i] * vec_a[i] for i in range(dim)))
+    norm_b = math.sqrt(sum(vec_b[i] * vec_b[i] for i in range(dim)))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
 async def search_multimodal_catalog(
     *,
     bot_id: str,
@@ -429,6 +444,7 @@ async def search_multimodal_catalog(
     image_bytes: Optional[bytes] = None,
     mime_type: Optional[str] = None,
     query_text: str = "",
+    english_query: str = "",
     media_type: Optional[str] = None,
     top_k: int = 6,
     match_threshold: float = 0.25,
@@ -442,7 +458,14 @@ async def search_multimodal_catalog(
     top_k = max(1, min(int(top_k), MAX_CATALOG_RESULTS))
     match_threshold = max(0.0, min(float(match_threshold), 1.0))
     visual_attrs: dict[str, Any] = {}
-    search_keywords = (query_text or "").strip()
+
+    clean_user_text = re.sub(r"\[attachment:[^\]]+\]", "", query_text or "").strip()
+    clean_english_text = re.sub(r"\[attachment:[^\]]+\]", "", english_query or "").strip()
+    combined_query_parts: list[str] = []
+    if clean_english_text:
+        combined_query_parts.append(clean_english_text)
+    if clean_user_text and clean_user_text != clean_english_text:
+        combined_query_parts.append(clean_user_text)
 
     image_vector: list[float] = []
     if image_bytes and mime_type and mime_type.startswith("image/"):
@@ -453,11 +476,21 @@ async def search_multimodal_catalog(
             session_id=session_id,
             call_type="catalog_query_image_embedding",
         )
-        visual_attrs = await analyze_visual_query(image_bytes, mime_type, query_text)
+        visual_attrs = await analyze_visual_query(
+            image_bytes,
+            mime_type,
+            clean_english_text or clean_user_text,
+        )
         extracted_query = visual_attrs.get("search_query") or ""
-        if extracted_query:
-            search_keywords = f"{extracted_query} {query_text}".strip()
+        item_type = visual_attrs.get("item_type") or ""
+        category = visual_attrs.get("category") or ""
+        colors = " ".join(visual_attrs.get("primary_colors") or [])
+        material = visual_attrs.get("material_look") or ""
+        for part in [extracted_query, item_type, colors, material, category]:
+            if part and part not in combined_query_parts:
+                combined_query_parts.append(part)
 
+    search_keywords = " ".join(part for part in combined_query_parts if part).strip()
     if not search_keywords and not visual_attrs:
         return [], {}
 
@@ -471,10 +504,7 @@ async def search_multimodal_catalog(
 
     results: list[dict[str, Any]] = []
 
-    # 2. Unified cross-modal vector search. Because text and image vectors
-    # share Gemini Embedding 2's space, a typed query can score both the
-    # product document and its gallery images. An uploaded image supplies the
-    # image-side query vector instead.
+    # 2. Unified cross-modal vector search via database RPC
     if query_vector or image_vector:
         try:
             rpc_name = "match_media_items_multimodal"
@@ -500,25 +530,26 @@ async def search_multimodal_catalog(
             logger.warning("match_media_items RPC failed, falling back to keyword filter: %s", exc)
 
     # 3. Fallback / Hybrid text search if vector returned few results
-    if len(results) < top_k:
+    tokens = [
+        token for token in re.findall(r"[a-z0-9]+", search_keywords.lower())
+        if len(token) > 2 and token not in _FALLBACK_STOPWORDS
+    ][:10]
+
+    if len(results) < top_k and tokens:
         try:
-            tokens = [
-                token for token in re.findall(r"[a-z0-9]+", search_keywords.lower())
-                if len(token) > 2 and token not in _FALLBACK_STOPWORDS
-            ][:8]
             q = supabase.table("chatty_media_items").select("*").eq("bot_id", bot_id)
             if media_type:
                 q = q.eq("media_type", media_type)
-            if tokens and callable(getattr(q, "or_", None)):
+            if callable(getattr(q, "or_", None)):
                 filters = ",".join(
                     f"{field}.ilike.%{token}%"
-                    for token in tokens
+                    for token in tokens[:6]
                     for field in ("title", "description", "sku", "search_text")
                 )
                 q = q.or_(filters)
 
             existing_ids = {r["id"] for r in results if "id" in r}
-            res_all = await run_db(lambda: q.limit(100).execute())
+            res_all = await run_db(lambda: q.limit(60).execute())
             fallback_candidates: list[tuple[float, dict[str, Any]]] = []
             for item in (res_all.data or []):
                 if item["id"] in existing_ids:
@@ -533,6 +564,40 @@ async def search_multimodal_catalog(
             results.extend(item for _, item in fallback_candidates[: max(0, top_k - len(results))])
         except Exception as exc:
             logger.exception("Fallback media search failed: %s", exc)
+
+    # 4. Secondary in-memory matching against store catalog (for robust 100% coverage)
+    if len(results) < top_k:
+        try:
+            res_all = await run_db(
+                lambda: supabase.table("chatty_media_items")
+                .select("*")
+                .eq("bot_id", bot_id)
+                .limit(60)
+                .execute()
+            )
+            existing_ids = {r["id"] for r in results if "id" in r}
+            direct_candidates: list[tuple[float, dict[str, Any]]] = []
+            for item in (res_all.data or []):
+                if item["id"] in existing_ids:
+                    continue
+                if not catalog_item_is_recommendable(item, in_stock_only=in_stock_only):
+                    continue
+                sim_v = 0.0
+                if image_vector and item.get("image_embedding"):
+                    sim_v = max(sim_v, _cosine_similarity(image_vector, item["image_embedding"]))
+                if query_vector and item.get("embedding"):
+                    sim_v = max(sim_v, _cosine_similarity(query_vector, item["embedding"]))
+
+                lex_score = fallback_catalog_score(item, tokens) if tokens else 0.0
+                combined_score = max(sim_v, lex_score)
+                if combined_score >= 0.20:
+                    item["similarity"] = combined_score
+                    direct_candidates.append((combined_score, item))
+
+            direct_candidates.sort(key=lambda pair: (-pair[0], str(pair[1].get("id") or "")))
+            results.extend(item for _, item in direct_candidates[: max(0, top_k - len(results))])
+        except Exception as exc:
+            logger.exception("In-memory catalog matching failed: %s", exc)
 
     # WooCommerce is authoritative for fast-changing price/stock facts, but
     # the durable indexed snapshot remains the safe fallback on any failure.

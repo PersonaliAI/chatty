@@ -36,6 +36,8 @@ from app.services.omnichannel import (
     ChannelType,
     InboundMessage,
     OmnichannelPipeline,
+    download_telegram_file,
+    extract_telegram_media,
     find_bot_by_omnichannel_field,
     normalize_email_message,
     normalize_instagram_message,
@@ -1271,7 +1273,33 @@ async def instagram_receive(request: Request):
         owner_user = owner_res.data[0]
 
         for messaging_event in (entry.get("messaging") or entry.get("standby") or []):
-            inbound = normalize_instagram_message(messaging_event, is_instagram=is_instagram)
+            msg = messaging_event.get("message") or {}
+            attachments = msg.get("attachments") or []
+            media_bytes = None
+            media_mime = None
+            media_filename = None
+            if attachments and isinstance(attachments, list):
+                att = attachments[0]
+                att_type = str(att.get("type") or "media")
+                att_url = (att.get("payload") or {}).get("url")
+                if att_url and isinstance(att_url, str) and att_url.startswith(("http://", "https://")):
+                    try:
+                        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+                            m_resp = await client.get(att_url)
+                            if m_resp.status_code == 200 and len(m_resp.content) <= 20 * 1024 * 1024:
+                                media_bytes = m_resp.content
+                                media_mime = m_resp.headers.get("content-type", "").split(";")[0].strip() or ("image/jpeg" if att_type == "image" else None)
+                                media_filename = "photo.jpg" if att_type == "image" else "voice.ogg" if att_type == "audio" else "attachment.bin"
+                    except Exception:
+                        logger.warning("Failed to download Meta attachment from %s", att_url, exc_info=True)
+
+            inbound = normalize_instagram_message(
+                messaging_event,
+                is_instagram=is_instagram,
+                media_bytes=media_bytes,
+                media_mime=media_mime,
+                media_filename=media_filename,
+            )
             if inbound:
                 await _omnichannel_pipeline.process_inbound(
                     message=inbound,
@@ -1413,7 +1441,26 @@ async def telegram_receive(request: Request, path_bot_id: str | None = None):
     except Exception:
         return {"ok": True}
 
-    inbound = normalize_telegram_update(update)
+    media_bytes = None
+    media_mime = None
+    media_filename = None
+
+    media_info = extract_telegram_media(update)
+    if media_info and bot_token:
+        file_id = media_info.get("file_id")
+        if file_id:
+            m_bytes, m_mime = await download_telegram_file(bot_token, file_id)
+            if m_bytes:
+                media_bytes = m_bytes
+                media_mime = m_mime or media_info.get("mime_type")
+                media_filename = media_info.get("file_name")
+
+    inbound = normalize_telegram_update(
+        update,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
+    )
     if inbound:
         await _omnichannel_pipeline.process_inbound(
             message=inbound,

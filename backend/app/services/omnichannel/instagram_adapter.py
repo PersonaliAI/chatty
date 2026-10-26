@@ -35,6 +35,9 @@ def verify_instagram_signature(raw_body: bytes, signature_header: str, app_secre
 def normalize_instagram_message(
     messaging_event: dict[str, Any],
     is_instagram: bool = True,
+    media_bytes: Optional[bytes] = None,
+    media_mime: Optional[str] = None,
+    media_filename: Optional[str] = None,
 ) -> Optional[InboundMessage]:
     """Parse a Meta Messenger / Instagram DM messaging event into InboundMessage."""
     sender = messaging_event.get("sender") or {}
@@ -68,9 +71,9 @@ def normalize_instagram_message(
         else:
             text = str(msg.get("text") or "").strip()
 
-        # Check for media attachments if no text
+        # Check for media attachments if no text and no downloaded media
         attachments = msg.get("attachments") or []
-        if not text and attachments:
+        if not text and not media_bytes and attachments:
             att = attachments[0]
             att_type = att.get("type") or "media"
             payload = att.get("payload") or {}
@@ -84,6 +87,9 @@ def normalize_instagram_message(
         session_id=session_id,
         message_id=message_id,
         text=text,
+        media_bytes=media_bytes,
+        media_mime=media_mime,
+        media_filename=media_filename,
         interactive_reply_id=reply_id,
         timestamp=timestamp,
         raw=messaging_event,
