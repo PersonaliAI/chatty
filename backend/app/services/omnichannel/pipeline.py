@@ -331,12 +331,50 @@ class OmnichannelPipeline:
             session_row = None
 
         if is_session_ai_paused(session_row):
-            logger.info(
-                "Human takeover active on session %s for bot %s; suppressing automated AI response",
-                session_id,
-                bot_id,
+            clean_cmd = message.text.strip().lower()
+            is_resume_intent = (
+                clean_cmd in ("/start", "/ai", "/resume", "start", "resume", "ai", "bot", "resume ai", "ai assistant")
+                or message.has_media
+                or "/start" in clean_cmd
+                or "/ai" in clean_cmd
             )
-            return {"status": "ai_paused", "handled_by": "human_agent"}
+            if is_resume_intent:
+                try:
+                    await run_db(
+                        lambda: supabase.table("chatty_sessions")
+                        .update({"ai_paused": False, "escalation_reason": None})
+                        .eq("bot_id", bot_id)
+                        .eq("session_id", session_id)
+                        .execute()
+                    )
+                    if session_row:
+                        session_row["ai_paused"] = False
+                    logger.info("Session %s automatically resumed for inbound query/media", session_id)
+                except Exception:
+                    logger.exception("Failed to unpause session")
+            else:
+                logger.info(
+                    "Human takeover active on session %s for bot %s; suppressing automated AI response",
+                    session_id,
+                    bot_id,
+                )
+                # Inform visitor once of active human takeover queue status
+                try:
+                    from plugins.widget_brain import _detect_conversation_language
+                    conv_lang = _detect_conversation_language(message.text, [])
+                    if conv_lang == "si":
+                        queue_notice = "ඔබගේ පණිවිඩය අපගේ කණ්ඩායමට යොමු කර ඇත. නියෝජිතයෙකු ඉක්මනින් ඔබට සම්බන්ධ වනු ඇත. (නැවත AI සහායක සමඟ කතා කිරීමට /ai හෝ /start යොමු කරන්න)."
+                    else:
+                        queue_notice = "Your message has been routed to our support team. A representative will reply shortly. (Reply /ai or /start to resume chatting with the AI assistant)."
+                    await self._dispatch_to_channel(
+                        message=message,
+                        text=queue_notice,
+                        bot=bot,
+                        access_token=access_token,
+                    )
+                except Exception:
+                    pass
+                return {"status": "ai_paused", "handled_by": "human_agent"}
 
         # 7. Check for human handoff request / escalation
         is_escalation, reason, priority = detect_human_handoff_request(message.text)
