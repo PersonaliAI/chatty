@@ -5468,6 +5468,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           {/* TAB: BILLING */}
           {activeTab === "billing" && (
             <BillingTab
+              botId={botId}
               billingInfo={billingInfo}
               user={user}
               billingInterval={billingInterval}

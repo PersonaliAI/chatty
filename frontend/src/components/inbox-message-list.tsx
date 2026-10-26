@@ -60,7 +60,8 @@ function getTrustedAttachmentUrl(url: string): string | null {
     const base = new URL(supabaseUrl);
     if (
       parsed.origin === base.origin &&
-      parsed.pathname.startsWith("/storage/v1/object/public/chatty-uploads/")
+      (parsed.pathname.startsWith("/storage/v1/object/public/chatty-uploads/") ||
+       parsed.pathname.startsWith("/storage/v1/object/public/chatty_assets/"))
     ) {
       return parsed.href;
     }

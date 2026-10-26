@@ -22,10 +22,12 @@ import {
   Lock,
   Crown,
   Layers,
+  HardDrive,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { fetchBackend } from "@/lib/backend-client";
+import { StorageManagementPanel } from "@/components/storage-management-panel";
 
 export interface BillingInfo {
   plan?: string | null;
@@ -37,6 +39,7 @@ export interface BillingInfo {
 }
 
 interface BillingTabProps {
+  botId?: string | null;
   billingInfo: BillingInfo | null;
   user: SupabaseUser | null;
   billingInterval: "monthly" | "yearly";
@@ -510,6 +513,7 @@ function UserAffiliateSection({ user }: { user: SupabaseUser | null }) {
 }
 
 export function BillingTab({
+  botId,
   billingInfo,
   user,
   billingInterval,
@@ -600,6 +604,9 @@ export function BillingTab({
 
   const liveTeamCount = summaryData?.usage?.team_members?.used ?? teamMembersCount;
   const liveTeamLimit = isAdmin ? null : (summaryData?.usage?.team_members?.limit ?? activeTierConfig.teamSeats);
+
+  const liveStorageUsed = summaryData?.usage?.storage_mb?.used ?? 0;
+  const liveStorageLimit = isAdmin ? null : (summaryData?.usage?.storage_mb?.limit ?? activeTierConfig.mediaStorageMb);
 
   const portalUrl = process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
 
@@ -768,7 +775,7 @@ export function BillingTab({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Meter 1: AI Credits / Messages */}
           <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col justify-between space-y-3">
             <div className="flex items-center justify-between">
@@ -948,7 +955,69 @@ export function BillingTab({
               />
             </div>
           </div>
+
+          {/* Meter 5: Storage Space */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xs flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase font-semibold text-neutral-400">Storage Usage</span>
+              <div className="p-2 rounded-xl bg-cyan-50 dark:bg-cyan-950/50 text-cyan-600 dark:text-cyan-400 border border-cyan-100 dark:border-cyan-800/30">
+                <HardDrive className="size-4" />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold text-neutral-900 dark:text-white">
+                  {liveStorageUsed} <span className="text-sm font-normal text-neutral-400">MB</span>
+                </span>
+                {liveStorageLimit ? (
+                  <span className="text-xs text-neutral-400 font-mono">
+                    / {liveStorageLimit >= 1024 ? `${liveStorageLimit / 1024} GB` : `${liveStorageLimit} MB`}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800 text-[10px] font-bold text-cyan-700 dark:text-cyan-300">
+                    <InfinityIcon className="size-3" /> Unlimited
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                {liveStorageLimit
+                  ? `${Math.min(100, Math.round((liveStorageUsed / liveStorageLimit) * 100))}% capacity consumed`
+                  : `${liveStorageUsed} MB stored · Unlimited storage`}
+              </p>
+            </div>
+            {/* Meter Bar */}
+            <div className="w-full h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-sky-400 transition-all duration-500"
+                style={{
+                  width: liveStorageLimit
+                    ? `${Math.min(100, Math.max(4, (liveStorageUsed / liveStorageLimit) * 100))}%`
+                    : `${Math.min(100, Math.max(5, liveStorageUsed))}%`,
+                }}
+              />
+            </div>
+          </div>
         </div>
+
+        {/* Dedicated Storage Management & Retention Purge Panel */}
+        {botId && (
+          <div className="pt-2">
+            <StorageManagementPanel
+              botId={botId}
+              onStorageUpdated={async () => {
+                try {
+                  const res = await fetchBackend(supabase, "/api/billing/summary");
+                  if (res.ok) {
+                    const d = await res.json();
+                    setSummaryData(d);
+                  }
+                } catch {
+                  // silent
+                }
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* ========================================================

@@ -285,18 +285,52 @@ class OmnichannelPipeline:
             return {"status": "quota_exceeded", "delivered": False}
 
         # 3. Format inbound display content & scrub PII (GDPR Art. 5(1)(c) & Art. 25 Data Minimisation)
-        display_content = scrub_pii(message.text)
+        clean_text = scrub_pii(message.text)
+        file_url: Optional[str] = None
+
+        if message.has_media and message.media_bytes:
+            import time
+            import uuid
+            ext = "jpg"
+            if message.media_filename and "." in message.media_filename:
+                ext = message.media_filename.rsplit(".", 1)[-1].lower()[:8]
+            elif message.media_mime:
+                ext = message.media_mime.split("/")[-1].lower()[:8]
+            if ext == "jpeg":
+                ext = "jpg"
+
+            clean_sess = re.sub(r"[^a-zA-Z0-9_\-]", "_", session_id)
+            storage_path = f"{bot_id}/{clean_sess}/{int(time.time())}-{uuid.uuid4().hex[:8]}.{ext}"
+            content_type = message.media_mime or "application/octet-stream"
+            try:
+                await run_db(
+                    lambda: supabase.storage.from_("chatty-uploads").upload(
+                        storage_path,
+                        message.media_bytes,
+                        {"content-type": content_type, "upsert": "false"},
+                    )
+                )
+                file_url = supabase.storage.from_("chatty-uploads").get_public_url(storage_path)
+            except Exception:
+                logger.exception("Failed to upload omnichannel media attachment to storage")
+
         if message.has_media:
-            tag = f"[attachment: {message.media_filename or message.media_mime}]"
-            display_content = (display_content + "\n" + tag).strip() if display_content else tag
-        display_content = display_content or "[empty message]"
-        message.text = display_content
+            tag = f"[attachment: {message.media_filename or message.media_mime or 'media'}]"
+            if file_url:
+                display_content = (clean_text + "\n" if clean_text else "") + f"{tag}\n{file_url}"
+            else:
+                display_content = (clean_text + "\n" if clean_text else "") + tag
+        else:
+            display_content = clean_text or "[empty message]"
+
+        # Ensure message.text given to model carries user intent/caption cleanly
+        message.text = clean_text or (f"[attachment: {message.media_filename or 'media'}]" if message.has_media else "")
 
         # 4. Maintain session row (for dashboard inbox, SLA tracking, and analytics)
         await _upsert_session(
             bot_id=bot_id,
             session_id=session_id,
-            last_message=display_content,
+            last_message=clean_text or (tag if message.has_media else display_content),
             channel=message.channel.value,
         )
 

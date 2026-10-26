@@ -360,35 +360,54 @@ def _allow_ephemeral_jobs() -> bool:
     }
 
 
-async def _claim_whatsapp_message(bot_id: str, message_id: str | None) -> bool:
-    """Atomically-ish claim a Meta message id for idempotent processing.
+_CLAIMED_IN_FLIGHT_EVENTS: dict[str, float] = {}
 
-    Meta retries webhook deliveries aggressively. The unique database key is
-    the source of truth; a duplicate insert is treated as an already-claimed
-    event and skipped. If an older database has not applied the migration yet,
-    processing continues with a warning so upgrades remain backwards-safe.
+def _check_and_mark_in_flight(key: str, ttl_seconds: float = 120.0) -> bool:
+    """Returns True if claimed, False if already in flight (duplicate retry)."""
+    now = time.time()
+    expired = [k for k, exp in _CLAIMED_IN_FLIGHT_EVENTS.items() if exp < now]
+    for k in expired:
+        _CLAIMED_IN_FLIGHT_EVENTS.pop(k, None)
+
+    if key in _CLAIMED_IN_FLIGHT_EVENTS:
+        return False
+    _CLAIMED_IN_FLIGHT_EVENTS[key] = now + ttl_seconds
+    return True
+
+async def _claim_channel_event(channel: str, bot_id: str, external_event_id: str | None) -> bool:
+    """Atomically claim a channel message/update id for idempotent processing.
+
+    Uses in-memory fast-claim to reject concurrent in-flight retries instantly,
+    and durable database persistence in chatty_channel_events.
     """
-    if not message_id:
+    if not external_event_id:
         return True
+
+    claim_key = f"{channel}:{bot_id}:{external_event_id}"
+    if not _check_and_mark_in_flight(claim_key, ttl_seconds=120.0):
+        logger.info("Skipping in-flight duplicate %s event %s", channel, external_event_id)
+        return False
+
     try:
         res = await run_db(lambda: supabase.table("chatty_channel_events").insert({
-            "channel": "whatsapp",
-            "external_event_id": message_id,
+            "channel": channel,
+            "external_event_id": str(external_event_id),
             "bot_id": bot_id,
         }).execute())
         if getattr(res, "data", None):
             return True
-        logger.info("Skipping duplicate WhatsApp message")
+        logger.info("Skipping duplicate %s event %s", channel, external_event_id)
         return False
     except Exception as exc:
-        # PostgREST reports the unique conflict as an error. We distinguish it
-        # from a missing table so a bad migration cannot silently drop leads.
         text = str(exc).lower()
         if "duplicate" in text or "unique" in text or "23505" in text:
-            logger.info("Skipping duplicate WhatsApp message")
+            logger.info("Skipping duplicate %s event %s", channel, external_event_id)
             return False
-        logger.warning("WhatsApp idempotency store unavailable", exc_info=True)
+        logger.warning("%s idempotency store unavailable", channel, exc_info=True)
         return True
+
+async def _claim_whatsapp_message(bot_id: str, message_id: str | None) -> bool:
+    return await _claim_channel_event("whatsapp", bot_id, message_id)
 
 
 def _verify_meta_signature(raw_payload: bytes, signature_header: str, app_secret: str) -> bool:
@@ -1470,6 +1489,12 @@ async def telegram_receive(request: Request, path_bot_id: str | None = None):
         update = await request.json()
     except Exception:
         return {"ok": True}
+
+    update_id = update.get("update_id")
+    if update_id is not None:
+        if not await _claim_channel_event("telegram", bot["id"], f"upd:{update_id}"):
+            logger.info("Telegram update %s already claimed or in flight for bot %s, dropping retry", update_id, bot["id"])
+            return {"ok": True}
 
     media_bytes = None
     media_mime = None

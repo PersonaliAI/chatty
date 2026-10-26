@@ -408,7 +408,9 @@ def test_pipeline_suppresses_ai_when_human_takeover_active(monkeypatch):
         assert conv_inserts[0]["content"] == "Hello, are you still there?"
         # AI assistant was NOT invoked
         mock_ai.assert_not_called()
-        mock_send.assert_not_called()
+        # Visitor receives a localized queue notice acknowledging human takeover
+        assert mock_send.call_count == 1
+        assert "routed to our support team" in mock_send.call_args[1]["text"]
 
 
 def test_pipeline_handles_human_escalation_request(monkeypatch):

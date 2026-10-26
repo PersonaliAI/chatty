@@ -628,6 +628,7 @@ from app.routers import marketing as _router_marketing  # noqa: E402
 from app.routers import woocommerce as _router_woocommerce  # noqa: E402
 from app.routers import voice as _router_voice  # noqa: E402
 from app.routers import claim as _router_claim  # noqa: E402
+from app.routers import storage as _router_storage  # noqa: E402
 
 from app.routers import contact_identity as _router_contact_identity
 from app.services.contact_identity import guard_widget_session
@@ -645,6 +646,7 @@ app.include_router(_router_team.router)
 app.include_router(_router_admin.router)
 app.include_router(_router_analytics.router)
 app.include_router(_router_bots.router)
+app.include_router(_router_storage.router)
 app.include_router(_router_bots_api.router)
 app.include_router(_router_crawl.router)
 app.include_router(_router_documents.router)
