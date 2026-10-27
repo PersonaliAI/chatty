@@ -419,6 +419,8 @@ def test_pipeline_routes_telegram_with_booking_inline_button(monkeypatch):
         def select(self, *_): return self
         def eq(self, *_): return self
         def limit(self, *_): return self
+        def order(self, *_, **__): return self
+        def maybe_single(self): return self
         def insert(self, payload): return self
         def execute(self):
             return type("Resp", (), {"data": [{"ai_paused": False}]})()
@@ -448,8 +450,9 @@ def test_pipeline_routes_telegram_with_booking_inline_button(monkeypatch):
         )
 
         assert res["status"] == "delivered"
-        mock_tg.assert_called_once()
-        args = mock_tg.call_args[1]
+        # Pipeline sends contextual interim status update followed by final AI booking response with inline button
+        assert mock_tg.call_count >= 1
+        args = mock_tg.call_args_list[-1][1]
         assert args["chat_id"] == "987654321"
         assert args["inline_buttons"] is not None
         assert "book/bot_tg_1?session_id=tg:987654321" in args["inline_buttons"][0]["url"]
