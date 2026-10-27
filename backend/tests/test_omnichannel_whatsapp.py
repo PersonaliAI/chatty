@@ -549,8 +549,9 @@ def test_pipeline_normal_flow_with_conversational_booking(monkeypatch):
         )
 
         assert result["status"] == "delivered"
-        mock_send.assert_called_once()
-        sent_text = mock_send.call_args[1]["text"]
+        # Channel receives the interim notice + final response
+        assert mock_send.call_count >= 1
+        sent_text = mock_send.call_args_list[-1][1]["text"]
         # Booking marker stripped, signed booking URL CTA injected
         assert "[BOOKING_WIDGET]" not in sent_text
         assert "📅 *Schedule your appointment here:*" in sent_text
@@ -621,13 +622,20 @@ def test_widget_reschedule_dispatches_whatsapp_notice(monkeypatch):
         mock_resched_core.return_value = {"id": "meeting_uuid_123"}
         mock_dispatch.return_value = True
 
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        days_ahead = (1 - now.weekday()) % 7 or 7
+        target_day = (now + timedelta(days=days_ahead)).date()
+        future_start = f"{target_day}T14:00:00Z"
+        future_end = f"{target_day}T14:30:00Z"
+
         req = WidgetBookingRescheduleRequest(
             bot_id="bot_resched_wa",
             session_id="wa:15554443322",
             meeting_id="meeting_uuid_123",
             attendee_email="taylor@example.com",
-            new_start_time="2026-10-26T15:00:00Z",
-            new_end_time="2026-10-26T15:30:00Z",
+            new_start_time=future_start,
+            new_end_time=future_end,
             visitor_timezone="UTC",
         )
 

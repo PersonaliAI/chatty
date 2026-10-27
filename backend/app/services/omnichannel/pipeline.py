@@ -46,7 +46,8 @@ from app.services.omnichannel.escalation_bridge import (
 from app.services.omnichannel.instagram_adapter import send_outbound_instagram
 from app.services.omnichannel.models import ChannelType, InboundMessage
 from app.services.omnichannel.sms_adapter import check_tcpa_opt_out, send_outbound_sms
-from app.services.omnichannel.telegram_adapter import send_outbound_telegram
+from app.services.omnichannel.progress_service import get_contextual_interim_notice
+from app.services.omnichannel.telegram_adapter import send_outbound_telegram, send_telegram_chat_action
 from app.services.omnichannel.tiktok_adapter import send_outbound_tiktok
 from app.services.omnichannel.whatsapp_adapter import (
     format_whatsapp_reply,
@@ -491,6 +492,31 @@ class OmnichannelPipeline:
         if flow_reply:
             reply = flow_reply
         else:
+            # 8a. Real-time channel feedback: typing indicator & contextual interim progress notice
+            if message.channel == ChannelType.TELEGRAM and access_token:
+                action = "upload_photo" if message.has_media else "typing"
+                try:
+                    await send_telegram_chat_action(access_token, message.sender_id, action)
+                except Exception:
+                    pass
+
+            interim_notice = get_contextual_interim_notice(
+                message_text=message.text,
+                has_media=message.has_media,
+                media_mime=message.media_mime,
+                media_filename=message.media_filename,
+            )
+            if interim_notice:
+                try:
+                    await self._dispatch_to_channel(
+                        message=message,
+                        text=interim_notice,
+                        bot=bot,
+                        access_token=access_token,
+                    )
+                except Exception:
+                    logger.warning("Failed to dispatch interim progress notice")
+
             try:
                 result = await run_widget_assistant(
                     bot_id=bot_id,

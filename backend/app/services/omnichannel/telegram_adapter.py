@@ -231,6 +231,24 @@ def format_telegram_markdown(text: str) -> str:
     return re.sub(r"https?://[^\s)]+", _escape_url, text)
 
 
+async def send_telegram_chat_action(
+    bot_token: str,
+    chat_id: str | int,
+    action: str = "typing",
+) -> bool:
+    """Send an immediate chat action indicator (typing, upload_photo, etc.) to Telegram."""
+    if not (bot_token and chat_id):
+        return False
+    url = f"{TELEGRAM_API_BASE}/bot{bot_token}/sendChatAction"
+    payload = {"chat_id": chat_id, "action": action}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.post(url, json=payload)
+            return res.status_code == 200
+    except Exception:
+        return False
+
+
 async def send_outbound_telegram(
     bot_token: str,
     chat_id: str | int,
