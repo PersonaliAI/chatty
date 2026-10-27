@@ -645,12 +645,17 @@ function StorageProgressBar({ plan, botId, backendUrl, authToken }: { plan: stri
   const [dynamicLimit, setDynamicLimit] = useState<{ label: string; bytes: number } | null>(null);
 
   const fetchStorage = useCallback(async () => {
-    if (!botId) return;
     try {
       setLoading(true);
       const headers: Record<string, string> = {};
       if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
-      const res = await fetch(`${backendUrl}/api/bots/${botId}/storage`, { headers });
+
+      // Query account-wide storage first so all bots under the user are accounted for
+      let res = await fetch(`${backendUrl}/api/account/storage`, { headers });
+      if (!res.ok && botId) {
+        res = await fetch(`${backendUrl}/api/bots/${botId}/storage?account_wide=true`, { headers });
+      }
+
       if (res.ok) {
         const data = await res.json();
         const total = Number(data.total_bytes) || 0;
@@ -660,6 +665,11 @@ function StorageProgressBar({ plan, botId, backendUrl, authToken }: { plan: stri
             label: data.limit_mb >= 1024 ? `${data.limit_mb / 1024} GB` : `${data.limit_mb} MB`,
             bytes: data.limit_mb * 1024 * 1024,
           });
+        } else if (data.unlimited) {
+          setDynamicLimit({
+            label: "Unlimited",
+            bytes: Infinity,
+          });
         }
       } else {
         // Fallback to billing summary
@@ -668,6 +678,9 @@ function StorageProgressBar({ plan, botId, backendUrl, authToken }: { plan: stri
           const bData = await bRes.json();
           const sMb = bData?.usage?.storage_mb?.used || 0;
           setUsedBytes(sMb * 1024 * 1024);
+          if (bData?.usage?.storage_mb?.unlimited) {
+            setDynamicLimit({ label: "Unlimited", bytes: Infinity });
+          }
         }
       }
     } catch {
@@ -682,14 +695,19 @@ function StorageProgressBar({ plan, botId, backendUrl, authToken }: { plan: stri
   }, [fetchStorage]);
 
   const defaultLimit = (() => {
-    if (plan.includes("business")) return { label: "10 GB", bytes: 10 * 1024 * 1024 * 1024 };
-    if (plan.includes("standard")) return { label: "2 GB", bytes: 2 * 1024 * 1024 * 1024 };
-    if (plan.includes("hobby")) return { label: "500 MB", bytes: 500 * 1024 * 1024 };
-    return { label: "100 MB", bytes: 100 * 1024 * 1024 };
+    const p = (plan || "").toLowerCase();
+    if (p.includes("enterprise")) return { label: "Unlimited", bytes: Infinity };
+    if (p.includes("business")) return { label: "10 GB", bytes: 10 * 1024 * 1024 * 1024 };
+    if (p.includes("standard")) return { label: "2 GB", bytes: 2 * 1024 * 1024 * 1024 };
+    if (p.includes("hobby")) return { label: "500 MB", bytes: 500 * 1024 * 1024 };
+    return { label: "Unlimited", bytes: Infinity };
   })();
 
   const limit = dynamicLimit || defaultLimit;
-  const pct = Math.min((usedBytes / limit.bytes) * 100, 100);
+  const isUnlimited = limit.bytes === Infinity || !isFinite(limit.bytes);
+  const pct = isUnlimited
+    ? Math.min(100, Math.max(5, (usedBytes / (1024 * 1024 * 1024)) * 10))
+    : Math.min((usedBytes / limit.bytes) * 100, 100);
 
   // Format used display
   const displayMb = (usedBytes / (1024 * 1024)).toFixed(1);
@@ -710,7 +728,7 @@ function StorageProgressBar({ plan, botId, backendUrl, authToken }: { plan: stri
             <h4 className="text-xl font-bold tabular-nums">
               {loading ? "..." : displayMb} <span className="text-sm font-normal text-neutral-400">MB</span>
             </h4>
-            <p className="text-[10px] text-neutral-400 mt-0.5">used of {limit.label}</p>
+            <p className="text-[10px] text-neutral-400 mt-0.5">used of {isUnlimited ? "Unlimited storage" : limit.label}</p>
           </div>
           <button
             onClick={() => setShowManageModal(true)}

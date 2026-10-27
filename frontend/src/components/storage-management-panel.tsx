@@ -19,6 +19,7 @@ import {
   Database,
   Clock,
   Sparkles,
+  Bot as BotIcon,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchBackend } from "@/lib/backend-client";
@@ -37,6 +38,8 @@ export interface StorageFile {
   session_id?: string | null;
   mimetype?: string;
   status?: string;
+  bot_id?: string | null;
+  bot_name?: string | null;
 }
 
 export interface StorageCategoryStats {
@@ -47,8 +50,15 @@ export interface StorageCategoryStats {
   percent: number;
 }
 
+export interface StorageBotOption {
+  id: string;
+  name: string;
+}
+
 export interface StorageData {
   bot_id: string;
+  account_wide?: boolean;
+  bots?: StorageBotOption[];
   total_bytes: number;
   total_mb: number;
   limit_mb: number | null;
@@ -66,7 +76,7 @@ export interface StorageData {
 }
 
 interface StorageManagementPanelProps {
-  botId: string;
+  botId?: string;
   onStorageUpdated?: () => void;
 }
 
@@ -78,6 +88,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
 
   // Filters & Search
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [selectedBotFilter, setSelectedBotFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 
@@ -88,11 +99,14 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
   const [actionNotice, setActionNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const loadStorage = async () => {
-    if (!botId) return;
     try {
       setLoading(true);
       setError(null);
-      const res = await fetchBackend(supabase, `/api/bots/${botId}/storage`);
+      // Query account-wide storage first; fallback to bot-scoped if needed
+      let res = await fetchBackend(supabase, `/api/account/storage`);
+      if (!res.ok && botId) {
+        res = await fetchBackend(supabase, `/api/bots/${botId}/storage?account_wide=true`);
+      }
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -126,11 +140,19 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
         .filter((f) => selectedPaths.has(f.path))
         .map((f) => ({ bucket: f.bucket, path: f.path }));
 
-      const res = await fetchBackend(supabase, `/api/bots/${botId}/storage/files`, {
+      let res = await fetchBackend(supabase, `/api/account/storage/files`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ files: filesToDelete }),
       });
+
+      if (!res.ok && botId) {
+        res = await fetchBackend(supabase, `/api/bots/${botId}/storage/files`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: filesToDelete }),
+        });
+      }
 
       if (res.ok) {
         const resJson = await res.json();
@@ -159,11 +181,19 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
       setDeleting(true);
       setActionNotice(null);
 
-      const res = await fetchBackend(supabase, `/api/bots/${botId}/storage/files`, {
+      let res = await fetchBackend(supabase, `/api/account/storage/files`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ files: [{ bucket: file.bucket, path: file.path }] }),
       });
+
+      if (!res.ok && botId) {
+        res = await fetchBackend(supabase, `/api/bots/${botId}/storage/files`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ files: [{ bucket: file.bucket, path: file.path }] }),
+        });
+      }
 
       if (res.ok) {
         setActionNotice({ type: "success", text: `Deleted "${file.name}" successfully.` });
@@ -181,7 +211,8 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
   };
 
   const handleRetentionCleanup = async () => {
-    if (!confirm(`Purge visitor chat uploads older than ${cleanupDays} days? This will permanently remove stale customer uploads and reclaim storage.`)) {
+    const scopeLabel = selectedBotFilter === "all" ? "across all chatbots" : "for this chatbot";
+    if (!confirm(`Purge visitor chat uploads older than ${cleanupDays} days ${scopeLabel}? This will permanently remove stale customer uploads and reclaim storage.`)) {
       return;
     }
 
@@ -189,11 +220,19 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
       setCleaningUp(true);
       setActionNotice(null);
 
-      const res = await fetchBackend(supabase, `/api/bots/${botId}/storage/cleanup`, {
+      let res = await fetchBackend(supabase, `/api/account/storage/cleanup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ older_than_days: cleanupDays }),
+        body: JSON.stringify({ older_than_days: cleanupDays, bot_id: selectedBotFilter }),
       });
+
+      if (!res.ok && botId) {
+        res = await fetchBackend(supabase, `/api/bots/${botId}/storage/cleanup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ older_than_days: cleanupDays }),
+        });
+      }
 
       if (res.ok) {
         const resJson = await res.json();
@@ -212,12 +251,21 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
   };
 
   const filteredFiles = (data?.files || []).filter((f) => {
-    if (activeCategory !== "all" && f.category !== activeCategory) return false;
+    // 1. Bot filter
+    if (selectedBotFilter !== "all" && f.bot_id && f.bot_id !== selectedBotFilter) {
+      return false;
+    }
+    // 2. Category filter
+    if (activeCategory !== "all" && f.category !== activeCategory) {
+      return false;
+    }
+    // 3. Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
         f.name.toLowerCase().includes(q) ||
         (f.session_id && f.session_id.toLowerCase().includes(q)) ||
+        (f.bot_name && f.bot_name.toLowerCase().includes(q)) ||
         f.category_label.toLowerCase().includes(q)
       );
     }
@@ -270,7 +318,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
             </h3>
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-            Categorized breakdown of all visitor uploads, product media, and knowledge files. Delete unwanted files to reclaim quota.
+            Account-wide storage overview across all chatbots. Categorized breakdown of visitor uploads, catalog media, and indexed knowledge.
           </p>
         </div>
 
@@ -278,7 +326,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
           <button
             onClick={loadStorage}
             disabled={loading}
-            className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 transition-colors"
+            className="px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-300 flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -314,7 +362,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                   </span>
                 ) : (
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                    Unlimited
+                    Unlimited Storage
                   </span>
                 )}
               </div>
@@ -329,7 +377,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
             <div className="w-full md:w-64 space-y-1.5">
               <div className="flex justify-between text-[11px] font-mono text-neutral-500">
                 <span>Usage</span>
-                <span>{data.usage_percent}%</span>
+                <span>{data.unlimited ? "Active" : `${data.usage_percent}%`}</span>
               </div>
               <div className="w-full h-2.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
                 <div
@@ -340,7 +388,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                       ? "bg-amber-500"
                       : "bg-sky-500"
                   }`}
-                  style={{ width: `${Math.min(100, Math.max(3, data.usage_percent))}%` }}
+                  style={{ width: `${data.unlimited ? Math.min(100, Math.max(8, (data.total_mb / 1024) * 20)) : Math.min(100, Math.max(3, data.usage_percent))}%` }}
                 />
               </div>
             </div>
@@ -464,7 +512,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
               Retention Cleanup:
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <select
               value={cleanupDays}
               onChange={(e) => setCleanupDays(Number(e.target.value))}
@@ -479,10 +527,10 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
             <button
               onClick={handleRetentionCleanup}
               disabled={cleaningUp || loading}
-              className="px-3 py-1 text-xs font-semibold rounded-xl bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-800 dark:text-neutral-100 transition-colors flex items-center gap-1.5"
+              className="px-3 py-1 text-xs font-semibold rounded-xl bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-800 dark:text-neutral-100 transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="size-3" />
-              {cleaningUp ? "Purging..." : "Purge Stale Visitor Files"}
+              {cleaningUp ? "Purging..." : selectedBotFilter === "all" ? "Purge Stale Visitor Files (All Bots)" : "Purge Stale Visitor Files"}
             </button>
           </div>
         </div>
@@ -495,7 +543,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
             <button
               onClick={handleDeleteSelected}
               disabled={deleting}
-              className="px-3 py-1 text-xs font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition-colors flex items-center gap-1.5 shadow-xs"
+              className="px-3 py-1 text-xs font-semibold rounded-xl bg-rose-600 hover:bg-rose-700 text-white transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <Trash2 className="size-3" />
               {deleting ? "Deleting..." : `Delete Selected (${selectedPaths.size})`}
@@ -505,27 +553,51 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: "all", label: "All Files" },
-            { id: "visitor_uploads", label: "Visitor Uploads" },
-            { id: "catalog_media", label: "Catalog Media" },
-            { id: "knowledge_sources", label: "Knowledge" },
-            { id: "branding_assets", label: "Branding" },
-          ].map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
-                activeCategory === cat.id
-                  ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
-                  : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Bot Filter Dropdown */}
+          {data?.bots && data.bots.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold text-neutral-500 flex items-center gap-1">
+                <BotIcon className="size-3.5 text-sky-500" /> Bot:
+              </span>
+              <select
+                value={selectedBotFilter}
+                onChange={(e) => setSelectedBotFilter(e.target.value)}
+                className="px-2.5 py-1 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-semibold focus:outline-hidden"
+              >
+                <option value="all">🌐 All Chatbots ({data.files_count})</option>
+                {data.bots.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Category Tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+            {[
+              { id: "all", label: "All Files" },
+              { id: "visitor_uploads", label: "Visitor Uploads" },
+              { id: "catalog_media", label: "Catalog Media" },
+              { id: "knowledge_sources", label: "Knowledge" },
+              { id: "branding_assets", label: "Branding" },
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  activeCategory === cat.id
+                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="relative w-full sm:w-56">
@@ -534,7 +606,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, session..."
+            placeholder="Search by name, bot, session..."
             className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
           />
         </div>
@@ -549,7 +621,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                 <th className="py-2.5 px-3 w-8">
                   <button
                     onClick={toggleSelectAll}
-                    className="text-neutral-400 hover:text-neutral-600 flex items-center"
+                    className="text-neutral-400 hover:text-neutral-600 flex items-center cursor-pointer"
                   >
                     {selectedPaths.size > 0 && selectedPaths.size === filteredFiles.length ? (
                       <CheckSquare className="size-3.5 text-sky-500" />
@@ -559,6 +631,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                   </button>
                 </th>
                 <th className="py-2.5 px-3">File / Asset Name</th>
+                <th className="py-2.5 px-3">Chatbot</th>
                 <th className="py-2.5 px-3">Category</th>
                 <th className="py-2.5 px-3">Size</th>
                 <th className="py-2.5 px-3">Uploaded / Indexed</th>
@@ -568,7 +641,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/60 font-mono">
               {filteredFiles.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-neutral-400 font-sans">
+                  <td colSpan={7} className="py-8 text-center text-neutral-400 font-sans">
                     {loading ? "Loading storage assets..." : "No files found matching the criteria."}
                   </td>
                 </tr>
@@ -585,7 +658,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                       <td className="py-2.5 px-3">
                         <button
                           onClick={() => toggleSelectPath(f.path)}
-                          className="text-neutral-400 hover:text-neutral-600 flex items-center"
+                          className="text-neutral-400 hover:text-neutral-600 flex items-center cursor-pointer"
                         >
                           {isSelected ? (
                             <CheckSquare className="size-3.5 text-sky-500" />
@@ -607,6 +680,13 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                             session: {f.session_id}
                           </span>
                         )}
+                      </td>
+
+                      <td className="py-2.5 px-3 font-sans">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                          <BotIcon className="size-3 text-sky-500" />
+                          {f.bot_name || "Bot"}
+                        </span>
                       </td>
 
                       <td className="py-2.5 px-3 font-sans">
@@ -649,8 +729,8 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                           <button
                             onClick={() => handleDeleteSingle(f)}
                             disabled={deleting}
-                            className="p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/60 text-neutral-400 hover:text-rose-600 transition-colors"
-                            title="Delete file to free space"
+                            className="p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            title="Delete file permanently"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
