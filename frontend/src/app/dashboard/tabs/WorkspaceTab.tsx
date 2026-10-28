@@ -2,11 +2,14 @@
 
 import React, { useState } from "react";
 import {
+  AlertTriangle,
   Building2,
   Calendar,
   CalendarCheck,
   Check,
   Crown,
+  Download,
+  FileDown,
   History,
   Link2,
   Loader2,
@@ -122,6 +125,56 @@ export function WorkspaceTab({
   const [memberZoomLink, setMemberZoomLink] = useState<Record<string, string>>({});
   const [savingMemberCalendar, setSavingMemberCalendar] = useState<string | null>(null);
   const [auditFilter, setAuditFilter] = useState("");
+  const [exportingGdpr, setExportingGdpr] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const handleExportAccountGdpr = async () => {
+    setExportingGdpr(true);
+    try {
+      const res = await fetchWithFallback("/api/account/gdpr/export");
+      if (!res.ok) throw new Error("Failed to export account data");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `chatty_gdpr_account_export_${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast("GDPR Account archive downloaded successfully", "success");
+    } catch (err: any) {
+      showToast(err.message || "Export failed", "error");
+    } finally {
+      setExportingGdpr(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmationText.trim() !== "DELETE MY ACCOUNT") {
+      showToast("Please type 'DELETE MY ACCOUNT' to confirm", "error");
+      return;
+    }
+    setDeletingAccount(true);
+    try {
+      const res = await fetchWithFallback("/api/account/gdpr/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: deleteConfirmationText.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Account deletion failed");
+      showToast("Account deleted under GDPR Article 17. Redirecting...", "info");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
+    } catch (err: any) {
+      showToast(err.message || "Failed to delete account", "error");
+      setDeletingAccount(false);
+    }
+  };
 
   const isOwnerOrAdmin = myRole === "owner" || myRole === "admin" || !myRole;
   const grantableTabs = isOwnerOrAdmin && myRole === "admin"
@@ -1039,6 +1092,130 @@ export function WorkspaceTab({
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── GDPR & Data Privacy (Portability & Erasure) ── */}
+      {isOwnerOrAdmin && (
+        <div className="pt-6 border-t border-neutral-200 dark:border-neutral-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+                GDPR &amp; Data Privacy Center (EU &amp; UK Compliant)
+              </h4>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                Self-service data portability and permanent erasure compliant with GDPR Regulation (EU) 2016/679.
+              </p>
+            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 self-start sm:self-auto">
+              100% GDPR Compliant
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Card 1: Article 20 Right to Data Portability */}
+            <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xs flex flex-col justify-between space-y-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                  <FileDown className="size-4 text-blue-500" />
+                  <span>Export Account Archive (Article 20)</span>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  Download a complete, machine-readable JSON archive containing your account profile, all configured chatbots, knowledge sources, visitor conversations, leads, calendar appointments, and audit trails.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleExportAccountGdpr}
+                disabled={exportingGdpr}
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {exportingGdpr ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                <span>{exportingGdpr ? "Compiling Archive…" : "Export Account Data (JSON)"}</span>
+              </button>
+            </div>
+
+            {/* Card 2: Article 17 Right to Erasure */}
+            <div className="p-4 rounded-xl border border-red-200/80 dark:border-red-900/50 bg-red-50/20 dark:bg-red-950/10 shadow-xs flex flex-col justify-between space-y-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-red-600 dark:text-red-400">
+                  <Trash2 className="size-4" />
+                  <span>Permanent Account Deletion (Article 17)</span>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  Permanently purge your account, all chatbots, vector embeddings, visitor conversations, leads, media files, and authentication identity. This action is irreversible.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteAccountModal(true)}
+                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors cursor-pointer shadow-xs"
+              >
+                <Trash2 className="size-3.5" />
+                <span>Delete Entire Account</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="p-2.5 rounded-full bg-red-100 dark:bg-red-950/60">
+                <AlertTriangle className="size-6 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  Delete Account Permanently?
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">GDPR Article 17 Right to Erasure</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+              This will permanently delete your account (<b>{user?.email || "your account"}</b>), all chatbots, knowledge documents, conversations, leads, scheduled meetings, and storage assets. <b>This cannot be undone.</b>
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                Type <span className="font-mono text-red-600 font-bold">DELETE MY ACCOUNT</span> to confirm:
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmationText}
+                onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                placeholder="DELETE MY ACCOUNT"
+                className="w-full px-3 py-2 text-xs border border-neutral-300 dark:border-neutral-700 rounded-lg bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-mono focus:outline-hidden focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteAccountModal(false);
+                  setDeleteConfirmationText("");
+                }}
+                disabled={deletingAccount}
+                className="px-3.5 py-2 text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount || deleteConfirmationText.trim() !== "DELETE MY ACCOUNT"}
+                className="px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                {deletingAccount ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                <span>{deletingAccount ? "Permanently Erasing…" : "Permanently Delete Account"}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

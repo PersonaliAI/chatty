@@ -214,6 +214,21 @@ def test_ranked_source_refs_dedupes_by_name_and_respects_limit():
     assert names.count("Pricing") == 1
 
 
+def test_ranked_source_refs_extracts_clean_human_title_from_content():
+    content = "Title: Add Knowledge Source — Chatty Docs\n\nMarkdown Content:\nAdd knowledge base text..."
+    sources = [{"name": "https://docs.chatty.personaliai.com/api-reference/knowledge/add", "content": content, "type": "url"}]
+    refs = wb._ranked_source_refs("knowledge", sources)
+    assert len(refs) == 1
+    assert refs[0]["title"] == "Add Knowledge Source"
+    assert refs[0]["name"] == "Add Knowledge Source"
+    assert refs[0]["url"] == "https://docs.chatty.personaliai.com/api-reference/knowledge/add"
+
+
+def test_extract_source_title_url_slug_fallback():
+    title = wb.extract_source_title("https://docs.chatty.personaliai.com/api-reference/knowledge/delete", "")
+    assert title == "Knowledge / Delete"
+
+
 # ---------------------------------------------------------------------------
 # _web_search (widget_brain's own copy - httpx.AsyncClient mocked)
 # ---------------------------------------------------------------------------

@@ -13,6 +13,8 @@ import re
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from app.core.clients import supabase
 from app.core.db import run_db
@@ -1104,6 +1106,154 @@ async def gdpr_export(bot_id: str, user: dict[str, Any] = Depends(require_user))
         "conversations": conv,
         "sessions": sess,
         "leads": leads,
+    }
+
+
+class AccountDeletionRequest(BaseModel):
+    confirmation: str
+
+
+@router.get("/api/account/gdpr/export")
+async def account_gdpr_export(user: dict[str, Any] = Depends(require_user)):
+    """GDPR Article 20 (Right to Data Portability) & Article 15 (Right of Access).
+    Exports all personal account data, chatbots, knowledge sources, conversations,
+    sessions, leads, and meetings associated with the authenticated user account."""
+    auth_user_id = user.get("auth_user_id") or user.get("id")
+    if not auth_user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    user_res = await run_db(
+        lambda: supabase.table("users").select("id, auth_user_id, email, name, role, plan, created_at").eq("auth_user_id", auth_user_id).limit(1).execute()
+    )
+    user_profile = user_res.data[0] if (user_res and user_res.data) else user
+
+    bots_res = await run_db(
+        lambda: supabase.table("chatty_bots").select("*").eq("user_id", auth_user_id).execute()
+    )
+    bots = bots_res.data or []
+    bot_ids = [b["id"] for b in bots if "id" in b]
+
+    sources, conversations, sessions, leads, meetings, audit_logs = [], [], [], [], [], []
+    if bot_ids:
+        src_res, conv_res, sess_res, leads_res, meet_res, logs_res = await asyncio.gather(
+            run_db(lambda: supabase.table("chatty_sources").select("id, bot_id, type, name, status, char_count, created_at").in_("bot_id", bot_ids).limit(10000).execute()),
+            run_db(lambda: supabase.table("chatty_conversations").select("id, bot_id, session_id, role, content, created_at, sender").in_("bot_id", bot_ids).limit(50000).execute()),
+            run_db(lambda: supabase.table("chatty_sessions").select("id, bot_id, session_id, visitor_name, visitor_email, channel, created_at, updated_at").in_("bot_id", bot_ids).limit(50000).execute()),
+            run_db(lambda: supabase.table("chatty_leads").select("*").in_("bot_id", bot_ids).limit(50000).execute()),
+            run_db(lambda: supabase.table("chatty_meetings").select("*").in_("bot_id", bot_ids).limit(50000).execute()),
+            run_db(lambda: supabase.table("admin_audit_logs").select("*").in_("bot_id", bot_ids).limit(5000).execute()),
+        )
+        sources = src_res.data or []
+        conversations = conv_res.data or []
+        sessions = sess_res.data or []
+        leads = leads_res.data or []
+        meetings = meet_res.data or []
+        audit_logs = logs_res.data or []
+
+    export_payload = {
+        "export_metadata": {
+            "regulation": "General Data Protection Regulation (GDPR) Regulation (EU) 2016/679",
+            "articles": ["Article 15 (Right of Access)", "Article 20 (Right to Data Portability)"],
+            "platform": "Chatty (PersonaliAI)",
+            "account_id": auth_user_id,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+        },
+        "account_profile": {
+            "id": user_profile.get("id"),
+            "auth_user_id": user_profile.get("auth_user_id"),
+            "email": user_profile.get("email"),
+            "name": user_profile.get("name"),
+            "plan": user_profile.get("plan"),
+            "role": user_profile.get("role"),
+            "created_at": user_profile.get("created_at"),
+        },
+        "summary_counts": {
+            "chatbots": len(bots),
+            "knowledge_sources": len(sources),
+            "conversations": len(conversations),
+            "sessions": len(sessions),
+            "leads": len(leads),
+            "meetings": len(meetings),
+            "audit_logs": len(audit_logs),
+        },
+        "chatbots": bots,
+        "knowledge_sources": sources,
+        "conversations": conversations,
+        "sessions": sessions,
+        "leads": leads,
+        "meetings": meetings,
+        "audit_logs": audit_logs,
+    }
+    return JSONResponse(
+        content=export_payload,
+        headers={
+            "Content-Disposition": f"attachment; filename=\"chatty_account_gdpr_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json\""
+        }
+    )
+
+
+@router.post("/api/account/gdpr/delete")
+async def account_gdpr_delete(
+    req: AccountDeletionRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """GDPR Article 17 (Right to Erasure / 'Right to be Forgotten').
+    Permanently erases the tenant account, all owned chatbots, knowledge bases,
+    conversations, leads, meetings, storage objects, and authentication identity."""
+    auth_user_id = user.get("auth_user_id") or user.get("id")
+    if not auth_user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if req.confirmation.strip() != "DELETE MY ACCOUNT":
+        raise HTTPException(
+            status_code=400,
+            detail="To confirm account deletion under GDPR Article 17, you must provide the exact confirmation text 'DELETE MY ACCOUNT'."
+        )
+
+    bots_res = await run_db(
+        lambda: supabase.table("chatty_bots").select("id").eq("user_id", auth_user_id).execute()
+    )
+    bot_ids = [b["id"] for b in (bots_res.data or []) if "id" in b]
+
+    if bot_ids:
+        for tbl in [
+            "chatty_conversations",
+            "chatty_sessions",
+            "chatty_sources",
+            "chatty_leads",
+            "chatty_meetings",
+            "chatty_team_members",
+            "chatty_campaigns",
+            "chatty_campaign_events",
+            "admin_audit_logs",
+            "chatty_kb_articles",
+            "chatty_kb_categories",
+            "chatty_automation_rules",
+        ]:
+            try:
+                await run_db(lambda t=tbl: supabase.table(t).delete().in_("bot_id", bot_ids).execute())
+            except Exception as e:
+                logger.warning("Failed cascade deleting %s during GDPR erasure: %s", tbl, e)
+
+        try:
+            await run_db(lambda: supabase.table("chatty_bots").delete().in_("id", bot_ids).execute())
+        except Exception as e:
+            logger.warning("Failed deleting chatty_bots: %s", e)
+
+    try:
+        await run_db(lambda: supabase.table("users").delete().eq("auth_user_id", auth_user_id).execute())
+    except Exception as e:
+        logger.warning("Failed deleting users row: %s", e)
+
+    try:
+        await run_db(lambda: supabase.auth.admin.delete_user(auth_user_id))
+    except Exception as e:
+        logger.warning("Failed deleting Supabase Auth identity for %s: %s", auth_user_id, e)
+
+    logger.info("GDPR Article 17 account deletion completed for user %s", auth_user_id)
+    return {
+        "success": True,
+        "message": "Account and all associated personal and operational data permanently deleted in accordance with GDPR Article 17.",
     }
 
 

@@ -223,7 +223,7 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   return new Blob([view], { type: "audio/wav" });
 }
 
-interface Citation { name: string; type: string; url?: string | null; }
+interface Citation { name: string; title?: string; type: string; url?: string | null; confidence?: number; }
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -3731,11 +3731,29 @@ function IdentifiedChatWidget({
                               {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
                                 <div className="mt-2 pt-2 border-t border-neutral-200 dark:border-neutral-700 flex flex-wrap gap-1">
                                   {msg.sources.map((s, si) => {
-                                    const label = s.url ? (() => { try { return new URL(s.url!).hostname.replace(/^www\./, "") + new URL(s.url!).pathname.replace(/\/$/, ""); } catch { return s.name; } })() : s.name;
-                                    const cls = "inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-neutral-500 max-w-[170px]";
+                                    const cleanTitle = s.title || s.name || "";
+                                    const hasReadableTitle = cleanTitle && !cleanTitle.startsWith("http://") && !cleanTitle.startsWith("https://");
+                                    const label = hasReadableTitle
+                                      ? cleanTitle
+                                      : s.url
+                                        ? (() => {
+                                            try {
+                                              const u = new URL(s.url!);
+                                              const parts = u.pathname.split("/").filter(Boolean);
+                                              if (parts.length > 0) {
+                                                return parts[parts.length - 1].replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                                              }
+                                              return u.hostname.replace(/^www\./, "");
+                                            } catch {
+                                              return cleanTitle || s.name;
+                                            }
+                                          })()
+                                        : cleanTitle || s.name;
+                                    const tooltip = s.url ? `${hasReadableTitle ? `${cleanTitle} • ` : ""}${s.url}` : cleanTitle;
+                                    const cls = "inline-flex items-center gap-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-700/90 text-neutral-600 dark:text-neutral-300 max-w-[260px] shadow-xs hover:border-neutral-400 dark:hover:border-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-all";
                                     return s.url
-                                      ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={s.url} className={`${cls} hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors`}><Link2 className="size-2.5 shrink-0" /><span className="truncate">{label}</span></a>
-                                      : <span key={si} title={s.name} className={cls}><FileText className="size-2.5 shrink-0" /><span className="truncate">{label}</span></span>;
+                                      ? <a key={si} href={s.url} target="_blank" rel="noopener noreferrer" title={tooltip} className={cls}><Link2 className="size-2.5 shrink-0 text-neutral-400" /><span className="truncate">{label}</span></a>
+                                      : <span key={si} title={tooltip} className={cls}><FileText className="size-2.5 shrink-0 text-neutral-400" /><span className="truncate">{label}</span></span>;
                                   })}
                                 </div>
                               )}

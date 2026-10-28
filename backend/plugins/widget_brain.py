@@ -1052,6 +1052,9 @@ async def run_widget_assistant(
         "so the widget displays an interactive product card with photo and purchase link. "
         "If a video demonstration or clip is relevant, include [VIDEO_CLIP:{\"title\":\"...\",\"video_url\":\"...\",\"timestamp\":15,\"thumbnail_url\":\"...\"}] "
         "so the visitor can watch the video clip directly in the chat.\n"
+        + "- CODE EXAMPLES VS. BUSINESS POLICIES: Technical documentation may contain sample code, cURL commands, or mock API request/response payloads with dummy placeholder data (such as dummy emails like support@acme.com, placeholder company names like Acme Corp, or sample return policies created solely as API syntax examples). "
+        "NEVER treat code snippets, cURL flags, or mock API request bodies as factual business policies, contact details, or guarantees of this business. "
+        "For actual policies, pricing, refunds, cancellations, and terms, rely ONLY on real business policy sections, terms of service, and official platform descriptions. If a policy or detail is not specified in real documentation, do NOT invent or borrow one from an API code snippet - explain what information you have and offer to have the team follow up.\n"
         + ("- Stay strictly on-topic for this business. If a visitor asks an off-topic question or asks about policies/details not covered in your knowledge base, politely state that you specialize in this business and don't have information on that topic, and ALWAYS append `[HANDOFF_ACTIONS]`.\n"
            if answer_mode == "strict" else
            "- Keep the focus on this business, but you may answer reasonable general questions too. If off-topic or outside your knowledge, politely explain and append `[HANDOFF_ACTIONS]`.\n")
@@ -1729,6 +1732,7 @@ def _refs_grounded_in_reply(refs: list[dict], reply: str) -> list[dict]:
         if ref_tokens & reply_tokens:
             grounded.append({
                 "name": ref.get("name"),
+                "title": ref.get("title") or ref.get("name"),
                 "type": ref.get("type"),
                 "url": ref.get("url"),
                 **({"confidence": ref["confidence"]} if "confidence" in ref else {}),
@@ -1736,6 +1740,7 @@ def _refs_grounded_in_reply(refs: list[dict], reply: str) -> list[dict]:
     return grounded if grounded else [
         {
             "name": r.get("name"),
+            "title": r.get("title") or r.get("name"),
             "type": r.get("type"),
             "url": r.get("url"),
             **({"confidence": r["confidence"]} if "confidence" in r else {}),
@@ -1743,6 +1748,49 @@ def _refs_grounded_in_reply(refs: list[dict], reply: str) -> list[dict]:
         for r in refs[:2]
         if r.get("confidence", 0.5) >= 0.45
     ]
+
+
+def extract_source_title(name: str, content: str = "") -> str:
+    """Extract a human-readable, professional document title for citation pills.
+    Prioritizes markdown title headings and cleans crawler suffixes."""
+    name = (name or "").strip()
+    content = (content or "").strip()
+    if name and not name.startswith(("http://", "https://")):
+        return name.replace("Article: ", "").strip()
+    
+    # 1. Match 'Title: ...' at start of document (Firecrawl / crawler standard)
+    title_match = re.search(r"^(?:Title:\s*)([^\r\n]+)", content, re.MULTILINE | re.IGNORECASE)
+    if title_match:
+        raw = title_match.group(1).strip()
+        raw = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", raw).strip()
+        for sep in ["\u2014", "\u2013", "--", "|", "•"]:
+            if sep in raw:
+                raw = raw.split(sep)[0].strip()
+        raw = re.sub(r"\s*-\s*(?:Chatty|PersonaliAI|Docs|Documentation).*$", "", raw, flags=re.IGNORECASE).strip()
+        if len(raw) > 2:
+            return raw[:100]
+
+    # 2. Markdown H1
+    h1_match = re.search(r"^#\s+([^\r\n]+)", content, re.MULTILINE)
+    if h1_match:
+        raw = h1_match.group(1).strip()
+        raw = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", raw).strip()
+        for sep in ["\u2014", "\u2013", "--", "|", "•"]:
+            if sep in raw:
+                raw = raw.split(sep)[0].strip()
+        if len(raw) > 2:
+            return raw[:100]
+
+    # 3. URL path fallback (clean slug formatting)
+    if name.startswith(("http://", "https://")):
+        from urllib.parse import urlparse
+        parsed = urlparse(name)
+        parts = [p.replace("-", " ").replace("_", " ").title() for p in parsed.path.strip("/").split("/") if p]
+        if parts:
+            return " / ".join(parts[-2:]) if len(parts) >= 2 else parts[0]
+        return parsed.netloc
+
+    return name[:100]
 
 
 def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list[dict]:
@@ -1769,9 +1817,10 @@ def _ranked_source_refs(query: str, sources: list[dict], limit: int = 4) -> list
         seen.add(key)
         target_url = s.get("url") or (name if stype == "url" and name.startswith(("http://", "https://")) else None)
         conf = round(min(1.0, _score / 35.0), 2)
-        display_name = name.replace("Article: ", "") if name.startswith("Article: ") else name
+        clean_title = extract_source_title(name, s.get("content") or "")
         refs.append({
-            "name": display_name[:120],
+            "name": clean_title[:120],
+            "title": clean_title[:120],
             "type": stype,
             "url": target_url,
             "confidence": conf,
