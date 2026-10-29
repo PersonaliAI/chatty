@@ -19,7 +19,7 @@ import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
 import { OrderCard, type OrderCardData } from "@/components/order-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
-import { normalizeWidgetStyle, getPresetSignature } from "@/lib/widget-style";
+import { normalizeWidgetStyle, getPresetSignature, PANEL_RADIUS, PRESET_SIGNATURES } from "@/lib/widget-style";
 import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
 import { AVATAR_ICONS, SEND_BUTTON_STYLES } from "./widget-style-options";
 import { detectCountryCode, detectTimezone } from "@/lib/locale-data";
@@ -513,6 +513,20 @@ function IdentifiedEmbedClient({
   // entirely (applied via an injected !important stylesheet below, the
   // only thing that reliably beats globals.css's .style-* !important rules).
   const [colorScheme, setColorScheme] = useState<WidgetColorScheme | null>(null);
+
+  // True if the widget's selected style preset or custom color scheme uses a dark surface/input.
+  // Used to prevent popovers (emoji picker, attach menu) from blindly inheriting host-page dark mode.
+  const isWidgetDark = useMemo(() => {
+    if (colorScheme?.inputBar?.bg) {
+      return getOnColor(colorScheme.inputBar.bg) === "#ffffff";
+    }
+    const preset = PRESET_SIGNATURES[widgetStyle];
+    if (preset) {
+      return getOnColor(preset.inputBg) === "#ffffff";
+    }
+    return widgetStyle === "dark-sleek";
+  }, [colorScheme, widgetStyle]);
+
   // null = keep the active design preset's own default font.
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSizePercent, setFontSizePercent] = useState(100);
@@ -4561,26 +4575,53 @@ function IdentifiedEmbedClient({
           <AnimatePresence>
             {emojiOpen && (
               <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
-                animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
-                exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
-                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 ref={emojiPanelRef}
-                className="emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col h-[min(48vh,340px)] min-h-[220px] rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
+                style={{
+                  borderRadius: PANEL_RADIUS[widgetStyle] || "18px",
+                }}
+                className={`emoji-panel absolute bottom-full mb-2 left-2.5 right-2.5 z-30 flex flex-col h-[min(48vh,340px)] min-h-[220px] shadow-[0_16px_40px_-10px_rgba(0,0,0,0.22)] overflow-hidden border ${
+                  isWidgetDark
+                    ? "bg-[#14141a] border-neutral-800 text-neutral-100"
+                    : "bg-white border-neutral-200/90 text-neutral-900"
+                } ${widgetStyle === "neubrutalism" ? "border-2 border-black shadow-[4px_4px_0_0_#111111]" : ""}`}
               >
-                <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
-                  <span className="text-[11px] font-bold tracking-wide text-neutral-500 dark:text-neutral-400 uppercase">Pick an emoji</span>
+                <div
+                  className={`flex items-center justify-between px-3.5 py-2.5 shrink-0 border-b ${
+                    isWidgetDark
+                      ? "border-neutral-800/80 bg-[#16161c]"
+                      : "border-neutral-100 bg-neutral-50/70"
+                  }`}
+                >
+                  <span
+                    className={`text-[11px] font-bold tracking-wide uppercase ${
+                      isWidgetDark ? "text-neutral-400" : "text-neutral-500"
+                    }`}
+                  >
+                    Pick an emoji
+                  </span>
                   <button
                     type="button"
                     onClick={() => setEmojiOpen(false)}
-                    className="p-1 -m-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
+                    className={`p-1 -m-1 rounded-full transition-colors cursor-pointer ${
+                      isWidgetDark
+                        ? "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+                        : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60"
+                    }`}
                     aria-label="Close emoji picker"
                   >
                     <X className="size-3.5" />
                   </button>
                 </div>
                 <div className="emoji-panel-picker flex-1 min-h-0">
-                  <QuickEmojiPicker onSelect={(emoji) => setInputValue((v) => v + emoji)} accentColor={primaryColor} />
+                  <QuickEmojiPicker
+                    onSelect={(emoji) => setInputValue((v) => v + emoji)}
+                    accentColor={primaryColor}
+                    theme={isWidgetDark ? "dark" : "light"}
+                  />
                 </div>
               </motion.div>
             )}
@@ -4588,12 +4629,19 @@ function IdentifiedEmbedClient({
           <AnimatePresence>
             {attachOpen && (
               <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
-                animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
-                exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
-                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+                initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 ref={attachPanelRef}
-                className="absolute bottom-[84px] left-2.5 z-10 w-52 rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm"
+                style={{
+                  borderRadius: PANEL_RADIUS[widgetStyle] || "18px",
+                }}
+                className={`absolute bottom-full mb-2 left-2.5 z-30 w-52 shadow-[0_16px_40px_-10px_rgba(0,0,0,0.22)] overflow-hidden border ${
+                  isWidgetDark
+                    ? "bg-[#14141a] border-neutral-800 text-neutral-100"
+                    : "bg-white border-neutral-200/90 text-neutral-900"
+                } ${widgetStyle === "neubrutalism" ? "border-2 border-black shadow-[4px_4px_0_0_#111111]" : ""}`}
               >
                 <AttachMenu
                   onPickImages={() => openFilePicker("images")}
