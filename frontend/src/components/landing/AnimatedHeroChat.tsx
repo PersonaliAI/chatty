@@ -90,17 +90,17 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
   },
   {
     id: "voice",
-    tabLabel: "LiveKit Voice AI",
+    tabLabel: "Voice Notes",
     businessName: "HyperDrive Global Logistics",
-    businessCategory: "Freight & Delivery · 24/7 Dispatch",
+    businessCategory: "Freight & Delivery · Verified WhatsApp Business",
     businessAvatarBg: "bg-[#2563eb]",
     businessIcon: "logistics",
-    badgeText: "Voice Note & LiveKit",
+    badgeText: "Voice Note AI",
     isVoiceNoteUser: true,
     userVoiceDuration: "0:14",
     userMessage: "Can you check order #HD-8921 status and estimated delivery time?",
     userTime: "10:17 AM",
-    botMessage: "Order #HD-8921 is currently in transit on DHL Flight 402, arriving tomorrow by 1:30 PM. Speak directly with our LiveKit voice agent anytime!",
+    botMessage: "Order #HD-8921 is currently in transit on DHL Flight 402, arriving tomorrow by 1:30 PM. Signature is required upon delivery.",
     botTime: "10:17 AM",
     type: "voice",
   },
@@ -267,7 +267,7 @@ export function AnimatedHeroChat() {
               {animStage === 1 ? (
                 <span className="text-emerald-200 font-bold animate-pulse">typing...</span>
               ) : current.type === "voice" ? (
-                <span>Business Account · LiveKit Audio</span>
+                <span>Business Account · Voice Note AI</span>
               ) : (
                 <span>Business Account · Instant AI</span>
               )}
@@ -501,16 +501,16 @@ export function AnimatedHeroChat() {
                   </div>
                 )}
 
-                {/* Sub-widget: Situation 3 (LiveKit Voice AI Card) */}
+                {/* Sub-widget: Situation 3 (Voice Note Transcription & Live Status Card) */}
                 {current.type === "voice" && animStage >= 3 && (
                   <div className="pt-2 border-t border-neutral-100 animate-in fade-in zoom-in-95 duration-300 space-y-2">
                     <div className="p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200/80 flex items-center justify-between gap-3 text-xs">
                       <div className="flex items-center gap-2">
-                        <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-                        <span className="font-semibold text-emerald-950">LiveKit Cloud Audio Sync</span>
+                        <AudioWaveform className="size-3.5 text-emerald-700 shrink-0" />
+                        <span className="font-semibold text-emerald-950">Voice Note Transcribed &amp; DHL Verified</span>
                       </div>
                       <span className="text-[10px] font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded">
-                        280ms WebRTC
+                        Live Tracking
                       </span>
                     </div>
                     {/* WhatsApp Quick Reply Action Pills */}
@@ -518,7 +518,7 @@ export function AnimatedHeroChat() {
                       {[
                         { label: "Play Audio Memo", icon: Play },
                         { label: "Live GPS Tracking", icon: Truck },
-                        { label: "Delivery Alerts", icon: Check },
+                        { label: "Transfer to Human", icon: Phone },
                       ].map((item) => {
                         const Icon = item.icon;
                         const isSelected = activeQuickReply === item.label;
