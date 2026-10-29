@@ -32,7 +32,7 @@ import { dedupeAdjacentWelcomeMessages } from "./widget-history";
 import {
   Send, Loader2, Sparkles, MessageSquare, MessageCircle, FileText, Search,
   Paperclip, Smile, Mic, AudioWaveform, ChevronRight, ChevronDown, ChevronUp, ArrowLeft, X,
-  ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle,
+  ArrowUp, ArrowRight, RefreshCw, Bot, Headphones, User, Check, AlertCircle, Info,
   Link2, ThumbsUp, ThumbsDown, Mail, Bell, BellOff, Play, Pause, Trash2,
   BookOpen, Home, HelpCircle, Megaphone, Compass, Clock, Calendar, ShieldCheck,
   type LucideIcon,
@@ -965,6 +965,7 @@ function IdentifiedChatWidget({
   const [csatRating, setCsatRating] = useState(0);
   const [csatComment, setCsatComment] = useState("");
   const [csatSubmitted, setCsatSubmitted] = useState(false);
+  const [csatSubmitting, setCsatSubmitting] = useState(false);
   const csatCooldownKey = `chatty_csat_prompt_${botId}_${hostKey}`;
   const csatCooldownMs = 2 * 24 * 60 * 60 * 1000;
   const canShowCsat = () => {
@@ -979,9 +980,11 @@ function IdentifiedChatWidget({
   };
 
   const [showOfflineForm, setShowOfflineForm] = useState(false);
+  const [offlineName, setOfflineName] = useState("");
   const [offlineEmail, setOfflineEmail] = useState("");
   const [offlineMessage, setOfflineMessage] = useState("");
   const [offlineSubmitted, setOfflineSubmitted] = useState(false);
+  const [isSubmittingOffline, setIsSubmittingOffline] = useState(false);
 
   const [agentTyping, setAgentTyping] = useState(false);
   // Told by widget.js (postMessage) whenever it switches the panel between
@@ -1401,7 +1404,8 @@ function IdentifiedChatWidget({
   };
 
   const submitCsat = async () => {
-    if (csatRating === 0) return;
+    if (csatRating === 0 || csatSubmitting) return;
+    setCsatSubmitting(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/csat`, {
         method: "POST",
@@ -1423,14 +1427,28 @@ function IdentifiedChatWidget({
       setTimeout(() => { setShowCsat(false); notifyClose(); }, 1500);
     } catch (err: any) {
       showToast(err?.message || "Failed to submit feedback.", "error");
+    } finally {
+      setCsatSubmitting(false);
     }
   };
 
   const submitOfflineMessage = async () => {
-    const cleanOfflineEmail = offlineEmail.trim().toLowerCase();
+    const cleanOfflineName = offlineName.trim();
+    const cleanOfflineEmail = (offlineEmail.trim() || supportEmail.trim() || extractedVisitorInfo?.email || "").toLowerCase();
     const cleanOfflineMsg = offlineMessage.trim();
-    if (!cleanOfflineEmail || !cleanOfflineMsg) return;
-    const ticketText = `[Offline Support Ticket]\nName: ${extractedVisitorInfo.name || "Visitor"}\nEmail: ${cleanOfflineEmail}\nMessage: ${cleanOfflineMsg}`;
+
+    if (!cleanOfflineEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanOfflineEmail)) {
+      showToast("Please enter a valid email address.", "error");
+      return;
+    }
+    if (!cleanOfflineMsg) {
+      showToast("Please enter your message or question.", "error");
+      return;
+    }
+
+    const nameToUse = cleanOfflineName || extractedVisitorInfo.name || "Visitor";
+    const ticketText = `[Offline Support Ticket]\nName: ${nameToUse}\nEmail: ${cleanOfflineEmail}\nMessage: ${cleanOfflineMsg}`;
+    setIsSubmittingOffline(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/widget/chat`, {
         method: "POST",
@@ -1440,7 +1458,7 @@ function IdentifiedChatWidget({
           session_id: sessionId,
           text: ticketText,
           visitor_email: cleanOfflineEmail,
-          visitor_name: extractedVisitorInfo.name || undefined,
+          visitor_name: nameToUse !== "Visitor" ? nameToUse : undefined,
           offline_ticket: true,
           visitor_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           host: getHost(),
@@ -1458,7 +1476,7 @@ function IdentifiedChatWidget({
             created_at: nowIso,
           },
         ]);
-        setCapturedLeadData((prev) => ({ ...prev, email: cleanOfflineEmail }));
+        setCapturedLeadData((prev) => ({ ...prev, name: nameToUse !== "Visitor" ? nameToUse : prev.name, email: cleanOfflineEmail }));
         setSupportEmail(cleanOfflineEmail);
         setSupportEmailSaved(true);
         setEmailCaptureDismissed(true);
@@ -1467,6 +1485,7 @@ function IdentifiedChatWidget({
         } catch {}
         setOfflineSubmitted(true);
         showToast("Ticket submitted successfully!", "success");
+        setOfflineName("");
         setOfflineEmail("");
         setOfflineMessage("");
         setTimeout(() => { setShowOfflineForm(false); }, 1200);
@@ -1475,6 +1494,8 @@ function IdentifiedChatWidget({
       }
     } catch {
       showToast("Failed to connect to support.", "error");
+    } finally {
+      setIsSubmittingOffline(false);
     }
   };
 
@@ -1514,8 +1535,8 @@ function IdentifiedChatWidget({
   const lastPollRef = useRef<string>(new Date().toISOString());
 
   // Custom toast state
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const showToast = (message: string, type: "success" | "error" = "success") => {
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
+  const showToast = (message: string, type: "success" | "error" | "info" = "success") => {
     setToast({ message, type });
   };
   useEffect(() => {
@@ -1737,8 +1758,11 @@ function IdentifiedChatWidget({
     if (!offlineEmail && (extractedVisitorInfo?.email || supportEmail)) {
       setOfflineEmail(extractedVisitorInfo?.email || supportEmail || "");
     }
+    if (!offlineName && extractedVisitorInfo?.name) {
+      setOfflineName(extractedVisitorInfo.name);
+    }
     setShowOfflineForm(true);
-  }, [offlineEmail, extractedVisitorInfo?.email, supportEmail]);
+  }, [offlineEmail, offlineName, extractedVisitorInfo?.email, extractedVisitorInfo?.name, supportEmail]);
 
   // Query active scheduled meeting for the current session on load
   const fetchActiveMeeting = useCallback(async () => {
@@ -3132,25 +3156,35 @@ function IdentifiedChatWidget({
               style={{ backgroundColor: "color-mix(in srgb, currentColor 6%, transparent)", border: "1px solid color-mix(in srgb, currentColor 15%, transparent)" }}
             />
             {/* Action buttons */}
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => { setShowCsat(false); notifyClose(); }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer"
-                style={{ border: "1px solid color-mix(in srgb, currentColor 20%, transparent)", opacity: 0.8 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 8%, transparent)")}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                disabled={csatSubmitting}
+                className="px-4 py-2 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all cursor-pointer text-neutral-600 dark:text-neutral-300 disabled:opacity-40"
               >
                 Skip
               </button>
               <button
                 type="button"
                 onClick={submitCsat}
-                disabled={csatRating === 0 || csatSubmitted}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-40"
+                disabled={csatRating === 0 || csatSubmitted || csatSubmitting}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl shadow-xs hover:shadow-md active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none min-w-[124px]"
                 style={{ background: primaryColor, color: onPrimary }}
               >
-                Submit feedback
+                {csatSubmitting ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Submitting…</span>
+                  </>
+                ) : csatSubmitted ? (
+                  <>
+                    <Check className="size-3.5 stroke-[2.5]" />
+                    <span>Submitted</span>
+                  </>
+                ) : (
+                  <span>Submit feedback</span>
+                )}
               </button>
             </div>
           </div>
@@ -3159,53 +3193,91 @@ function IdentifiedChatWidget({
           <div className="p-5 flex flex-col h-full justify-between gap-4">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setShowOfflineForm(false)} className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
-                  <ArrowLeft className="size-4 text-neutral-500" />
+                <button
+                  type="button"
+                  onClick={() => setShowOfflineForm(false)}
+                  disabled={isSubmittingOffline}
+                  className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+                >
+                  <ArrowLeft className="size-4" />
                 </button>
-                <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">Leave a Message</h3>
+                <h3 className="text-sm font-bold text-neutral-800 dark:text-neutral-100">Leave a Message</h3>
               </div>
-              <p className="text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">No support agents are currently available to chat. Leave your contact email and description below, and we&apos;ll get back to you soon.</p>
+              <p className="text-[11px] text-neutral-500 leading-relaxed dark:text-neutral-400">
+                No support agents are currently available to chat. Leave your contact details and description below, and we&apos;ll get back to you soon.
+              </p>
 
               <div className="space-y-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">Your Email</label>
+                  <label className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-400 uppercase tracking-wider">Your Name</label>
+                  <input
+                    type="text"
+                    value={offlineName}
+                    onChange={(e) => setOfflineName(e.target.value)}
+                    placeholder="e.g. John Doe"
+                    autoComplete="name"
+                    disabled={isSubmittingOffline}
+                    className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all disabled:opacity-60"
+                    style={{ ["--tw-ring-color" as string]: primaryColor }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-400 uppercase tracking-wider">Your Email</label>
                   <input
                     type="email"
                     value={offlineEmail}
                     onChange={(e) => setOfflineEmail(e.target.value)}
                     placeholder="name@company.com"
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                    autoComplete="email"
+                    disabled={isSubmittingOffline}
+                    className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:border-transparent transition-all disabled:opacity-60"
+                    style={{ ["--tw-ring-color" as string]: primaryColor }}
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">How can we help?</label>
+                  <label className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-400 uppercase tracking-wider">How can we help?</label>
                   <textarea
                     rows={4}
                     value={offlineMessage}
                     onChange={(e) => setOfflineMessage(e.target.value)}
                     placeholder="Describe your issue or question in detail..."
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg px-2.5 py-1.5 text-xs resize-none focus:outline-none"
+                    disabled={isSubmittingOffline}
+                    className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 resize-none focus:outline-none focus:ring-2 focus:border-transparent transition-all disabled:opacity-60"
+                    style={{ ["--tw-ring-color" as string]: primaryColor }}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800 mt-auto">
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-neutral-100 dark:border-neutral-800 mt-auto">
               <button
                 type="button"
                 onClick={() => setShowOfflineForm(false)}
-                className="px-3 py-1.5 border border-neutral-200 dark:border-neutral-800 rounded-lg text-xs font-semibold hover:bg-neutral-50 dark:hover:bg-neutral-850 cursor-pointer text-neutral-600 dark:text-neutral-300"
+                disabled={isSubmittingOffline}
+                className="px-4 py-2 border border-neutral-200 dark:border-neutral-800 rounded-xl text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all cursor-pointer text-neutral-600 dark:text-neutral-300 disabled:opacity-40"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={submitOfflineMessage}
-                disabled={!offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-40"
+                disabled={!offlineEmail.trim() || !offlineMessage.trim() || offlineSubmitted || isSubmittingOffline}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl shadow-xs hover:shadow-md active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:pointer-events-none min-w-[124px]"
                 style={{ background: primaryColor, color: onPrimary }}
               >
-                Send message
+                {isSubmittingOffline ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Sending…</span>
+                  </>
+                ) : offlineSubmitted ? (
+                  <>
+                    <Check className="size-3.5 stroke-[2.5]" />
+                    <span>Sent</span>
+                  </>
+                ) : (
+                  <span>Send message</span>
+                )}
               </button>
             </div>
           </div>
@@ -4104,61 +4176,30 @@ function IdentifiedChatWidget({
       {/* Composer (Messages tab only) */}
       {tab === "messages" && chatView === "conversation" && !voiceModeActive && (
         <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative bg-card">
-          {!showOfflineForm && !emailCaptureDismissed && (
-            <div className="mb-2 flex items-center gap-2 rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-950/70 px-2.5 py-1.5">
-              <Mail className="size-4 shrink-0 text-neutral-400" aria-hidden="true" />
-              <label className="sr-only" htmlFor="chatty-support-email">Email for follow-up</label>
-              <input
-                id="chatty-support-email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={supportEmail}
-                onChange={(e) => { setSupportEmail(e.target.value); setSupportEmailSaved(false); setSupportEmailError(""); }}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void saveSupportEmail(); } }}
-                placeholder="Your email, so we can follow up"
-                className="min-w-0 flex-1 bg-transparent text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none"
-                aria-describedby={supportEmailError ? "chatty-support-email-error" : undefined}
-              />
+          {!showOfflineForm && !emailCaptureDismissed && !offlineSubmitted && !supportEmailSaved && (
+            <div className="mb-2 flex items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => void saveSupportEmail()}
-                disabled={supportEmailSaving || !supportEmail.trim()}
-                className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
-                style={{ background: supportEmailSaved ? "#dcfce7" : primaryColor, color: supportEmailSaved ? "#166534" : onPrimary }}
+                onClick={() => openOfflineForm()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all cursor-pointer shadow-xs active:scale-[0.98]"
               >
-                {supportEmailSaving ? "Saving…" : supportEmailSaved ? "Saved" : "Save"}
+                <Mail className="size-3.5 text-neutral-500 dark:text-neutral-400" />
+                <span>Leave email for follow-up</span>
               </button>
               <button
                 type="button"
-                aria-label="Hide email follow-up field"
-                title="Hide email field"
+                aria-label="Dismiss follow-up option"
+                title="Dismiss"
                 onClick={() => {
                   setEmailCaptureDismissed(true);
                   try { localStorage.setItem(`chatty_email_capture_dismissed_${botId}_${hostKey}_${sessionId}`, "1"); } catch {}
                 }}
-                className="grid size-6 shrink-0 place-items-center rounded-full text-neutral-400 transition-colors hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                className="grid size-6 shrink-0 place-items-center rounded-full text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
               >
                 <X className="size-3.5" />
               </button>
             </div>
           )}
-          {!showOfflineForm && !emailCaptureDismissed && (
-            <label className="mb-2 flex items-start gap-2 px-1 text-[10px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-              <input
-                type="checkbox"
-                checked={marketingConsent}
-                onChange={(e) => {
-                  const next = e.target.checked;
-                  setMarketingConsent(next);
-                  try { localStorage.setItem(`chatty_marketing_consent_${botId}_${hostKey}_${sessionId}`, next ? "1" : "0"); } catch {}
-                }}
-                className="mt-0.5 size-3.5 shrink-0 accent-current"
-              />
-              <span>Email me product updates and offers. You can unsubscribe anytime.</span>
-            </label>
-          )}
-          {supportEmailError && <p id="chatty-support-email-error" className="mb-1.5 px-1 text-[11px] text-red-600 dark:text-red-400" role="alert">{supportEmailError}</p>}
           <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" multiple />
           <AnimatePresence>
             {emojiOpen && (
@@ -4522,32 +4563,30 @@ function IdentifiedChatWidget({
         </div>
       )}
 
-      {/* Toast Notification */}
+      {/* Aesthetic Modern Toast Notification */}
       {toast && (
-        <div className="absolute top-4 left-4 right-4 z-[999] flex items-center gap-2.5 bg-neutral-900/95 dark:bg-neutral-950/95 border border-neutral-800 dark:border-neutral-900 rounded-xl px-3 py-2 shadow-2xl text-[11px] font-semibold text-white animate-in slide-in-from-top-4 fade-in duration-300">
+        <div className="absolute top-3.5 left-3.5 right-3.5 z-[999] flex items-center gap-3 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-neutral-200/90 dark:border-neutral-800 rounded-2xl px-3.5 py-2.5 shadow-[0_12px_32px_rgba(0,0,0,0.12),0_2px_6px_rgba(0,0,0,0.06)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.45)] text-xs text-neutral-800 dark:text-neutral-100 animate-in slide-in-from-top-3 fade-in duration-300">
           {toast.type === "success" ? (
-            <span className="flex size-4.5 items-center justify-center rounded-full bg-green-950/40 text-green-400">
-              <Check className="size-3" />
+            <span className="flex size-6 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/80 shrink-0">
+              <Check className="size-3.5 stroke-[2.5]" />
+            </span>
+          ) : toast.type === "error" ? (
+            <span className="flex size-6 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/80 shrink-0">
+              <AlertCircle className="size-3.5 stroke-[2.5]" />
             </span>
           ) : (
-            <span className="flex size-4.5 items-center justify-center rounded-full bg-red-950/40 text-red-400">
-              <AlertCircle className="size-3" />
+            <span className="flex size-6 items-center justify-center rounded-full bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200/80 dark:border-sky-800/80 shrink-0">
+              <Info className="size-3.5 stroke-[2.5]" />
             </span>
           )}
-          <span className="flex-1 truncate">{toast.message}</span>
-          {/* p-1.5 -m-1.5: same "pad the tap target, not the icon" fix as
-              the teaser bubble's dismiss button - this one had zero padding
-              at all, so its clickable area was exactly the bare 12px icon
-              (size-3), easy to miss on a real click even aiming right at
-              it. Negative margin keeps the toast's own visual padding/
-              spacing unchanged. */}
+          <span className="flex-1 font-medium leading-snug line-clamp-2">{toast.message}</span>
           <button
             type="button"
-            aria-label="Dismiss"
+            aria-label="Dismiss notification"
             onClick={() => setToast(null)}
-            className="p-1.5 -m-1.5 text-neutral-400 hover:text-neutral-200 cursor-pointer shrink-0"
+            className="p-1 rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
           >
-            <X className="size-3" />
+            <X className="size-3.5" />
           </button>
         </div>
       )}

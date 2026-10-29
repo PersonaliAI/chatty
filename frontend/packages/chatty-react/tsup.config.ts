@@ -47,6 +47,7 @@ export default defineConfig([
       const destJs = path.resolve("../../public/chatty-app.js");
       if (fs.existsSync(srcJs)) {
         fs.copyFileSync(srcJs, destJs);
+        fs.copyFileSync(srcJs, path.resolve("../../public/chatty-app.global.js"));
       }
       const srcCss = path.resolve("dist/chatty-app.css");
       const destCss = path.resolve("../../public/chatty-app.css");
