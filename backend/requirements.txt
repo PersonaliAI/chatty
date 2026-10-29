@@ -27,5 +27,5 @@ litellm==1.100.4
 # app/routers/mcp.py.
 mcp==1.30.0
 
-sentry-sdk[fastapi]==2.59.0
+sentry-sdk[fastapi]==2.73.0
 livekit-api>=1.2.0,<2
