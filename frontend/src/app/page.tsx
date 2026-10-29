@@ -50,6 +50,41 @@ const colorVars = {
   "--shadow-lg": "0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent)",
 } as React.CSSProperties;
 
+const homepageJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://chatty.personaliai.com/#organization",
+      "name": "PersonaliAI",
+      "url": "https://chatty.personaliai.com",
+      "logo": "https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/chatty-icon.png",
+      "sameAs": [
+        "https://github.com/PersonaliAI/chatty"
+      ]
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://chatty.personaliai.com/#software",
+      "name": "Chatty by PersonaliAI",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "All",
+      "description": "Open-source AI customer support agent trained on your store and content. Answers customer questions, captures leads, and books meetings on website, WhatsApp & Slack.",
+      "url": "https://chatty.personaliai.com",
+      "offers": {
+        "@type": "AggregateOffer",
+        "priceCurrency": "USD",
+        "lowPrice": "0",
+        "highPrice": "399",
+        "offerCount": "4"
+      },
+      "publisher": {
+        "@id": "https://chatty.personaliai.com/#organization"
+      }
+    }
+  ]
+};
+
 function GithubIcon({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
@@ -174,7 +209,7 @@ const plans = [
     desc: "Perfect for individuals, developers, and side projects.",
     features: [
       "14-day free trial included",
-      "1,000 AI credits/mo (≈ ~800 conversations)",
+      "1,000 AI credits/mo (~800 conversations)",
       "10M training characters",
       "500 MB Media Storage (250 products)",
       "3 AI agents",
@@ -190,7 +225,7 @@ const plans = [
     desc: "All in Hobby, plus advanced automation and multi-bot systems.",
     features: [
       "14-day free trial included",
-      "10,000 AI credits/mo (≈ ~8,000 conversations)",
+      "10,000 AI credits/mo (~8,000 conversations)",
       "20M training characters",
       "2 GB Media Storage (1,500 products)",
       "6 AI agents",
@@ -204,7 +239,7 @@ const plans = [
     desc: "For enterprise scale, heavy traffic, and reseller options.",
     features: [
       "14-day free trial included",
-      "40,000 AI credits/mo (≈ ~35,000 conversations)",
+      "40,000 AI credits/mo (~35,000 conversations)",
       "50M training characters",
       "10 GB Media Storage (Unlimited products)",
       "Unlimited agent configurations (fair-use limits apply)",
@@ -405,6 +440,11 @@ export default function Home() {
 
   return (
     <div className="chatty-landing antialiased" style={{ ...colorVars, fontFamily: "var(--font-body)", background: "var(--color-bg)", color: "var(--color-text)", overflowX: "clip" }}>
+      {/* JSON-LD Schema for SEO & Agentic Crawlers */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homepageJsonLd) }}
+      />
       {/* Announcement bar auto slider */}
       <div className="relative overflow-hidden h-[40px] sm:h-[44px] transition-colors duration-700" style={{ background: activeAnnouncement === 0 ? "var(--color-accent-2-100)" : "var(--color-accent-100)" }}>
         {/* MCP Notification */}

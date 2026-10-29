@@ -1,0 +1,35 @@
+# Chatty by PersonaliAI
+
+> Open-source AI customer support engine trained on your store and content.
+> Answers customer questions, captures leads, and books meetings on website, WhatsApp & Slack.
+
+## Core Architecture
+- **Backend**: Python 3.11, FastAPI, Supabase / PostgreSQL with `pgvector` extension for semantic search and RAG retrieval.
+- **Frontend**: Next.js 15 (App Router), React 19, Tailwind CSS v4, Lucide icons.
+- **Voice Platform**: Real-time WebRTC audio voice calling powered by LiveKit.
+- **Model Context Protocol (MCP)**: Official 81-tool FastMCP server implementing RFC 7591/8414 dynamic OAuth 2.0 PKCE.
+- **Omnichannel Support**: Web chat widget, WhatsApp Business API (with audio voice note transcription), and Slack escalation.
+- **E-Commerce Integration**: Native WooCommerce catalog synchronization for automated product search and order status tracking.
+- **License**: MIT Open Source License.
+
+## Quick Links
+- Official Website: https://chatty.personaliai.com
+- GitHub Repository: https://github.com/PersonaliAI/chatty
+- Documentation: https://docs.chatty.personaliai.com
+- MCP Developer Hub: https://chatty.personaliai.com/mcp
+- Competitor Comparisons: https://chatty.personaliai.com/compare
+- Data Processing Agreement (DPA): https://chatty.personaliai.com/dpa
+
+## Pricing & Deployment Models
+- **Self-Hosted Open Source**: Free ($0 forever under MIT license). Users supply their own hosting (Docker) and LLM API keys.
+- **Chatty Cloud Hobby**: $19/month (1,000 AI credits, ~800 conversations, 10M characters, 500 MB storage).
+- **Chatty Cloud Standard**: $99/month (10,000 AI credits, ~8,000 conversations, 20M characters, 2 GB storage, white-label).
+- **Chatty Cloud Business**: $399/month (40,000 AI credits, ~35,000 conversations, 50M characters, BYOK, Admin Management API).
+- **Free Trial**: 14-day fully-featured trial on all cloud plans with zero credit card required.
+
+## Key Features & Differentiators
+1. **Zero AI Model Training**: Customer and conversation data is strictly isolated; no proprietary data is used to train foundation models.
+2. **Human Agent Takeover**: Seamless live agent escalation directly from the conversation inbox with internal notes.
+3. **In-Chat Calendar Booking**: Direct integration with Google Meet and Microsoft Outlook calendar slots inside chat.
+4. **Visual Flow Architect**: Multi-branch conversational flow builder for custom lead capture and deflection funnels.
+5. **FastMCP Server**: 81 tools enabling external coding agents (Claude, ChatGPT, Cursor, Grok) to inspect, configure, and monitor customer support bots via standard JSON-RPC.

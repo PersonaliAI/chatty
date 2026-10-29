@@ -20,6 +20,12 @@
   <a href="https://docs.chatty.personaliai.com"><b>📖 Documentation</b></a>
 </p>
 
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/template"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
 Chatty is an open-source, self-hostable **Zendesk and Intercom alternative** for stores and modern businesses that need autonomous AI customer support with human takeover, WooCommerce sync, and calendar scheduling.
 
 Run the application containers on your own host while keeping Supabase Auth,
@@ -379,6 +385,9 @@ flowchart TB
 
 ### Component & Data Architecture
 
+<details>
+<summary><b>📐 View Full Architecture Diagram (Click to expand)</b></summary>
+
 ```mermaid
 flowchart TB
     classDef actor fill:#f8fafc,stroke:#64748b,color:#0f172a
@@ -442,6 +451,8 @@ flowchart TB
     targets -. runs .-> runtime
     linkStyle default stroke:#64748b,stroke-width:1.5px
 ```
+
+</details>
 
 ```
 chatty/
