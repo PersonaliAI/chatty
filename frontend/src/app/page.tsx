@@ -594,7 +594,7 @@ export default function Home() {
 
           {/* WhatsApp Animated Interactive Motion Hero Showcase */}
           <div className="mt-12 max-w-[700px] mx-auto text-left">
-            <AnimatedHeroChat onOpenVoice={openHeroVoiceAgent} />
+            <AnimatedHeroChat />
           </div>
 
           {/* Understated Minimalist Trust & Founding 50 Proof Bar */}

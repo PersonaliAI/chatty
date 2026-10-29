@@ -110,7 +110,7 @@ const SLIDE_DURATION_MS = 7500; // 7.5 seconds per situation for calm, readable 
 const TICK_MS = 50;
 const STEP = 100 / (SLIDE_DURATION_MS / TICK_MS);
 
-export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) {
+export function AnimatedHeroChat() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -277,24 +277,13 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
 
         {/* WhatsApp Top Right Action Icons */}
         <div className="flex items-center gap-1 sm:gap-2 text-white shrink-0">
-          {onOpenVoice && (
-            <button
-              type="button"
-              onClick={onOpenVoice}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 hover:bg-white/30 border border-white/25 text-white text-[11px] font-semibold transition shadow-xs cursor-pointer"
-              title="Test LiveKit Voice AI"
-            >
-              <AudioWaveform className="size-3 text-emerald-200 animate-pulse" />
-              <span className="hidden sm:inline">Voice Call</span>
-            </button>
-          )}
-          <button type="button" className="p-1.5 hover:bg-white/10 rounded-full transition" aria-label="Video Call">
+          <button type="button" className="p-1.5 hover:bg-white/10 rounded-full transition cursor-pointer" aria-label="Video Call">
             <Video className="size-4.5" />
           </button>
-          <button type="button" className="p-1.5 hover:bg-white/10 rounded-full transition" aria-label="Voice Call">
+          <button type="button" className="p-1.5 hover:bg-white/10 rounded-full transition cursor-pointer" aria-label="Voice Call">
             <Phone className="size-4" />
           </button>
-          <button type="button" className="p-1.5 hover:bg-white/10 rounded-full transition" aria-label="More Options">
+          <button type="button" className="p-1.5 hover:bg-white/10 rounded-full transition cursor-pointer" aria-label="More Options">
             <MoreVertical className="size-4.5" />
           </button>
         </div>
@@ -515,26 +504,46 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
                 {/* Sub-widget: Situation 3 (LiveKit Voice AI Card) */}
                 {current.type === "voice" && animStage >= 3 && (
                   <div className="pt-2 border-t border-neutral-100 animate-in fade-in zoom-in-95 duration-300 space-y-2">
-                    <div className="p-2 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-center justify-between gap-3 text-xs">
+                    <div className="p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200/80 flex items-center justify-between gap-3 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-                        <span className="font-semibold text-emerald-950">LiveKit Cloud WebRTC Audio</span>
+                        <span className="font-semibold text-emerald-950">LiveKit Cloud Audio Sync</span>
                       </div>
                       <span className="text-[10px] font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded">
-                        280ms latency
+                        280ms WebRTC
                       </span>
                     </div>
-                    {onOpenVoice && (
-                      <button
-                        type="button"
-                        onClick={onOpenVoice}
-                        className="w-full py-2 rounded-xl text-xs font-bold text-white transition shadow-sm hover:brightness-105 cursor-pointer flex items-center justify-center gap-2"
-                        style={{ background: "var(--color-accent)" }}
-                      >
-                        <AudioWaveform className="size-4" />
-                        <span>Speak with LiveKit Voice AI Now</span>
-                      </button>
-                    )}
+                    {/* WhatsApp Quick Reply Action Pills */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {[
+                        { label: "Play Audio Memo", icon: Play },
+                        { label: "Live GPS Tracking", icon: Truck },
+                        { label: "Delivery Alerts", icon: Check },
+                      ].map((item) => {
+                        const Icon = item.icon;
+                        const isSelected = activeQuickReply === item.label;
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => {
+                              setActiveQuickReply(item.label);
+                              if (item.label === "Play Audio Memo") {
+                                setVoicePlaying(!voicePlaying);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
+                              isSelected
+                                ? "bg-[#008069] text-white border-[#008069]"
+                                : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                            }`}
+                          >
+                            <Icon className="size-3" />
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -560,9 +569,10 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
         </div>
         <button
           type="button"
-          onClick={onOpenVoice}
+          onClick={() => setVoicePlaying(!voicePlaying)}
           className="size-8.5 rounded-full bg-[#008069] text-white flex items-center justify-center hover:bg-emerald-800 transition shadow-2xs cursor-pointer"
-          aria-label="Send or Voice"
+          aria-label="Record voice memo"
+          title="Record voice memo"
         >
           <Mic className="size-4 text-white" />
         </button>
