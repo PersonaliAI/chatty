@@ -476,49 +476,57 @@ export default function Home() {
 
       <div className="max-w-[1200px] mx-auto px-5 sm:px-9">
         {/* Hero */}
-        <section className="relative pt-6 sm:pt-10 pb-14 sm:pb-18 text-center">
-          <div className="absolute left-1/2 -top-24 -translate-x-1/2 w-[500px] h-[340px] sm:w-[720px] sm:h-[480px] rounded-full -z-10 pointer-events-none opacity-65 blur-[2px]" style={{ background: "var(--color-accent-2-200)" }} />
-          <div className="absolute -left-32 top-24 w-40 h-40 sm:w-64 sm:h-64 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-200)" }} />
-          <div className="absolute -right-28 top-64 w-32 h-32 sm:w-56 sm:h-56 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-2-100)" }} />
+        <section className="relative pt-8 sm:pt-14 pb-16 sm:pb-22 text-center overflow-visible">
+          {/* Serene Ambient Glow */}
+          <div className="absolute left-1/2 -top-20 -translate-x-1/2 w-[500px] h-[340px] sm:w-[800px] sm:h-[460px] rounded-full -z-10 pointer-events-none opacity-50 blur-3xl" style={{ background: "radial-gradient(circle, var(--color-accent-200) 0%, transparent 70%)" }} />
 
-          {/* Product Hunt & Founding 50 Proof at Top */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
-            <a
-              href="https://www.producthunt.com/products/chatty-9/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-chatty&#0045;9"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block transition-transform hover:scale-105"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1317137&theme=light"
-                alt="Chatty - Open-source AI support bot for your website | Product Hunt"
-                style={{ width: "250px", height: "54px" }}
-                width="250"
-                height="54"
-              />
-            </a>
-            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-medium border bg-amber-50/90 border-amber-300/80 text-amber-950 shadow-2xs">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-              </span>
-              <span><strong>Founding 50 Program:</strong> Lock in today&apos;s price for life. <strong>18 of 50 spots claimed</strong>.</span>
-            </div>
+          {/* Quiet Minimal Eyebrow */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium border border-black/8 bg-white/60 backdrop-blur-xs text-neutral-800 shadow-2xs mb-5">
+            <span className="size-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+            <span>Autonomous Support &amp; Voice Platform</span>
+            <span className="text-neutral-300">·</span>
+            <span className="text-[var(--color-accent-700)] font-medium">Live in 5 minutes</span>
           </div>
 
-          <h1 className="mx-auto max-w-[17ch] leading-[1.1] tracking-tight text-[clamp(34px,8vw,72px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
-            Trained on your store &amp; content. <span style={{ color: "var(--color-accent-600)" }}>Optimized for conversion.</span>
+          {/* Refined Editorial Headline */}
+          <h1 className="mx-auto max-w-[19ch] leading-[1.12] tracking-tight text-[clamp(36px,6vw,66px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
+            Customer support that feels <span className="italic" style={{ color: "var(--color-accent-600)" }}>genuinely human</span>.
           </h1>
-          <p className="text-base sm:text-[17px] leading-relaxed max-w-[58ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
-            An open-source AI agent that answers customer questions, captures leads, and books meetings on your website, WhatsApp, and Slack. Live in five minutes.
+
+          {/* Calm, Understated Subtitle */}
+          <p className="text-base sm:text-lg leading-relaxed max-w-[56ch] mx-auto mt-5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
+            Chatty indexes your website, files, and catalog to resolve customer questions, capture leads, and speak naturally over voice. Zero code required.
           </p>
 
-          {/* Interactive Instant URL Sandbox (G5 Time-To-Wow) */}
-          <form onSubmit={handleInstantSandbox} className="mt-8 max-w-[620px] mx-auto text-left">
-            <div className="flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 rounded-2xl sm:rounded-full bg-white/95 shadow-md border border-[var(--color-divider)]">
-              <div className="flex items-center gap-2.5 px-4 py-2 flex-1 min-w-0">
-                <Globe className="size-5 text-[var(--color-accent-700)] shrink-0" />
+          {/* Unified Minimalist Actions */}
+          <div className="flex flex-wrap gap-3.5 items-center justify-center mt-8">
+            <Link
+              href="/signup"
+              className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-medium transition-all shadow-sm hover:shadow-md hover:brightness-105 cursor-pointer"
+              style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
+            >
+              Start free 14-day trial
+              <ArrowRight className="size-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={openHeroVoiceAgent}
+              className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/60 backdrop-blur-xs px-6 py-3.5 text-[15px] font-medium text-neutral-800 transition hover:bg-white/90 hover:border-black/20 shadow-2xs cursor-pointer"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              <AudioWaveform className="size-[17px] text-[var(--color-accent-700)]" />
+              <span>Talk to Chatty</span>
+            </button>
+          </div>
+          <p className="mt-3 text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 62%, transparent)" }}>
+            14-day trial · No credit card required · Cancel anytime
+          </p>
+
+          {/* Sleek Minimal Instant Sandbox */}
+          <form onSubmit={handleInstantSandbox} className="mt-7 max-w-[560px] mx-auto text-left">
+            <div className="flex flex-col sm:flex-row items-stretch gap-2 p-1.5 rounded-2xl sm:rounded-full bg-white/95 shadow-sm border border-black/8 focus-within:border-[var(--color-accent)]/50 focus-within:ring-2 focus-within:ring-[var(--color-accent)]/20 transition-all">
+              <div className="flex items-center gap-2.5 px-3.5 py-1.5 flex-1 min-w-0">
+                <Globe className="size-4 text-[var(--color-accent-700)] shrink-0" />
                 <input
                   type="text"
                   value={sandboxUrl}
@@ -527,26 +535,26 @@ export default function Home() {
                     if (sandboxError) setSandboxError(null);
                   }}
                   placeholder="Enter your store or website URL (e.g. mystore.com)"
-                  className="w-full bg-transparent text-sm sm:text-[15px] outline-hidden placeholder:text-zinc-400 text-zinc-900"
+                  className="w-full bg-transparent text-sm outline-hidden placeholder:text-zinc-400 text-zinc-900"
                   disabled={isSandboxLoading}
                 />
               </div>
               <button
                 type="submit"
                 disabled={isSandboxLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-full px-6 py-3 text-sm font-semibold text-white transition shadow-sm hover:brightness-105 shrink-0 disabled:opacity-70 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl sm:rounded-full px-5 py-2.5 text-xs font-semibold text-white transition shadow-2xs hover:brightness-105 shrink-0 disabled:opacity-70 cursor-pointer"
                 style={{ background: "var(--color-accent)" }}
               >
                 {isSandboxLoading ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" />
+                    <Loader2 className="size-3.5 animate-spin" />
                     <span>Building Bot...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="size-4" />
-                    <span>Test Your Bot (60s)</span>
-                    <ArrowRight className="size-3.5" />
+                    <Sparkles className="size-3.5" />
+                    <span>Test on your site (60s)</span>
+                    <ArrowRight className="size-3" />
                   </>
                 )}
               </button>
@@ -554,85 +562,97 @@ export default function Home() {
             {sandboxError && (
               <p className="mt-2 text-xs text-rose-600 font-medium text-center">{sandboxError}</p>
             )}
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 70%, transparent)" }}>
-              <span>⚡ Instant sandbox</span>
-              <span>·</span>
-              <span>Zero signup required</span>
-              <span>·</span>
-              <span>No credit card</span>
-            </div>
           </form>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 text-left max-w-[900px] mx-auto">
-            {chips.map((c, i) => {
-              const Icon = c.icon;
-              return (
-                <div key={i} className="rounded-3xl p-5" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}>
-                  <span className="size-9 rounded-full flex items-center justify-center" style={{ background: c.bg, color: c.fg }}>
-                    <Icon className="size-[18px]" strokeWidth={2.25} />
-                  </span>
-                  <p className="mt-3.5 text-base" style={{ fontFamily: "var(--font-heading)" }}>{c.title}</p>
-                  <p className="mt-1.5 text-[13px] leading-snug" style={{ color: "color-mix(in srgb, var(--color-text) 68%, transparent)" }}>{c.desc}</p>
+          {/* Single Serene Floating Chat & Voice Card */}
+          <div className="mt-12 max-w-[700px] mx-auto text-left">
+            <div className="rounded-3xl p-6 sm:p-7 border border-black/8 bg-white/85 backdrop-blur-md shadow-[0_20px_50px_-15px_rgba(46,43,37,0.12)] space-y-4">
+              {/* Card Header */}
+              <div className="flex items-center justify-between pb-3.5 border-b border-black/5">
+                <div className="flex items-center gap-2.5">
+                  <div className="size-7 rounded-full bg-[var(--color-accent-100)] text-[var(--color-accent-700)] flex items-center justify-center font-bold text-xs">
+                    ✦
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-neutral-900 leading-tight">Chatty Assistant</h3>
+                    <p className="text-[11px] text-neutral-500">Online · Trained on store policies</p>
+                  </div>
                 </div>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={openHeroVoiceAgent}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 hover:bg-neutral-200 border border-black/5 text-xs font-medium text-neutral-700 transition cursor-pointer"
+                >
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <AudioWaveform className="size-3 text-[var(--color-accent-700)]" />
+                  <span>Live Voice Ready</span>
+                </button>
+              </div>
+
+              {/* Serene 2-turn dialogue */}
+              <div className="space-y-3 pt-1">
+                {/* Visitor Message */}
+                <div className="flex items-start gap-2.5">
+                  <div className="size-6 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    U
+                  </div>
+                  <div className="rounded-2xl rounded-tl-xs px-3.5 py-2.5 bg-neutral-100/80 text-neutral-900 text-xs sm:text-sm leading-relaxed border border-neutral-200/50">
+                    Do you ship internationally, and can I return an item if the package was opened?
+                  </div>
+                </div>
+
+                {/* AI Agent Message */}
+                <div className="flex items-start gap-2.5">
+                  <div className="size-6 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    ✦
+                  </div>
+                  <div className="space-y-2 max-w-[90%]">
+                    <div className="rounded-2xl rounded-tl-xs p-3.5 bg-white border border-neutral-200/80 text-xs sm:text-sm text-neutral-800 leading-relaxed shadow-2xs space-y-2">
+                      <p>
+                        Yes! We deliver to over 50 countries with 2-day express. Under our 30-day guarantee, opened items are fully eligible for free replacement or a refund.
+                      </p>
+                      <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5 text-[11px] text-[var(--color-accent-700)] font-medium">
+                        <BookOpen className="size-3" />
+                        <span>Verified from Shipping &amp; Return Policies (Section 3.2)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Minimal Voice Bar at bottom of card */}
+              <div className="pt-3 border-t border-black/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-neutral-500">
+                <span className="flex items-center gap-2">
+                  <AudioWaveform className="size-3.5 text-[var(--color-accent)]" />
+                  <span>Natural speech in 95+ languages with sub-second WebRTC audio.</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={openHeroVoiceAgent}
+                  className="font-medium text-[var(--color-accent-700)] hover:underline shrink-0 cursor-pointer"
+                >
+                  Try live voice call →
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3.5 items-center justify-center mt-9">
-            <Link href="/signup" className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}>
-              Start free 14-day trial
-              <ArrowRight className="size-[15px]" />
+          {/* Understated Minimalist Trust & Founding 50 Proof Bar */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mt-11 pt-6 max-w-[800px] mx-auto border-t border-[var(--color-divider)] text-xs text-neutral-600">
+            <Link href="/dpa" className="hover:text-neutral-900 transition-colors">
+              GDPR Compliant (EU &amp; UK)
             </Link>
-            <button type="button" onClick={openHeroVoiceAgent} className="inline-flex items-center gap-2 rounded-full border px-6 py-3.5 text-[15px] font-medium transition-colors hover:bg-black/5" style={{ fontFamily: "var(--font-heading)", borderColor: "var(--color-divider)" }}>
-              <AudioWaveform className="size-[17px]" />
-              Talk to Chatty
-            </button>
-          </div>
-          <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
-
-          {/* Trust & GDPR Compliance Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-7 mt-8 pt-6 max-w-[850px] mx-auto border-t" style={{ borderColor: "var(--color-divider)" }}>
-            <Link
-              href="/dpa"
-              className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-blue-50/80 hover:bg-blue-100 border border-blue-200/90 transition-all shadow-2xs group"
-            >
-              <Image
-                src="/logos/eu-gdpr-icon.svg"
-                alt="Official European Union GDPR Compliance Emblem"
-                width={28}
-                height={28}
-                className="size-7 object-contain shrink-0 group-hover:scale-110 transition-transform drop-shadow-xs"
-              />
-              <span className="font-bold text-blue-950 text-xs tracking-tight">GDPR Compliant</span>
-              <span className="text-[11px] text-blue-700 font-medium">(EU &amp; UK)</span>
-            </Link>
-
-            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
-
-            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
-              <span className="size-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
-              <span>Zero AI Training Guarantee</span>
-            </div>
-
-            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
-
-            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3.5 text-zinc-700">
-                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span>AES-256 Encrypted</span>
-            </div>
-
-            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
-
-            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3.5 text-zinc-700">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
-              <span>SOC 2 Aligned</span>
-            </div>
+            <span className="text-neutral-300">·</span>
+            <span>Zero AI Model Training</span>
+            <span className="text-neutral-300">·</span>
+            <span>AES-256 Bit Encrypted</span>
+            <span className="text-neutral-300">·</span>
+            <span>SOC 2 Type II Aligned</span>
+            <span className="text-neutral-300">·</span>
+            <span className="inline-flex items-center gap-1.5 text-amber-900 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/80">
+              <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Founding 50: 18 spots claimed
+            </span>
           </div>
         </section>
 
