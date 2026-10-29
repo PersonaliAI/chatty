@@ -36,7 +36,7 @@ def test_account_gdpr_export_aggregates_all_resources(monkeypatch):
             if name == "chatty_sessions": return FakeQuery(fake_sess)
             if name == "chatty_leads": return FakeQuery(fake_leads)
             if name == "chatty_meetings": return FakeQuery(fake_meetings)
-            if name == "admin_audit_logs": return FakeQuery(fake_logs)
+            if name in ("chatty_audit_logs", "admin_audit_logs"): return FakeQuery(fake_logs)
             return FakeQuery([])
 
     monkeypatch.setattr("app.routers.admin.supabase", FakeSupabase())
@@ -104,6 +104,7 @@ def test_account_gdpr_delete_executes_cascading_deletion(monkeypatch):
     assert res["success"] is True
     assert "permanently deleted" in res["message"]
     assert "chatty_conversations" in deleted_tables
+    assert "chatty_audit_logs" in deleted_tables
     assert "chatty_bots" in deleted_tables
     assert "users" in deleted_tables
     assert fake_auth_admin.deleted_user_id == "usr_gdpr_3"

@@ -1135,20 +1135,22 @@ async def account_gdpr_export(user: dict[str, Any] = Depends(require_user)):
 
     sources, conversations, sessions, leads, meetings, audit_logs = [], [], [], [], [], []
     if bot_ids:
-        src_res, conv_res, sess_res, leads_res, meet_res, logs_res = await asyncio.gather(
-            run_db(lambda: supabase.table("chatty_sources").select("id, bot_id, type, name, status, char_count, created_at").in_("bot_id", bot_ids).limit(10000).execute()),
-            run_db(lambda: supabase.table("chatty_conversations").select("id, bot_id, session_id, role, content, created_at, sender").in_("bot_id", bot_ids).limit(50000).execute()),
-            run_db(lambda: supabase.table("chatty_sessions").select("id, bot_id, session_id, visitor_name, visitor_email, channel, created_at, updated_at").in_("bot_id", bot_ids).limit(50000).execute()),
-            run_db(lambda: supabase.table("chatty_leads").select("*").in_("bot_id", bot_ids).limit(50000).execute()),
-            run_db(lambda: supabase.table("chatty_meetings").select("*").in_("bot_id", bot_ids).limit(50000).execute()),
-            run_db(lambda: supabase.table("admin_audit_logs").select("*").in_("bot_id", bot_ids).limit(5000).execute()),
+        async def _safe_fetch(coro):
+            try:
+                res = await coro
+                return (res.data or []) if res else []
+            except Exception as e:
+                logger.warning("Error fetching resource during GDPR export: %s", e)
+                return []
+
+        sources, conversations, sessions, leads, meetings, audit_logs = await asyncio.gather(
+            _safe_fetch(run_db(lambda: supabase.table("chatty_sources").select("id, bot_id, type, name, status, char_count, created_at").in_("bot_id", bot_ids).limit(10000).execute())),
+            _safe_fetch(run_db(lambda: supabase.table("chatty_conversations").select("id, bot_id, session_id, role, content, created_at, sender").in_("bot_id", bot_ids).limit(50000).execute())),
+            _safe_fetch(run_db(lambda: supabase.table("chatty_sessions").select("id, bot_id, session_id, visitor_name, visitor_email, channel, created_at, updated_at").in_("bot_id", bot_ids).limit(50000).execute())),
+            _safe_fetch(run_db(lambda: supabase.table("chatty_leads").select("*").in_("bot_id", bot_ids).limit(50000).execute())),
+            _safe_fetch(run_db(lambda: supabase.table("chatty_meetings").select("*").in_("bot_id", bot_ids).limit(50000).execute())),
+            _safe_fetch(run_db(lambda: supabase.table("chatty_audit_logs").select("*").in_("bot_id", bot_ids).limit(5000).execute())),
         )
-        sources = src_res.data or []
-        conversations = conv_res.data or []
-        sessions = sess_res.data or []
-        leads = leads_res.data or []
-        meetings = meet_res.data or []
-        audit_logs = logs_res.data or []
 
     export_payload = {
         "export_metadata": {
@@ -1225,7 +1227,7 @@ async def account_gdpr_delete(
             "chatty_team_members",
             "chatty_campaigns",
             "chatty_campaign_events",
-            "admin_audit_logs",
+            "chatty_audit_logs",
             "chatty_kb_articles",
             "chatty_kb_categories",
             "chatty_automation_rules",
