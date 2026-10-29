@@ -1,0 +1,23 @@
+{
+  "$schema": "https://smithery.ai/docs/config/schema.json",
+  "name": "chatty",
+  "displayName": "Chatty by PersonaliAI",
+  "description": "Open-source AI customer support agent trained on your store and content. Answers customer questions, captures leads, and books meetings with 81 FastMCP tools.",
+  "icon": "https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/chatty-icon.png",
+  "homepage": "https://chatty.personaliai.com",
+  "repository": "https://github.com/PersonaliAI/chatty",
+  "license": "MIT",
+  "keywords": [
+    "customer-support",
+    "chatbot",
+    "fastmcp",
+    "rag",
+    "woocommerce",
+    "voice-agent",
+    "oauth"
+  ],
+  "transport": {
+    "type": "sse",
+    "url": "https://api.chatty.personaliai.com/mcp"
+  }
+}
