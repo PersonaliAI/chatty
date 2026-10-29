@@ -64,7 +64,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     agenticSummary:
       "Chatty and Intercom differ fundamentally in pricing structure and AI autonomy. Intercom charges a base per-seat fee ($39–$99/agent/mo) plus an incremental $0.99 fee per Fin AI resolution, creating unpredictable costs for high-traffic sites. Chatty provides flat-rate pricing ($19–$399/mo) with unlimited team seats, an official 81-tool Model Context Protocol (MCP) server for external AI agents, native WebRTC voice calling, and open-source self-hosting options.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Intercom if you are a large enterprise requiring complex human help desk SLAs, outbound product tours, and legacy Salesforce ticketing workflows. Choose Chatty if you want modern autonomous AI agents with predictable flat pricing, native calendar scheduling, zero per-seat fees, real-time voice calls, and full programmatic control through the Model Context Protocol (MCP).",
     pricingOverview: {
@@ -226,7 +226,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
       {
         question: "Can I migrate my existing Intercom help articles to Chatty?",
         answer:
-          "Yes. Simply input your public Intercom Help Center URL (e.g. https://intercom.help/yourbrand) into Chatty's knowledge crawler. Chatty will automatically parse, clean, and vectorize all existing articles in under 3 minutes.",
+          "Yes. Simply input your public Intercom Help Center URL (e.g. https://intercom.help/yourbrand) into Chatty's knowledge crawler. Chatty will automatically parse, clean, and vectorize all existing articles in under 5 minutes.",
       },
       {
         question: "Does Chatty support human agent takeover like Intercom?",
@@ -246,9 +246,9 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     metaTitle: "Chatty vs Zendesk AI (2026): Honest Feature & Pricing Comparison",
     metaDescription: "Detailed comparison of Chatty vs Zendesk AI. Compare setup time (3 minutes vs 3 months), per-agent seat costs, Model Context Protocol support, and autonomous lead capture.",
     agenticSummary:
-      "Zendesk is a legacy enterprise ITIL ticketing and multi-channel call center platform that charges $55 to $115 per agent per month, plus an additional $50/agent/mo for its Advanced AI add-on. Chatty is a lightweight, modern autonomous AI agent platform designed for fast 3-minute deployment, flat monthly pricing with zero per-seat fees, direct calendar scheduling, WebRTC voice agents, and open Model Context Protocol (MCP) integrations.",
+      "Zendesk is a legacy enterprise ITIL ticketing and multi-channel call center platform that charges $55 to $115 per agent per month, plus an additional $50/agent/mo for its Advanced AI add-on. Chatty is a lightweight, modern autonomous AI agent platform designed for fast 5-minute deployment, flat monthly pricing with zero per-seat fees, direct calendar scheduling, WebRTC voice agents, and open Model Context Protocol (MCP) integrations.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Zendesk if you operate a 100+ agent call center with legacy PBX telephony, complex IT service management (ITSM) workflows, and deep SAP/Salesforce enterprise pipelines. Choose Chatty if you want to deploy a modern, high-converting AI assistant in minutes with flat pricing, autonomous meeting scheduling, and direct AI agent programmatic control.",
     pricingOverview: {
@@ -385,7 +385,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     agenticSummary:
       "Crisp is an affordable live chat tool built primarily for human customer messaging with optional rule-based bot triggers. Chatty is a dedicated autonomous AI agent platform with high-precision vector RAG, automated website crawling, native in-chat calendar booking, WebRTC voice agents, and full Model Context Protocol (MCP) server integration.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Crisp if you are a solo founder or small team whose main need is a low-cost human shared inbox ($25–$95/mo) with simple canned auto-responders. Choose Chatty if you need autonomous AI customer resolution, anti-hallucination vector citations, direct calendar scheduling, and programmatic AI agent control via MCP.",
     pricingOverview: {
@@ -496,16 +496,16 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     agenticSummary:
       "Chatbase is a lightweight RAG wrapper designed to quickly convert PDF documents into simple Q&A chat widgets. Chatty is a full-stack autonomous AI customer platform featuring human agent live takeover, visual flow builder, in-chat calendar scheduling, WooCommerce synchronization, WebRTC voice agents, and an official 81-tool Model Context Protocol (MCP) server.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Chatbase if you only need a quick, simple bot to answer internal questions from a PDF and do not need live chat takeover, lead qualification maps, calendar booking, or developer MCP tools. Choose Chatty if you want a complete production customer operations platform with visual flows, calendar scheduling, e-commerce sync, and voice calling.",
     pricingOverview: {
-      chattyModel: "Flat subscription ($19–$399/mo) or Self-Host Free",
-      chattyStartingPrice: "$19/mo (Hobby) or $99/mo (Standard)",
-      competitorModel: "Tiered credits ($19 Hobby, $99 Standard, $399 Unlimited)",
-      competitorStartingPrice: "$19/mo (Hobby with 2,000 messages)",
-      annualSavingsHighlight: "Identical price points, but Chatty includes 5x more capabilities",
-      calculationNote: "Comparing Standard tiers ($99/mo) on both platforms.",
+      chattyModel: "Flat subscription ($19–$399/mo) or Self-Host Free ($0 forever)",
+      chattyStartingPrice: "$19/mo (Hobby: ~800 chats) or $99/mo (Standard: ~8,000 chats)",
+      competitorModel: "Tiered message credits ($40 Hobby, $150 Standard - verified Oct 2026)",
+      competitorStartingPrice: "$40/mo (Hobby with 2,000 messages)",
+      annualSavingsHighlight: "Chatty saves 52% on entry tier ($19 vs $40) and 34% on Standard ($99 vs $150)",
+      calculationNote: "Comparing equivalent monthly tiers. Chatbase pricing verified from public documentation in October 2026 ($40/mo Hobby, $150/mo Standard).",
     },
     scenarios: {
       whenToChooseChatty: [
@@ -526,7 +526,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
         name: "Human Agent Live Takeover",
         category: "Operations & Team",
         chatty: "Built-in live chat inbox with real-time takeover, typing indicators, and notes.",
-        competitor: "Limited or absent. Primarily designed as an unmonitored automated bot.",
+        competitor: "Not supported (verified in documentation Oct 2026). Primarily designed as an unmonitored automated bot.",
         advantage: "chatty",
         details: "Chatty allows human team members to intervene immediately when a high-value customer needs assistance.",
       },
@@ -534,7 +534,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
         name: "Visual Flow Builder",
         category: "Autonomous Capabilities",
         chatty: "Complete drag-and-drop visual flowchart canvas for conditional logic and buttons.",
-        competitor: "Not supported. Free-form text prompting only.",
+        competitor: "Not supported (verified in documentation Oct 2026). Free-form text prompting only.",
         advantage: "chatty",
         details: "Chatty lets you design structured onboarding and triage flows alongside open LLM conversation.",
       },
@@ -542,7 +542,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
         name: "Model Context Protocol (MCP)",
         category: "Developer & Agentic (MCP)",
         chatty: "Official 81-tool FastMCP server with OAuth 2.0 PKCE authentication.",
-        competitor: "No MCP support.",
+        competitor: "No MCP support (verified in documentation Oct 2026).",
         advantage: "chatty",
         details: "Chatty integrates directly into modern agentic workflows (Claude Code, Cursor, Codex).",
       },
@@ -550,7 +550,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
         name: "Calendar Booking",
         category: "Autonomous Capabilities",
         chatty: "Native Google Meet & Outlook scheduling with real-time slot checking.",
-        competitor: "Not supported.",
+        competitor: "Not supported (verified in documentation Oct 2026).",
         advantage: "chatty",
         details: "Chatty books sales and support meetings directly within the chat widget.",
       },
@@ -558,25 +558,32 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
         name: "Voice Calling Agent",
         category: "Autonomous Capabilities",
         chatty: "Native WebRTC bidirectional voice agents powered by LiveKit inside the widget.",
-        competitor: "Not supported.",
+        competitor: "Not supported (verified in documentation Oct 2026).",
         advantage: "chatty",
         details: "Chatty allows visitors to talk with voice avatars directly in their browser.",
       },
     ],
     pricingBreakdown: [
       {
-        tier: "Hobby Tier ($19/mo)",
-        volume: "1,000–2,000 queries",
-        chattyCost: "$19/mo (Includes Leads, CRM, Multi-model, Allowlist)",
-        competitorCost: "$19/mo (Basic document Q&A only)",
-        difference: "Same price, but Chatty includes full CRM and lead forms",
+        tier: "Entry / Hobby Tier",
+        volume: "1,000–2,000 queries (~800 to 1,500 conversations)",
+        chattyCost: "$19/mo (Includes Leads, CRM, Multi-model, Allowlist, or $0 Self-Host)",
+        competitorCost: "$40/mo (Chatbase Hobby: 2,000 messages, basic document Q&A)",
+        difference: "Chatty saves 52% ($21/mo = $252/yr) while adding full CRM and lead forms",
       },
       {
-        tier: "Standard Tier ($99/mo)",
-        volume: "10,000 queries",
-        chattyCost: "$99/mo (Visual flows, Auto-Train, Calendar, Whitelabel)",
-        competitorCost: "$99/mo (Document bot only)",
-        difference: "Chatty provides an entire operational support suite for the same price",
+        tier: "Standard / Growth Tier",
+        volume: "10,000 queries (~8,000 conversations)",
+        chattyCost: "$99/mo (Visual flows, Auto-Train, Calendar, Whitelabel, 81 MCP tools)",
+        competitorCost: "$150/mo (Chatbase Standard: 10,000 messages, document bot only)",
+        difference: "Chatty saves 34% ($51/mo = $612/yr) while providing full customer operations",
+      },
+      {
+        tier: "Scale / High Volume",
+        volume: "20,000–40,000 queries (~16,000 to 35,000 conversations)",
+        chattyCost: "$399/mo (Business tier with BYOK) or $0 Self-Host (~$40 API)",
+        competitorCost: "$400+/mo (Standard + add-on message packs)",
+        difference: "Chatty offers massive cost protection with BYOK and open-source self-hosting",
       },
     ],
     deepDives: [
@@ -584,6 +591,11 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
         heading: "1. Moving Beyond Simple PDF Wrappers",
         content:
           "Many first-generation AI tools were simple wrappers over the OpenAI completions API with a vector index. Chatbase popularized this concept for simple document Q&A. However, modern businesses quickly discover that static Q&A is not enough: customers want to book calls, query live product inventory, and escalate to human agents when edge cases arise. Chatty bridges this gap by unifying autonomous RAG, visual flows, live chat takeover, and calendar booking into one coherent platform.",
+      },
+      {
+        heading: "2. Real Total Cost of Ownership (TCO) at 1,000, 5,000, and 20,000 Conversations",
+        content:
+          "When comparing AI chatbot software, true cost includes platform subscription plus infrastructure. At 1,000 monthly conversations: Chatty Cloud costs $19/mo (Self-Host: $0 license + ~$2 Gemini API), while Chatbase costs $40/mo (saving $252/year). At 5,000 monthly conversations: Chatty Cloud is $99/mo (Self-Host: $0 license + ~$10 API), while Chatbase costs $150/mo (saving $612/year). At 20,000 monthly conversations: Chatty Cloud is $399/mo with unlimited bot configs and BYOK (or $0 self-host + ~$40 API), while Chatbase exceeds $400+/mo. Chatty guarantees predictable margins as customer volume scales.",
       },
     ],
     faqs: [
@@ -612,7 +624,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     agenticSummary:
       "Tidio Lyro AI and Chatty cater to different scale requirements. Tidio bundles basic live chat with Lyro AI, but restricts AI usage to tight conversation quotas (only 50 Lyro conversations included on Starter plans, requiring costly add-on packs of $39+ for every 50 additional conversations). Chatty provides 10,000 queries per month on its $99 Standard tier with zero per-conversation penalties, an 81-tool Model Context Protocol (MCP) server for external AI agents, native WebRTC voice calling, and open-source self-hosting.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Tidio if you run a small Shopify boutique that wants simple visual drag-and-drop cart abandonment popups and requires fewer than 100 AI conversations per month. Choose Chatty if you want autonomous, high-volume AI customer service without punitive conversation caps, direct calendar booking, native WebRTC voice agents, and programmatic developer control via MCP.",
     pricingOverview: {
@@ -736,7 +748,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     agenticSummary:
       "Chatty and Gorgias take different approaches to e-commerce customer support. Gorgias is a human-first ticketing helpdesk built specifically for Shopify stores that bills based on monthly 'billable ticket' tiers ($10 for 50 tickets up to $900+/mo for 5,000 tickets, with costly overages). Chatty is an autonomous AI customer operations platform with flat-rate pricing ($19–$99/mo), native WooCommerce bidirectional product syncing, calendar meeting booking, WebRTC voice agents, and 81 MCP tools with no ticket overage penalties.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Gorgias if you are an enterprise Shopify Plus merchant whose primary requirement is a human customer support team that needs native Shopify refund buttons, order edits, and delivery tracking inside a unified multi-channel inbox. Choose Chatty if you want autonomous AI deflection, native WooCommerce product sync, zero ticket overage stress, WebRTC voice calling, and 90% lower operational costs.",
     pricingOverview: {
@@ -845,9 +857,9 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     metaTitle: "Chatty vs Freshdesk Freddy AI (2026): Honest Feature & Pricing Review",
     metaDescription: "An in-depth, honest comparison between Chatty and Freshworks Freshdesk. Compare per-seat pricing, Freddy AI session costs, MCP tools, voice agents, and autonomous setup.",
     agenticSummary:
-      "Chatty and Freshdesk represent two distinct philosophies in customer service. Freshdesk (part of Freshworks) is a legacy multi-agent ticketing system that charges per human seat ($15–$79/agent/mo) plus extra monthly fees for Freddy AI Copilot ($29/agent/mo) and Freddy AI Agent packs ($100 per 1,000 sessions). Chatty is an autonomous AI customer support platform with zero per-seat fees, flat monthly pricing ($19–$99/mo), an official 81-tool Model Context Protocol (MCP) server, native WebRTC voice agents, and instant 3-minute website crawling.",
+      "Chatty and Freshdesk represent two distinct philosophies in customer service. Freshdesk (part of Freshworks) is a legacy multi-agent ticketing system that charges per human seat ($15–$79/agent/mo) plus extra monthly fees for Freddy AI Copilot ($29/agent/mo) and Freddy AI Agent packs ($100 per 1,000 sessions). Chatty is an autonomous AI customer support platform with zero per-seat fees, flat monthly pricing ($19–$99/mo), an official 81-tool Model Context Protocol (MCP) server, native WebRTC voice agents, and instant 5-minute website crawling.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Freshdesk if your organization is a traditional enterprise with 20+ support agents requiring ITIL service management, hardware asset tracking, telephone call center routing, and multi-department ticketing hierarchies. Choose Chatty if you want autonomous AI customer support, flat pricing with unlimited seats, in-chat calendar booking, real-time voice agents, and modern developer control via MCP.",
     pricingOverview: {
@@ -862,7 +874,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     scenarios: {
       whenToChooseChatty: [
         "You want to empower your whole company (sales, engineering, support) with customer access without paying $49–$79/month for every user.",
-        "You want an AI agent that self-trains by crawling your website, documentation, and PDFs in 3 minutes.",
+        "You want an AI agent that self-trains by crawling your website, documentation, and PDFs in 5 minutes.",
         "You want customers to book meetings directly on Google Meet or Outlook inside chat.",
         "You need an 81-tool Model Context Protocol (MCP) server for AI assistants like Claude, Cursor, and Codex.",
         "You want real-time WebRTC browser voice calling without setting up a PBX.",
@@ -885,7 +897,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
       {
         name: "AI Knowledge Training Speed",
         category: "Core AI & Grounding",
-        chatty: "Self-service 3-minute crawler: enter your URL, upload PDFs or connect Google Drive.",
+        chatty: "Self-service 5-minute crawler: enter your URL, upload PDFs or connect Google Drive.",
         competitor: "Requires manual portal configuration, article curation, and Freddy AI intent tagging.",
         advantage: "chatty",
         details: "Chatty goes from zero to a live, grounded AI agent in under 180 seconds.",
@@ -958,7 +970,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
     agenticSummary:
       "Drift (acquired by Salesloft) and Chatty both focus on conversational lead generation and meeting booking, but their pricing models and technology stacks are worlds apart. Drift is a high-ticket enterprise sales platform that typically requires annual contracts starting at $2,500/month ($30,000/year minimum) plus lengthy onboarding cycles. Chatty delivers autonomous AI lead qualification, in-chat calendar booking, vector RAG support, WebRTC voice agents, and an official 81-tool Model Context Protocol (MCP) server starting at $19–$99/month with zero annual lock-in.",
     publishedAt: "2026-10-15",
-    updatedAt: "2026-10-19",
+    updatedAt: "2026-10-29",
     verdict:
       "Choose Drift if you are a Fortune 500 B2B enterprise with dedicated Salesforce RevOps administrators, a 6-figure marketing automation budget, and mandatory enterprise integrations with 6sense, Demandbase, and Salesloft cadences. Choose Chatty if you want autonomous AI lead capture, instant calendar meeting booking, high-precision document Q&A, and voice agents at an honest, transparent price of $19–$99/month.",
     pricingOverview: {
@@ -976,7 +988,7 @@ export const COMPARISONS: Record<string, ComparisonItem> = {
         "You want an AI agent that handles both pre-sales lead qualification and post-sales technical support with vector RAG.",
         "You want WebRTC voice calling so high-intent prospects can talk to an AI agent right inside their browser.",
         "You need an 81-tool Model Context Protocol (MCP) server to automate your CRM and customer operations.",
-        "You want to launch today in 3 minutes, not in 6 weeks of enterprise professional services.",
+        "You want to launch today in 5 minutes, not in 6 weeks of enterprise professional services.",
       ],
       whenToChooseCompetitor: [
         "You require enterprise Account-Based Marketing (ABM) de-anonymization powered by 6sense or Demandbase.",

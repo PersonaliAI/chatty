@@ -79,7 +79,7 @@ const PLANS: PlanTier[] = [
     description: "Perfect for individuals, developers, and side projects.",
     features: [
       "3 Live AI Agents",
-      "1,000 weighted AI credits / month",
+      "1,000 weighted AI credits / mo (≈ ~800 chats)",
       "10M training characters",
       "500 MB Media Storage (250 products)",
       "AI Actions, Analytics & Lead capture",
@@ -93,7 +93,7 @@ const PLANS: PlanTier[] = [
     description: "All in Hobby, plus advanced automation and multi-bot systems.",
     features: [
       "6 Live AI Agents",
-      "10,000 weighted AI credits / month",
+      "10,000 weighted AI credits / mo (≈ ~8,000 chats)",
       "20M training characters",
       "2 GB Media Storage (1,500 products)",
       "Daily Auto Train & Remove branding",
@@ -108,7 +108,7 @@ const PLANS: PlanTier[] = [
     description: "For enterprise scale, heavy traffic, and reseller options.",
     features: [
       "Unlimited AI Agents (fair-use limits)",
-      "40,000 weighted AI credits / month",
+      "40,000 weighted AI credits / mo (≈ ~35,000 chats)",
       "50M training characters",
       "10 GB Media Storage (Unlimited products)",
       "White-label configuration & BYOK option",

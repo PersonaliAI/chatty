@@ -92,7 +92,7 @@ const PLAN_TIER_CONFIGS: Record<string, PlanTierConfig> = {
     autoTrainSchedule: "Manual",
     adminApi: false,
     features: [
-      "1,000 weighted AI credits / mo",
+      "1,000 weighted AI credits / mo (≈ ~800 chats)",
       "10M training characters",
       "Up to 3 live AI chatbots",
       "500 MB Media Storage (250 products)",
@@ -115,7 +115,7 @@ const PLAN_TIER_CONFIGS: Record<string, PlanTierConfig> = {
     autoTrainSchedule: "Daily Auto-Sync",
     adminApi: false,
     features: [
-      "10,000 weighted AI credits / mo",
+      "10,000 weighted AI credits / mo (≈ ~8,000 chats)",
       "20M training characters",
       "Up to 6 live AI chatbots",
       "2 GB Media Storage (1,500 products)",
@@ -138,7 +138,7 @@ const PLAN_TIER_CONFIGS: Record<string, PlanTierConfig> = {
     autoTrainSchedule: "Realtime Continuous",
     adminApi: true,
     features: [
-      "40,000 weighted AI credits / mo",
+      "40,000 weighted AI credits / mo (≈ ~35,000 chats)",
       "50M training characters",
       "Unlimited AI chatbots",
       "10 GB Media Storage (Unlimited products)",

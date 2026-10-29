@@ -633,7 +633,7 @@ const COMPARISONS = [
 const FAQS = [
   {
     q: "How fast can I deploy Chatty on my live website?",
-    a: "Most teams are fully live in under 3 minutes. Simply create an account, paste your website URL or upload your help documentation, let our crawler index your knowledge chunks, and copy-paste one <script> snippet into your HTML head or Google Tag Manager.",
+    a: "Most teams are fully live in under 5 minutes. Simply create an account, paste your website URL or upload your help documentation, let our crawler index your knowledge chunks, and copy-paste one <script> snippet into your HTML head or Google Tag Manager.",
   },
   {
     q: "How does Chatty prevent AI hallucinations?",
@@ -2462,7 +2462,7 @@ export default function LandingClient() {
                 Ready to automate customer support with zero hallucinations?
               </h2>
               <p className="mt-4 text-sm sm:text-base text-orange-100 max-w-xl mx-auto">
-                Deploy your first grounded website assistant in under 3 minutes. Zero coding required.
+                Deploy your first grounded website assistant in under 5 minutes. Zero coding required.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link

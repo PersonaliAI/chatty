@@ -23,7 +23,7 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11%20%2F%203.13-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![MCP](https://img.shields.io/badge/FastMCP-65%20Tools-8b5cf6)](#mcp-サーバーとエージェント制御)
+[![MCP](https://img.shields.io/badge/FastMCP-81%20Tools-8b5cf6)](#mcp-サーバーとエージェント制御)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -72,7 +72,7 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 | **料金体系** | シート単位／メッセージ課金、無料枠なし | 無料でセルフホスト可能、または分かりやすい定額の Chatty Cloud ホストプラン |
 | **利用可能な LLM** | ベンダー指定のモデルに固定 | **BYOK (モデル持ち込み)** — デフォルトは Gemini、または OpenAI / Anthropic / OpenRouter を選択可能 |
 | **オムニチャネル統合** | 高額な追加料金または Web のみ | **7つの主要チャネルを標準統合**: WhatsApp, Messenger, IG, TikTok, Telegram, SMS, Email |
-| **自動化・AI エージェント連携** | 通常は利用不可、または高額な追加機能 | **完全な FastMCP サーバーを標準同梱** — 65 種類のツール、OAuth 2.0 & API キー保護 |
+| **自動化・AI エージェント連携** | 通常は利用不可、または高額な追加機能 | **完全な FastMCP サーバーを標準同梱** — 81 種類のツール、OAuth 2.0 & API キー保護 |
 | **ソースコードの透明性** | 非公開 (Closed) | **MIT ライセンス** — 監査、フォーク、カスタマイズ、自由な環境での運用が可能 |
 
 ---
@@ -156,7 +156,7 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 | **16** | **アナリティクス** | チケット自己解決率、応答速度、トークン消費ヒートマップ | [4K 画像を表示](screenshots/real-16-analytics.png) |
 | **17** | **埋め込み & 連携** | React、Next.js、WordPress 向け埋め込みコード & 許可ドメイン設定 | [4K 画像を表示](screenshots/real-17-embed-integrate.png) |
 | **18** | **音声エージェント** | LiveKit WebRTC スタジオ、動的ビジュアライザー & 各種 SDK コード | [4K 画像を表示](screenshots/real-18-voice-agent.png) |
-| **19** | **FastMCP サーバーハブ** | Claude Desktop、Cursor、Antigravity 向けの 65 ツール & 8 リソース | [4K 画像を表示](screenshots/real-19-mcp.png) |
+| **19** | **FastMCP サーバーハブ** | Claude Desktop、Cursor、Antigravity 向けの 81 ツール & 8 リソース | [4K 画像を表示](screenshots/real-19-mcp.png) |
 | **20** | **開発者 API** | スコープ付き API キー (`chatty_sk_...`) & 多言語 SDK スニペット | [4K 画像を表示](screenshots/real-20-developer-api.png) |
 | **21** | **請求 & クォータ** | Stripe ポータル、クォータ台帳、アフィリエイト・紹介プログラム | [4K 画像を表示](screenshots/real-21-billing.png) |
 | **22** | **エージェント設定** | 厳格なベクトル回答制限、PII 自動マスキング、BYOK 暗号化保管 | [4K 画像を表示](screenshots/real-22-agent-settings.png) |
@@ -176,7 +176,7 @@ Supabase Auth、Postgres、Storage、Realtime をマネージド環境に保ち�
 - 📚 **RAG ナレッジハブ** — PostgreSQL `pgvector`、HNSW インデックス、ハイブリッド検索（語彙 + ベクトル）による高度な意味検索。
 - 🛠️ **自律型ツール呼び出し (Tool-calling)** — ミーティング予約（Google Meet, Microsoft Teams, Zoom）、リード情報の自動抽出、カレンダー空き枠確認を自動実行。
 - 🔑 **Bring Your Own Key (BYOK)** — デフォルトで Gemini 無料枠を利用可能。ボット単位で OpenAI / Anthropic / Groq の API キーを AES-128 暗号化して設定可能。
-- 🤖 **65 ツール FastMCP サーバー** — Claude Desktop、Cursor、Codex、Antigravity から OAuth 2.0 / API キー認証を介してダッシュボード全体をプログラム制御（音声スタジオ設定、スクリーンショットテレメトリ、自律ワークフローを含む）。
+- 🤖 **81 ツール FastMCP サーバー** — Claude Desktop、Cursor、Codex、Antigravity から OAuth 2.0 / API キー認証を介してダッシュボード全体をプログラム制御（音声スタジオ設定、スクリーンショットテレメトリ、自律ワークフローを含む）。
 - 📊 **5 つの柱のスコアカード** — コンバージョン、自己解決率、回答精度、信頼性、CSAT を A〜F で独立監査。
 - 🎯 **プロアクティブ・キャンペーン** — ユーザーの行動トリガー（離脱意図、滞在時間、スクロール率）に基づくタイムゾーン連動の配信計画。
 - 🐳 **ワンコマンド・セルフホスト** — `docker compose up` を実行して Supabase に接続するだけで 60 秒で起動。
@@ -371,7 +371,7 @@ flowchart TB
     subgraph runtime["Chatty ランタイム"]
         direction LR
         api["FastAPI バックエンド · フローエンジン · RAG · Webhook"]:::app
-        mcp["FastMCP 65ツール サーバー (OAuth 2.0 / API キー)"]:::app
+        mcp["FastMCP 81ツール サーバー (OAuth 2.0 / API キー)"]:::app
     end
     subgraph managed["マネージド Supabase レイヤー"]
         direction LR
@@ -470,7 +470,7 @@ docker compose up --build backend frontend
 Chatty には [Model Context Protocol (FastMCP)](https://modelcontextprotocol.io) 仕様に完全準拠した公式サーバーが組み込まれており、Claude Desktop、Cursor、Codex、Antigravity から自然言語の対話のみでシステム全体を自律運用可能です。
 
 - **認証**: PKCE（RFC 7636）必須の OAuth 2.0 認可コードフローおよび Scoped API キー (`chatty_sk_...`) に対応。
-- **65 種類のツール**（12 カテゴリ）：ボットライフサイクル、デザインカスタマイズ、ビジュアルフロービルダー、プロアクティブキャンペーン、ナレッジベース & RAG、受信トレイ & 有人引き継ぎ、カレンダー予約、分析、BYOK ガードレール設定、および LiveKit 音声スタジオ。
+- **81 種類のツール**（12 カテゴリ）：ボットライフサイクル、デザインカスタマイズ、ビジュアルフロービルダー、プロアクティブキャンペーン、ナレッジベース & RAG、受信トレイ & 有人引き継ぎ、カレンダー予約、分析、BYOK ガードレール設定、および LiveKit 音声スタジオ。
 - **リアルタイムリソース & プロンプト**: `chatty://bots/{bot_id}/voice-config` でリアルタイムな音声設定状態を取得し、`chatty://dashboard/screenshots` でダッシュボード画面を取得可能。
 
 MCP クライアントの設定例:

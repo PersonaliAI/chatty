@@ -514,7 +514,7 @@ export default async function ComparisonArticlePage({ params }: PageProps) {
               Ready to Upgrade Your Customer Experience?
             </h2>
             <p className="text-xs sm:text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 80%, transparent)" }}>
-              Deploy your AI assistant on your website in under 3 minutes. Test with a full 14-day trial, zero resolution fees, and unlimited team seats.
+              Deploy your AI assistant on your website in under 5 minutes. Test with a full 14-day trial, zero resolution fees, and unlimited team seats.
             </p>
           </div>
 

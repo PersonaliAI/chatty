@@ -23,7 +23,7 @@ Chatty 是一款开源、可私有化自托管的 **Zendesk 替代方案** 和 *
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11%20%2F%203.13-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![MCP](https://img.shields.io/badge/FastMCP-65%20Tools-8b5cf6)](#mcp-服务器与智能体控制)
+[![MCP](https://img.shields.io/badge/FastMCP-81%20Tools-8b5cf6)](#mcp-服务器与智能体控制)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -72,7 +72,7 @@ Chatty 是一款开源、可私有化自托管的 **Zendesk 替代方案** 和 *
 | **计费与价格模型** | 按坐席 / 按调用消息计费，无免费层 | 自由免费私有化自托管，或选择透明清晰的 Chatty Cloud 托管订阅 |
 | **大语言模型 (LLM)** | 强绑定其指定模型 | **自带模型密钥 (BYOK)** — 默认包含 Gemini 免费层，亦可自由接入 OpenAI / Anthropic / OpenRouter |
 | **全渠道覆盖** | 往往属于昂贵增购或仅支持网页 | **原生内置 7 大通信渠道**: WhatsApp, Messenger, IG, TikTok, Telegram, 短信, 邮件 |
-| **Agent / 自动化控制** | 通常无开放接口或价格昂贵 | **原生内置完整 FastMCP 服务器** — 65 项工具，支持 OAuth 2.0 与 API 密钥验证 |
+| **Agent / 自动化控制** | 通常无开放接口或价格昂贵 | **原生内置完整 FastMCP 服务器** — 81 项工具，支持 OAuth 2.0 与 API 密钥验证 |
 | **源码透明度与审计** | 闭源黑盒 | **MIT 开源协议** — 自由审计、代码分支、定制开发与随处部署 |
 
 ---
@@ -156,7 +156,7 @@ Chatty 是一款开源、可私有化自托管的 **Zendesk 替代方案** 和 *
 | **16** | **数据统计分析** | 自动解决率、工单响应时长、分时 Token 消耗热力图 | [查看 4K 截图](screenshots/real-16-analytics.png) |
 | **17** | **嵌入与系统集成** | 支持 React、Next.js、WordPress 嵌入代码生成与域名白名单保护 | [查看 4K 截图](screenshots/real-17-embed-integrate.png) |
 | **18** | **语音代理工作室** | LiveKit WebRTC 实时对讲调试、5 种动态波形与多平台 SDK | [查看 4K 截图](screenshots/real-18-voice-agent.png) |
-| **19** | **FastMCP 接口枢纽** | 面向 Claude Desktop、Cursor、Antigravity 的 65 项工具与 8 项资源 | [查看 4K 截图](screenshots/real-19-mcp.png) |
+| **19** | **FastMCP 接口枢纽** | 面向 Claude Desktop、Cursor、Antigravity 的 81 项工具与 8 项资源 | [查看 4K 截图](screenshots/real-19-mcp.png) |
 | **20** | **开发者 API** | 具备细粒度权限的 API 密钥 (`chatty_sk_...`) 与多语言 SDK 片段 | [查看 4K 截图](screenshots/real-20-developer-api.png) |
 | **21** | **账单与配额** | Stripe 计费中心、配额账本以及分销推广伙伴计划 | [查看 4K 截图](screenshots/real-21-billing.png) |
 | **22** | **机器人安全设定** | 严格基于向量知识库回答、敏感隐私实时脱敏、BYOK 密钥加密保存 | [查看 4K 截图](screenshots/real-22-agent-settings.png) |
@@ -176,7 +176,7 @@ Chatty 是一款开源、可私有化自托管的 **Zendesk 替代方案** 和 *
 - 📚 **RAG 向量知识库检索** — 基于 PostgreSQL `pgvector` 与 HNSW 向量索引，结合关键词词法与向量语义的混合检索策略。
 - 🛠️ **自主工具调用 (Tool-calling)** — 自动预约真实音视频会议（Google Meet、Microsoft Teams、Zoom）、销售线索智能提取、日历空闲时段校验。
 - 🔑 **自带密钥架构 (BYOK)** — 默认支持 Google Gemini 免费额度；亦可按机器人为单位自由接入 OpenAI、Anthropic、Groq，凭证均经 AES-128 严格加密存储。
-- 🤖 **65 项标准化 FastMCP 工具服务器** — 支持从 Claude Desktop、Cursor、Codex 或 Antigravity 通过 OAuth 2.0 / API 密钥全方位控制控制台（涵盖语音工作室配置、控制台截图遥测与自动化工作流）。
+- 🤖 **81 项标准化 FastMCP 工具服务器** — 支持从 Claude Desktop、Cursor、Codex 或 Antigravity 通过 OAuth 2.0 / API 密钥全方位控制控制台（涵盖语音工作室配置、控制台截图遥测与自动化工作流）。
 - 📊 **5 维度健康评分卡** — 针对转化率、拦截率、精准度、稳定度与客户满意度进行独立的 A–F 评级与诊断建议。
 - 🎯 **主动触发式营销活动** — 基于访客离开意图、停留时长、滚动深度等行为触发器，结合时区感知的定时调度器。
 - 🐳 **一行命令极速私有化部署** — `docker compose up` 指向 Supabase 数据库实例，60 秒内完整拉起。
@@ -371,7 +371,7 @@ flowchart TB
     subgraph runtime["Chatty 服务运行时"]
         direction LR
         api["FastAPI 后端 · 流程引擎 · RAG · Webhook"]:::app
-        mcp["FastMCP 65 工具服务器 (OAuth 2.0 / API 密钥)"]:::app
+        mcp["FastMCP 81 工具服务器 (OAuth 2.0 / API 密钥)"]:::app
     end
     subgraph managed["托管 Supabase 数据层"]
         direction LR
@@ -470,7 +470,7 @@ docker compose up --build backend frontend
 Chatty 完整内置了符合 [Model Context Protocol (FastMCP)](https://modelcontextprotocol.io) 官方协议规范的服务器。您可以将 Claude Desktop、Cursor、Codex 或 Antigravity 与其相连，仅通过自然语言对话即可直接管理整个业务系统：
 
 - **权限认证**: 严格遵循带 PKCE（RFC 7636）的 OAuth 2.0 授权码流，并支持 Scoped API 密钥鉴权 (`chatty_sk_...`)。
-- **65 项标准化工具**（涵盖 12 大分类）：机器人全生命周期、视觉设计定制、流程图设计器、主动营销活动、知识库 RAG、收件箱与人工接管、会议日历预约、拦截分析统计、BYOK 与安全护栏，以及 LiveKit 语音工作室。
+- **81 项标准化工具**（涵盖 12 大分类）：机器人全生命周期、视觉设计定制、流程图设计器、主动营销活动、知识库 RAG、收件箱与人工接管、会议日历预约、拦截分析统计、BYOK 与安全护栏，以及 LiveKit 语音工作室。
 - **实时资源与引导提示**: 通过 `chatty://bots/{bot_id}/voice-config` 实时读取语音代理运行时状态，并通过 `chatty://dashboard/screenshots` 获取控制台真实界面截图。
 
 MCP 客户端通用配置示例：

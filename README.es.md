@@ -23,7 +23,7 @@ Ejecuta los contenedores de la aplicación en tu propia infraestructura mientras
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11%20%2F%203.13-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![MCP](https://img.shields.io/badge/FastMCP-65%20Herramientas-8b5cf6)](#servidor-mcp-y-control-de-agentes)
+[![MCP](https://img.shields.io/badge/FastMCP-81%20Herramientas-8b5cf6)](#servidor-mcp-y-control-de-agentes)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -70,7 +70,7 @@ La mayoría de plataformas de chatbots comerciales cobran suscripciones elevadas
 | **Precios** | Por usuario / por mensaje, sin nivel gratuito | Autoalojamiento gratuito o planes transparentes en Chatty Cloud |
 | **Modelos de Lenguaje (LLM)** | Bloqueado a su proveedor específico | **BYOK (Trae tu propia clave)**: Gemini por defecto, o OpenAI, Anthropic, OpenRouter |
 | **Hub Omnicanal** | Costoso o limitado al chat web | **7 canales integrados nativamente**: WhatsApp, Messenger, IG, TikTok, Telegram, SMS, Email |
-| **Automatización / Agentes** | Generalmente inexistente o complemento de pago | **Servidor FastMCP completo incluido**: 65 herramientas con OAuth 2.0 y API Keys |
+| **Automatización / Agentes** | Generalmente inexistente o complemento de pago | **Servidor FastMCP completo incluido**: 81 herramientas con OAuth 2.0 y API Keys |
 | **Código fuente** | Privado / cerrado | **Licencia MIT**: audítalo, modifícalo, haz fork y ejecútalo donde quieras |
 
 ## 🖥️ Muestra del Panel de Control en Vivo (4K Retina)
@@ -152,7 +152,7 @@ Los 22 módulos principales han sido capturados directamente del entorno de prod
 | **16** | **Analítica** | Métricas de desviación, velocidad de resolución y mapas de calor de tokens | [Ver imagen 4K](screenshots/real-16-analytics.png) |
 | **17** | **Incrustación e Integración** | Generador de incrustación para React, Next.js, WordPress y lista blanca | [Ver imagen 4K](screenshots/real-17-embed-integrate.png) |
 | **18** | **Agente de Voz** | Estudio WebRTC LiveKit con visualizador activo y código multi-SDK | [Ver imagen 4K](screenshots/real-18-voice-agent.png) |
-| **19** | **Centro FastMCP** | 65 herramientas y 8 recursos para Claude Desktop, Cursor, Antigravity | [Ver imagen 4K](screenshots/real-19-mcp.png) |
+| **19** | **Centro FastMCP** | 81 herramientas y 8 recursos para Claude Desktop, Cursor, Antigravity | [Ver imagen 4K](screenshots/real-19-mcp.png) |
 | **20** | **API para Desarrolladores** | Claves de API con ámbito (`chatty_sk_...`) y fragmentos en varios lenguajes | [Ver imagen 4K](screenshots/real-20-developer-api.png) |
 | **21** | **Facturación y Cuotas** | Portal Stripe, libro de cuotas y programa de referidos | [Ver imagen 4K](screenshots/real-21-billing.png) |
 | **22** | **Ajustes del Agente** | Respuestas fundamentadas en vectores, depuración de PII y cifrado BYOK | [Ver imagen 4K](screenshots/real-22-agent-settings.png) |
@@ -173,7 +173,7 @@ Los 22 módulos principales han sido capturados directamente del entorno de prod
 - 📚 **Base de Conocimiento RAG** — Búsqueda semántica híbrida optimizada con PostgreSQL `pgvector`, índices HNSW y segmentación contextual.
 - 🛠️ **Invocación Autónoma de Herramientas** — Agendamiento directo de reuniones (Google Meet, Microsoft Teams, Zoom), calificación de leads y comprobación de calendarios.
 - 🔑 **Bring Your Own Key (BYOK)** — Nivel gratuito de Gemini predeterminado, o claves por bot de OpenAI, Anthropic o Groq con cifrado AES-128.
-- 🤖 **Servidor FastMCP de 65 Herramientas** — Controla todo el panel de control programáticamente desde Claude Desktop, Cursor o Codex con autenticación OAuth 2.0 y claves de API.
+- 🤖 **Servidor FastMCP de 81 Herramientas** — Controla todo el panel de control programáticamente desde Claude Desktop, Cursor o Codex con autenticación OAuth 2.0 y claves de API.
 - 📊 **Auditoría de Rendimiento en 5 Pilares** — Evaluación independiente de grado A-F en Conversión, Desviación de tickets, Precisión, Fiabilidad y CSAT.
 - 🎯 **Campañas Proactivas** — Disparadores de comportamiento (intención de salida, tiempo en página, scroll) con programación adaptada a zonas horarias.
 - 🐳 **Autoalojamiento en un Comando** — `docker compose up`, conecta tu proyecto de Supabase y arranca en 60 segundos.
@@ -359,7 +359,7 @@ flowchart TB
     subgraph runtime["Runtime de Chatty"]
         direction LR
         api["Backend FastAPI · Motor de Flujos · RAG · Webhooks"]:::app
-        mcp["Servidor FastMCP 65 Herramientas (OAuth 2.0 / API Keys)"]:::app
+        mcp["Servidor FastMCP 81 Herramientas (OAuth 2.0 / API Keys)"]:::app
     end
     subgraph managed["Capa Gestionada de Supabase"]
         direction LR
@@ -456,7 +456,7 @@ docker compose up --build backend frontend
 Chatty incluye un servidor oficial compatible con la especificación [Model Context Protocol (FastMCP)](https://modelcontextprotocol.io), permitiendo controlar toda la plataforma conversacionalmente desde Claude Desktop, Cursor, Codex o Antigravity:
 
 - **Autenticación**: Flujo OAuth 2.0 con PKCE (RFC 7636) y compatibilidad con API Keys (`chatty_sk_...`).
-- **65 herramientas** distribuidas en 12 categorías: ciclo de vida de bots, personalización visual, constructor de flujos, campañas proactivas, base de conocimientos RAG, bandeja de entrada omnicanal y takeover, reservas de reuniones, analítica de desviación, configuración BYOK y Voice Studio.
+- **81 herramientas** distribuidas en 12 categorías: ciclo de vida de bots, personalización visual, constructor de flujos, campañas proactivas, base de conocimientos RAG, bandeja de entrada omnicanal y takeover, reservas de reuniones, analítica de desviación, configuración BYOK y Voice Studio.
 - **Recursos en vivo**: Configuración de voz vía `chatty://bots/{bot_id}/voice-config` y capturas del panel vía `chatty://dashboard/screenshots`.
 
 ```json

@@ -411,7 +411,7 @@ export default function CompareHubPage() {
                 Can I migrate from another tool without losing data?
               </h3>
               <p className="text-xs leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 78%, transparent)" }}>
-                Yes. Chatty includes an automated crawler. Input your existing public Help Center or documentation URL, and Chatty parses, chunks, and vectorizes your full knowledge base in under 3 minutes.
+                Yes. Chatty includes an automated crawler. Input your existing public Help Center or documentation URL, and Chatty parses, chunks, and vectorizes your full knowledge base in under 5 minutes.
               </p>
             </div>
 
@@ -454,7 +454,7 @@ export default function CompareHubPage() {
               Test Autonomous AI with Zero Risk
             </h2>
             <p className="text-sm sm:text-base leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text, #201e1d) 80%, transparent)" }}>
-              Join thousands of businesses deploying AI assistants with transparent pricing, instant calendar scheduling, and zero per-seat taxes. Deploy your first bot in under 3 minutes.
+              Join thousands of businesses deploying AI assistants with transparent pricing, instant calendar scheduling, and zero per-seat taxes. Deploy your first bot in under 5 minutes.
             </p>
           </div>
 

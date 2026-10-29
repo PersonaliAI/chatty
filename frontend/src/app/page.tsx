@@ -83,7 +83,7 @@ const featuresList: Feature[] = [
 const faqs = [
   { question: "How do I train my AI agent?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text - it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
   { question: "Is there a free plan or can I self-host?", answer: "All 3 cloud plans (Hobby, Standard, and Business) include a full-featured 14-day free trial with no credit card required. The only 100% free forever option is self-hosting the open-source Chatty stack on your own infrastructure via Docker and bringing your own LLM API keys." },
-  { question: "What counts as a 'message credit'?", answer: "Each reply your AI agent sends to a visitor uses one message credit. Credits reset every billing cycle, and unused credits don't roll over." },
+  { question: "How do message credits map to real conversations?", answer: "One credit covers one full AI question-and-answer cycle with vector knowledge retrieval. A typical customer inquiry takes 1–2 turns, meaning 1,000 credits handles about ~800 full visitor conversations. Standard includes ~8,000 conversations, and Business covers ~35,000 conversations per month. Need unlimited? Self-host our open-source codebase for $0 with your own LLM API key." },
   { question: "How does lead collection work?", answer: "Chatty can ask for a visitor's name, email, and phone number mid-conversation, save it automatically to your dashboard, and push it to your CRM or inbox via webhook or API." },
   { question: "Can I embed the AI agent on multiple sites?", answer: "Yes - each AI agent can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
 ];
@@ -169,7 +169,7 @@ const plans = [
     desc: "Perfect for individuals, developers, and side projects.",
     features: [
       "14-day free trial included",
-      "1,000 weighted AI credits/mo",
+      "1,000 AI credits/mo (≈ ~800 conversations)",
       "10M training characters",
       "500 MB Media Storage (250 products)",
       "3 AI agents",
@@ -185,7 +185,7 @@ const plans = [
     desc: "All in Hobby, plus advanced automation and multi-bot systems.",
     features: [
       "14-day free trial included",
-      "10,000 weighted AI credits/mo",
+      "10,000 AI credits/mo (≈ ~8,000 conversations)",
       "20M training characters",
       "2 GB Media Storage (1,500 products)",
       "6 AI agents",
@@ -199,7 +199,7 @@ const plans = [
     desc: "For enterprise scale, heavy traffic, and reseller options.",
     features: [
       "14-day free trial included",
-      "40,000 weighted AI credits/mo",
+      "40,000 AI credits/mo (≈ ~35,000 conversations)",
       "50M training characters",
       "10 GB Media Storage (Unlimited products)",
       "Unlimited agent configurations (fair-use limits apply)",
@@ -211,14 +211,14 @@ const plans = [
 ];
 
 const chips: { icon: LucideIcon; title: string; desc: string; bg: string; fg: string }[] = [
-  { icon: Zap, title: "Zero-Code, Full Control", desc: "Or drive it all through MCP", bg: "var(--color-accent-100)", fg: "var(--color-accent-700)" },
+  { icon: Zap, title: "Zero-Code, Full Control", desc: "Or drive it all through 81 MCP tools", bg: "var(--color-accent-100)", fg: "var(--color-accent-700)" },
   { icon: UserCheck, title: "Captures Every Lead", desc: "Name, email, phone - automatically", bg: "var(--color-accent-2-100)", fg: "var(--color-accent-2-800)" },
   { icon: CalendarCheck, title: "Books Its Own Meetings", desc: "Straight onto your calendar", bg: "#eee7db", fg: "#474238" },
 ];
 
 const mcpPoints = [
   { title: "OAuth 2.0 + PKCE", desc: "RFC 7591/8414-compliant dynamic client registration - no shared secrets pasted into a config file." },
-  { title: "53 real tools", desc: "Bots, flows, campaigns, knowledge, inbox, leads, calendar, guardrails, team, billing, GDPR export." },
+  { title: "81 real tools", desc: "Bots, flows, campaigns, knowledge, inbox, leads, calendar, deflection, WooCommerce sync, voice studio, GDPR export." },
   { title: "Same data, same rules", desc: "Every tool reads and writes the exact tables the dashboard does - nothing simulated, nothing mocked." },
   { title: "Scoped access", desc: "read / write / knowledge / actions / admin scopes, so an agent only gets what it needs." },
 ];
@@ -457,11 +457,11 @@ export default function Home() {
             </a>
           </div>
 
-          <h1 className="mx-auto max-w-[16ch] leading-[1.1] tracking-tight text-[clamp(34px,8vw,72px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
-            Trained on your content. <span style={{ color: "var(--color-accent-600)" }}>Optimized for conversion.</span>
+          <h1 className="mx-auto max-w-[17ch] leading-[1.1] tracking-tight text-[clamp(34px,8vw,72px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
+            Trained on your store &amp; content. <span style={{ color: "var(--color-accent-600)" }}>Optimized for conversion.</span>
           </h1>
-          <p className="text-base sm:text-[17px] leading-relaxed max-w-[56ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
-            An autonomous AI agent that captures leads, books meetings, and triggers actions. Zero coding, live on your site in five minutes.
+          <p className="text-base sm:text-[17px] leading-relaxed max-w-[58ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
+            An open-source AI agent that answers customer questions, captures leads, and books meetings on your website, WhatsApp, and Slack. Live in five minutes.
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 text-left max-w-[900px] mx-auto">
@@ -634,7 +634,7 @@ export default function Home() {
                 Self-Host on Your Own Server &mdash; $0 Forever
               </h3>
               <p className="text-sm leading-relaxed" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
-                Want a 100% free setup? Self-host the open-source Chatty stack on your own infrastructure with Docker and PostgreSQL/pgvector, bring your own LLM API keys (OpenAI, Anthropic, Gemini, OpenRouter), and manage everything yourself.
+                Free open-source software (MIT). You supply hosting, Supabase (or Docker with Postgres/pgvector), and your own model API keys (Gemini, OpenAI, Anthropic, OpenRouter). Zero software licensing costs forever.
               </p>
             </div>
             <div className="shrink-0">

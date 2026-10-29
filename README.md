@@ -11,9 +11,16 @@
   <a href="README.es.md">Español</a>
 </p>
 
-**Open-source AI customer support: chat widget + a full MCP server, grounded in your own knowledge base.**
+### Open-source AI agent trained on your store and content.<br />Answers customer questions, captures leads, and books meetings on website, WhatsApp & Slack.
 
-Chatty is an open-source, self-hostable **Zendesk alternative** and **Intercom alternative** for teams that need an AI chat widget and a shared support inbox. Chatty is an independent project and is not affiliated with or endorsed by Zendesk or Intercom.
+<p align="center">
+  <a href="https://chatty.personaliai.com"><b>🚀 Live Demo</b></a> &nbsp;·&nbsp;
+  <a href="https://chatty.personaliai.com/signup"><b>☁️ Chatty Cloud (Free 14-day trial)</b></a> &nbsp;·&nbsp;
+  <a href="#-quick-start-docker-compose"><b>⚡ Quickstart (5 min)</b></a> &nbsp;·&nbsp;
+  <a href="https://docs.chatty.personaliai.com"><b>📖 Documentation</b></a>
+</p>
+
+Chatty is an open-source, self-hostable **Zendesk and Intercom alternative** for stores and modern businesses that need autonomous AI customer support with human takeover, WooCommerce sync, and calendar scheduling.
 
 Run the application containers on your own host while keeping Supabase Auth,
 Postgres, Storage, and Realtime managed. The same deployment contract works on
@@ -26,7 +33,7 @@ Supabase project.
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](frontend)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-009688?logo=fastapi&logoColor=white)](backend)
 [![Supabase](https://img.shields.io/badge/Database-Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
-[![MCP](https://img.shields.io/badge/FastMCP-65%20Tools-8b5cf6)](#mcp-server--agent-control)
+[![MCP](https://img.shields.io/badge/FastMCP-81%20Tools-8b5cf6)](#mcp-server--agent-control)
 [![Docker](https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -83,13 +90,13 @@ Supabase project.
 
 Every hosted chatbot SaaS charges per-seat or per-message and holds your conversation data. Chatty is open-core: run it yourself for free, or use [Chatty Cloud](https://chatty.personaliai.com) - our own hosted version of this exact repo, if you'd rather skip the ops work. Either way you get the same feature set - streaming chat, RAG over your own documents, meeting booking, lead capture, WhatsApp/Slack channels, and a full [MCP server](#mcp-server--agent-control) so an AI agent can run the whole dashboard for you.
 
-|  | Closed-source SaaS chatbots | **Chatty** |
+| Capability | Closed-source SaaS chatbots | **Chatty** |
 |---|---|---|
-| Your conversation data | Lives on their servers, always | Your Supabase project - whether you self-host or use Chatty Cloud |
-| Pricing | Per-seat / per-message, no free tier | Self-host for free, or a straightforward hosted plan on Chatty Cloud |
-| LLM | Locked to their model | **Bring your own** - Gemini by default, or BYOK OpenAI/Anthropic/OpenRouter |
-| Agent/automation access | Usually none, or a paid add-on | **Full MCP server included** - 65 tools, OAuth 2.0 & API Key secured |
-| Source code | Closed | **MIT licensed** - fork it, audit it, extend it, run it anywhere |
+| **Data Ownership** | Stored on third-party servers, vendor locked | **Cloud**: Hosted on Chatty Cloud with zero AI training guarantee<br>**Self-Host**: 100% in your own private Supabase instance |
+| **Pricing** | High per-seat fees & message overages | **Self-host for $0 forever** (MIT), or predictable flat-rate hosted cloud tiers |
+| **LLM Choice** | Locked to vendor models | **Bring your own (BYOK)**: Gemini, OpenAI, Claude, OpenRouter, or local models |
+| **Agent / MCP Access** | None, or expensive enterprise add-on | **Official 81-tool FastMCP server included** (OAuth 2.0 PKCE & API Keys) |
+| **Source Code & License** | Proprietary closed source | **MIT Licensed** — 100% open-source, forkable, auditable, run anywhere |
 
 ## 🖥️ Live Dashboard Showcase (4K Retina)
 
@@ -170,7 +177,7 @@ All 22 core modules are captured from live production ([`chatty.personaliai.com/
 | **16** | **Analytics** | Deflection analytics, resolution speed, and token heatmaps | [View 4K Image](screenshots/real-16-analytics.png) |
 | **17** | **Embed & Integrate** | Embed generator for React, Next.js, WordPress & domain allowlist | [View 4K Image](screenshots/real-17-embed-integrate.png) |
 | **18** | **Voice Agent** | LiveKit WebRTC studio with active visualizer & multi-SDK code | [View 4K Image](screenshots/real-18-voice-agent.png) |
-| **19** | **FastMCP Server Hub** | 65 tools & 8 resources for Claude Desktop, Cursor, Antigravity | [View 4K Image](screenshots/real-19-mcp.png) |
+| **19** | **FastMCP Server Hub** | 81 tools & 8 resources for Claude Desktop, Cursor, Antigravity | [View 4K Image](screenshots/real-19-mcp.png) |
 | **20** | **Developer API** | Scoped API keys (`chatty_sk_...`) & multi-language SDK snippets | [View 4K Image](screenshots/real-20-developer-api.png) |
 | **21** | **Billing & Quota** | Stripe portal, quota ledger, and affiliate referral program | [View 4K Image](screenshots/real-21-billing.png) |
 | **22** | **Agent Settings** | Strict vector grounding, PII scrubbing, and BYOK encryption | [View 4K Image](screenshots/real-22-agent-settings.png) |
@@ -189,7 +196,7 @@ All 22 core modules are captured from live production ([`chatty.personaliai.com/
 - 📚 **RAG Knowledge Hub** — Deep semantic retrieval powered by PostgreSQL `pgvector`, HNSW indexing, and hybrid lexical/vector search.
 - 🛠️ **Autonomous Tool-Calling** — Schedules real meetings (Google Meet, Microsoft Teams, Zoom), qualifies leads, and checks calendars.
 - 🔑 **Bring Your Own Key (BYOK)** — Free-tier Gemini by default, or per-bot OpenAI/Anthropic/Groq with AES-128 encryption.
-- 🤖 **65-Tool FastMCP Server** — Control the entire dashboard programmatically from Claude Desktop, Cursor, or Codex via OAuth 2.0 / API Keys (including complete Voice Agent configuration, screenshot telemetry, and autonomous workflows).
+- 🤖 **81-Tool FastMCP Server** — Control the entire dashboard programmatically from Claude Desktop, Cursor, or Codex via OAuth 2.0 / API Keys (including complete Voice Agent configuration, screenshot telemetry, and autonomous workflows).
 - 📊 **5-Pillar Scorecard** — Independent A–F performance auditing across Conversion, Deflection, Accuracy, Reliability, and CSAT.
 - 🎯 **Proactive Campaigns** — Behavioral triggers (exit-intent, time-on-page, scroll-depth) with timezone-aware cadence planning.
 - 🐳 **One-Command Self-Host** — `docker compose up`, point to Supabase, and launch in 60 seconds.
@@ -395,7 +402,7 @@ flowchart TB
     subgraph runtime["Chatty Runtime"]
         direction LR
         api["FastAPI Backend · Flow Engine · RAG · Webhooks"]:::app
-        mcp["FastMCP 65-Tool Server (OAuth 2.0 / API Keys)"]:::app
+        mcp["FastMCP 81-Tool Server (OAuth 2.0 / API Keys)"]:::app
     end
     subgraph managed["Managed Supabase Tier"]
         direction LR
@@ -683,7 +690,7 @@ Chatty ships a full [Model Context Protocol](https://modelcontextprotocol.io) se
 
 - **Auth**: OAuth 2.0 authorization-code flow with mandatory PKCE (RFC 7636), dynamic client registration (RFC 7591), and authorization server metadata discovery (RFC 8414) - no API key to paste into a config file.
 - **Scopes**: `read`, `write`, `knowledge`, `actions`, `admin` - a client only gets what it's granted.
-- **65 tools** across 12 categories: bot lifecycle, customizer & design, visual flow builder, proactive campaigns, knowledge base & RAG, inbox & human takeover, leads/calendar/meetings, analytics & deflection, settings/guardrails/BYOK/team RBAC, LiveKit Voice Agent Studio, and **Dashboard Telemetry & Screenshots** (`get_dashboard_screenshots`).
+- **81 tools** across 13 categories: bot lifecycle, customizer & design, visual flow builder, proactive campaigns, knowledge base & RAG, help center CMS, inbox & human takeover, leads/calendar/meetings, deflection analytics, WooCommerce store catalog sync, omnichannel escalations (Slack & WhatsApp), settings/guardrails/BYOK/team RBAC, and LiveKit Voice Studio & Screenshots.
 - **Live resources & prompts**: inspect live voice state via `chatty://bots/{bot_id}/voice-config`, live dashboard screenshots via `chatty://dashboard/screenshots`, and run guided workflows with `setup-voice-agent`, `audit-and-optimize-bot`, and `build-bot-from-brand`.
 - **Real data only** - every tool reads and writes the exact same tables the dashboard does; nothing simulated.
 
