@@ -1437,7 +1437,7 @@ function IdentifiedChatWidget({
     const cleanOfflineEmail = (offlineEmail.trim() || supportEmail.trim() || extractedVisitorInfo?.email || "").toLowerCase();
     const cleanOfflineMsg = offlineMessage.trim();
 
-    if (!cleanOfflineEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanOfflineEmail)) {
+    if (!cleanOfflineEmail || !isValidEmail(cleanOfflineEmail)) {
       showToast("Please enter a valid email address.", "error");
       return;
     }

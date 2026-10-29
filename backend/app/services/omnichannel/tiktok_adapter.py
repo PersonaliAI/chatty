@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 import httpx
 
+from app.core import ssrf
 from app.services.omnichannel.models import ChannelType, InboundMessage
 
 logger = logging.getLogger("chatty.omnichannel.tiktok")
@@ -72,17 +73,23 @@ async def download_tiktok_media(
     """Download TikTok media binary (e.g. user DM image)."""
     if not media_url or not media_url.startswith(("http://", "https://")):
         return None, None
+    safe_media_url = media_url.replace("\r", "").replace("\n", "")[:200]
+    try:
+        await ssrf.assert_safe_url_async(media_url)
+    except Exception:
+        logger.warning("Blocked unsafe TikTok media URL: %s", safe_media_url)
+        return None, None
     headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-            resp = await client.get(media_url, headers=headers)
+            resp = await ssrf.request_async(client, "GET", media_url, headers=headers)
             if resp.status_code in (401, 403) and headers:
-                resp = await client.get(media_url)
+                resp = await ssrf.request_async(client, "GET", media_url)
             if resp.status_code == 200 and len(resp.content) <= max_bytes:
                 mime = resp.headers.get("content-type", "").split(";")[0].strip().lower()
                 return resp.content, mime or "image/jpeg"
     except Exception:
-        logger.warning("Failed to download TikTok media from %s", media_url, exc_info=True)
+        logger.warning("Failed to download TikTok media from %s", safe_media_url, exc_info=True)
     return None, None
 
 

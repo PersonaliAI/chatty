@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 import httpx
 
+from app.core import ssrf
 from app.services.omnichannel.models import ChannelType, InboundMessage
 
 logger = logging.getLogger("chatty.omnichannel.email")
@@ -112,8 +113,9 @@ def extract_email_media(payload: dict[str, Any]) -> tuple[Optional[bytes], Optio
         att_url = att.get("url") or att.get("download_url") or att.get("Path")
         if isinstance(att_url, str) and att_url.startswith(("http://", "https://")):
             try:
+                ssrf.assert_safe_url(att_url)
                 with httpx.Client(timeout=10, follow_redirects=True) as client:
-                    resp = client.get(att_url)
+                    resp = ssrf.request(client, "GET", att_url)
                     if resp.status_code == 200 and len(resp.content) <= 20 * 1024 * 1024:
                         return resp.content, mime or resp.headers.get("content-type", "image/jpeg"), filename
             except Exception:

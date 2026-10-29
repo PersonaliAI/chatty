@@ -65,7 +65,9 @@ async def _collect_storage_files(bucket: str, prefix: str, max_depth: int = 5) -
     try:
         items = await run_db(lambda: supabase.storage.from_(bucket).list(prefix))
     except Exception as exc:
-        logger.warning("Failed to list storage path %s in bucket %s: %s", prefix, bucket, exc)
+        safe_prefix = str(prefix).replace("\r", "").replace("\n", "")[:100]
+        safe_bucket = str(bucket).replace("\r", "").replace("\n", "")[:50]
+        logger.warning("Failed to list storage path %s in bucket %s: %s", safe_prefix, safe_bucket, exc)
         return []
 
     if not items:
@@ -481,7 +483,7 @@ async def cleanup_account_storage(
 
     try:
         await run_db(lambda: supabase.storage.from_("chatty-uploads").remove(files_to_remove))
-        logger.info("Purged %d visitor files older than %d days across account (%s freed)", len(files_to_remove), req.older_than_days, _format_size(freed_bytes))
+        logger.info("Purged %d visitor files older than %d days across account (%s freed)", len(files_to_remove), int(req.older_than_days), _format_size(freed_bytes))
     except Exception as exc:
         logger.exception("Failed to purge visitor files across account: %s", exc)
         raise HTTPException(status_code=500, detail="Account storage cleanup failed") from exc
@@ -547,7 +549,9 @@ async def delete_bot_storage_files(
             res = await run_db(lambda b=bucket, p=paths: supabase.storage.from_(b).remove(p))
             if res:
                 deleted_count += len(paths)
-                logger.info("Successfully deleted %d files from bucket %s for bot %s", len(paths), bucket, bot_id)
+                safe_bucket = str(bucket).replace("\r", "").replace("\n", "")[:50]
+                safe_bot_id = str(bot_id).replace("\r", "").replace("\n", "")[:50]
+                logger.info("Successfully deleted %d files from bucket %s for bot %s", len(paths), safe_bucket, safe_bot_id)
         except Exception as exc:
             logger.exception("Failed to delete files from bucket %s: %s", bucket, exc)
 
@@ -562,7 +566,8 @@ async def delete_bot_storage_files(
             )
             deleted_count += len(sources_to_delete)
         except Exception:
-            logger.exception("Failed to delete sources for bot %s", bot_id)
+            safe_bot_id = str(bot_id).replace("\r", "").replace("\n", "")[:50]
+            logger.exception("Failed to delete sources for bot %s", safe_bot_id)
 
     if "chatty_assets" in deletions_by_bucket:
         for path in deletions_by_bucket["chatty_assets"]:
@@ -619,11 +624,12 @@ async def cleanup_old_storage(
             "message": f"No visitor files older than {req.older_than_days} days were found.",
         }
 
+    safe_bot_id = str(bot_id).replace("\r", "").replace("\n", "")[:50]
     try:
         await run_db(lambda: supabase.storage.from_("chatty-uploads").remove(files_to_remove))
-        logger.info("Purged %d visitor files older than %d days for bot %s (%s freed)", len(files_to_remove), req.older_than_days, bot_id, _format_size(freed_bytes))
+        logger.info("Purged %d visitor files older than %d days for bot %s (%s freed)", len(files_to_remove), int(req.older_than_days), safe_bot_id, _format_size(freed_bytes))
     except Exception as exc:
-        logger.exception("Failed to purge visitor files for bot %s: %s", bot_id, exc)
+        logger.exception("Failed to purge visitor files for bot %s: %s", safe_bot_id, exc)
         raise HTTPException(status_code=500, detail="Storage cleanup operation failed") from exc
 
     return {

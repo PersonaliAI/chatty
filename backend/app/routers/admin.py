@@ -1247,12 +1247,13 @@ async def account_gdpr_delete(
     except Exception as e:
         logger.warning("Failed deleting users row: %s", e)
 
+    safe_uid = str(auth_user_id).replace("\r", "").replace("\n", "")[:50]
     try:
         await run_db(lambda: supabase.auth.admin.delete_user(auth_user_id))
     except Exception as e:
-        logger.warning("Failed deleting Supabase Auth identity for %s: %s", auth_user_id, e)
+        logger.warning("Failed deleting Supabase Auth identity for %s: %s", safe_uid, e)
 
-    logger.info("GDPR Article 17 account deletion completed for user %s", auth_user_id)
+    logger.info("GDPR Article 17 account deletion completed for user %s", safe_uid)
     return {
         "success": True,
         "message": "Account and all associated personal and operational data permanently deleted in accordance with GDPR Article 17.",

@@ -2803,7 +2803,8 @@ async def widget_booking_confirm(
                     attendee_name=visitor_name,
                 )
             except Exception:
-                logger.exception("Failed to dispatch omnichannel booking confirmation for session %s", body.session_id)
+                safe_session_id = str(body.session_id).replace("\r", "").replace("\n", "")[:80]
+                logger.exception("Failed to dispatch omnichannel booking confirmation for session %s", safe_session_id)
 
     return {
         "success": True,
@@ -3134,7 +3135,8 @@ async def widget_booking_reschedule(
                     attendee_name=meeting.get("attendee_name") or "Guest",
                 )
             except Exception:
-                logger.exception("Failed to dispatch omnichannel booking reschedule for session %s", body.session_id)
+                safe_session_id = str(body.session_id).replace("\r", "").replace("\n", "")[:80]
+                logger.exception("Failed to dispatch omnichannel booking reschedule for session %s", safe_session_id)
 
     return {
         "success": True,
@@ -3282,7 +3284,8 @@ async def widget_booking_cancel(
                     reason=body.reason,
                 )
             except Exception:
-                logger.exception("Failed to dispatch omnichannel booking cancellation for session %s", body.session_id)
+                safe_session_id = str(body.session_id).replace("\r", "").replace("\n", "")[:80]
+                logger.exception("Failed to dispatch omnichannel booking cancellation for session %s", safe_session_id)
 
     return {
         "success": True,

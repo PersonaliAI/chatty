@@ -154,7 +154,8 @@ async def download_telegram_file(
                 mime = file_resp.headers.get("content-type", "").split(";")[0].strip() or None
             return content, mime
     except Exception:
-        logger.exception("Failed to download file %s from Telegram", file_id)
+        safe_file_id = str(file_id).replace("\r", "").replace("\n", "")[:100]
+        logger.exception("Failed to download file %s from Telegram", safe_file_id)
         return None, None
 
 

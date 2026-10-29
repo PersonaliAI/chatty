@@ -17,6 +17,7 @@ from typing import Any, Optional
 
 import httpx
 
+from app.core import ssrf
 from app.services.omnichannel.models import ChannelType, InboundMessage
 
 logger = logging.getLogger("chatty.omnichannel.sms")
@@ -66,17 +67,23 @@ async def download_twilio_media(
     """Download MMS media binary from Twilio, using HTTP basic auth if credentials are provided."""
     if not media_url or not media_url.startswith(("http://", "https://")):
         return None, None
+    safe_media_url = media_url.replace("\r", "").replace("\n", "")[:200]
+    try:
+        await ssrf.assert_safe_url_async(media_url)
+    except Exception:
+        logger.warning("Blocked unsafe Twilio media URL: %s", safe_media_url)
+        return None, None
     auth = (account_sid, auth_token) if (account_sid and auth_token) else None
     try:
         async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
-            resp = await client.get(media_url, auth=auth)
+            resp = await ssrf.request_async(client, "GET", media_url, auth=auth)
             if resp.status_code in (401, 403) and auth:
-                resp = await client.get(media_url)
+                resp = await ssrf.request_async(client, "GET", media_url)
             if resp.status_code == 200 and len(resp.content) <= max_bytes:
                 mime = resp.headers.get("content-type", "").split(";")[0].strip().lower()
                 return resp.content, mime or "image/jpeg"
     except Exception:
-        logger.warning("Failed to download Twilio MMS media from %s", media_url, exc_info=True)
+        logger.warning("Failed to download Twilio MMS media from %s", safe_media_url, exc_info=True)
     return None, None
 
 

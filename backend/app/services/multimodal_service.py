@@ -459,8 +459,8 @@ async def search_multimodal_catalog(
     match_threshold = max(0.0, min(float(match_threshold), 1.0))
     visual_attrs: dict[str, Any] = {}
 
-    clean_user_text = re.sub(r"\[attachment:[^\]]+\]", "", query_text or "").strip()
-    clean_english_text = re.sub(r"\[attachment:[^\]]+\]", "", english_query or "").strip()
+    clean_user_text = re.sub(r"\[attachment:[^\]\r\n]{1,500}\]", "", (query_text or "")[:10000]).strip()
+    clean_english_text = re.sub(r"\[attachment:[^\]\r\n]{1,500}\]", "", (english_query or "")[:10000]).strip()
     combined_query_parts: list[str] = []
     if clean_english_text:
         combined_query_parts.append(clean_english_text)

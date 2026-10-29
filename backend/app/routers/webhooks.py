@@ -383,9 +383,10 @@ async def _claim_channel_event(channel: str, bot_id: str, external_event_id: str
     if not external_event_id:
         return True
 
-    claim_key = f"{channel}:{bot_id}:{external_event_id}"
+    safe_event_id = str(external_event_id).replace("\r", "").replace("\n", "")[:100]
+    claim_key = f"{channel}:{bot_id}:{safe_event_id}"
     if not _check_and_mark_in_flight(claim_key, ttl_seconds=120.0):
-        logger.info("Skipping in-flight duplicate %s event %s", channel, external_event_id)
+        logger.info("Skipping in-flight duplicate %s event %s", channel, safe_event_id)
         return False
 
     try:
@@ -396,12 +397,12 @@ async def _claim_channel_event(channel: str, bot_id: str, external_event_id: str
         }).execute())
         if getattr(res, "data", None):
             return True
-        logger.info("Skipping duplicate %s event %s", channel, external_event_id)
+        logger.info("Skipping duplicate %s event %s", channel, safe_event_id)
         return False
     except Exception as exc:
         text = str(exc).lower()
         if "duplicate" in text or "unique" in text or "23505" in text:
-            logger.info("Skipping duplicate %s event %s", channel, external_event_id)
+            logger.info("Skipping duplicate %s event %s", channel, safe_event_id)
             return False
         logger.warning("%s idempotency store unavailable", channel, exc_info=True)
         return True
@@ -1302,15 +1303,17 @@ async def instagram_receive(request: Request):
                 att_type = str(att.get("type") or "media")
                 att_url = (att.get("payload") or {}).get("url")
                 if att_url and isinstance(att_url, str) and att_url.startswith(("http://", "https://")):
+                    safe_att_url = att_url.replace("\r", "").replace("\n", "")[:200]
                     try:
+                        await ssrf.assert_safe_url_async(att_url)
                         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-                            m_resp = await client.get(att_url)
+                            m_resp = await ssrf.request_async(client, "GET", att_url)
                             if m_resp.status_code == 200 and len(m_resp.content) <= 20 * 1024 * 1024:
                                 media_bytes = m_resp.content
                                 media_mime = m_resp.headers.get("content-type", "").split(";")[0].strip() or ("image/jpeg" if att_type == "image" else None)
                                 media_filename = "photo.jpg" if att_type == "image" else "voice.ogg" if att_type == "audio" else "attachment.bin"
                     except Exception:
-                        logger.warning("Failed to download Meta attachment from %s", att_url, exc_info=True)
+                        logger.warning("Failed to download Meta attachment from %s", safe_att_url, exc_info=True)
 
             inbound = normalize_instagram_message(
                 messaging_event,
@@ -1492,8 +1495,10 @@ async def telegram_receive(request: Request, path_bot_id: str | None = None):
 
     update_id = update.get("update_id")
     if update_id is not None:
+        clean_update_id = str(update_id).replace("\r", "").replace("\n", "")[:50]
+        clean_bot_id = str(bot["id"]).replace("\r", "").replace("\n", "")[:50]
         if not await _claim_channel_event("telegram", bot["id"], f"upd:{update_id}"):
-            logger.info("Telegram update %s already claimed or in flight for bot %s, dropping retry", update_id, bot["id"])
+            logger.info("Telegram update %s already claimed or in flight for bot %s, dropping retry", clean_update_id, clean_bot_id)
             return {"ok": True}
 
     media_bytes = None
