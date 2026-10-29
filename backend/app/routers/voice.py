@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import uuid
@@ -11,6 +12,26 @@ from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+
+logger = logging.getLogger("chatty.voice")
+
+VOICE_WORKER_URL = os.getenv(
+    "VOICE_WORKER_URL",
+    "https://chatty-voice-worker-649600841713.us-central1.run.app",
+).rstrip("/")
+
+
+async def _warmup_voice_worker() -> None:
+    """Send wake-up request to the Cloud Run voice worker (scale 0 -> 1)."""
+    if not VOICE_WORKER_URL:
+        return
+    try:
+        import httpx  # noqa: PLC0415
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            resp = await client.get(VOICE_WORKER_URL)
+            logger.info("Voice worker warmup returned: %s", resp.status_code)
+    except Exception as exc:
+        logger.info("Voice worker warmup note: %s", exc)
 
 from app.core.clients import supabase
 from app.core.crypto import encrypt_secret
@@ -312,12 +333,30 @@ async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
         .with_room_config(api.RoomConfiguration(agents=[dispatch]))
         .to_jwt()
     )
+
+    # Wake up scale-to-0 voice worker on Cloud Run if configured
+    await _warmup_voice_worker()
+
     return {
         "serverUrl": server_url,
         "participantToken": token,
         "roomName": room_name,
         "participantName": participant_name,
     }
+
+
+@router.post("/api/widget/voice/keepalive")
+async def widget_voice_keepalive(request: Request):
+    """Periodic ping from connected voice widget to keep Cloud Run instance active."""
+    await guard_widget_session(request)
+    if VOICE_WORKER_URL:
+        try:
+            import httpx  # noqa: PLC0415
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                await client.get(VOICE_WORKER_URL)
+        except Exception:
+            pass
+    return {"status": "ok"}
 
 
 @router.post("/api/widget/voice/reset")

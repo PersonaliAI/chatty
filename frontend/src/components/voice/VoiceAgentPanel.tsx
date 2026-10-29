@@ -566,6 +566,18 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
   }, [started]);
 
   useEffect(() => {
+    if (!started || session.connectionState !== 'connected') return;
+    const interval = window.setInterval(() => {
+      void fetch(`${backendUrl}/api/widget/voice/keepalive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bot_id: botId, session_id: sessionId }),
+      }).catch(() => {});
+    }, 25000);
+    return () => window.clearInterval(interval);
+  }, [started, session.connectionState, backendUrl, botId, sessionId]);
+
+  useEffect(() => {
     if (
       session.connectionState !== 'disconnected' ||
       !started ||

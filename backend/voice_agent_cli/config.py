@@ -112,7 +112,7 @@ class VoiceSettings:
 
     def apply_provider_environment(self) -> None:
         """Set provider SDK environment variables for this local process only."""
-        if self.google_application_credentials:
+        if self.google_application_credentials and os.path.isfile(self.google_application_credentials):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = (
                 self.google_application_credentials
             )

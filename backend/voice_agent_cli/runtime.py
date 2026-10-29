@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import replace
@@ -56,6 +57,7 @@ def _setup_job_process(proc: JobProcess) -> None:
 
 
 server = AgentServer(
+    port=int(os.environ.get("PORT", "8080")),
     setup_fnc=_setup_job_process,
     # Chatty's Supabase/plugin warm-up happens before a process accepts a
     # room. Allow that one-time import cost without reporting a false startup

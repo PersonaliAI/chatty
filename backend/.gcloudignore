@@ -7,7 +7,7 @@ __pycache__/
 .env
 .env.*
 tests/
-voice_agent_cli/
+# voice_agent_cli is required for voice worker deployment
 supabase/.temp/
 .mypy_cache/
 .pytest_cache/

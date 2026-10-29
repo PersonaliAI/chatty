@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:1
+# --- Builder stage: compiles native extensions (psycopg2, cryptography, livekit) ---
+FROM python:3.11-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    libpq-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /app/
+COPY voice_agent_cli/requirements-deploy.txt /app/voice_agent_cli/
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt && \
+    pip install --no-cache-dir --prefix=/install -r voice_agent_cli/requirements-deploy.txt
+
+# --- Runtime stage ---
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    libglib2.0-0 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash appuser
+
+WORKDIR /app
+
+COPY --from=builder /install /usr/local
+COPY . /app/
+
+RUN mkdir -p /home/appuser/.cache && \
+    chown -R appuser:appuser /home/appuser /app
+
+USER appuser
+ENV HOME=/home/appuser
+ENV PORT=8080
+ENV PYTHONPATH=/app
+
+# Pre-fetch model files (Silero VAD, turn detector, etc.) into /home/appuser/.cache
+RUN python -m livekit.agents download-files
+
+EXPOSE 8080
+
+ENTRYPOINT ["python", "-m", "voice_agent_cli"]
+CMD ["start"]

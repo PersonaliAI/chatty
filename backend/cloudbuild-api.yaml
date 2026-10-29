@@ -1,0 +1,13 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-f', 'Dockerfile',
+    '-t', 'us-central1-docker.pkg.dev/personaliai/cloud-run-source-deploy/chatty-api:latest',
+    '.'
+  ]
+images:
+- 'us-central1-docker.pkg.dev/personaliai/cloud-run-source-deploy/chatty-api:latest'
+timeout: '1200s'
+options:
+  machineType: 'E2_HIGHCPU_8'
