@@ -61,6 +61,31 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+// Warm organic color tokens consistent with Chatty's aesthetic
+const colorVars = {
+  "--color-bg": "#f5ead8",
+  "--color-surface": "#ebddc5",
+  "--color-text": "#201e1d",
+  "--color-accent": "#c67139",
+  "--color-accent-2": "#7a8a5e",
+  "--color-divider": "rgba(32, 30, 29, 0.16)",
+  "--color-accent-100": "#fff2eb",
+  "--color-accent-200": "#ffe1d0",
+  "--color-accent-600": "#b2622d",
+  "--color-accent-700": "#8c491a",
+  "--color-accent-800": "#643312",
+  "--color-accent-2-100": "#f0fae1",
+  "--color-accent-2-200": "#e1eecc",
+  "--color-accent-2-800": "#3d472b",
+  "--color-neutral-900": "#2e2b25",
+  "--shadow-sm": "0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent)",
+  "--shadow-md": "0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent)",
+  "--shadow-lg": "0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent)",
+  "--font-heading": "var(--font-space-grotesk), sans-serif",
+  background: "#f5ead8",
+  color: "#201e1d",
+} as React.CSSProperties;
+
 export default async function ComparisonArticlePage({ params }: PageProps) {
   const { slug } = await params;
   const item: ComparisonItem = COMPARISONS[slug];
@@ -142,10 +167,7 @@ export default async function ComparisonArticlePage({ params }: PageProps) {
   return (
     <div
       className="min-h-screen text-[var(--color-text,#201e1d)] selection:bg-[#c67139] selection:text-white"
-      style={{
-        background: "var(--color-bg, #f5ead8)",
-        color: "var(--color-text, #201e1d)",
-      }}
+      style={colorVars}
     >
       {/* Inject Structured Data */}
       <script
@@ -172,7 +194,7 @@ export default async function ComparisonArticlePage({ params }: PageProps) {
               <span>All Comparisons</span>
             </Link>
             <span className="opacity-30">/</span>
-            <span className="text-xs font-bold truncate max-w-[200px] sm:max-w-none" style={{ color: "var(--color-accent, #c67139)" }}>
+            <span className="text-xs font-bold truncate max-w-[200px] sm:max-w-none text-[#c67139]" style={{ color: "#c67139" }}>
               vs {item.competitorName}
             </span>
           </div>
@@ -180,8 +202,8 @@ export default async function ComparisonArticlePage({ params }: PageProps) {
           <div className="flex items-center gap-3">
             <Link
               href="/signup"
-              className="px-4 py-1.5 rounded-full text-xs font-bold text-white transition shadow-sm hover:brightness-105"
-              style={{ background: "var(--color-accent, #c67139)" }}
+              className="px-4 py-1.5 rounded-full text-xs font-bold text-white transition shadow-sm hover:brightness-105 bg-[#c67139] hover:bg-[#b2622d]"
+              style={{ background: "#c67139" }}
             >
               Start Free Trial
             </Link>
@@ -521,8 +543,8 @@ export default async function ComparisonArticlePage({ params }: PageProps) {
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/signup"
-              className="px-6 py-3 rounded-full text-xs font-bold text-white transition shadow-sm hover:brightness-105"
-              style={{ background: "var(--color-accent, #c67139)" }}
+              className="px-6 py-3 rounded-full text-xs font-bold text-white transition shadow-sm hover:brightness-105 bg-[#c67139] hover:bg-[#b2622d]"
+              style={{ background: "#c67139" }}
             >
               Start Free Trial Now
             </Link>
