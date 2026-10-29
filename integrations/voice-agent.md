@@ -1,6 +1,6 @@
 # Chatty LiveKit voice agent
 
-Chatty voice uses the self-hosted LiveKit server at `wss://livekit.personaliai.com`.
+Chatty voice uses the LiveKit Cloud server at `wss://chatty-ycs5leef.livekit.cloud`.
 Clients never receive LiveKit API keys or secrets. They request a short-lived
 participant token from Chatty and then connect with an official LiveKit client.
 
@@ -44,7 +44,7 @@ Response:
 
 ```json
 {
-  "serverUrl": "wss://livekit.personaliai.com",
+  "serverUrl": "wss://chatty-ycs5leef.livekit.cloud",
   "participantToken": "short-lived-jwt",
   "roomName": "chatty-YOUR_BOT_ID-chatty-session-id",
   "participantName": "Visitor"
