@@ -38,27 +38,38 @@ const EmojiPickerFallback = () => (
 interface QuickEmojiPickerProps {
   onSelect: (emoji: string) => void;
   accentColor?: string;
+  theme?: "light" | "dark" | "auto";
 }
 
-export function QuickEmojiPicker({ onSelect, accentColor = "#f97316" }: QuickEmojiPickerProps) {
-  // Matches the picker to the page's actual light/dark state (not just a
-  // media query) - same "dark" class toggling the rest of the dashboard uses.
-  const [isDark, setIsDark] = useState(false);
+export function QuickEmojiPicker({ onSelect, accentColor = "#f97316", theme }: QuickEmojiPickerProps) {
+  const [systemIsDark, setSystemIsDark] = useState(false);
   useEffect(() => {
     const root = document.documentElement;
-    const update = () => setIsDark(root.classList.contains("dark"));
+    const update = () => setSystemIsDark(root.classList.contains("dark"));
     update();
     const observer = new MutationObserver(update);
     observer.observe(root, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
 
+  const activeTheme: Theme =
+    theme && theme !== "auto"
+      ? (theme as Theme)
+      : (systemIsDark ? ("dark" as Theme) : ("light" as Theme));
+
   return (
-    <div className="flex flex-col h-full [&_.epr-main]:border-0 [&_.epr-main]:!h-full" style={{ ["--epr-highlight-color" as string]: accentColor }}>
+    <div
+      className="flex flex-col h-full w-full min-w-0 max-w-full [&_.epr-main]:border-0 [&_.epr-main]:!h-full [&_.epr-main]:!w-full [&_.epr-main]:!min-w-0 [&_.epr-main]:!max-w-full [&_.epr-body]:!w-full [&_.epr-body]:!min-w-0 [&_.EmojiPickerReact]:!w-full [&_.EmojiPickerReact]:!min-w-0 [&_.EmojiPickerReact]:!max-w-full"
+      style={{
+        ["--epr-highlight-color" as string]: accentColor,
+        ["--epr-bg-color" as string]: activeTheme === "dark" ? "#14141a" : "#ffffff",
+        ["--epr-category-label-bg-color" as string]: activeTheme === "dark" ? "#14141a" : "#ffffff",
+      }}
+    >
       <Suspense fallback={<EmojiPickerFallback />}>
       <EmojiPicker
         onEmojiClick={(data: EmojiClickData) => onSelect(data.emoji)}
-        theme={(isDark ? "dark" : "light") as Theme}
+        theme={activeTheme}
         emojiStyle={"native" as EmojiStyle}
         lazyLoadEmojis
         autoFocusSearch

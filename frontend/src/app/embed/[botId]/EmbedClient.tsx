@@ -4583,7 +4583,7 @@ function IdentifiedEmbedClient({
                 style={{
                   borderRadius: PANEL_RADIUS[widgetStyle] || "18px",
                 }}
-                className={`emoji-panel absolute bottom-full mb-2 left-2.5 right-2.5 z-30 flex flex-col h-[min(48vh,340px)] min-h-[220px] shadow-[0_16px_40px_-10px_rgba(0,0,0,0.22)] overflow-hidden border ${
+                className={`emoji-panel absolute bottom-full mb-2 left-2.5 right-2.5 z-30 flex flex-col h-[min(48vh,340px)] min-h-[220px] max-w-[calc(100%-20px)] shadow-[0_16px_40px_-10px_rgba(0,0,0,0.22)] overflow-hidden border ${
                   isWidgetDark
                     ? "bg-[#14141a] border-neutral-800 text-neutral-100"
                     : "bg-white border-neutral-200/90 text-neutral-900"

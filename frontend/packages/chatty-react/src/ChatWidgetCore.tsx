@@ -21,7 +21,7 @@ import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
 import { parseRichContent, parseVisitorMessageContent, formatMessagePreview } from "./rich-content";
 import { renderSafeArticleHtml } from "./sanitize-html";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
-import { normalizeWidgetStyle, getPresetSignature } from "./widget-style";
+import { normalizeWidgetStyle, getPresetSignature, PANEL_RADIUS, PRESET_SIGNATURES } from "./widget-style";
 import { dedupeAdjacentWelcomeMessages } from "./widget-history";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
 // of side-effect-imported here - a library bundling its own CSS import
@@ -731,6 +731,16 @@ function IdentifiedChatWidget({
   // entirely (applied via an injected !important stylesheet below, the
   // only thing that reliably beats globals.css's .style-* !important rules).
   const [colorScheme, setColorScheme] = useState<WidgetColorScheme | null>(null);
+  const isWidgetDark = useMemo(() => {
+    if (colorScheme?.inputBar?.bg) {
+      return getOnColor(colorScheme.inputBar.bg) === "#ffffff";
+    }
+    const preset = PRESET_SIGNATURES[widgetStyle];
+    if (preset) {
+      return getOnColor(preset.inputBg) === "#ffffff";
+    }
+    return widgetStyle === "dark-sleek";
+  }, [colorScheme, widgetStyle]);
   // null = keep the active design preset's own default font (its
   // widget-presets.css `font-family: var(--font-x), sans-serif !important`
   // rule). Set once the owner picks a Google Font in the Customizer.
@@ -4204,36 +4214,53 @@ function IdentifiedChatWidget({
           <AnimatePresence>
             {emojiOpen && (
               <motion.div
-                initial={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
-                animate={{ opacity: 1, y: 0, scale: 1, pointerEvents: "auto" }}
-                exit={{ opacity: 0, y: 20, scale: 0.85, pointerEvents: "none" }}
-                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                // Height was `min(64vh, 440px)` - sized against the *browser
-                // viewport*, not this panel. Fine for a real iframe/full-page
-                // embed (roughly viewport-sized already), but the standalone
-                // floating widget's panel is a fixed ~560px regardless of how
-                // tall the host page's viewport is, so on any normal-height
-                // page 440px left only ~30-40px above it for the header -
-                // just enough to graze/tuck behind it (reported bug). Caps
-                // tightened to fit that fixed panel with real margin to
-                // spare; isFullscreen (mobile/iframe, panel ≈ viewport-sized)
-                // keeps the old, roomier vh-based sizing since there the
-                // original math was never wrong.
-                className={`emoji-panel absolute bottom-[84px] left-2.5 right-2.5 z-10 flex flex-col rounded-2xl border border-neutral-200/80 dark:border-neutral-800/80 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] overflow-hidden bg-card backdrop-blur-sm ${isFullscreen ? "h-[min(64vh,440px)] min-h-[280px]" : "h-[min(48vh,340px)] min-h-[220px]"}`}
+                initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                ref={emojiPanelRef}
+                style={{
+                  borderRadius: PANEL_RADIUS[widgetStyle] || "18px",
+                }}
+                className={`emoji-panel absolute bottom-full mb-2 left-2.5 right-2.5 z-30 flex flex-col h-[min(48vh,340px)] min-h-[220px] max-w-[calc(100%-20px)] shadow-[0_16px_40px_-10px_rgba(0,0,0,0.22)] overflow-hidden border ${
+                  isWidgetDark
+                    ? "bg-[#14141a] border-neutral-800 text-neutral-100"
+                    : "bg-white border-neutral-200/90 text-neutral-900"
+                } ${widgetStyle === "neubrutalism" ? "border-2 border-black shadow-[4px_4px_0_0_#111111]" : ""}`}
               >
-                <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-100 dark:border-neutral-850 shrink-0">
-                  <span className="text-[11px] font-bold tracking-wide text-neutral-500 dark:text-neutral-400 uppercase">Pick an emoji</span>
+                <div
+                  className={`flex items-center justify-between px-3.5 py-2.5 shrink-0 border-b ${
+                    isWidgetDark
+                      ? "border-neutral-800/80 bg-[#16161c]"
+                      : "border-neutral-100 bg-neutral-50/70"
+                  }`}
+                >
+                  <span
+                    className={`text-[11px] font-bold tracking-wide uppercase ${
+                      isWidgetDark ? "text-neutral-400" : "text-neutral-500"
+                    }`}
+                  >
+                    Pick an emoji
+                  </span>
                   <button
                     type="button"
                     onClick={() => setEmojiOpen(false)}
-                    className="p-1 -m-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full transition-colors"
+                    className={`p-1 -m-1 rounded-full transition-colors cursor-pointer ${
+                      isWidgetDark
+                        ? "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800"
+                        : "text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60"
+                    }`}
                     aria-label="Close emoji picker"
                   >
                     <X className="size-3.5" />
                   </button>
                 </div>
                 <div className="emoji-panel-picker flex-1 min-h-0">
-                  <QuickEmojiPicker onSelect={(emoji) => setInputValue((v) => v + emoji)} accentColor={primaryColor} />
+                  <QuickEmojiPicker
+                    onSelect={(emoji) => setInputValue((v) => v + emoji)}
+                    accentColor={primaryColor}
+                    theme={isWidgetDark ? "dark" : "light"}
+                  />
                 </div>
               </motion.div>
             )}
