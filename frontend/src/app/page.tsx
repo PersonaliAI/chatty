@@ -523,7 +523,7 @@ export default function Home() {
           </p>
 
           {/* Sleek Minimal Instant Sandbox */}
-          <form onSubmit={handleInstantSandbox} className="mt-7 max-w-[560px] mx-auto text-left">
+          <form onSubmit={handleInstantSandbox} className="mt-7 max-w-[620px] mx-auto text-left">
             <div className="flex flex-col sm:flex-row items-stretch gap-2 p-1.5 rounded-2xl sm:rounded-full bg-white/95 shadow-sm border border-black/8 focus-within:border-[var(--color-accent)]/50 focus-within:ring-2 focus-within:ring-[var(--color-accent)]/20 transition-all">
               <div className="flex items-center gap-2.5 px-3.5 py-1.5 flex-1 min-w-0">
                 <Globe className="size-4 text-[var(--color-accent-700)] shrink-0" />
@@ -534,7 +534,7 @@ export default function Home() {
                     setSandboxUrl(e.target.value);
                     if (sandboxError) setSandboxError(null);
                   }}
-                  placeholder="Enter your store or website URL (e.g. mystore.com)"
+                  placeholder="Enter your website URL (e.g. mystore.com)"
                   className="w-full bg-transparent text-sm outline-hidden placeholder:text-zinc-400 text-zinc-900"
                   disabled={isSandboxLoading}
                 />
@@ -562,6 +562,13 @@ export default function Home() {
             {sandboxError && (
               <p className="mt-2 text-xs text-rose-600 font-medium text-center">{sandboxError}</p>
             )}
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-2.5 text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>
+              <span>⚡ Instant sandbox</span>
+              <span>·</span>
+              <span>Zero signup required</span>
+              <span>·</span>
+              <span>No credit card</span>
+            </div>
           </form>
 
           {/* Single Serene Floating Chat & Voice Card */}
