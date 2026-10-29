@@ -16,7 +16,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 import jwt
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Request
+from urllib.parse import urlparse
 from pydantic import BaseModel, HttpUrl
 
 import asyncio
@@ -43,6 +44,27 @@ def _mint_demo_widget_token(bot_id: str) -> str:
     }
     return jwt.encode(payload, FUNCTION_SECRET, algorithm="HS256")
 
+
+
+class InstantSandboxRequest(BaseModel):
+    url: str
+
+
+_SANDBOX_RATE_LIMITS: dict[str, list[float]] = {}
+_SANDBOX_MAX_PER_HOUR = 8
+
+
+def _check_sandbox_rate_limit(client_ip: str):
+    now = time.time()
+    one_hour_ago = now - 3600
+    timestamps = [t for t in _SANDBOX_RATE_LIMITS.get(client_ip, []) if t > one_hour_ago]
+    if len(timestamps) >= _SANDBOX_MAX_PER_HOUR:
+        raise HTTPException(
+            status_code=429,
+            detail="Demo creation limit reached for this hour. Please sign up for full access or try again shortly.",
+        )
+    timestamps.append(now)
+    _SANDBOX_RATE_LIMITS[client_ip] = timestamps
 
 class GenerateClaimBotRequest(BaseModel):
     target_name: str
@@ -162,11 +184,133 @@ async def generate_claimable_bot(
     }
 
 
+@router.post("/api/claim/instant-sandbox")
+async def create_instant_sandbox_bot(
+    req: InstantSandboxRequest,
+    request: Request,
+) -> dict[str, Any]:
+    """Public instant demo sandbox: parses prospect URL, launches safe crawler,
+    and returns a claimable preview bot session in under 1 second.
+    """
+    raw_url = req.url.strip()
+    if not raw_url:
+        raise HTTPException(status_code=400, detail="Please enter a valid website URL.")
+
+    if not raw_url.startswith(("http://", "https://")):
+        raw_url = f"https://{raw_url}"
+
+    # Extract client IP for rate limiting & abuse prevention
+    forwarded = request.headers.get("x-forwarded-for")
+    client_ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    _check_sandbox_rate_limit(client_ip)
+
+    # SSRF verification to block internal/loopback/private IP ranges
+    try:
+        await assert_safe_url_async(raw_url)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot generate demo for private, local, or restricted network addresses.",
+        )
+
+    parsed = urlparse(raw_url)
+    host = parsed.netloc.split(":")[0].lower()
+    if host.startswith("www."):
+        host = host[4:]
+
+    # Friendly target name
+    domain_part = host.split(".")[0] if "." in host else host
+    clean_name = domain_part.replace("-", " ").replace("_", " ").title()
+    if not clean_name:
+        clean_name = "Store"
+
+    # Reuse active demo bot for same URL if generated in last 2 hours
+    cutoff_time = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+    try:
+        existing = await run_db(
+            lambda: supabase.table("chatty_bots")
+            .select("id, claim_token, demo_target_url, created_at")
+            .eq("claim_status", "unclaimed")
+            .eq("demo_target_url", raw_url)
+            .gte("created_at", cutoff_time)
+            .limit(1)
+            .execute()
+        )
+        if existing.data and existing.data[0].get("claim_token"):
+            bot = existing.data[0]
+            claim_token = bot["claim_token"]
+            return {
+                "success": True,
+                "bot_id": bot["id"],
+                "claim_token": claim_token,
+                "claim_url": f"/claim/{claim_token}",
+                "target_name": clean_name,
+                "reused": True,
+            }
+    except Exception:
+        pass
+
+    claim_token = f"clm_{secrets.token_urlsafe(16)}"
+    expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+
+    prompts = [
+        f"What products or services does {clean_name} offer?",
+        "What are your pricing, shipping, or return policies?",
+        "How can I contact customer support or place an order?",
+    ]
+
+    welcome = (
+        f"Hi there! I am the automated customer assistant for {clean_name}. "
+        f"I've been pre-trained on {host}. How can I help you today?"
+    )
+
+    system_inst = (
+        f"You are the official customer operations AI assistant for {clean_name} ({raw_url}). "
+        f"Answer visitors accurately based only on information from the company website. "
+        f"Be helpful, polite, and concise. If information is not found on the website, state so clearly."
+    )
+
+    row = {
+        "user_id": None,
+        "name": f"{clean_name} Assistant",
+        "welcome_message": welcome,
+        "system_instructions": system_inst,
+        "selected_model": "gemini",
+        "primary_color": "#c67139",
+        "claim_token": claim_token,
+        "claim_status": "unclaimed",
+        "demo_target_name": clean_name,
+        "demo_target_url": raw_url,
+        "demo_expires_at": expires_at,
+        "suggested_prompts": prompts,
+    }
+
+    res = await run_db(lambda: supabase.table("chatty_bots").insert(row).execute())
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Could not initialize instant sandbox assistant.")
+
+    created = res.data[0]
+    bot_id = created["id"]
+
+    # Start asynchronous background scraping
+    asyncio.create_task(_crawl_demo_target_site(bot_id, raw_url))
+
+    return {
+        "success": True,
+        "bot_id": bot_id,
+        "claim_token": claim_token,
+        "claim_url": f"/claim/{claim_token}",
+        "target_name": clean_name,
+        "reused": False,
+    }
+
+
+
 @router.get("/api/claim/{claim_token}")
 async def get_claim_details(claim_token: str) -> dict[str, Any]:
     """Public endpoint to fetch sanitized demo bot info for prospective claimants."""
     token = claim_token.strip()
-    if not token or token.lower() in ("generate", "create", "new"):
+    if not token or token.lower() in ("generate", "create", "new", "instant-sandbox"):
         raise HTTPException(status_code=400, detail="Invalid claim token")
 
     res = await run_db(
@@ -251,7 +395,7 @@ async def claim_bot(
 ) -> ClaimResponse:
     """Authenticated endpoint that transfers bot ownership to the logged-in user."""
     token = claim_token.strip()
-    if not token or token.lower() in ("generate", "create", "new"):
+    if not token or token.lower() in ("generate", "create", "new", "instant-sandbox"):
         raise HTTPException(status_code=400, detail="Invalid claim token")
 
     res = await run_db(
@@ -378,3 +522,5 @@ async def decline_and_delete_demo_bot(claim_token: str) -> dict[str, Any]:
         "success": True,
         "message": f"Demo assistant '{bot.get('name')}' and all associated knowledge data have been permanently deleted.",
     }
+
+

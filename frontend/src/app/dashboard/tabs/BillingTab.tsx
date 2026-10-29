@@ -681,7 +681,23 @@ export function BillingTab({
       ) : isTrial ? (
         // Free Trial Banner (Accurately Reflecting Selected Plan)
         <div className="p-5 sm:p-6 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Founding 50 Member Callout */}
+        <div className="p-4 rounded-2xl border border-amber-200/90 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30 text-xs sm:text-sm text-amber-950 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🏷️</span>
+            <div>
+              <span className="font-bold">Founding 50 Lifetime Price Lock:</span> Early customers lock in launch rates for life upon completing a short 20-minute product review after 25 conversations.
+            </div>
+          </div>
+          <a
+            href="mailto:support@personaliai.com?subject=Founding%2050%20Review%20Booking"
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white transition self-start sm:self-auto shrink-0"
+          >
+            Claim Price Lock
+          </a>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-0.5 rounded-full bg-orange-50 dark:bg-orange-950/60 border border-orange-200 dark:border-orange-800/60 text-[#f97316] text-[10px] font-mono font-bold uppercase tracking-wider">

@@ -1,11 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import Script from "next/script";
 import {
   ArrowRight,
+  Globe,
+  Sparkles,
+  Loader2,
   Zap,
   UserCheck,
   CalendarCheck,
@@ -279,6 +283,45 @@ const mcpInstallTabs: {
 ];
 
 export default function Home() {
+  const router = useRouter();
+  const [sandboxUrl, setSandboxUrl] = useState("");
+  const [isSandboxLoading, setIsSandboxLoading] = useState(false);
+  const [sandboxError, setSandboxError] = useState<string | null>(null);
+
+  async function handleInstantSandbox(e: React.FormEvent) {
+    e.preventDefault();
+    const raw = sandboxUrl.trim();
+    if (!raw) {
+      setSandboxError("Please enter your website or store URL.");
+      return;
+    }
+
+    setIsSandboxLoading(true);
+    setSandboxError(null);
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/claim/instant-sandbox`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: raw }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Unable to initialize sandbox. Please check the URL.");
+      }
+
+      const data = await res.json();
+      if (data.claim_url) {
+        router.push(data.claim_url);
+      } else {
+        router.push(`/claim/${data.claim_token}`);
+      }
+    } catch (err: unknown) {
+      setSandboxError(err instanceof Error ? err.message : "Failed to generate instant sandbox bot.");
+      setIsSandboxLoading(false);
+    }
+  }
   const [isYearly, setIsYearly] = useState(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [selectedFeature, setSelectedFeature] = useState<Feature | null>(null);
@@ -438,8 +481,8 @@ export default function Home() {
           <div className="absolute -left-32 top-24 w-40 h-40 sm:w-64 sm:h-64 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-200)" }} />
           <div className="absolute -right-28 top-64 w-32 h-32 sm:w-56 sm:h-56 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-2-100)" }} />
 
-          {/* Product Hunt Social Proof at Top */}
-          <div className="flex justify-center mb-6">
+          {/* Product Hunt & Founding 50 Proof at Top */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
             <a
               href="https://www.producthunt.com/products/chatty-9/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-chatty&#0045;9"
               target="_blank"
@@ -455,6 +498,13 @@ export default function Home() {
                 height="54"
               />
             </a>
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-medium border bg-amber-50/90 border-amber-300/80 text-amber-950 shadow-2xs">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              <span><strong>Founding 50 Program:</strong> Lock in today&apos;s price for life. <strong>18 of 50 spots claimed</strong>.</span>
+            </div>
           </div>
 
           <h1 className="mx-auto max-w-[17ch] leading-[1.1] tracking-tight text-[clamp(34px,8vw,72px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
@@ -463,6 +513,55 @@ export default function Home() {
           <p className="text-base sm:text-[17px] leading-relaxed max-w-[58ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
             An open-source AI agent that answers customer questions, captures leads, and books meetings on your website, WhatsApp, and Slack. Live in five minutes.
           </p>
+
+          {/* Interactive Instant URL Sandbox (G5 Time-To-Wow) */}
+          <form onSubmit={handleInstantSandbox} className="mt-8 max-w-[620px] mx-auto text-left">
+            <div className="flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 rounded-2xl sm:rounded-full bg-white/95 shadow-md border border-[var(--color-divider)]">
+              <div className="flex items-center gap-2.5 px-4 py-2 flex-1 min-w-0">
+                <Globe className="size-5 text-[var(--color-accent-700)] shrink-0" />
+                <input
+                  type="text"
+                  value={sandboxUrl}
+                  onChange={(e) => {
+                    setSandboxUrl(e.target.value);
+                    if (sandboxError) setSandboxError(null);
+                  }}
+                  placeholder="Enter your store or website URL (e.g. mystore.com)"
+                  className="w-full bg-transparent text-sm sm:text-[15px] outline-hidden placeholder:text-zinc-400 text-zinc-900"
+                  disabled={isSandboxLoading}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSandboxLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl sm:rounded-full px-6 py-3 text-sm font-semibold text-white transition shadow-sm hover:brightness-105 shrink-0 disabled:opacity-70 cursor-pointer"
+                style={{ background: "var(--color-accent)" }}
+              >
+                {isSandboxLoading ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    <span>Building Bot...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-4" />
+                    <span>Test Your Bot (60s)</span>
+                    <ArrowRight className="size-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
+            {sandboxError && (
+              <p className="mt-2 text-xs text-rose-600 font-medium text-center">{sandboxError}</p>
+            )}
+            <div className="flex flex-wrap items-center justify-center gap-3 mt-3 text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 70%, transparent)" }}>
+              <span>⚡ Instant sandbox</span>
+              <span>·</span>
+              <span>Zero signup required</span>
+              <span>·</span>
+              <span>No credit card</span>
+            </div>
+          </form>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 text-left max-w-[900px] mx-auto">
             {chips.map((c, i) => {
@@ -544,6 +643,14 @@ export default function Home() {
           <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[60ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
             Every cloud plan includes a full-featured <strong>14-day free trial</strong> with no credit card required. The only free forever option is self-hosting our open-source stack on your own infrastructure.
           </p>
+
+          {/* Founding 50 Guarantee Banner */}
+          <div className="mt-6 p-4 rounded-2xl border border-amber-200/90 bg-amber-50/80 max-w-[760px] flex items-start sm:items-center gap-3 text-xs sm:text-sm text-amber-950 shadow-2xs">
+            <span className="text-xl shrink-0">🏷️</span>
+            <div>
+              <strong>Founding 50 Lifetime Price Lock:</strong> Early customers lock in launch subscription pricing for life while subscribed, in return for a 20-minute product review and testimonial after your first 25 real conversations.
+            </div>
+          </div>
 
           <div className="inline-flex rounded-full overflow-hidden border mt-7" style={{ borderColor: "var(--color-divider)" }}>
             <button

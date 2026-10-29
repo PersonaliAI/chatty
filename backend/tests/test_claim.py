@@ -136,3 +136,46 @@ def test_decline_and_delete_demo_bot():
         data = response.json()
         assert data["success"] is True
         assert "permanently deleted" in data["message"].lower()
+
+
+def test_create_instant_sandbox_bot_success():
+    client = TestClient(main.app)
+    with patch("app.routers.claim.run_db") as mock_db, \
+         patch("app.routers.claim.assert_safe_url_async") as mock_ssrf, \
+         patch("app.routers.claim._crawl_demo_target_site") as mock_crawl:
+        
+        # 1. Check existing bots (empty)
+        existing_mock = MagicMock()
+        existing_mock.data = []
+
+        # 2. Insert new bot
+        insert_mock = MagicMock()
+        insert_mock.data = [{
+            "id": "22222222-3333-4444-5555-666666666666",
+            "name": "Nike Assistant",
+            "claim_token": "clm_test_sandbox_123"
+        }]
+
+        mock_db.side_effect = [existing_mock, insert_mock]
+
+        response = client.post(
+            "/api/claim/instant-sandbox",
+            json={"url": "https://nike.com"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "claim_token" in data
+        assert "/claim/" in data["claim_url"]
+        assert data["target_name"] == "Nike"
+
+
+def test_create_instant_sandbox_bot_empty_url():
+    client = TestClient(main.app)
+    response = client.post(
+        "/api/claim/instant-sandbox",
+        json={"url": "   "}
+    )
+    assert response.status_code == 400
+    assert "valid website url" in response.json()["detail"].lower()
+
