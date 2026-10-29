@@ -21,6 +21,10 @@ import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
 import { parseRichContent, parseVisitorMessageContent, formatMessagePreview } from "./rich-content";
 import { renderSafeArticleHtml } from "./sanitize-html";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "./color-contrast";
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 import { normalizeWidgetStyle, getPresetSignature, PANEL_RADIUS, PRESET_SIGNATURES } from "./widget-style";
 import { dedupeAdjacentWelcomeMessages } from "./widget-history";
 // CSS is shipped separately (dist/styles.css, plus katex's own CSS) instead
@@ -1541,6 +1545,7 @@ function IdentifiedChatWidget({
   const chatBodyRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+  const emojiPanelRef = useRef<HTMLDivElement>(null);
   const [pendingFiles, setPendingFiles] = useState<{file: File; preview: string}[]>([]);
   const lastPollRef = useRef<string>(new Date().toISOString());
 

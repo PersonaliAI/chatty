@@ -1122,10 +1122,15 @@ async def account_gdpr_export(user: dict[str, Any] = Depends(require_user)):
     if not auth_user_id:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    user_res = await run_db(
-        lambda: supabase.table("users").select("id, auth_user_id, email, name, role, plan, created_at").eq("auth_user_id", auth_user_id).limit(1).execute()
-    )
-    user_profile = user_res.data[0] if (user_res and user_res.data) else user
+    user_profile = user
+    try:
+        user_res = await run_db(
+            lambda: supabase.table("users").select("id, auth_user_id, email, name, role, plan, created_at").eq("auth_user_id", auth_user_id).limit(1).execute()
+        )
+        if user_res and user_res.data:
+            user_profile = user_res.data[0]
+    except Exception as e:
+        logger.warning("Could not fetch extended profile for GDPR export: %s", e)
 
     bots_res = await run_db(
         lambda: supabase.table("chatty_bots").select("*").eq("user_id", auth_user_id).execute()

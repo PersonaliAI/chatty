@@ -964,132 +964,130 @@ export function InlineBookingCard({
         </div>
 
         {/* Modern Cal.com-style Timezone Selector OR Locked Confirmed Badge */}
-        <div className="relative min-w-0 max-w-full sm:max-w-[55%]">
+        <div className="min-w-0 max-w-full sm:max-w-[55%]">
           {step === 3 && cardMode === "confirmed" && confirmedMeeting ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
               <Check className="size-3 stroke-[2.5]" />
               <span>Booked</span>
             </span>
           ) : (
-            <>
-              <button
-                ref={tzButtonRef}
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsTzOpen((open) => !open);
-                  setTzQuery("");
-                }}
-                className="flex max-w-full items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
-                title="Click to change timezone"
-              >
-                <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
-                <span className="truncate max-w-[120px] min-[360px]:max-w-[160px] sm:max-w-[220px] font-medium">
-                  {formatTimezoneCity(activeTimezone)}
-                </span>
-                <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 shrink-0 ${isTzOpen ? "rotate-180" : ""}`} />
-              </button>
-
-              {/* Modern Cal.com-style Timezone Selector Dropdown */}
-              {isTzOpen && (
-                <div
-                  ref={tzDropdownRef}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  className="absolute right-0 top-full mt-1.5 w-72 sm:w-80 max-w-[calc(100vw-2.5rem)] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[255px]"
-                >
-                  {/* Popover Search Bar */}
-                  <div className="p-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-800/60 flex items-center gap-1.5">
-                    <div className="relative flex-1 min-w-0">
-                      <Search className="size-3 text-neutral-400 absolute left-2.5 top-2.5" />
-                      <input
-                        type="text"
-                        autoFocus
-                        placeholder="Search city or timezone..."
-                        value={tzQuery}
-                        onChange={(e) => setTzQuery(e.target.value)}
-                        className="w-full pl-7 pr-6 py-1 text-[11px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-400 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400"
-                      />
-                      {tzQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setTzQuery("")}
-                          className="absolute right-1.5 top-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5"
-                        >
-                          <X className="size-3" />
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsTzOpen(false)}
-                      className="px-2 py-1 text-[10px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700/60 transition-colors shrink-0 cursor-pointer"
-                    >
-                      Done
-                    </button>
-                  </div>
-
-                  {/* Timezone List with modern scrollbar */}
-                  <div className="max-h-52 overflow-y-auto p-1 divide-y divide-neutral-100 dark:divide-neutral-800/50 chatty-custom-scrollbar">
-                    {filteredTimezones.length === 0 ? (
-                      <div className="py-5 text-center text-[11px] text-neutral-400">
-                        No matching timezone found
-                      </div>
-                    ) : (
-                      filteredTimezones.map((tz) => {
-                        const isSelected = tz.id === activeTimezone;
-                        const currentTime = getTimeInTimezone(tz.id);
-                        return (
-                          <button
-                            key={tz.id}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              selectTimezone(tz.id);
-                            }}
-                            onPointerDown={(e) => {
-                              e.stopPropagation();
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                selectTimezone(tz.id);
-                              }
-                            }}
-                            className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left rounded-lg transition-colors cursor-pointer ${
-                              isSelected
-                                ? "bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-900 dark:text-neutral-100"
-                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300"
-                            }`}
-                          >
-                            <div className="min-w-0 pr-1.5 flex-1">
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs truncate font-medium">{tz.city}</span>
-                                {isSelected && (
-                                  <Check className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                )}
-                              </div>
-                              <div className="text-[9px] text-neutral-400 truncate">
-                                {tz.label}
-                              </div>
-                            </div>
-                            {currentTime && (
-                              <div className="text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400 shrink-0 font-medium ml-2">
-                                {currentTime}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
+            <button
+              ref={tzButtonRef}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTzOpen((open) => !open);
+                setTzQuery("");
+              }}
+              className="flex max-w-full items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md text-[10px] text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 transition-all cursor-pointer border border-neutral-200/60 dark:border-neutral-700/60 shadow-2xs group"
+              title="Click to change timezone"
+            >
+              <Globe className="size-3 text-neutral-500 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 shrink-0" />
+              <span className="truncate max-w-[120px] min-[360px]:max-w-[160px] sm:max-w-[220px] font-medium">
+                {formatTimezoneCity(activeTimezone)}
+              </span>
+              <ChevronDown className={`size-2.5 text-neutral-400 transition-transform duration-200 shrink-0 ${isTzOpen ? "rotate-180" : ""}`} />
+            </button>
           )}
         </div>
       </div>
+
+      {/* Modern Cal.com-style Timezone Selector Dropdown - Horizontally Centered */}
+      {isTzOpen && (
+        <div
+          ref={tzDropdownRef}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="absolute left-1/2 -translate-x-1/2 top-[38px] w-[calc(100%-1rem)] max-w-[340px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[255px]"
+        >
+          {/* Popover Search Bar */}
+          <div className="p-2 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-800/60 flex items-center gap-1.5">
+            <div className="relative flex-1 min-w-0">
+              <Search className="size-3 text-neutral-400 absolute left-2.5 top-2.5" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search city or timezone..."
+                value={tzQuery}
+                onChange={(e) => setTzQuery(e.target.value)}
+                className="w-full pl-7 pr-6 py-1 text-[11px] bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md focus:outline-none focus:ring-1 focus:ring-neutral-400 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400"
+              />
+              {tzQuery && (
+                <button
+                  type="button"
+                  onClick={() => setTzQuery("")}
+                  className="absolute right-1.5 top-1.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTzOpen(false)}
+              className="px-2 py-1 text-[10px] font-semibold text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700/60 transition-colors shrink-0 cursor-pointer"
+            >
+              Done
+            </button>
+          </div>
+
+          {/* Timezone List with modern scrollbar */}
+          <div className="max-h-52 overflow-y-auto p-1 divide-y divide-neutral-100 dark:divide-neutral-800/50 chatty-custom-scrollbar">
+            {filteredTimezones.length === 0 ? (
+              <div className="py-5 text-center text-[11px] text-neutral-400">
+                No matching timezone found
+              </div>
+            ) : (
+              filteredTimezones.map((tz) => {
+                const isSelected = tz.id === activeTimezone;
+                const currentTime = getTimeInTimezone(tz.id);
+                return (
+                  <button
+                    key={tz.id}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      selectTimezone(tz.id);
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        selectTimezone(tz.id);
+                      }
+                    }}
+                    className={`w-full px-2.5 py-1.5 flex items-center justify-between text-left rounded-lg transition-colors cursor-pointer ${
+                      isSelected
+                        ? "bg-neutral-100 dark:bg-neutral-800 font-medium text-neutral-900 dark:text-neutral-100"
+                        : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300"
+                    }`}
+                  >
+                    <div className="min-w-0 pr-1.5 flex-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs truncate font-medium">{tz.city}</span>
+                        {isSelected && (
+                          <Check className="size-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        )}
+                      </div>
+                      <div className="text-[9px] text-neutral-400 truncate">
+                        {tz.label}
+                      </div>
+                    </div>
+                    {currentTime && (
+                      <div className="text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400 shrink-0 font-medium ml-2">
+                        {currentTime}
+                      </div>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* VIEW 1: Slot Selector (Used for Booking & Rescheduling) */}
       {(step === 1 || cardMode === "reschedule") && cardMode !== "confirmed" && cardMode !== "cancel_confirm" && cardMode !== "cancelled" && (
