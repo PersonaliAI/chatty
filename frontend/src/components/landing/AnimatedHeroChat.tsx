@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   Phone,
@@ -119,6 +119,19 @@ export function AnimatedHeroChat() {
   const [selectedSlot, setSelectedSlot] = useState<string>("2:00 PM EST");
   const [voicePlaying, setVoicePlaying] = useState(false);
   const [activeQuickReply, setActiveQuickReply] = useState<string | null>(null);
+
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Modern auto-scroll: smoothly scroll to the newest message or interactive card as animation stages progress
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTo({
+        top: chatScrollRef.current.scrollHeight,
+        behavior: animStage === 0 ? "auto" : "smooth",
+      });
+    }
+  }, [animStage, currentIndex]);
 
   const current = BUSINESS_SITUATIONS[currentIndex];
 
@@ -289,9 +302,10 @@ export function AnimatedHeroChat() {
         </div>
       </div>
 
-      {/* 3. WhatsApp Chat Body with Authentic Doodle Canvas */}
+      {/* 3. WhatsApp Chat Body with Authentic Doodle Canvas & Modern Auto-Scroll */}
       <div
-        className="p-3 sm:p-5 space-y-3 min-h-[360px] flex flex-col justify-end relative"
+        ref={chatScrollRef}
+        className="h-[430px] sm:h-[470px] overflow-y-auto chatty-custom-scrollbar scroll-smooth p-3 sm:p-5 relative"
         style={{
           backgroundColor: "#efeae2",
           backgroundImage:
@@ -300,6 +314,7 @@ export function AnimatedHeroChat() {
           backgroundPosition: "0 0, 12px 12px",
         }}
       >
+        <div className="min-h-full flex flex-col justify-end space-y-3">
         {/* End-to-End Encryption Notice Banner */}
         <div className="flex justify-center mb-1">
           <div className="max-w-[480px] px-3 py-1.5 rounded-lg bg-[#ffeecd] border border-[#f3d99d] text-[11px] text-[#54656f] text-center shadow-2xs flex items-center justify-center gap-1.5">
@@ -554,6 +569,8 @@ export function AnimatedHeroChat() {
             </div>
           </div>
         )}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* 4. WhatsApp Bottom Input Mockup Bar */}
