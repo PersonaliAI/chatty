@@ -324,9 +324,9 @@ export default function ClaimClient({ token }: { token: string }) {
   const targetDomain = cleanDomain(bot.demo_target_url || bot.demo_target_name);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen lg:h-screen lg:max-h-screen lg:overflow-hidden bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Top Navigation */}
-      <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 h-16 flex items-center justify-between">
+      <header className="shrink-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2.5 group">
             <img
@@ -364,7 +364,7 @@ export default function ClaimClient({ token }: { token: string }) {
           <button
             onClick={() => triggerClaim()}
             disabled={isClaiming || bot.status === "claimed"}
-            className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-medium shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center justify-center h-8.5 px-3.5 rounded-lg bg-slate-900 hover:bg-black text-white text-xs sm:text-sm font-medium shadow-sm transition-all disabled:opacity-50 cursor-pointer"
           >
             {isClaiming ? (
               <Loader2 className="size-4 animate-spin" />
@@ -378,9 +378,9 @@ export default function ClaimClient({ token }: { token: string }) {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+      <main className="flex-1 min-h-0 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-3 lg:py-3.5 flex flex-col">
         {/* Mobile View Segmented Tab Selector */}
-        <div className="lg:hidden mb-5 bg-slate-200/80 p-1 rounded-xl flex items-center gap-1 shadow-inner">
+        <div className="lg:hidden mb-4 bg-slate-200/80 p-1 rounded-xl flex items-center gap-1 shadow-inner shrink-0">
           <button
             type="button"
             onClick={() => setMobileTab("chat")}
@@ -407,44 +407,44 @@ export default function ClaimClient({ token }: { token: string }) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 flex-1 min-h-0 items-stretch">
           {/* Left Column: Context, Verified Sources, Suggested Prompts, CTAs */}
-          <div className={`lg:col-span-5 space-y-6 ${mobileTab === "overview" ? "block" : "hidden lg:block"}`}>
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-7 space-y-6">
+          <div className={`lg:col-span-5 flex flex-col min-h-0 ${mobileTab === "overview" ? "block" : "hidden lg:flex"}`}>
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-5 flex flex-col justify-between flex-1 min-h-0 overflow-y-auto space-y-3.5">
               {/* Badge & Title */}
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+              <div className="space-y-1.5 shrink-0">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                   <Sparkles className="size-3.5" />
                   Pre-trained for {bot.demo_target_name}
                 </div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-snug">
                   Your AI Customer Support Specialist is Ready
                 </h1>
-                <p className="text-sm text-slate-600 leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                   We pre-trained an autonomous agent directly on your website and documentation. Test how accurately it
                   answers visitor questions about features, pricing, and integrations.
                 </p>
               </div>
 
               {/* Training Summary Box */}
-              <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-4 space-y-3">
-                <div className="text-xs font-semibold text-slate-900 uppercase tracking-wider">
+              <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3 sm:p-3.5 space-y-2 shrink-0">
+                <div className="text-[11px] font-semibold text-slate-900 uppercase tracking-wider">
                   Knowledge Base Status
                 </div>
-                <div className="space-y-2 text-xs text-slate-600">
+                <div className="space-y-1.5 text-xs text-slate-600">
                   <div className="flex items-start gap-2">
-                    <CheckCircle2 className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0 mt-0.5" />
                     <span>
                       <strong className="text-slate-800">{bot.sources_count || "Multiple"} pages</strong> indexed from{" "}
                       <span className="font-mono text-slate-700">{targetDomain}</span>
                     </span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <ShieldCheck className="size-4 text-blue-600 shrink-0 mt-0.5" />
+                    <ShieldCheck className="size-3.5 text-blue-600 shrink-0 mt-0.5" />
                     <span>Grounded with anti-hallucination guardrails and source citations</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <Calendar className="size-4 text-indigo-600 shrink-0 mt-0.5" />
+                    <Calendar className="size-3.5 text-indigo-600 shrink-0 mt-0.5" />
                     <span>Calendar booking (Google Meet / Teams / Zoom) ready to connect</span>
                   </div>
                 </div>
@@ -452,17 +452,17 @@ export default function ClaimClient({ token }: { token: string }) {
 
               {/* Click-to-Test Prompts */}
               {bot.suggested_prompts && bot.suggested_prompts.length > 0 && (
-                <div className="space-y-2.5">
+                <div className="space-y-2 shrink-0">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-800">Try asking these in the sandbox:</span>
-                    <span className="text-slate-400">Click to copy</span>
+                    <span className="text-slate-400 text-[11px]">Click to copy</span>
                   </div>
                   <div className="space-y-1.5">
                     {bot.suggested_prompts.map((promptText, idx) => (
                       <button
                         key={idx}
                         onClick={() => handleCopyPrompt(promptText, idx)}
-                        className="w-full text-left p-2.5 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all text-xs text-slate-700 flex items-center justify-between gap-2 group cursor-pointer"
+                        className="w-full text-left p-2 rounded-lg border border-slate-200/80 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all text-xs text-slate-700 flex items-center justify-between gap-2 group cursor-pointer"
                       >
                         <div className="flex items-center gap-2 truncate">
                           <MessageSquare className="size-3.5 text-slate-400 shrink-0 group-hover:text-slate-600" />
@@ -482,11 +482,11 @@ export default function ClaimClient({ token }: { token: string }) {
               )}
 
               {/* Primary Claim Action Block */}
-              <div className="pt-2 border-t border-slate-100 space-y-3">
+              <div className="pt-2 border-t border-slate-100 space-y-2 shrink-0">
                 <button
                   onClick={() => triggerClaim()}
                   disabled={isClaiming || bot.status === "claimed"}
-                  className="w-full h-11 rounded-xl bg-slate-900 hover:bg-black text-white text-sm font-medium shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full h-10 rounded-xl bg-slate-900 hover:bg-black text-white text-sm font-medium shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {isClaiming ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -503,26 +503,25 @@ export default function ClaimClient({ token }: { token: string }) {
                 <p className="text-[11px] text-center text-slate-500 leading-normal">
                   Free 14-day evaluation • Instant 1-line script embed • No credit card required
                 </p>
-              </div>
 
-              {/* Decline / Delete Data Link */}
-              <div className="pt-1 text-center">
-                <button
-                  type="button"
-                  onClick={() => setShowDeleteModal(true)}
-                  className="text-xs text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
-                >
-                  Not your company or want this data deleted? Click to remove
-                </button>
+                <div className="pt-0.5 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(true)}
+                    className="text-[11px] text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+                  >
+                    Not your company or want this data deleted? Click to remove
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Right Column: Live Interactive Widget Sandbox */}
-          <div className={`lg:col-span-7 space-y-3 ${mobileTab === "chat" ? "block" : "hidden lg:block"}`}>
+          <div className={`lg:col-span-7 flex flex-col min-h-0 h-full ${mobileTab === "chat" ? "block" : "hidden lg:flex"}`}>
             {/* Quick suggested prompt pills for mobile when on chat tab */}
             {bot.suggested_prompts && bot.suggested_prompts.length > 0 && (
-              <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+              <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs shrink-0">
                 {bot.suggested_prompts.map((promptText, idx) => (
                   <button
                     key={idx}
@@ -536,16 +535,16 @@ export default function ClaimClient({ token }: { token: string }) {
                 ))}
               </div>
             )}
-            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col">
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col flex-1 min-h-0 h-[560px] lg:h-full">
               {/* Browser Window Header */}
-              <div className="bg-slate-100/80 border-b border-slate-200/80 px-4 py-2.5 flex items-center justify-between select-none">
+              <div className="bg-slate-100/80 border-b border-slate-200/80 px-4 py-2 flex items-center justify-between select-none shrink-0">
                 <div className="flex items-center gap-1.5">
                   <div className="size-3 rounded-full bg-slate-300" />
                   <div className="size-3 rounded-full bg-slate-300" />
                   <div className="size-3 rounded-full bg-slate-300" />
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-white border border-slate-200/90 rounded-md px-3 py-1 text-xs text-slate-600 font-mono shadow-2xs max-w-xs sm:max-w-md truncate">
+                <div className="flex items-center gap-1.5 bg-white border border-slate-200/90 rounded-md px-3 py-0.5 text-xs text-slate-600 font-mono shadow-2xs max-w-xs sm:max-w-md truncate">
                   <Lock className="size-3 text-emerald-600 shrink-0" />
                   <span className="truncate">https://{targetDomain}/chatty-preview</span>
                 </div>
@@ -557,7 +556,7 @@ export default function ClaimClient({ token }: { token: string }) {
               </div>
 
               {/* Embedded Live Widget Sandbox */}
-              <div className="relative w-full h-[620px] sm:h-[660px] bg-slate-50/50">
+              <div className="relative w-full flex-1 min-h-0 bg-slate-50/50">
                 <iframe
                   src={`/embed/${bot.bot_id}?token=${encodeURIComponent(bot.widget_token || "")}&preview=true`}
                   title={`${bot.name} Interactive Sandbox`}
