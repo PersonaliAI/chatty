@@ -1357,6 +1357,31 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     )
 
 
+def _convert_audio_to_wav(data: bytes) -> bytes | None:
+    """Transcode WebM/Opus/Matroska or arbitrary browser audio to standard 16kHz mono WAV."""
+    try:
+        import av
+        import io
+        input_io = io.BytesIO(data)
+        output_io = io.BytesIO()
+        with av.open(input_io) as in_container:
+            in_stream = next((s for s in in_container.streams if s.type == "audio"), None)
+            if not in_stream:
+                return None
+            with av.open(output_io, mode="w", format="wav") as out_container:
+                out_stream = out_container.add_stream("pcm_s16le", rate=16000)
+                out_stream.layout = "mono"
+                for frame in in_container.decode(in_stream):
+                    for packet in out_stream.encode(frame):
+                        out_container.mux(packet)
+                for packet in out_stream.encode():
+                    out_container.mux(packet)
+        return output_io.getvalue()
+    except Exception:
+        logger.warning("Audio transcoding with PyAV failed", exc_info=True)
+        return None
+
+
 @router.post("/api/widget/transcribe")
 async def widget_transcribe(
     request: Request,
@@ -1375,8 +1400,15 @@ async def widget_transcribe(
     mime = (file.content_type or "audio/wav").split(";")[0]
     if not mime.startswith("audio/"):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {mime}")
-    if mime in ("audio/webm", "audio/x-matroska"):
-        raise HTTPException(status_code=400, detail=f"Unsupported audio format: {mime}. Convert to wav, mp3, ogg, aac, aiff, or flac first.")
+
+    # Seamlessly transcode webm/matroska recordings produced by browsers to standard WAV
+    if mime in ("audio/webm", "audio/x-matroska", "video/webm"):
+        wav_data = _convert_audio_to_wav(data)
+        if wav_data:
+            data = wav_data
+            mime = "audio/wav"
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported audio format. Could not transcode webm recording.")
 
     res = await run_db(lambda: supabase.table("chatty_bots").select("allowed_domains").eq("id", bot_id).execute())
     if not res.data:
@@ -1455,12 +1487,14 @@ async def widget_chat_media(
     mime = (file.content_type or "application/octet-stream").split(";")[0]
     if not mime.startswith(_ALLOWED_MEDIA_PREFIXES):
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {mime}")
-    # Gemini's audio understanding only accepts wav/mp3/aiff/aac/ogg/flac - NOT
-    # webm/mkv, which is what browsers record by default. Reject these up front
-    # instead of silently uploading audio the model can never actually hear,
-    # which used to surface to visitors as their voice message going "empty".
-    if mime in ("audio/webm", "audio/x-matroska"):
-        raise HTTPException(status_code=400, detail=f"Unsupported audio format: {mime}. Convert to wav, mp3, ogg, aac, aiff, or flac first.")
+    # Seamlessly transcode webm/matroska audio from browsers to WAV so Gemini can hear it
+    if mime in ("audio/webm", "audio/x-matroska", "video/webm"):
+        wav_data = _convert_audio_to_wav(data)
+        if wav_data:
+            data = wav_data
+            mime = "audio/wav"
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported audio format: {mime}. Convert to wav, mp3, ogg, aac, aiff, or flac first.")
 
     res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).execute())
     if not res.data:

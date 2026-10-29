@@ -172,6 +172,7 @@ async def entrypoint(ctx: JobContext) -> None:
             stt=stt,
             llm=llm,
             tts=tts,
+            use_tts_aligned_transcript=True,
             conn_options=SessionConnectOptions(
                 llm_conn_options=APIConnectOptions(
                     timeout=settings.llm_timeout_seconds
@@ -253,7 +254,10 @@ async def entrypoint(ctx: JobContext) -> None:
             visitor_timezone=visitor_timezone,
         ),
         room=ctx.room,
-        room_options=room_io.RoomOptions(video_input=settings.enable_video_input),
+        room_options=room_io.RoomOptions(
+            video_input=settings.enable_video_input,
+            text_output=room_io.TextOutputOptions(sync_transcription=True),
+        ),
     )
 
 

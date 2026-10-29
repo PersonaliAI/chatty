@@ -100,6 +100,7 @@ class WidgetCsatRequest(BaseModel):
 
 class WidgetBookingConfirmRequest(BaseModel):
     bot_id: str
+    event_type_id: Optional[str] = None
     session_id: Optional[str] = None
     start_time: str
     end_time: str

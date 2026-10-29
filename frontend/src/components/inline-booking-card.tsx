@@ -84,6 +84,7 @@ export interface ConfirmedMeeting {
 }
 
 export interface InlineBookingCardProps {
+  eventTypeId?: string;
   botId: string;
   sessionId?: string;
   visitorTimezone?: string;
@@ -360,6 +361,7 @@ function detectPreferredSlot(
 
 export function InlineBookingCard({
   botId,
+  eventTypeId,
   sessionId,
   visitorTimezone,
   visitorCountry,
@@ -538,6 +540,7 @@ export function InlineBookingCard({
       try {
         const params = new URLSearchParams({ bot_id: botId });
         if (sessionId) params.set("session_id", sessionId);
+      if (eventTypeId) params.set("event_type_id", eventTypeId);
         if (initialEmail) params.set("email", initialEmail);
         const res = await fetch(`${backendUrl}/api/widget/booking/active?${params.toString()}`);
         if (!res.ok) return;
@@ -579,6 +582,7 @@ export function InlineBookingCard({
       setError(null);
       const params = new URLSearchParams({
         bot_id: botId,
+        ...(eventTypeId ? { event_type_id: eventTypeId } : {}),
         visitor_timezone: tz,
         days: "14",
       });

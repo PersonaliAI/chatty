@@ -932,7 +932,7 @@ export function VoiceAgentPanel({
       const nextLanguage = config.stt_language?.trim() || 'en-US';
       setLanguage(nextLanguage);
       setLanguageOptions(profileLanguageOptions(config, nextLanguage));
-      if (config.visualizer && ['wave', 'bar', 'grid', 'radial', 'aura'].includes(config.visualizer)) {
+      if (!visualizer && config.visualizer && ['wave', 'bar', 'grid', 'radial', 'aura'].includes(config.visualizer)) {
         setActiveVisualizer(config.visualizer);
       }
     }).catch(() => {
@@ -940,7 +940,7 @@ export function VoiceAgentPanel({
       // unavailable; the UI keeps the safe English default.
     });
     return () => { active = false; };
-  }, [backendUrl, botId, widgetToken, visualizer]);
+  }, [backendUrl, botId, widgetToken]);
 
   const tokenSource = useMemo(
     () =>
@@ -983,7 +983,7 @@ export function VoiceAgentPanel({
   return (
     <section ref={panelRef} className={`flex h-full min-h-0 min-w-0 w-full max-w-full flex-1 flex-col overflow-visible bg-white dark:bg-neutral-950 ${widgetMode ? 'rounded-none border-0 shadow-none' : 'rounded-[28px] border border-neutral-200 shadow-[0_20px_70px_-30px_rgba(0,0,0,0.35)] dark:border-neutral-800'} ${className}`}>
       <SessionProvider session={session}>
-        <ConnectedVoiceAgent botId={botId} sessionId={activeSessionId} backendUrl={backendUrl} language={language} languageOptions={languageOptions} onLanguageChange={handleLanguageChange} compact={compact} widgetMode={widgetMode} visualizer={activeVisualizer} onClose={onClose} onReset={handleSessionReset} onFullscreen={toggleFullscreen} />
+        <ConnectedVoiceAgent botId={botId} sessionId={activeSessionId} backendUrl={backendUrl} language={language} languageOptions={languageOptions} onLanguageChange={handleLanguageChange} compact={compact} widgetMode={widgetMode} visualizer={visualizer ?? activeVisualizer} onClose={onClose} onReset={handleSessionReset} onFullscreen={toggleFullscreen} />
       </SessionProvider>
       <VoiceAgentPanelStyles />
     </section>

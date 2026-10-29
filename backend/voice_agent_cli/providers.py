@@ -128,12 +128,21 @@ def build_components(
             api_secret=settings.livekit_api_secret,
         )
     elif stt_provider == "google":
-        stt = google.STT(
-            model=_value(bot, "voice_stt_model", settings.stt_model),
-            languages=_value(bot, "voice_stt_language", settings.stt_language),
-            project=settings.google_cloud_project,
-            location=settings.stt_location,
-        )
+        try:
+            stt = google.STT(
+                model=_value(bot, "voice_stt_model", settings.stt_model),
+                languages=_value(bot, "voice_stt_language", settings.stt_language),
+                project=settings.google_cloud_project,
+                location=settings.stt_location,
+            )
+        except Exception as exc:
+            logger.warning("Google STT initialization failed (%s); falling back to LiveKit Inference STT", exc)
+            stt = inference.STT(
+                model="deepgram/nova-3",
+                language=_value(bot, "voice_stt_language", settings.stt_language),
+                api_key=settings.livekit_api_key,
+                api_secret=settings.livekit_api_secret,
+            )
     elif stt_provider == "openai":
         from livekit.plugins import openai  # type: ignore[import-not-found]
 
@@ -182,13 +191,23 @@ def build_components(
             api_secret=settings.livekit_api_secret,
         )
     elif tts_provider == "google":
-        tts = google.beta.GeminiTTS(
-            model=_value(bot, "voice_tts_model", settings.tts_model),
-            voice_name=_value(bot, "voice_tts_voice", settings.tts_voice),
-            vertexai=True,
-            project=settings.google_cloud_project,
-            location=settings.tts_location,
-        )
+        try:
+            tts = google.beta.GeminiTTS(
+                model=_value(bot, "voice_tts_model", settings.tts_model),
+                voice_name=_value(bot, "voice_tts_voice", settings.tts_voice),
+                vertexai=True,
+                project=settings.google_cloud_project,
+                location=settings.tts_location,
+            )
+        except Exception as exc:
+            logger.warning("Google GeminiTTS initialization failed (%s); falling back to LiveKit Inference TTS", exc)
+            tts = inference.TTS(
+                model="cartesia/sonic-3",
+                voice=_value(bot, "voice_tts_voice", ""),
+                language=_value(bot, "voice_stt_language", settings.stt_language),
+                api_key=settings.livekit_api_key,
+                api_secret=settings.livekit_api_secret,
+            )
     elif tts_provider == "openai":
         from livekit.plugins import openai  # type: ignore[import-not-found]
 
