@@ -18,22 +18,6 @@ import {
   X,
   BookOpen,
   ChevronDown,
-  CheckCircle2,
-  ShieldCheck,
-  Headphones,
-  MessageSquare,
-  Cpu,
-  Bot,
-  TrendingUp,
-  Clock,
-  Layers,
-  Lock,
-  Activity,
-  Check,
-  ShoppingBag,
-  PhoneCall,
-  Workflow,
-  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import { captureAffiliateReferral } from "@/lib/affiliate-referral";
@@ -346,7 +330,6 @@ export default function Home() {
   const [activeAnnouncement, setActiveAnnouncement] = useState(0);
   const [heroVoiceOpen, setHeroVoiceOpen] = useState(false);
   const [heroVoiceSessionId, setHeroVoiceSessionId] = useState("");
-  const [heroActiveTab, setHeroActiveTab] = useState<"resolution" | "voice" | "ecommerce" | "workflows">("resolution");
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveAnnouncement((prev) => (prev === 0 ? 1 : 0));
@@ -493,14 +476,13 @@ export default function Home() {
 
       <div className="max-w-[1200px] mx-auto px-5 sm:px-9">
         {/* Hero */}
-        <section className="relative pt-6 sm:pt-12 pb-16 sm:pb-24 text-center overflow-visible">
-          {/* Subtle Ambient Lighting Gradients */}
-          <div className="absolute left-1/2 -top-28 -translate-x-1/2 w-[600px] h-[400px] sm:w-[900px] sm:h-[520px] rounded-full -z-10 pointer-events-none opacity-60 blur-3xl" style={{ background: "radial-gradient(circle, var(--color-accent-2-200) 0%, transparent 70%)" }} />
-          <div className="absolute -left-32 top-24 w-52 h-52 sm:w-80 sm:h-80 rounded-full -z-10 pointer-events-none opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, var(--color-accent-200) 0%, transparent 70%)" }} />
-          <div className="absolute -right-32 top-64 w-48 h-48 sm:w-72 sm:h-72 rounded-full -z-10 pointer-events-none opacity-50 blur-2xl" style={{ background: "radial-gradient(circle, var(--color-accent-2-100) 0%, transparent 70%)" }} />
+        <section className="relative pt-6 sm:pt-10 pb-14 sm:pb-18 text-center">
+          <div className="absolute left-1/2 -top-24 -translate-x-1/2 w-[500px] h-[340px] sm:w-[720px] sm:h-[480px] rounded-full -z-10 pointer-events-none opacity-65 blur-[2px]" style={{ background: "var(--color-accent-2-200)" }} />
+          <div className="absolute -left-32 top-24 w-40 h-40 sm:w-64 sm:h-64 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-200)" }} />
+          <div className="absolute -right-28 top-64 w-32 h-32 sm:w-56 sm:h-56 rounded-full -z-10 pointer-events-none opacity-80" style={{ background: "var(--color-accent-2-100)" }} />
 
-          {/* Top Trust Proof Bar (Product Hunt & Founding 50) */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 mb-7">
+          {/* Product Hunt & Founding 50 Proof at Top */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
             <a
               href="https://www.producthunt.com/products/chatty-9/reviews/new?utm_source=badge-product_review&utm_medium=badge&utm_source=badge-chatty&#0045;9"
               target="_blank"
@@ -511,12 +493,12 @@ export default function Home() {
               <img
                 src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1317137&theme=light"
                 alt="Chatty - Open-source AI support bot for your website | Product Hunt"
-                style={{ width: "240px", height: "52px" }}
-                width="240"
-                height="52"
+                style={{ width: "250px", height: "54px" }}
+                width="250"
+                height="54"
               />
             </a>
-            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-xs font-medium border bg-amber-50/95 border-amber-300/80 text-amber-950 shadow-2xs backdrop-blur-xs">
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-medium border bg-amber-50/90 border-amber-300/80 text-amber-950 shadow-2xs">
               <span className="flex h-2 w-2 relative">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -525,52 +507,16 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Enterprise Eyebrow Pill */}
-          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full text-xs font-semibold border bg-white/75 backdrop-blur-md border-[var(--color-divider)] text-[var(--color-neutral-900)] shadow-2xs mb-5">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="tracking-wide uppercase text-[11px] font-bold text-neutral-800">Autonomous Customer Service Platform</span>
-            <span className="text-neutral-400">·</span>
-            <span className="text-[var(--color-accent-700)] font-semibold">Resolves 78% of Tickets Instantly</span>
-          </div>
-
-          {/* Master Headline (Intercom & Zendesk Enterprise Grade) */}
-          <h1 className="mx-auto max-w-[21ch] leading-[1.08] tracking-tight text-[clamp(34px,6.8vw,70px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
-            The AI customer service platform built to <span style={{ color: "var(--color-accent-600)" }}>resolve</span>, <span style={{ color: "var(--color-accent-700)" }}>qualify</span>, and <span style={{ color: "var(--color-accent-600)" }}>convert</span>.
+          <h1 className="mx-auto max-w-[17ch] leading-[1.1] tracking-tight text-[clamp(34px,8vw,72px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>
+            Trained on your store &amp; content. <span style={{ color: "var(--color-accent-600)" }}>Optimized for conversion.</span>
           </h1>
-
-          {/* Subtitle */}
-          <p className="text-base sm:text-[18px] leading-relaxed max-w-[62ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
-            Deliver human-quality service at enterprise scale. Chatty deploys autonomous AI agents across web chat, real-time LiveKit voice, WhatsApp, and Slack — trained on your store, help docs, and internal APIs.
+          <p className="text-base sm:text-[17px] leading-relaxed max-w-[58ch] mx-auto mt-6" style={{ color: "color-mix(in srgb, var(--color-text) 82%, transparent)" }}>
+            An open-source AI agent that answers customer questions, captures leads, and books meetings on your website, WhatsApp, and Slack. Live in five minutes.
           </p>
 
-          {/* Primary & Secondary Enterprise CTA Group */}
-          <div className="flex flex-wrap gap-3.5 items-center justify-center mt-8">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-2.5 rounded-full px-8 py-4 text-[15px] font-semibold transition-all shadow-md hover:shadow-lg hover:brightness-105 cursor-pointer"
-              style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}
-            >
-              Start Free 14-Day Trial
-              <ArrowRight className="size-4" />
-            </Link>
-            <button
-              type="button"
-              onClick={openHeroVoiceAgent}
-              className="inline-flex items-center gap-2.5 rounded-full border border-[var(--color-divider)] bg-white/80 backdrop-blur-sm px-6 py-4 text-[15px] font-semibold text-neutral-900 transition-all hover:bg-white hover:border-neutral-400 shadow-2xs cursor-pointer"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              <span className="flex size-2 rounded-full bg-emerald-500 animate-pulse" />
-              <AudioWaveform className="size-[18px] text-[var(--color-accent-700)]" />
-              <span>Talk to Voice Agent (Live)</span>
-            </button>
-          </div>
-          <p className="mt-3.5 text-xs sm:text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>
-            14-day free trial · No credit card required · Setup in under 5 minutes
-          </p>
-
-          {/* Interactive Instant URL Sandbox Bar */}
-          <form onSubmit={handleInstantSandbox} className="mt-8 max-w-[640px] mx-auto text-left">
-            <div className="flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 rounded-2xl sm:rounded-full bg-white/95 shadow-md border border-[var(--color-divider)] transition-all focus-within:ring-2 focus-within:ring-[var(--color-accent)]/30">
+          {/* Interactive Instant URL Sandbox (G5 Time-To-Wow) */}
+          <form onSubmit={handleInstantSandbox} className="mt-8 max-w-[620px] mx-auto text-left">
+            <div className="flex flex-col sm:flex-row items-stretch gap-2 p-1.5 sm:p-2 rounded-2xl sm:rounded-full bg-white/95 shadow-md border border-[var(--color-divider)]">
               <div className="flex items-center gap-2.5 px-4 py-2 flex-1 min-w-0">
                 <Globe className="size-5 text-[var(--color-accent-700)] shrink-0" />
                 <input
@@ -580,7 +526,7 @@ export default function Home() {
                     setSandboxUrl(e.target.value);
                     if (sandboxError) setSandboxError(null);
                   }}
-                  placeholder="Enter your store or company website (e.g. mystore.com)"
+                  placeholder="Enter your store or website URL (e.g. mystore.com)"
                   className="w-full bg-transparent text-sm sm:text-[15px] outline-hidden placeholder:text-zinc-400 text-zinc-900"
                   disabled={isSandboxLoading}
                 />
@@ -599,7 +545,7 @@ export default function Home() {
                 ) : (
                   <>
                     <Sparkles className="size-4" />
-                    <span>Test on Your Site (60s)</span>
+                    <span>Test Your Bot (60s)</span>
                     <ArrowRight className="size-3.5" />
                   </>
                 )}
@@ -617,434 +563,75 @@ export default function Home() {
             </div>
           </form>
 
-          {/* Interactive Enterprise AI Console Showcase (Intercom & Zendesk Centerpiece) */}
-          <div className="mt-14 max-w-[1040px] mx-auto text-left">
-            <div className="rounded-3xl border border-black/10 bg-white/90 backdrop-blur-xl shadow-xl overflow-hidden">
-              {/* Console Top Window Chrome */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 border-b border-black/8 bg-neutral-50/80">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5" aria-hidden="true">
-                    <span className="size-3 rounded-full bg-rose-400/80" />
-                    <span className="size-3 rounded-full bg-amber-400/80" />
-                    <span className="size-3 rounded-full bg-emerald-400/80" />
-                  </div>
-                  <span className="text-xs font-semibold text-neutral-700 tracking-tight flex items-center gap-1.5">
-                    <Bot className="size-3.5 text-[var(--color-accent-700)]" />
-                    <span>Chatty Enterprise Orchestrator</span>
-                    <span className="hidden sm:inline text-neutral-400 font-normal">| Live Agent Workspace</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 text-left max-w-[900px] mx-auto">
+            {chips.map((c, i) => {
+              const Icon = c.icon;
+              return (
+                <div key={i} className="rounded-3xl p-5" style={{ background: "var(--color-surface)", boxShadow: "var(--shadow-sm)" }}>
+                  <span className="size-9 rounded-full flex items-center justify-center" style={{ background: c.bg, color: c.fg }}>
+                    <Icon className="size-[18px]" strokeWidth={2.25} />
                   </span>
+                  <p className="mt-3.5 text-base" style={{ fontFamily: "var(--font-heading)" }}>{c.title}</p>
+                  <p className="mt-1.5 text-[13px] leading-snug" style={{ color: "color-mix(in srgb, var(--color-text) 68%, transparent)" }}>{c.desc}</p>
                 </div>
-                <div className="flex items-center gap-3 text-[11px] text-neutral-600">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-medium">
-                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    99.4% Confidence
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80 font-medium">
-                    <Clock className="size-3" />
-                    320ms Latency
-                  </span>
-                </div>
-              </div>
-
-              {/* Interactive Showcase Tabs */}
-              <div className="flex items-center gap-1.5 p-2 bg-neutral-100/70 border-b border-black/5 overflow-x-auto scrollbar-none">
-                <button
-                  type="button"
-                  onClick={() => setHeroActiveTab("resolution")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                    heroActiveTab === "resolution"
-                      ? "bg-white text-neutral-900 shadow-xs border border-black/5"
-                      : "text-neutral-600 hover:text-neutral-900 hover:bg-white/50"
-                  }`}
-                >
-                  <Sparkles className="size-3.5 text-[var(--color-accent-600)]" />
-                  <span>Autonomous Resolution</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeroActiveTab("voice")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                    heroActiveTab === "voice"
-                      ? "bg-white text-neutral-900 shadow-xs border border-black/5"
-                      : "text-neutral-600 hover:text-neutral-900 hover:bg-white/50"
-                  }`}
-                >
-                  <Headphones className="size-3.5 text-blue-600" />
-                  <span>LiveKit Voice Agent</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeroActiveTab("ecommerce")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                    heroActiveTab === "ecommerce"
-                      ? "bg-white text-neutral-900 shadow-xs border border-black/5"
-                      : "text-neutral-600 hover:text-neutral-900 hover:bg-white/50"
-                  }`}
-                >
-                  <ShoppingBag className="size-3.5 text-amber-600" />
-                  <span>E-Commerce &amp; Leads</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHeroActiveTab("workflows")}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-                    heroActiveTab === "workflows"
-                      ? "bg-white text-neutral-900 shadow-xs border border-black/5"
-                      : "text-neutral-600 hover:text-neutral-900 hover:bg-white/50"
-                  }`}
-                >
-                  <Workflow className="size-3.5 text-purple-600" />
-                  <span>81 MCP Workflows</span>
-                </button>
-              </div>
-
-              {/* Tab 1: Autonomous Resolution (Zendesk & Intercom Fin Style) */}
-              {heroActiveTab === "resolution" && (
-                <div className="p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* Left Chat Pane */}
-                  <div className="lg:col-span-7 space-y-4">
-                    {/* Visitor Message */}
-                    <div className="flex items-start gap-3">
-                      <div className="size-8 rounded-full bg-neutral-200 border border-neutral-300 flex items-center justify-center font-bold text-xs text-neutral-700 shrink-0">
-                        EM
-                      </div>
-                      <div className="rounded-2xl rounded-tl-xs px-4 py-3 bg-neutral-100 text-neutral-900 text-xs sm:text-sm max-w-[85%] leading-relaxed border border-neutral-200/60 shadow-2xs">
-                        Hi! We ordered 50 units (Order #CH-88219). Can we reroute delivery to our Chicago tech hub, and is Net-30 invoicing available for our replenishment?
-                      </div>
-                    </div>
-
-                    {/* AI Agent Instant Resolution */}
-                    <div className="flex items-start gap-3">
-                      <div className="size-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                        <Bot className="size-4" />
-                      </div>
-                      <div className="space-y-2.5 max-w-[90%]">
-                        <div className="rounded-2xl rounded-tl-xs p-4 bg-white border border-neutral-200/90 shadow-sm space-y-3 text-xs sm:text-sm leading-relaxed text-neutral-800">
-                          <p>
-                            Hello Emily! I checked <strong>Order #CH-88219</strong> in your store. Since fulfillment begins tomorrow morning, I have successfully updated the delivery destination to your Chicago corporate hub:
-                          </p>
-
-                          {/* Live Executed Action Card */}
-                          <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200 text-emerald-900 text-xs space-y-1.5">
-                            <div className="flex items-center justify-between font-semibold">
-                              <span className="flex items-center gap-1.5">
-                                <CheckCircle2 className="size-4 text-emerald-600" />
-                                Destination Updated in Shopify &amp; DHL
-                              </span>
-                              <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded">Action Done</span>
-                            </div>
-                            <p className="text-[11px] text-emerald-800">
-                              New Address: 333 W Wacker Dr, Suite 1400, Chicago, IL 60606. Tracking confirmed.
-                            </p>
-                          </div>
-
-                          <p>
-                            Regarding <strong>Net-30 invoicing</strong>: your corporate account is pre-approved based on annual volume. I have issued your Net-30 invoice and forwarded the direct billing portal link to your AP team.
-                          </p>
-
-                          {/* Source Citation */}
-                          <div className="pt-2 border-t border-neutral-100 flex items-center justify-between text-[11px] text-neutral-500">
-                            <span className="flex items-center gap-1 text-[var(--color-accent-700)] font-medium">
-                              <BookOpen className="size-3" />
-                              Cited: Corporate Procurement Policy (Sec. 4.2)
-                            </span>
-                            <span className="text-neutral-400">0.34s resolution</span>
-                          </div>
-                        </div>
-
-                        {/* Interactive Action Pills */}
-                        <div className="flex flex-wrap items-center gap-2 pt-1">
-                          <button type="button" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-xs font-medium text-neutral-700 transition cursor-pointer">
-                            <span>View Updated Invoice #INV-492</span>
-                            <ExternalLink className="size-3" />
-                          </button>
-                          <button type="button" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-xs font-medium text-neutral-700 transition cursor-pointer">
-                            <Headphones className="size-3 text-blue-600" />
-                            <span>Escalate to Human Agent</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Context & Telemetry Sidebar */}
-                  <div className="lg:col-span-5 rounded-2xl border border-black/8 bg-neutral-50/70 p-4 space-y-4 text-xs">
-                    <div>
-                      <div className="flex items-center justify-between text-neutral-500 mb-2">
-                        <span className="font-semibold uppercase tracking-wider text-[10px]">Real-Time Telemetry</span>
-                        <span className="text-emerald-600 font-medium flex items-center gap-1">
-                          <Activity className="size-3" /> Live Hook
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="p-2.5 rounded-xl bg-white border border-neutral-200/80">
-                          <span className="text-neutral-400 text-[10px] block">Intent Classified</span>
-                          <strong className="text-neutral-800 font-semibold text-xs">Order Mod + Net-30</strong>
-                        </div>
-                        <div className="p-2.5 rounded-xl bg-white border border-neutral-200/80">
-                          <span className="text-neutral-400 text-[10px] block">RAG Citations</span>
-                          <strong className="text-neutral-800 font-semibold text-xs">3 Policy Sources</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <span className="font-semibold uppercase tracking-wider text-[10px] text-neutral-500 block">Automated Tool Executions</span>
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-neutral-200/70 text-[11px]">
-                          <span className="font-mono text-neutral-700">shopify.update_order_address</span>
-                          <span className="text-emerald-600 font-bold">200 OK</span>
-                        </div>
-                        <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-neutral-200/70 text-[11px]">
-                          <span className="font-mono text-neutral-700">billing.issue_net30_invoice</span>
-                          <span className="text-emerald-600 font-bold">200 OK</span>
-                        </div>
-                        <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-neutral-200/70 text-[11px]">
-                          <span className="font-mono text-neutral-700">crm.log_customer_sentiment</span>
-                          <span className="text-emerald-600 font-bold">0.96 Pos</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-[11px] leading-relaxed">
-                      💡 <strong>Autonomous Deflection:</strong> Resolved without agent intervention. Saved ~14 minutes of tier-2 support time.
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 2: LiveKit Voice Agent (Real-Time WebRTC) */}
-              {heroActiveTab === "voice" && (
-                <div className="p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                  <div className="lg:col-span-7 space-y-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="px-2.5 py-1 rounded-md bg-blue-100 text-blue-800 font-semibold text-xs flex items-center gap-1.5">
-                        <span className="size-2 rounded-full bg-blue-600 animate-pulse" />
-                        WebRTC LiveKit Cloud
-                      </span>
-                      <span className="text-xs text-neutral-500">Chirp 3 STT · Gemini 3.1 TTS · 280ms Latency</span>
-                    </div>
-
-                    <div className="rounded-2xl p-5 bg-neutral-900 text-white shadow-md space-y-4">
-                      {/* Audio Visualizer Simulation */}
-                      <div className="flex items-center justify-center gap-1.5 h-16 py-2">
-                        {[40, 75, 100, 60, 30, 85, 95, 50, 80, 100, 70, 45, 90, 60, 35].map((h, i) => (
-                          <div
-                            key={i}
-                            className="w-1.5 rounded-full bg-emerald-400 animate-pulse"
-                            style={{ height: `${h}%`, animationDelay: `${i * 70}ms` }}
-                          />
-                        ))}
-                      </div>
-
-                      {/* Voice Transcript Simulation */}
-                      <div className="space-y-2 text-xs border-t border-neutral-800 pt-3 text-neutral-300">
-                        <p><strong className="text-white">Caller:</strong> &ldquo;Can you reschedule our product demo for Thursday at 2:00 PM EST and send the invite to Sarah?&rdquo;</p>
-                        <p className="text-emerald-300"><strong className="text-white">Chatty Voice:</strong> &ldquo;Done! I&apos;ve moved your team demo to Thursday at 2:00 PM EST and invited Sarah. Confirmation is in your inbox.&rdquo;</p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={openHeroVoiceAgent}
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold text-white transition hover:brightness-110 shadow-xs cursor-pointer"
-                        style={{ background: "var(--color-accent)" }}
-                      >
-                        <PhoneCall className="size-3.5" />
-                        <span>Launch Live Voice Agent Now</span>
-                      </button>
-                      <span className="text-xs text-neutral-500">Scale-to-zero compute · Zero idle fees</span>
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-5 rounded-2xl border border-black/8 bg-neutral-50/70 p-4 space-y-3 text-xs">
-                    <span className="font-semibold uppercase tracking-wider text-[10px] text-neutral-500 block">Voice Engine Capabilities</span>
-                    <ul className="space-y-2 text-neutral-700">
-                      <li className="flex items-start gap-2">
-                        <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span><strong>Barge-in / Interruptible:</strong> Users can cut in mid-sentence; the agent pauses instantly.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span><strong>95+ Languages:</strong> Automatic accent detection and multi-lingual voice switching.</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
-                        <span><strong>Google Cloud Run Scale-to-Zero:</strong> Runs on demand with sub-3s cold starts and heartbeats.</span>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 3: E-Commerce & Lead Capture */}
-              {heroActiveTab === "ecommerce" && (
-                <div className="p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  <div className="lg:col-span-7 space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="size-8 rounded-full bg-neutral-200 border border-neutral-300 flex items-center justify-center font-bold text-xs text-neutral-700 shrink-0">
-                        JD
-                      </div>
-                      <div className="rounded-2xl rounded-tl-xs px-4 py-3 bg-neutral-100 text-neutral-900 text-xs sm:text-sm max-w-[85%] border border-neutral-200/60 shadow-2xs">
-                        Looking for wireless noise-canceling headsets with at least 30-hour battery life under $150.
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="size-8 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                        <Bot className="size-4" />
-                      </div>
-                      <div className="space-y-3 max-w-[92%]">
-                        <p className="text-xs sm:text-sm text-neutral-800">
-                          Here are the top 2 in-stock models that match your criteria, verified from your WooCommerce catalog:
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          <div className="p-3 rounded-xl border border-neutral-200 bg-white shadow-2xs space-y-1.5">
-                            <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">In Stock · 36h Battery</span>
-                            <h4 className="text-xs font-bold text-neutral-900">AeroSound Pro Wireless</h4>
-                            <p className="text-xs text-neutral-500">$129.00 <span className="line-through text-[11px]">$169.00</span></p>
-                            <button type="button" className="w-full py-1.5 rounded-lg text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 transition cursor-pointer">
-                              Add to Cart
-                            </button>
-                          </div>
-                          <div className="p-3 rounded-xl border border-neutral-200 bg-white shadow-2xs space-y-1.5">
-                            <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">In Stock · 40h Battery</span>
-                            <h4 className="text-xs font-bold text-neutral-900">EchoShield ANC Headset</h4>
-                            <p className="text-xs text-neutral-500">$142.00</p>
-                            <button type="button" className="w-full py-1.5 rounded-lg text-xs font-semibold bg-neutral-900 text-white hover:bg-neutral-800 transition cursor-pointer">
-                              Add to Cart
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-5 rounded-2xl border border-black/8 bg-neutral-50/70 p-4 space-y-3 text-xs">
-                    <span className="font-semibold uppercase tracking-wider text-[10px] text-neutral-500 block">Lead Enrichment &amp; CRM Sync</span>
-                    <div className="p-3 rounded-xl bg-white border border-neutral-200/80 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-neutral-900">John Doe (VP of Operations)</span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">Lead Score 92</span>
-                      </div>
-                      <p className="text-neutral-500 text-[11px]">email: john@acme-corp.com · intent: Enterprise Equipment Order</p>
-                      <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5 text-emerald-700 text-[11px] font-medium">
-                        <CheckCircle2 className="size-3.5 text-emerald-600" />
-                        <span>Pushed to HubSpot &amp; Salesforce automatically</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 4: 81 MCP Tools & Workflows */}
-              {heroActiveTab === "workflows" && (
-                <div className="p-5 sm:p-7 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  <div className="lg:col-span-7 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-xs text-neutral-700">Enterprise Model Context Protocol (MCP) Execution</span>
-                      <span className="text-[11px] font-mono text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">RFC 7591 OAuth 2.0 PKCE</span>
-                    </div>
-
-                    <div className="rounded-xl border border-neutral-800 bg-neutral-950 p-4 font-mono text-xs text-neutral-300 space-y-2 shadow-inner">
-                      <p className="text-neutral-500">// 1. Autonomous tool dispatch</p>
-                      <p className="text-emerald-400">&gt; call_mcp_tool(&quot;sync_woocommerce_products&quot;, &#123; store_id: &quot;prod_991&quot; &#125;)</p>
-                      <p className="text-neutral-400">  status: &quot;248 catalog items synced in 420ms&quot;</p>
-                      <p className="text-emerald-400">&gt; call_mcp_tool(&quot;create_calendar_integration&quot;, &#123; slot: &quot;2026-10-30T14:00:00Z&quot; &#125;)</p>
-                      <p className="text-neutral-400">  status: &quot;Google Calendar event confirmed. Zoom link attached.&quot;</p>
-                    </div>
-
-                    <p className="text-xs text-neutral-600 leading-relaxed">
-                      Control bots, training crawls, help center articles, campaigns, inboxes, and meeting calendars from Codex, Claude, ChatGPT, Cursor, or your custom agents.
-                    </p>
-                  </div>
-
-                  <div className="lg:col-span-5 rounded-2xl border border-black/8 bg-neutral-50/70 p-4 space-y-2.5 text-xs">
-                    <span className="font-semibold uppercase tracking-wider text-[10px] text-neutral-500 block">Out-of-the-Box MCP Tools</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["sync_woocommerce", "crawl_website", "human_takeover", "export_leads", "configure_calendar", "discover_gaps", "purge_knowledge", "voice_agent_config", "webhook_dispatch"].map((tool) => (
-                        <span key={tool} className="px-2 py-1 rounded-md bg-white border border-neutral-200 text-neutral-700 font-mono text-[10px]">
-                          {tool}
-                        </span>
-                      ))}
-                    </div>
-                    <span className="text-[11px] text-neutral-500 block pt-1">+ 72 more production tools available instantly.</span>
-                  </div>
-                </div>
-              )}
-            </div>
+              );
+            })}
           </div>
 
-          {/* Enterprise Key Metrics Strip (Zendesk / Intercom Style) */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-12 max-w-[1040px] mx-auto text-left">
-            <div className="rounded-2xl p-4 sm:p-5 border border-black/8 bg-white/80 backdrop-blur-sm shadow-2xs">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 block" style={{ fontFamily: "var(--font-heading)" }}>
-                78%
-              </span>
-              <p className="text-xs sm:text-sm font-semibold text-neutral-800 mt-1">Autonomous Resolution</p>
-              <p className="text-[11px] sm:text-xs text-neutral-500 mt-0.5">Deflected with zero human touches</p>
-            </div>
-            <div className="rounded-2xl p-4 sm:p-5 border border-black/8 bg-white/80 backdrop-blur-sm shadow-2xs">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 block" style={{ fontFamily: "var(--font-heading)" }}>
-                &lt; 1.2s
-              </span>
-              <p className="text-xs sm:text-sm font-semibold text-neutral-800 mt-1">Average Response Latency</p>
-              <p className="text-[11px] sm:text-xs text-neutral-500 mt-0.5">Streaming tokens across all channels</p>
-            </div>
-            <div className="rounded-2xl p-4 sm:p-5 border border-black/8 bg-white/80 backdrop-blur-sm shadow-2xs">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 block" style={{ fontFamily: "var(--font-heading)" }}>
-                95+
-              </span>
-              <p className="text-xs sm:text-sm font-semibold text-neutral-800 mt-1">Supported Languages</p>
-              <p className="text-[11px] sm:text-xs text-neutral-500 mt-0.5">Real-time STT &amp; TTS voice &amp; text</p>
-            </div>
-            <div className="rounded-2xl p-4 sm:p-5 border border-black/8 bg-white/80 backdrop-blur-sm shadow-2xs">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-neutral-900 block" style={{ fontFamily: "var(--font-heading)" }}>
-                81
-              </span>
-              <p className="text-xs sm:text-sm font-semibold text-neutral-800 mt-1">Enterprise MCP Tools</p>
-              <p className="text-[11px] sm:text-xs text-neutral-500 mt-0.5">Ready for Codex, Claude &amp; Cursor</p>
-            </div>
+          <div className="flex flex-wrap gap-3.5 items-center justify-center mt-9">
+            <Link href="/signup" className="inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-[15px] font-medium" style={{ fontFamily: "var(--font-heading)", background: "var(--color-accent)", color: "var(--color-bg)" }}>
+              Start free 14-day trial
+              <ArrowRight className="size-[15px]" />
+            </Link>
+            <button type="button" onClick={openHeroVoiceAgent} className="inline-flex items-center gap-2 rounded-full border px-6 py-3.5 text-[15px] font-medium transition-colors hover:bg-black/5" style={{ fontFamily: "var(--font-heading)", borderColor: "var(--color-divider)" }}>
+              <AudioWaveform className="size-[17px]" />
+              Talk to Chatty
+            </button>
           </div>
+          <p className="mt-4 text-[13px]" style={{ color: "color-mix(in srgb, var(--color-text) 65%, transparent)" }}>14-day trial · No credit card required</p>
 
-          {/* Enterprise Security, Privacy & Compliance Bar */}
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-7 mt-10 pt-7 max-w-[900px] mx-auto border-t border-[var(--color-divider)]">
+          {/* Trust & GDPR Compliance Badges */}
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-7 mt-8 pt-6 max-w-[850px] mx-auto border-t" style={{ borderColor: "var(--color-divider)" }}>
             <Link
               href="/dpa"
-              className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-blue-50/90 hover:bg-blue-100 border border-blue-200/90 transition-all shadow-2xs group cursor-pointer"
+              className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-blue-50/80 hover:bg-blue-100 border border-blue-200/90 transition-all shadow-2xs group"
             >
               <Image
                 src="/logos/eu-gdpr-icon.svg"
-                alt="European Union GDPR Compliance"
-                width={26}
-                height={26}
-                className="size-6 object-contain shrink-0 group-hover:scale-105 transition-transform"
+                alt="Official European Union GDPR Compliance Emblem"
+                width={28}
+                height={28}
+                className="size-7 object-contain shrink-0 group-hover:scale-110 transition-transform drop-shadow-xs"
               />
               <span className="font-bold text-blue-950 text-xs tracking-tight">GDPR Compliant</span>
               <span className="text-[11px] text-blue-700 font-medium">(EU &amp; UK)</span>
             </Link>
 
-            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-neutral-400 opacity-60" />
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
 
-            <div className="inline-flex items-center gap-2 text-xs font-medium text-neutral-800">
+            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
               <span className="size-2 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
               <span>Zero AI Training Guarantee</span>
             </div>
 
-            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-neutral-400 opacity-60" />
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
 
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-800">
-              <Lock className="size-3.5 text-neutral-700" />
-              <span>AES-256 Bit Encrypted</span>
+            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3.5 text-zinc-700">
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>AES-256 Encrypted</span>
             </div>
 
-            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-neutral-400 opacity-60" />
+            <span className="hidden sm:inline-block w-1 h-1 rounded-full bg-zinc-400 opacity-60" />
 
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-800">
-              <ShieldCheck className="size-4 text-neutral-700" />
-              <span>SOC 2 Type II Aligned</span>
+            <div className="inline-flex items-center gap-2 text-xs font-medium" style={{ color: "color-mix(in srgb, var(--color-text) 85%, transparent)" }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="size-3.5 text-zinc-700">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              <span>SOC 2 Aligned</span>
             </div>
           </div>
         </section>
