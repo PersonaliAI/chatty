@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
   Phone,
@@ -13,24 +13,19 @@ import {
   Calendar,
   Sparkles,
   BookOpen,
-  ArrowRight,
-  ExternalLink,
   AudioWaveform,
   Smile,
   Paperclip,
-  Send,
   Star,
   Check,
-  Search,
   ArrowLeft,
   Lock,
   Keyboard,
-  ShieldCheck,
   Clock,
-  MapPin,
   Mic,
   CalendarCheck,
-  Zap,
+  Truck,
+  RotateCcw,
 } from "lucide-react";
 
 interface BusinessSituation {
@@ -55,13 +50,13 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
     id: "product",
     tabLabel: "E-Commerce",
     businessName: "Keychron Official Store",
-    businessCategory: "Electronics · Official Store",
+    businessCategory: "Consumer Electronics · Official Store",
     businessAvatarBg: "bg-[#1f2937]",
     businessIcon: "keyboard",
     badgeText: "Catalog & Buy",
     userMessage: "Looking for an ergonomic mechanical keyboard for Mac with Bluetooth under $100.",
     userTime: "10:14 AM",
-    botMessage: "Here is our top-rated Mac mechanical keyboard in stock: *Keychron K2 Pro Wireless* (Hot-swappable RGB, Bluetooth 5.1 & Type-C, 4000mAh battery).",
+    botMessage: "Here is our top-rated Mac mechanical keyboard in stock: Keychron K2 Pro Wireless (Hot-swappable RGB, Bluetooth 5.1 & Type-C, 4000mAh battery).",
     botTime: "10:14 AM",
     type: "product",
   },
@@ -69,7 +64,7 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
     id: "policy",
     tabLabel: "Policy & Returns",
     businessName: "Aura Apparel & Footwear",
-    businessCategory: "Fashion & Retail · Verified",
+    businessCategory: "Fashion & Retail · Verified Business",
     businessAvatarBg: "bg-[#c67139]",
     businessIcon: "apparel",
     badgeText: "Instant Policy",
@@ -83,7 +78,7 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
     id: "calendar",
     tabLabel: "Meeting Booking",
     businessName: "Lumina Health & Aesthetics",
-    businessCategory: "Medical & Wellness · Clinic",
+    businessCategory: "Medical & Wellness · Clinic Schedule",
     businessAvatarBg: "bg-[#0d9488]",
     businessIcon: "health",
     badgeText: "Calendar Sync",
@@ -97,7 +92,7 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
     id: "voice",
     tabLabel: "LiveKit Voice AI",
     businessName: "HyperDrive Global Logistics",
-    businessCategory: "Freight & Delivery · 24/7",
+    businessCategory: "Freight & Delivery · 24/7 Dispatch",
     businessAvatarBg: "bg-[#2563eb]",
     businessIcon: "logistics",
     badgeText: "Voice Note & LiveKit",
@@ -111,12 +106,15 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
   },
 ];
 
-const SLIDE_DURATION = 6500; // 6.5 seconds per situation
+const SLIDE_DURATION_MS = 7500; // 7.5 seconds per situation for calm, readable pacing
+const TICK_MS = 50;
+const STEP = 100 / (SLIDE_DURATION_MS / TICK_MS);
 
 export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [animStage, setAnimStage] = useState(0);
   const [cartAdded, setCartAdded] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string>("2:00 PM EST");
   const [voicePlaying, setVoicePlaying] = useState(false);
@@ -124,61 +122,67 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
 
   const current = BUSINESS_SITUATIONS[currentIndex];
 
-  // Rock-solid auto-slider using requestAnimationFrame delta timing
+  // 1. Smooth, decoupled progress timer
   useEffect(() => {
-    let animId: number;
-    let lastTime = performance.now();
+    if (isPaused) return;
 
-    const loop = (now: number) => {
-      const delta = now - lastTime;
-      lastTime = now;
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) return 100;
+        return Math.min(100, prev + STEP);
+      });
+    }, TICK_MS);
 
-      if (!isPaused) {
-        setElapsed((prev) => {
-          const next = prev + delta;
-          if (next >= SLIDE_DURATION) {
-            setCurrentIndex((curr) => (curr + 1) % BUSINESS_SITUATIONS.length);
-            setCartAdded(false);
-            setVoicePlaying(false);
-            setActiveQuickReply(null);
-            return 0;
-          }
-          return next;
-        });
-      }
+    return () => clearInterval(interval);
+  }, [isPaused, currentIndex]);
 
-      animId = requestAnimationFrame(loop);
+  // 2. Deterministic slide advance when progress hits 100%
+  useEffect(() => {
+    if (progress >= 100) {
+      const timeout = setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % BUSINESS_SITUATIONS.length);
+        setProgress(0);
+      }, 80);
+      return () => clearTimeout(timeout);
+    }
+  }, [progress]);
+
+  // 3. Staged animation timeline per slide
+  useEffect(() => {
+    setAnimStage(0);
+    setCartAdded(false);
+    setVoicePlaying(false);
+    setActiveQuickReply(null);
+
+    const t1 = setTimeout(() => setAnimStage(1), 700);  // 0.7s: typing indicator starts
+    const t2 = setTimeout(() => setAnimStage(2), 2000); // 2.0s: bot response pops in
+    const t3 = setTimeout(() => setAnimStage(3), 2800); // 2.8s: rich interactive card slides in
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
     };
-
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, [isPaused]);
-
-  // Derived animation stage from elapsed time (zero timer conflicts, zero race conditions)
-  // Stage 0 (0-600ms): User message pops in, status "online"
-  // Stage 1 (600-1700ms): Header shows "typing...", 3 bouncing green dots appear
-  // Stage 2 (1700-2400ms): Bot response bubble appears, double blue checks activate
-  // Stage 3 (2400ms+): WhatsApp rich interactive card (product/policy/calendar/voice) slides in
-  const animStage = elapsed < 600 ? 0 : elapsed < 1700 ? 1 : elapsed < 2400 ? 2 : 3;
+  }, [currentIndex]);
 
   const selectSituation = (idx: number) => {
     setCurrentIndex(idx);
-    setElapsed(0);
+    setProgress(0);
     setCartAdded(false);
     setVoicePlaying(false);
     setActiveQuickReply(null);
   };
 
-  const renderBusinessAvatarIcon = (type: BusinessSituation["businessIcon"]) => {
-    switch (type) {
+  const renderBusinessIcon = (icon: BusinessSituation["businessIcon"], className: string) => {
+    switch (icon) {
       case "keyboard":
-        return <Keyboard className="size-5 text-white" />;
+        return <Keyboard className={className} />;
       case "apparel":
-        return <ShoppingBag className="size-5 text-white" />;
+        return <ShoppingBag className={className} />;
       case "health":
-        return <Sparkles className="size-5 text-white" />;
+        return <Sparkles className={className} />;
       case "logistics":
-        return <Zap className="size-5 text-white" />;
+        return <Truck className={className} />;
     }
   };
 
@@ -186,26 +190,25 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
     <div className="relative max-w-[700px] mx-auto rounded-[28px] overflow-hidden border border-black/12 bg-[#efeae2] shadow-[0_25px_70px_-15px_rgba(46,43,37,0.22)] text-left select-none transition-all">
       {/* 1. WhatsApp Story Segmented Auto-Slider Header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2 bg-[#005c4b] text-white">
-        <div className="flex items-center gap-1.5 flex-1 mr-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-1 mr-3">
           {BUSINESS_SITUATIONS.map((sit, i) => {
-            let widthPct = "0%";
-            if (i < currentIndex) {
-              widthPct = "100%";
-            } else if (i === currentIndex) {
-              widthPct = `${Math.min(100, (elapsed / SLIDE_DURATION) * 100)}%`;
-            }
+            let fillPct = 0;
+            if (i < currentIndex) fillPct = 100;
+            else if (i === currentIndex) fillPct = progress;
+            else fillPct = 0;
+
             return (
               <button
                 key={sit.id}
                 type="button"
                 onClick={() => selectSituation(i)}
-                className="flex-1 h-1.5 rounded-full overflow-hidden bg-white/25 transition-all hover:h-2 cursor-pointer relative"
+                className="flex-1 h-2 rounded-full overflow-hidden bg-white/20 transition-all hover:h-2.5 cursor-pointer relative"
                 aria-label={`Jump to ${sit.businessName}`}
                 title={sit.tabLabel}
               >
                 <div
-                  className="h-full bg-white transition-all duration-75 rounded-full shadow-2xs"
-                  style={{ width: widthPct }}
+                  className="h-full bg-white rounded-full transition-all duration-75"
+                  style={{ width: `${fillPct}%` }}
                 />
               </button>
             );
@@ -214,10 +217,20 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
         <button
           type="button"
           onClick={() => setIsPaused(!isPaused)}
-          className="text-[11px] font-semibold text-emerald-100 hover:text-white px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 transition cursor-pointer shrink-0"
+          className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-100 hover:text-white px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 transition cursor-pointer shrink-0"
           title={isPaused ? "Resume auto slide" : "Pause auto slide"}
         >
-          {isPaused ? "▶ Resume" : "⏸ Pause"}
+          {isPaused ? (
+            <>
+              <Play className="size-3 fill-white text-white" />
+              <span>Resume</span>
+            </>
+          ) : (
+            <>
+              <Pause className="size-3 fill-white text-white" />
+              <span>Pause</span>
+            </>
+          )}
         </button>
       </div>
 
@@ -228,18 +241,18 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
             <ArrowLeft className="size-4.5 sm:size-5 text-white" />
           </button>
 
-          {/* Business Avatar with Verified Badge */}
+          {/* Business Avatar with Verified Check Badge */}
           <div className="relative shrink-0">
             <div
               className={`size-10 rounded-full ${current.businessAvatarBg} border border-white/25 flex items-center justify-center font-bold text-white shadow-xs`}
             >
-              {renderBusinessAvatarIcon(current.businessIcon)}
+              {renderBusinessIcon(current.businessIcon, "size-5 text-white")}
             </div>
             <span
-              className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full bg-[#25d366] text-white flex items-center justify-center border-2 border-[#008069] text-[9px] font-bold shadow-2xs"
+              className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full bg-[#25d366] text-white flex items-center justify-center border-2 border-[#008069] shadow-2xs"
               title="WhatsApp Verified Official Business"
             >
-              ✓
+              <Check className="size-2.5 text-white stroke-[3]" />
             </span>
           </div>
 
@@ -308,8 +321,9 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
 
         {/* Date Separator Pill */}
         <div className="flex justify-center mb-1">
-          <span className="px-3 py-0.5 rounded-md bg-white/80 backdrop-blur-xs text-[10.5px] font-semibold text-[#54656f] shadow-2xs uppercase tracking-wider">
-            Today · {current.badgeText}
+          <span className="inline-flex items-center gap-1 px-3 py-0.5 rounded-md bg-white/80 backdrop-blur-xs text-[10.5px] font-semibold text-[#54656f] shadow-2xs uppercase tracking-wider">
+            <Clock className="size-3 text-[#54656f]" />
+            <span>Today · {current.badgeText}</span>
           </span>
         </div>
 
@@ -328,7 +342,11 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
                   className="size-8.5 rounded-full bg-[#008069] text-white flex items-center justify-center shrink-0 shadow-xs hover:scale-105 transition cursor-pointer"
                   aria-label="Play voice note"
                 >
-                  {voicePlaying ? <Pause className="size-4" /> : <Play className="size-4 ml-0.5" />}
+                  {voicePlaying ? (
+                    <Pause className="size-4 fill-white text-white" />
+                  ) : (
+                    <Play className="size-4 fill-white text-white ml-0.5" />
+                  )}
                 </button>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center gap-1 h-5">
@@ -342,9 +360,12 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
                       />
                     ))}
                   </div>
-                  <div className="flex justify-between text-[10px] text-emerald-900/70 font-medium">
+                  <div className="flex justify-between items-center text-[10px] text-emerald-900/70 font-medium">
                     <span>{current.userVoiceDuration}</span>
-                    <span>Voice Memo · LiveKit</span>
+                    <span className="flex items-center gap-1">
+                      <AudioWaveform className="size-2.5" />
+                      <span>Voice Memo</span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -391,8 +412,9 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
                         />
                       </div>
                       <div className="flex-1 min-w-0 space-y-1">
-                        <span className="text-[9.5px] uppercase font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300/60">
-                          In Stock · Mac &amp; Windows
+                        <span className="inline-flex items-center gap-1 text-[9.5px] uppercase font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300/60">
+                          <span className="size-1.5 rounded-full bg-emerald-600" />
+                          <span>In Stock · Mac &amp; Windows</span>
                         </span>
                         <h5 className="text-xs font-bold text-neutral-900 truncate">Keychron K2 Pro Wireless RGB</h5>
                         <div className="flex items-center gap-1 text-[11px] text-amber-500 font-medium">
@@ -408,7 +430,7 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
                           >
                             {cartAdded ? (
                               <>
-                                <Check className="size-3" />
+                                <Check className="size-3 stroke-[2.5]" />
                                 <span>Added!</span>
                               </>
                             ) : (
@@ -433,21 +455,29 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
                     </div>
                     {/* WhatsApp Quick Reply Action Pills */}
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
-                      {["Request Return Label", "Track Package", "Human Agent"].map((btnText) => (
-                        <button
-                          key={btnText}
-                          type="button"
-                          onClick={() => setActiveQuickReply(btnText)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1 ${
-                            activeQuickReply === btnText
-                              ? "bg-[#008069] text-white border-[#008069]"
-                              : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
-                          }`}
-                        >
-                          {activeQuickReply === btnText && <Check className="size-3" />}
-                          <span>{btnText}</span>
-                        </button>
-                      ))}
+                      {[
+                        { label: "Request Return Label", icon: RotateCcw },
+                        { label: "Track Package", icon: Truck },
+                        { label: "Human Agent", icon: Phone },
+                      ].map((item) => {
+                        const Icon = item.icon;
+                        const isSelected = activeQuickReply === item.label;
+                        return (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => setActiveQuickReply(item.label)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer flex items-center gap-1.5 ${
+                              isSelected
+                                ? "bg-[#008069] text-white border-[#008069]"
+                                : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                            }`}
+                          >
+                            {isSelected ? <Check className="size-3 stroke-[2.5]" /> : <Icon className="size-3" />}
+                            <span>{item.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -463,20 +493,20 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
                             key={slot}
                             type="button"
                             onClick={() => setSelectedSlot(slot)}
-                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
                               isSelected
                                 ? "bg-[#008069] text-white shadow-2xs"
                                 : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
                             }`}
                           >
-                            {isSelected && <Check className="size-3" />}
+                            {isSelected ? <Check className="size-3 stroke-[2.5]" /> : <Clock className="size-3" />}
                             <span>{slot}</span>
                           </button>
                         );
                       })}
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-teal-800 bg-teal-50 p-2 rounded-lg border border-teal-200/60 font-medium">
-                      <Calendar className="size-3.5 text-teal-700 shrink-0" />
+                      <CalendarCheck className="size-3.5 text-teal-700 shrink-0" />
                       <span>Google Meet &amp; Calendar invite confirmed for {selectedSlot}.</span>
                     </div>
                   </div>
@@ -538,8 +568,8 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
         </button>
       </div>
 
-      {/* 5. Various Businesses Switcher Pills with Brand Icons */}
-      <div className="flex items-center justify-center gap-1.5 p-2 bg-[#e9edef] border-t border-black/8 overflow-x-auto scrollbar-none">
+      {/* 5. 4-Item Grid: Guaranteed 100% Visibility of All Slider Items with Lucide Icons */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 sm:p-3 bg-[#e9edef] border-t border-black/8">
         {BUSINESS_SITUATIONS.map((sit, i) => {
           const isActive = i === currentIndex;
           return (
@@ -547,19 +577,20 @@ export function AnimatedHeroChat({ onOpenVoice }: { onOpenVoice?: () => void }) 
               key={sit.id}
               type="button"
               onClick={() => selectSituation(i)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-2 border ${
                 isActive
-                  ? "bg-[#008069] text-white shadow-2xs scale-102"
-                  : "bg-white text-neutral-700 hover:text-neutral-900 border border-black/5"
+                  ? "bg-[#008069] text-white border-[#008069] shadow-sm"
+                  : "bg-white text-neutral-700 hover:text-neutral-900 border-black/8 hover:bg-neutral-50"
               }`}
             >
-              <span className="size-4 rounded-full flex items-center justify-center text-[10px]">
-                {sit.businessIcon === "keyboard" && "⌨️"}
-                {sit.businessIcon === "apparel" && "🛍️"}
-                {sit.businessIcon === "health" && "✨"}
-                {sit.businessIcon === "logistics" && "⚡"}
+              <span
+                className={`size-6 rounded-lg flex items-center justify-center shrink-0 ${
+                  isActive ? "bg-white/20 text-white" : `${sit.businessAvatarBg} text-white`
+                }`}
+              >
+                {renderBusinessIcon(sit.businessIcon, "size-3.5 text-white")}
               </span>
-              <span>{sit.tabLabel}</span>
+              <span className="truncate">{sit.tabLabel}</span>
             </button>
           );
         })}
