@@ -24,6 +24,7 @@ import { captureAffiliateReferral } from "@/lib/affiliate-referral";
 import { BACKEND_URL, backendUrl } from "@/lib/backend-client";
 import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 import { McpHub } from "@/components/mcp/McpHub";
+import { AnimatedHeroChat } from "@/components/landing/AnimatedHeroChat";
 
 
 // Color tokens - a single warm, organic palette (this design has no dark
@@ -343,23 +344,43 @@ export default function Home() {
 
   useEffect(() => {
     if (!heroVoiceOpen) return;
+    try {
+      (window as unknown as { Chatty?: { close?: () => void } }).Chatty?.close?.();
+      const host = document.getElementById("chatty-widget-host");
+      if (host) host.style.setProperty("display", "none", "important");
+    } catch {}
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setHeroVoiceOpen(false);
+      if (event.key === "Escape") closeHeroVoiceAgent();
     };
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", closeOnEscape);
+      const host = document.getElementById("chatty-widget-host");
+      if (host) host.style.removeProperty("display");
     };
   }, [heroVoiceOpen]);
 
   const activeMcpInstall = mcpInstallTabs.find((tab) => tab.id === activeMcpInstallTab) ?? mcpInstallTabs[0];
 
   const openHeroVoiceAgent = () => {
+    try {
+      (window as unknown as { Chatty?: { close?: () => void } }).Chatty?.close?.();
+      const host = document.getElementById("chatty-widget-host");
+      if (host) host.style.setProperty("display", "none", "important");
+    } catch {}
     setHeroVoiceSessionId(`landing-voice-${Date.now()}`);
     setHeroVoiceOpen(true);
+  };
+
+  const closeHeroVoiceAgent = () => {
+    setHeroVoiceOpen(false);
+    try {
+      const host = document.getElementById("chatty-widget-host");
+      if (host) host.style.removeProperty("display");
+    } catch {}
   };
 
   // widget.js cleanup on unmount
@@ -571,77 +592,9 @@ export default function Home() {
             </div>
           </form>
 
-          {/* Single Serene Floating Chat & Voice Card */}
+          {/* WhatsApp Animated Interactive Motion Hero Showcase */}
           <div className="mt-12 max-w-[700px] mx-auto text-left">
-            <div className="rounded-3xl p-6 sm:p-7 border border-black/8 bg-white/85 backdrop-blur-md shadow-[0_20px_50px_-15px_rgba(46,43,37,0.12)] space-y-4">
-              {/* Card Header */}
-              <div className="flex items-center justify-between pb-3.5 border-b border-black/5">
-                <div className="flex items-center gap-2.5">
-                  <div className="size-7 rounded-full bg-[var(--color-accent-100)] text-[var(--color-accent-700)] flex items-center justify-center font-bold text-xs">
-                    ✦
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-semibold text-neutral-900 leading-tight">Chatty Assistant</h3>
-                    <p className="text-[11px] text-neutral-500">Online · Trained on store policies</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={openHeroVoiceAgent}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 hover:bg-neutral-200 border border-black/5 text-xs font-medium text-neutral-700 transition cursor-pointer"
-                >
-                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <AudioWaveform className="size-3 text-[var(--color-accent-700)]" />
-                  <span>Live Voice Ready</span>
-                </button>
-              </div>
-
-              {/* Serene 2-turn dialogue */}
-              <div className="space-y-3 pt-1">
-                {/* Visitor Message */}
-                <div className="flex items-start gap-2.5">
-                  <div className="size-6 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                    U
-                  </div>
-                  <div className="rounded-2xl rounded-tl-xs px-3.5 py-2.5 bg-neutral-100/80 text-neutral-900 text-xs sm:text-sm leading-relaxed border border-neutral-200/50">
-                    Do you ship internationally, and can I return an item if the package was opened?
-                  </div>
-                </div>
-
-                {/* AI Agent Message */}
-                <div className="flex items-start gap-2.5">
-                  <div className="size-6 rounded-full bg-[var(--color-accent)] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                    ✦
-                  </div>
-                  <div className="space-y-2 max-w-[90%]">
-                    <div className="rounded-2xl rounded-tl-xs p-3.5 bg-white border border-neutral-200/80 text-xs sm:text-sm text-neutral-800 leading-relaxed shadow-2xs space-y-2">
-                      <p>
-                        Yes! We deliver to over 50 countries with 2-day express. Under our 30-day guarantee, opened items are fully eligible for free replacement or a refund.
-                      </p>
-                      <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5 text-[11px] text-[var(--color-accent-700)] font-medium">
-                        <BookOpen className="size-3" />
-                        <span>Verified from Shipping &amp; Return Policies (Section 3.2)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Minimal Voice Bar at bottom of card */}
-              <div className="pt-3 border-t border-black/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs text-neutral-500">
-                <span className="flex items-center gap-2">
-                  <AudioWaveform className="size-3.5 text-[var(--color-accent)]" />
-                  <span>Natural speech in 95+ languages with sub-second WebRTC audio.</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={openHeroVoiceAgent}
-                  className="font-medium text-[var(--color-accent-700)] hover:underline shrink-0 cursor-pointer"
-                >
-                  Try live voice call →
-                </button>
-              </div>
-            </div>
+            <AnimatedHeroChat onOpenVoice={openHeroVoiceAgent} />
           </div>
 
           {/* Understated Minimalist Trust & Founding 50 Proof Bar */}
@@ -1073,7 +1026,7 @@ export default function Home() {
       </footer>
 
       {/* Keep the landing CTA as a centered in-page popup. The floating chat
-          widget has its own compact voice surface and does not reuse this shell. */}
+          widget is cleanly hidden while this modal is active. */}
       {heroVoiceOpen && heroVoiceSessionId && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
@@ -1084,7 +1037,7 @@ export default function Home() {
           <button
             type="button"
             className="absolute inset-0 cursor-default bg-neutral-950/35 backdrop-blur-sm"
-            onClick={() => setHeroVoiceOpen(false)}
+            onClick={closeHeroVoiceAgent}
             aria-label="Close voice agent"
           />
           <div className="relative z-10 h-[min(820px,calc(100dvh-1.5rem))] max-h-[calc(100dvh-1.5rem)] w-full max-w-[560px] overflow-hidden rounded-[28px] bg-white shadow-[0_28px_90px_-28px_rgba(0,0,0,.55)] animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300">
@@ -1092,7 +1045,7 @@ export default function Home() {
               botId="ad32f373-7694-43f4-9465-f8d65ce291e3"
               sessionId={heroVoiceSessionId}
               backendUrl={BACKEND_URL}
-              onClose={() => setHeroVoiceOpen(false)}
+              onClose={closeHeroVoiceAgent}
               className="h-full"
             />
           </div>
