@@ -21,7 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { captureAffiliateReferral } from "@/lib/affiliate-referral";
-import { BACKEND_URL } from "@/lib/backend-client";
+import { BACKEND_URL, backendUrl } from "@/lib/backend-client";
 import { VoiceAgentPanel } from "@/components/voice/VoiceAgentPanel";
 import { McpHub } from "@/components/mcp/McpHub";
 
@@ -300,7 +300,7 @@ export default function Home() {
     setSandboxError(null);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/claim/instant-sandbox`, {
+      const res = await fetch(backendUrl("/api/claim/instant-sandbox"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: raw }),

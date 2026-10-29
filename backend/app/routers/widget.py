@@ -584,15 +584,26 @@ async def widget_chat(
     ip = _client_ip(request)
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
 
-    # 2. Fetch owner
-    owner_id = bot["user_id"]
-    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
-    owner_user = res_user.data[0] if res_user.data else None
-    if not owner_user:
-        raise HTTPException(status_code=404, detail="Bot owner not found")
-
-    # 2a. Guard: If trial expired or subscription inactive/past-due, show assistant as offline
-    sub_info = await check_bot_owner_subscription(owner_user, owner_id)
+    # 2. Fetch owner & handle unclaimed sandbox demos
+    owner_id = bot.get("user_id")
+    is_unclaimed_demo = bool(bot.get("claim_status") == "unclaimed" or not owner_id)
+    if is_unclaimed_demo:
+        owner_id = owner_id or "demo_sandbox"
+        owner_user = {
+            "id": owner_id,
+            "auth_user_id": owner_id,
+            "email": "demo@personaliai.com",
+            "plan": "demo",
+            "role": "demo",
+        }
+        sub_info = {"is_active": True, "status": "demo_active", "reason": None, "offline_message": ""}
+    else:
+        res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
+        owner_user = res_user.data[0] if res_user.data else None
+        if not owner_user:
+            raise HTTPException(status_code=404, detail="Bot owner not found")
+        # 2a. Guard: If trial expired or subscription inactive/past-due, show assistant as offline
+        sub_info = await check_bot_owner_subscription(owner_user, owner_id)
     if not sub_info["is_active"]:
         try:
             await run_db(lambda: supabase.table("chatty_conversations").insert({
@@ -629,7 +640,7 @@ async def widget_chat(
 
     # 2b. Session tracking + new-conversation email
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
-    if is_new:
+    if is_new and not is_unclaimed_demo:
         await _notify_new_conversation(bot, owner_user, text, session_id)
         await _schedule_widget_webhook(
             background_tasks, bot_id=bot_id, event="session.started",
@@ -824,7 +835,7 @@ async def widget_chat(
     # 3b. Quota gate - never spend model tokens once the owner is out of quota.
     # The visitor row is already recorded with its weighted units above, so
     # this check must evaluate the stored total rather than add the turn twice.
-    if await chatty_quota_exceeded(owner_user, owner_id, recorded_units=usage_units):
+    if not is_unclaimed_demo and await chatty_quota_exceeded(owner_user, owner_id, recorded_units=usage_units):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({
                 "needs_attention": True,
@@ -934,14 +945,25 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
     ip = _client_ip(request)
     await _widget_rate_limit_or_429(bot, bot_id, ip, request.headers.get("x-widget-token"))
 
-    owner_id = bot["user_id"]
-    res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
-    owner_user = res_user.data[0] if res_user.data else None
-    if not owner_user:
-        raise HTTPException(status_code=404, detail="Bot owner not found")
-
-    # Guard: If trial expired or subscription inactive/past-due, stream offline message
-    sub_info = await check_bot_owner_subscription(owner_user, owner_id)
+    owner_id = bot.get("user_id")
+    is_unclaimed_demo = bool(bot.get("claim_status") == "unclaimed" or not owner_id)
+    if is_unclaimed_demo:
+        owner_id = owner_id or "demo_sandbox"
+        owner_user = {
+            "id": owner_id,
+            "auth_user_id": owner_id,
+            "email": "demo@personaliai.com",
+            "plan": "demo",
+            "role": "demo",
+        }
+        sub_info = {"is_active": True, "status": "demo_active", "reason": None, "offline_message": ""}
+    else:
+        res_user = await run_db(lambda: supabase.table("users").select("*").eq("auth_user_id", owner_id).execute())
+        owner_user = res_user.data[0] if res_user.data else None
+        if not owner_user:
+            raise HTTPException(status_code=404, detail="Bot owner not found")
+        # Guard: If trial expired or subscription inactive/past-due, stream offline message
+        sub_info = await check_bot_owner_subscription(owner_user, owner_id)
     if not sub_info["is_active"]:
         try:
             await run_db(lambda: supabase.table("chatty_conversations").insert({
@@ -981,7 +1003,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
         return StreamingResponse(_offline_stream(), media_type="text/event-stream")
 
     session_row, is_new = await _upsert_session(bot_id, session_id, text, visitor_name=visitor_name, visitor_email=visitor_email)
-    if is_new:
+    if is_new and not is_unclaimed_demo:
         await _notify_new_conversation(bot, owner_user, text, session_id)
         await _schedule_widget_webhook(
             background_tasks, bot_id=bot_id, event="session.started",
@@ -1196,7 +1218,7 @@ async def widget_chat_stream(body: WidgetChatRequest, request: Request, backgrou
 
     # Quota gate - save the graceful reply and stream it as a single message.
     # The visitor row is already recorded with its weighted units above.
-    if await chatty_quota_exceeded(owner_user, owner_id, recorded_units=usage_units):
+    if not is_unclaimed_demo and await chatty_quota_exceeded(owner_user, owner_id, recorded_units=usage_units):
         try:
             await run_db(lambda: supabase.table("chatty_sessions").update({
                 "needs_attention": True,

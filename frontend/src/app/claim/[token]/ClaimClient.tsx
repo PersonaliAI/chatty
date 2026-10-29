@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
-import { BACKEND_URL, fetchBackend } from "@/lib/backend-client";
+import { BACKEND_URL, backendUrl, fetchBackend } from "@/lib/backend-client";
 import { GoogleIcon } from "@/components/auth/auth-shell";
 
 interface ClaimBotDetails {
@@ -75,7 +75,7 @@ export default function ClaimClient({ token }: { token: string }) {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`${BACKEND_URL}/api/claim/${encodeURIComponent(token)}`, {
+        const res = await fetch(backendUrl(`/api/claim/${encodeURIComponent(token)}`), {
           cache: "no-store",
         });
 
@@ -237,7 +237,7 @@ export default function ClaimClient({ token }: { token: string }) {
   const handleDeleteDemo = async () => {
     setIsDeleting(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/claim/${encodeURIComponent(token)}`, {
+      const res = await fetch(backendUrl(`/api/claim/${encodeURIComponent(token)}`), {
         method: "DELETE",
       });
       if (!res.ok) {
