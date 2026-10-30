@@ -630,6 +630,7 @@ from app.routers import voice as _router_voice  # noqa: E402
 from app.routers import claim as _router_claim  # noqa: E402
 from app.routers import storage as _router_storage  # noqa: E402
 from app.routers import event_types as _router_event_types  # noqa: E402
+from app.routers import payment_integrations as _router_payment_integrations  # noqa: E402
 
 from app.routers import contact_identity as _router_contact_identity
 from app.services.contact_identity import guard_widget_session
@@ -658,6 +659,7 @@ app.include_router(_router_cron.router)
 app.include_router(_router_public_api.router)
 app.include_router(_router_oauth.router)
 app.include_router(_router_event_types.router)
+app.include_router(_router_payment_integrations.router)
 # Full ASGI sub-app (not a FastAPI router - the MCP SDK builds its own
 # Starlette app with its own auth middleware), mounted at root so its
 # internal route (streamable_http_path, "/mcp") becomes the final path.

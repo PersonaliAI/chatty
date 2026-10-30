@@ -4,6 +4,14 @@ export interface EmailCapturedData {
   marketing_consent?: boolean;
 }
 
+export interface CheckoutLinkData {
+  provider: "stripe" | "lemonsqueezy" | "polar" | string;
+  title: string;
+  amount_cents: number;
+  currency: string;
+  url: string;
+}
+
 export interface BookingConfirmedData {
   id?: string;
   formatted_time: string;
@@ -42,6 +50,7 @@ export interface RichContentResult<
   isLiveHandoffAck?: boolean;
   emailCaptured?: EmailCapturedData | null;
   bookingConfirmed?: BookingConfirmedData | null;
+  checkoutLinks?: CheckoutLinkData[];
 }
 
 /** Extract nested JSON marker payloads without a non-nesting regex. */
@@ -132,9 +141,10 @@ export function parseRichContent<
   const orderResult = extractMarker<TOrder>(videoResult.text, "[ORDER_CARD:");
   const emailResult = extractMarker<EmailCapturedData>(orderResult.text, "[EMAIL_CAPTURED:");
   const bookingResult = extractMarker<BookingConfirmedData>(emailResult.text, "[BOOKING_CONFIRMED:");
+  const checkoutResult = extractMarker<CheckoutLinkData>(bookingResult.text, "[CHECKOUT_LINK:");
 
-  const cleaned = bookingResult.text
-    .replace(/\[BOOKING_WIDGET\]/g, "")
+  const cleaned = checkoutResult.text
+    .replace(/\[BOOKING_WIDGET(?::[a-zA-Z0-9_-]+)?\]/g, "")
     .replace(/\[HANDOFF_ACTIONS\]/g, "")
     .replace(/\[LIVE_AGENT_REQUESTED\]/g, "")
     .trim();
@@ -151,6 +161,7 @@ export function parseRichContent<
     isLiveHandoffAck,
     emailCaptured: emailResult.items[0] || null,
     bookingConfirmed,
+    checkoutLinks: checkoutResult.items,
   };
 }
 

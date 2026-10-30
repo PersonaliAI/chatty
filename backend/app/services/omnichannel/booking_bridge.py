@@ -21,11 +21,24 @@ from app.core.crypto import decrypt_secret
 logger = logging.getLogger("chatty.omnichannel.booking")
 
 BOOKING_MARKER = "[BOOKING_WIDGET]"
+BOOKING_WIDGET_REGEX = re.compile(r"\[BOOKING_WIDGET(?::([a-zA-Z0-9_-]+))?\]", re.IGNORECASE)
 BOOKING_INTENT_PATTERN = re.compile(
     r"\b(book|booking|schedule|appointment|demo|reserve|slot|slots|calendar|call)\b",
     re.IGNORECASE,
 )
+RESCHEDULE_INTENT_PATTERN = re.compile(
+    r"\b(reschedule|change time|move meeting|postpone|different time|another slot)\b",
+    re.IGNORECASE,
+)
 MEETING_LINK_HOSTS = ("meet.google.com", "teams.microsoft.com", "zoom.us", "join.zoom.us")
+
+
+def extract_booking_event_slug(text: str) -> Optional[str]:
+    """Extract event type slug from [BOOKING_WIDGET:slug] if present."""
+    match = BOOKING_WIDGET_REGEX.search(text)
+    if match and match.group(1):
+        return match.group(1).strip()
+    return None
 
 
 def is_booking_intent(
@@ -36,7 +49,7 @@ def is_booking_intent(
     """Determine whether an inbound or outbound message represents booking intent."""
     if not calendar_enabled:
         return False
-    if BOOKING_MARKER in reply:
+    if BOOKING_WIDGET_REGEX.search(reply):
         return True
     has_booking_link = bool(re.search(r"https?://[^\s)]+/book/[^\s)]+", reply, re.IGNORECASE))
     if has_booking_link:

@@ -18,6 +18,8 @@ from app.services.booking import (
     AvailabilityService,
     ReservationService,
     BookingGDPRService,
+    BookingPaymentService,
+    BookingFlowTriggerService,
     EventTypeCreate,
     EventTypeUpdate,
     BookingConfirmRequest,
@@ -35,6 +37,8 @@ event_service = EventTypesService(supabase, run_db)
 availability_service = AvailabilityService(supabase, run_db)
 reservation_service = ReservationService(supabase, run_db)
 gdpr_service = BookingGDPRService(supabase, run_db)
+payment_service = BookingPaymentService(supabase, run_db)
+flow_service = BookingFlowTriggerService(supabase)
 
 
 async def _get_bot_or_404(bot_id: str) -> dict[str, Any]:
@@ -176,6 +180,10 @@ async def confirm_booking_endpoint(bot_id: str, body: BookingConfirmRequest):
             event_type = await event_service.get_by_slug(bot_id, body.event_type_id)
 
     meeting = await reservation_service.confirm_booking(body, bot, event_type=event_type)
+    try:
+        await flow_service.emit_meeting_booked(bot_id, meeting, session_id=body.session_id)
+    except Exception:
+        pass
     return {"status": "success", "meeting": meeting}
 
 
@@ -184,6 +192,10 @@ async def reschedule_booking_endpoint(bot_id: str, body: BookingRescheduleReques
     """Reschedule an existing appointment."""
     await _get_bot_or_404(bot_id)
     rescheduled = await reservation_service.reschedule_booking(body, bot_id=bot_id)
+    try:
+        await flow_service.emit_meeting_rescheduled(bot_id, rescheduled)
+    except Exception:
+        pass
     return {"status": "success", "meeting": rescheduled}
 
 
@@ -192,6 +204,10 @@ async def cancel_booking_endpoint(bot_id: str, body: BookingCancelRequest):
     """Cancel an appointment with cancellation reason."""
     await _get_bot_or_404(bot_id)
     cancelled = await reservation_service.cancel_booking(body, bot_id=bot_id)
+    try:
+        await flow_service.emit_meeting_cancelled(bot_id, cancelled)
+    except Exception:
+        pass
     return {"status": "success", "meeting": cancelled}
 
 
@@ -219,3 +235,36 @@ async def gdpr_scrub_endpoint(
     await verify_bot_permission(user, bot_id, required_tab="meetings")
     result = await gdpr_service.scrub_visitor_pii(email=body.email, bot_id=bot_id, reason=body.reason or "GDPR Request")
     return result
+
+# --- 5. PAID BOOKINGS CHECKOUT ---
+
+@router.post("/api/bots/{bot_id}/booking/checkout")
+async def create_booking_checkout_endpoint(
+    bot_id: str,
+    meeting_id: str = Query(...),
+    event_type_id: str = Query(...),
+    success_url: Optional[str] = Query(None),
+    cancel_url: Optional[str] = Query(None),
+):
+    """Create a Stripe checkout session for a paid booking slot."""
+    bot = await _get_bot_or_404(bot_id)
+    et = await event_service.get_event_type(event_type_id, bot_id=bot_id)
+    if not et:
+        et = await event_service.get_by_slug(bot_id, event_type_id)
+    if not et:
+        raise HTTPException(status_code=404, detail="Event type not found")
+
+    meet_res = await run_db(lambda: supabase.table("chatty_meetings").select("*").eq("id", meeting_id).execute())
+    if not meet_res.data:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    meeting = meet_res.data[0]
+
+    session = await payment_service.create_checkout_session(
+        bot_id=bot_id,
+        meeting_id=meeting_id,
+        event_type=et,
+        attendee_email=meeting["attendee_email"],
+        success_url=success_url or "https://app.chatty.com/booking/confirmed",
+        cancel_url=cancel_url or "https://app.chatty.com/booking/cancelled",
+    )
+    return session

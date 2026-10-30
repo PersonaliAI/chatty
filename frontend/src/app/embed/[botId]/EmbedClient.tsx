@@ -639,7 +639,7 @@ function IdentifiedEmbedClient({
 
   const isBookingMessage = useCallback((content: string) => {
     if (!content) return false;
-    if (content.includes("[BOOKING_WIDGET]")) return true;
+    if (content.includes("[BOOKING_WIDGET")) return true;
     if (!calendarSchedulingEnabled) return false;
     const lower = content.toLowerCase();
     if (
@@ -4108,6 +4108,7 @@ function IdentifiedEmbedClient({
                                   {shouldRenderBookingCard && (
                                     <InlineBookingCard
                                       botId={String(botId)}
+                                      eventTypeId={msg.content?.match(/\[BOOKING_WIDGET:([a-zA-Z0-9_-]+)\]/)?.[1]}
                                       sessionId={sessionId}
                                       visitorTimezone={visitorTimezone}
                                       visitorCountry={visitorCountry}

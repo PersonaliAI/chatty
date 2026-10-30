@@ -496,6 +496,11 @@ export function InlineBookingCard({
   );
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [selectedEventTypeId, setSelectedEventTypeId] = useState<string | undefined>(eventTypeId);
+
+  useEffect(() => {
+    if (eventTypeId) setSelectedEventTypeId(eventTypeId);
+  }, [eventTypeId]);
   const autoSelectedTextRef = useRef("");
 
   // Form inputs
@@ -591,13 +596,13 @@ export function InlineBookingCard({
     try {
       setLoading(true);
       setError(null);
+      const activeEtId = overrideEventTypeId !== undefined ? overrideEventTypeId : (selectedEventTypeId || eventTypeId);
       const params = new URLSearchParams({
         bot_id: botId,
-        const activeEtId = overrideEventTypeId !== undefined ? overrideEventTypeId : (currentEventTypeId || eventTypeId);
-      if (activeEtId) params.set("event_type_id", activeEtId);
         visitor_timezone: tz,
         days: "14",
       });
+      if (activeEtId) params.set("event_type_id", activeEtId);
       if (sessionId) params.set("session_id", sessionId);
       if (visitorCountry) params.set("visitor_country", visitorCountry);
       const url = `${backendUrl}/api/widget/booking/slots?${params.toString()}`;
@@ -749,6 +754,7 @@ export function InlineBookingCard({
 
       const payload = {
         bot_id: botId,
+        event_type_id: selectedEventTypeId || eventTypeId || undefined,
         session_id: sessionId || null,
         sig: sig || undefined,
         t: t || undefined,
@@ -1139,6 +1145,39 @@ export function InlineBookingCard({
           <div className="text-xs font-semibold text-neutral-800 dark:text-neutral-100">
             {cardMode === "reschedule" ? "Select New Date & Time" : "Select a Date & Time"}
           </div>
+
+          {/* Cal.com-grade Multi-Event Type Pill Selector */}
+          {slotsData?.event_types && slotsData.event_types.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+              {slotsData.event_types.map((et) => {
+                const isSelected = (selectedEventTypeId || eventTypeId) === et.id;
+                return (
+                  <button
+                    key={et.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedEventTypeId(et.id);
+                      setSelectedSlot(null);
+                      void fetchSlots(activeTimezone, et.id);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                      isSelected
+                        ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm font-semibold"
+                        : "bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-600 dark:text-neutral-300"
+                    }`}
+                  >
+                    <span>{et.title}</span>
+                    <span className="text-[9px] opacity-70">({et.duration_minutes}m)</span>
+                    {et.price_cents > 0 && (
+                      <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                        ${(et.price_cents / 100).toFixed(0)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {selectedSlot && cardMode !== "reschedule" && (
             <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between">

@@ -11,6 +11,7 @@ import { SafeMarkdownLink } from "@/lib/safe-markdown-link";
 import { parseRichContent, parseVisitorMessageContent } from "@/lib/rich-content";
 import { OrderCard, type OrderCardData } from "@/components/order-card";
 import { ProductCard, type ProductCardData } from "@/components/product-card";
+import { CheckoutCard, type CheckoutCardData } from "@/components/checkout-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
 
 export interface InboxSourceCitation {
@@ -380,6 +381,13 @@ function MessageListInner({
                   <p className="text-[10px] opacity-90 mt-1">
                     Visitor requested a live human support agent.
                   </p>
+                </div>
+              )}
+              {richParsed.checkoutLinks && richParsed.checkoutLinks.length > 0 && (
+                <div className="flex flex-col gap-2 my-2 w-full text-neutral-900 dark:text-neutral-100">
+                  {richParsed.checkoutLinks.map((ck, ckIdx) => (
+                    <CheckoutCard key={ck.url || ckIdx} data={ck} primaryColor={color} />
+                  ))}
                 </div>
               )}
               {richParsed.products.length > 0 && (

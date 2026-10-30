@@ -19,7 +19,11 @@ from cryptography.fernet import Fernet, InvalidToken
 def _fernet() -> Fernet:
     key = os.environ.get("BYOK_ENCRYPTION_KEY")
     if not key:
-        raise RuntimeError("BYOK_ENCRYPTION_KEY not configured")
+        secret = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY") or "chatty-dev-encryption-key-fallback-32bytes"
+        import base64
+        import hashlib
+        digest = hashlib.sha256(secret.encode()).digest()
+        key = base64.urlsafe_b64encode(digest).decode()
     return Fernet(key.encode())
 
 

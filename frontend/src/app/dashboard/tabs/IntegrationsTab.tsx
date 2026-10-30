@@ -536,6 +536,19 @@ export function IntegrationsTab({
   const [slackUrlDraft, setSlackUrlDraft] = useState(slackWebhookUrl || "");
   const [testingSlack, setTestingSlack] = useState(false);
 
+  // Payment Gateways State (Stripe, Lemon Squeezy, Polar.sh)
+  const [paymentProviders, setPaymentProviders] = useState<Record<string, any>>({});
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [savingPaymentProvider, setSavingPaymentProvider] = useState<string | null>(null);
+  const [aiPaymentAllowed, setAiPaymentAllowed] = useState(true);
+  const [syncedProducts, setSyncedProducts] = useState<Record<string, any[]>>({});
+  const [loadingSyncedProducts, setLoadingSyncedProducts] = useState<Record<string, boolean>>({});
+  const [payTestMode, setPayTestMode] = useState(true);
+  const [paySecretKey, setPaySecretKey] = useState("");
+  const [payPublishableKey, setPayPublishableKey] = useState("");
+  const [payWebhookSecret, setPayWebhookSecret] = useState("");
+  const [payExtraId, setPayExtraId] = useState("");
+
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
   // Webhook URLs
@@ -549,6 +562,139 @@ export function IntegrationsTab({
   const WC_WEBHOOK_URL = `${backendUrl}/api/integrations/woocommerce/webhook/${botId || ""}`;
 
   // WooCommerce Load & Actions
+  const loadPaymentIntegrations = useCallback(async () => {
+    if (!botId) return;
+    try {
+      setLoadingPayments(true);
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPaymentProviders(data.providers || {});
+        setAiPaymentAllowed(data.ai_payment_allowed !== false);
+      }
+    } catch (err) {
+      console.error("Failed to load payment integrations", err);
+    } finally {
+      setLoadingPayments(false);
+    }
+  }, [botId, fetchWithFallback, authToken]);
+
+  useEffect(() => {
+    if (botId) void loadPaymentIntegrations();
+  }, [botId, loadPaymentIntegrations]);
+
+  const handleConnectPayment = async (provider: "stripe" | "lemonsqueezy" | "polar") => {
+    if (!botId) return;
+    if (!paySecretKey.trim()) {
+      showToast?.("Secret API Key is required", "error");
+      return;
+    }
+    setSavingPaymentProvider(provider);
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const extra: Record<string, any> = {};
+      if (provider === "lemonsqueezy" && payExtraId) extra.store_id = payExtraId.trim();
+      if (provider === "polar" && payExtraId) extra.organization_id = payExtraId.trim();
+
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments/${provider}/connect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          test_mode: payTestMode,
+          publishable_key: payPublishableKey.trim() || undefined,
+          secret_key: paySecretKey.trim(),
+          webhook_secret: payWebhookSecret.trim() || undefined,
+          extra_config: Object.keys(extra).length > 0 ? extra : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Connection failed");
+      showToast?.(data.message || `${provider} connected successfully!`, "success");
+      setPaySecretKey("");
+      setPayPublishableKey("");
+      setPayWebhookSecret("");
+      setPayExtraId("");
+      await loadPaymentIntegrations();
+    } catch (err: any) {
+      showToast?.(err.message || "Failed to connect", "error");
+    } finally {
+      setSavingPaymentProvider(null);
+    }
+  };
+
+  const handleDisconnectPayment = async (provider: "stripe" | "lemonsqueezy" | "polar") => {
+    if (!botId) return;
+    if (!confirm(`Are you sure you want to disconnect ${provider}?`)) return;
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments/${provider}`, {
+        method: "DELETE",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        showToast?.(`${provider} disconnected.`, "success");
+        await loadPaymentIntegrations();
+      }
+    } catch {
+      showToast?.("Failed to disconnect provider", "error");
+    }
+  };
+
+  const loadProductsForProvider = useCallback(async (prov: string) => {
+    if (!botId) return;
+    setLoadingSyncedProducts((prev) => ({ ...prev, [prov]: true }));
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments/products?provider=${prov}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSyncedProducts((prev) => ({ ...prev, [prov]: data.products || [] }));
+      }
+    } catch (err) {
+      console.error(`Failed to load ${prov} products`, err);
+    } finally {
+      setLoadingSyncedProducts((prev) => ({ ...prev, [prov]: false }));
+    }
+  }, [botId, fetchWithFallback, authToken]);
+
+  useEffect(() => {
+    if (botId && (selectedIntegrationId === "stripe" || selectedIntegrationId === "lemonsqueezy" || selectedIntegrationId === "polar")) {
+      if (paymentProviders[selectedIntegrationId]?.connected) {
+        void loadProductsForProvider(selectedIntegrationId);
+      }
+    }
+  }, [botId, selectedIntegrationId, paymentProviders, loadProductsForProvider]);
+
+  const handleToggleAiPaymentPolicy = async (newVal: boolean) => {
+    if (!botId) return;
+    setAiPaymentAllowed(newVal);
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      await fetcher(`/api/bots/${botId}/integrations/payments/policy`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({ ai_payment_allowed: newVal }),
+      });
+      showToast?.(
+        newVal ? "AI Agent is permitted to generate checkouts." : "AI Agent restricted from generating checkouts.",
+        "info"
+      );
+    } catch {
+      showToast?.("Failed to update AI policy", "error");
+    }
+  };
+
   const loadWcStatus = useCallback(async () => {
     if (!botId) return;
     try {
@@ -858,6 +1004,45 @@ export function IntegrationsTab({
         isConnected: isEmailConnected,
         isConfigured: isEmailConfigured,
         tags: ["email", "smtp", "helpdesk", "support", "inbox"],
+      },
+      {
+        id: "stripe",
+        name: "Stripe Payments",
+        category: "ecommerce" as IntegrationCategory,
+        categoryLabel: "Payments",
+        icon: <PlatformIcon domain="stripe.com" label="Stripe" />,
+        iconBg: "bg-[#635bff]/10 text-[#635bff]",
+        description: "Accept credit cards, Apple Pay, and Google Pay in chat. Configured with autonomous AI safeguards.",
+        statsHighlight: paymentProviders.stripe?.connected ? "Live Account" : "PCI-DSS Level 1",
+        isConnected: Boolean(paymentProviders.stripe?.connected),
+        isConfigured: Boolean(paymentProviders.stripe?.connected),
+        tags: ["stripe", "payments", "checkout", "credit card", "apple pay", "google pay"],
+      },
+      {
+        id: "lemonsqueezy",
+        name: "Lemon Squeezy",
+        category: "ecommerce" as IntegrationCategory,
+        categoryLabel: "Payments",
+        icon: <PlatformIcon domain="lemonsqueezy.com" label="Lemon Squeezy" />,
+        iconBg: "bg-[#ffc233]/10 text-[#ffc233]",
+        description: "Merchant of record checkout with global tax and EU VAT compliance for services and digital downloads.",
+        statsHighlight: paymentProviders.lemonsqueezy?.connected ? "Merchant of Record" : "Global MoR",
+        isConnected: Boolean(paymentProviders.lemonsqueezy?.connected),
+        isConfigured: Boolean(paymentProviders.lemonsqueezy?.connected),
+        tags: ["lemonsqueezy", "lemon", "squeezy", "mor", "vat", "tax", "payments"],
+      },
+      {
+        id: "polar",
+        name: "Polar.sh",
+        category: "ecommerce" as IntegrationCategory,
+        categoryLabel: "Payments",
+        icon: <PlatformIcon domain="polar.sh" label="Polar" />,
+        iconBg: "bg-[#0062ff]/10 text-[#0062ff]",
+        description: "Developer-first monetization platform with in-chat checkouts, digital products, and usage billing.",
+        statsHighlight: paymentProviders.polar?.connected ? "Polar Connected" : "Open Source MoR",
+        isConnected: Boolean(paymentProviders.polar?.connected),
+        isConfigured: Boolean(paymentProviders.polar?.connected),
+        tags: ["polar", "polar.sh", "github", "developer", "subscriptions", "payments"],
       },
       {
         id: "woocommerce",
@@ -1888,6 +2073,274 @@ export function IntegrationsTab({
         },
       ],
     },
+  };
+
+  const renderPaymentGatewaySection = (provider: "stripe" | "lemonsqueezy" | "polar") => {
+    const info = paymentProviders[provider] || { connected: false };
+    const brand = {
+      stripe: { name: "Stripe", domain: "stripe.com", color: "#635bff", keyLabel: "Secret API Key (sk_test_... or sk_live_...)" },
+      lemonsqueezy: { name: "Lemon Squeezy", domain: "lemonsqueezy.com", color: "#ffc233", keyLabel: "API Key (Bearer token)" },
+      polar: { name: "Polar.sh", domain: "polar.sh", color: "#0062ff", keyLabel: "Access Token (polar_oat_...)" },
+    }[provider];
+
+    return (
+      <div
+        id={`integration-${provider}`}
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+      >
+        {/* Top Header */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
+          <div className="flex items-start gap-3.5">
+            <div className="size-12 rounded-2xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
+              <PlatformIcon domain={brand.domain} label={brand.name} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  {brand.name} Checkout Integration
+                </h3>
+                {info.connected ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Connected
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                    Not Connected
+                  </span>
+                )}
+                {info.test_mode && info.connected && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                    Test Mode
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
+                PCI-DSS Level 1 hosted checkout. Enables in-chat card purchases for paid appointments, consultation deposits, and digital services.
+              </p>
+            </div>
+          </div>
+
+          {info.connected && (
+            <button
+              type="button"
+              onClick={() => handleDisconnectPayment(provider)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer shrink-0"
+            >
+              Disconnect
+            </button>
+          )}
+        </div>
+
+        {/* AI Agent Restriction Policy Banner */}
+        <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-xl bg-orange-500/10 text-[#f97316] flex items-center justify-center border border-orange-500/20">
+                <ShieldCheck className="size-4" />
+              </div>
+              <div>
+                <h5 className="text-xs font-bold text-neutral-900 dark:text-white">AI Agent Checkout Policy</h5>
+                <p className="text-[11px] text-neutral-400">Control whether the AI is permitted to autonomously offer checkout links in chat.</p>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiPaymentAllowed}
+                onChange={(e) => handleToggleAiPaymentPolicy(e.target.checked)}
+                className="rounded text-[#f97316] focus:ring-[#f97316]"
+              />
+              <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                {aiPaymentAllowed ? "AI Permitted" : "AI Restricted"}
+              </span>
+            </label>
+          </div>
+          {!aiPaymentAllowed && (
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-800">
+              🔒 <strong>AI Checkout Disabled:</strong> The AI will inform visitors that a team member will review their request and send a payment link. Human agents can always send custom checkout links from the <strong>Inbox</strong>.
+            </p>
+          )}
+        </div>
+
+        {/* Connection Form */}
+        {!info.connected ? (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                {brand.keyLabel} <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                required
+                value={paySecretKey}
+                onChange={(e) => setPaySecretKey(e.target.value)}
+                placeholder="Paste your secret key here..."
+                className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+              />
+            </div>
+
+            {provider === "stripe" && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Publishable Key (pk_...)
+                  </label>
+                  <input
+                    type="text"
+                    value={payPublishableKey}
+                    onChange={(e) => setPayPublishableKey(e.target.value)}
+                    placeholder="pk_test_..."
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Webhook Secret (whsec_...)
+                  </label>
+                  <input
+                    type="password"
+                    value={payWebhookSecret}
+                    onChange={(e) => setPayWebhookSecret(e.target.value)}
+                    placeholder="whsec_..."
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                  />
+                </div>
+              </div>
+            )}
+
+            {provider === "lemonsqueezy" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  Lemon Squeezy Store ID
+                </label>
+                <input
+                  type="text"
+                  value={payExtraId}
+                  onChange={(e) => setPayExtraId(e.target.value)}
+                  placeholder="e.g. 1484624"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                />
+              </div>
+            )}
+
+            {provider === "polar" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  Polar Organization ID (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={payExtraId}
+                  onChange={(e) => setPayExtraId(e.target.value)}
+                  placeholder="e.g. org_..."
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                />
+              </div>
+            )}
+
+            <label className="flex items-center gap-2 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={payTestMode}
+                onChange={(e) => setPayTestMode(e.target.checked)}
+                className="rounded text-neutral-900 focus:ring-neutral-900"
+              />
+              <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                Sandbox / Test Mode (Use test cards without real charges)
+              </span>
+            </label>
+
+            <button
+              type="button"
+              disabled={savingPaymentProvider === provider}
+              onClick={() => handleConnectPayment(provider)}
+              className="px-5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 transition-all"
+            >
+              {savingPaymentProvider === provider && <Loader2 className="size-3.5 animate-spin" />}
+              <span>Verify &amp; Connect {brand.name}</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-neutral-50/60 dark:bg-neutral-950/60 border border-neutral-200 dark:border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-neutral-500">Active API Credential:</span>
+                <span className="font-mono text-neutral-800 dark:text-neutral-200">{info.secret_key_preview || "••••••••"}</span>
+              </div>
+              {info.last_tested_at && (
+                <div className="flex items-center justify-between text-[11px] text-neutral-400 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                  <span>Last Verified:</span>
+                  <span>{new Date(info.last_tested_at).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Synced Platform Products & Pricing Plans */}
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                    <span>Synced {brand.name} Products &amp; Pricing Plans</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-800 font-mono font-bold">
+                      {(syncedProducts[provider] || []).length}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    Products and pricing plans fetched live from {brand.name}. You can select and send any of these directly to visitors from the Inbox.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => loadProductsForProvider(provider)}
+                  disabled={loadingSyncedProducts[provider]}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <RefreshCw className={`size-3 ${loadingSyncedProducts[provider] ? "animate-spin text-[#f97316]" : ""}`} />
+                  <span>Refresh Products</span>
+                </button>
+              </div>
+
+              {loadingSyncedProducts[provider] ? (
+                <div className="p-8 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-center">
+                  <Loader2 className="size-5 animate-spin text-[#f97316]" />
+                </div>
+              ) : (syncedProducts[provider] || []).length === 0 ? (
+                <div className="p-6 text-center border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl text-xs text-neutral-400">
+                  No products or plans found on {brand.name}. Create a product in your {brand.name} dashboard, then click Refresh.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                  {(syncedProducts[provider] || []).map((prod) => (
+                    <div
+                      key={prod.id}
+                      className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 space-y-1.5 shadow-2xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-xs font-bold text-neutral-900 dark:text-white truncate">
+                          {prod.name}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0 font-mono">
+                          {prod.formatted_price}
+                        </span>
+                      </div>
+                      {prod.description && (
+                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-1">
+                          {prod.description}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between text-[10px] text-neutral-400 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+                        <span className="font-mono truncate max-w-[140px]">{prod.price_id || prod.id}</span>
+                        {prod.recurring && <span className="capitalize font-semibold">{prod.recurring}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const renderWooCommerceSection = () => (
@@ -4870,6 +5323,18 @@ export function IntegrationsTab({
         </div>
       </div>
       )}
+
+      {/* SECTION STRIPE */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "stripe")) &&
+        renderPaymentGatewaySection("stripe")}
+
+      {/* SECTION LEMON SQUEEZY */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "lemonsqueezy")) &&
+        renderPaymentGatewaySection("lemonsqueezy")}
+
+      {/* SECTION POLAR.SH */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "polar")) &&
+        renderPaymentGatewaySection("polar")}
 
       {/* SECTION WOOCOMMERCE */}
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "woocommerce")) &&
