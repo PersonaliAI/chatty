@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/chatty-icon.png" alt="Chatty" width="88" /> <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/readme-icon.png" alt="Chatty" width="88" />
 
@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 **开源 AI 客户支持与服务平台：Web 聊天组件 + 7 大渠道全渠道接入中心 + 完整 FastMCP 服务器，基于您自己的知识库。**
@@ -451,7 +451,7 @@ chatty/
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 Chatty 采用 **托管型 Supabase 架构**（应用容器在 Render/Railway 运行，而用户认证、Postgres 数据库、向量检索与存储托管在 Supabase）。点击部署前后，仅需完成以下 3 步设置：

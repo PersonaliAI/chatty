@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/chatty-icon.png" alt="Chatty" width="88" /> <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/readme-icon.png" alt="Chatty" width="88" />
 
@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 **オープンソース AI カスタマーサポート：Web チャットウィジェット + 7 チャネル・オムニチャネルハブ + 完全な FastMCP サーバー、独自のナレッジベースに基づいて動作。**
@@ -451,7 +451,7 @@ chatty/
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 Chatty は **マネージド Supabase アーキテクチャ** を採用しています（アプリケーションコンテナは Render / Railway で動作し、認証・Postgres データベース・ベクトル検索・ストレージは Supabase で管理されます）。デプロイボタンをクリックする前、または直後に以下の 3 つのステップを完了してください：

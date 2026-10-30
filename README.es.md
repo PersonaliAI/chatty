@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/chatty-icon.png" alt="Chatty" width="88" /> <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/readme-icon.png" alt="Chatty" width="88" />
 
@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 **Plataforma de soporte y atención al cliente con IA de código abierto: widget de chat web + hub omnicanal de 7 canales + servidor MCP completo, fundamentado en tu propia base de conocimiento.**
@@ -439,7 +439,7 @@ Despliega Chatty directamente en la nube sin necesidad de gestionar servidores:
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 Chatty utiliza una **arquitectura gestionada con Supabase** (los contenedores se ejecutan en Render/Railway, mientras que Auth, Postgres, Storage y Realtime se mantienen gestionados en Supabase). Antes o después de hacer clic en desplegar, completa estos 3 pasos rápidos:

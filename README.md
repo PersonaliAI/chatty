@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/chatty-icon.png" alt="Chatty" width="88" /> <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/readme-icon.png" alt="Chatty" width="88" />
 
@@ -23,7 +23,7 @@
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 Chatty is an open-source, self-hostable **Zendesk and Intercom alternative** for stores and modern businesses that need autonomous AI customer support with human takeover, WooCommerce sync, and calendar scheduling.
@@ -515,7 +515,7 @@ Deploy Chatty directly to the cloud without managing a server:
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/template/chatty-open-source-ai-customer-support-a"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 Chatty uses a **managed-Supabase architecture** (containers run on Render/Railway, while Auth, Postgres, Storage, and Realtime stay managed in Supabase). Before or immediately after clicking deploy, complete these 3 quick steps:
