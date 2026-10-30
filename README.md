@@ -23,7 +23,7 @@
 <p align="center">
   <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   &nbsp;
-  <a href="https://railway.com/template"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
 </p>
 
 Chatty is an open-source, self-hostable **Zendesk and Intercom alternative** for stores and modern businesses that need autonomous AI customer support with human takeover, WooCommerce sync, and calendar scheduling.
@@ -507,6 +507,29 @@ telemetry in their own Supabase project. BYOK inference is still sent directly
 to the selected model provider, and unpriced BYOK calls remain visible by
 tokens/call count even when a dollar estimate is unavailable. No Chatty Cloud
 account is required for the open-source deployment.
+
+## ⚡ 1-Click Cloud Deployment (Render & Railway)
+
+Deploy Chatty directly to the cloud without managing a server:
+
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
+Chatty uses a **managed-Supabase architecture** (containers run on Render/Railway, while Auth, Postgres, Storage, and Realtime stay managed in Supabase). Before or immediately after clicking deploy, complete these 3 quick steps:
+
+1. **Create a Free Supabase Project:** Go to [supabase.com](https://supabase.com), create a free project, and copy your **Project URL**, **`anon` key**, **`service_role` key**, and **Database Connection String** from Project Settings.
+2. **Apply Database Migrations:** Run the migration script once so all 67+ tables and vector schemas are initialized:
+   ```bash
+   cd backend && pip install psycopg2-binary
+   python scripts/apply_migrations.py "postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:5432/postgres"
+   ```
+   *(Or run the SQL files in `backend/supabase/migrations/` in Supabase's SQL Editor).*
+3. **Get Free Gemini API Key & Set Variables:** Get a key from [aistudio.google.com/apikey](https://aistudio.google.com/apikey). When Render or Railway prompts for environment variables, fill in your `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+
+---
 
 ## 🚀 Quick Start (Docker Compose)
 

@@ -11,6 +11,12 @@
   <a href="README.es.md">Español</a>
 </p>
 
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
 **开源 AI 客户支持与服务平台：Web 聊天组件 + 7 大渠道全渠道接入中心 + 完整 FastMCP 服务器，基于您自己的知识库。**
 
 Chatty 是一款开源、可私有化自托管的 **Zendesk 替代方案** 和 **Intercom 替代方案**，专为需要 AI 聊天组件、可视化对话流自动化以及支持人工一键接管的共享客服团队打造。Chatty 是一个独立开源项目，与 Zendesk 或 Intercom 无隶属或赞助关系。
@@ -435,6 +441,29 @@ chatty/
 | [Node.js](https://nodejs.org/) | 20+ | 前端工程（不使用 Docker 时的本地开发） |
 | [Supabase](https://supabase.com) 账号 | 免费层即满足要求 | 数据库体系 (Postgres + Auth + Storage + Realtime) |
 | [Google AI Studio](https://aistudio.google.com/apikey) API 密钥 | 免费层即满足要求 | 默认大语言模型 (Gemini) |
+
+---
+
+## ⚡ 一键云端部署 (Render 与 Railway)
+
+无需自建服务器，一键直接部署 Chatty 到云端：
+
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
+Chatty 采用 **托管型 Supabase 架构**（应用容器在 Render/Railway 运行，而用户认证、Postgres 数据库、向量检索与存储托管在 Supabase）。点击部署前后，仅需完成以下 3 步设置：
+
+1. **创建免费 Supabase 项目**：前往 [supabase.com](https://supabase.com) 创建免费项目，在 Project Settings 复制 **Project URL**、**`anon` 公钥**、**`service_role` 密钥** 以及 **数据库连接字符串**。
+2. **执行数据库迁移**：运行一次迁移脚本，初始化所有 67+ 张表和向量索引：
+   ```bash
+   cd backend && pip install psycopg2-binary
+   python scripts/apply_migrations.py "postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:5432/postgres"
+   ```
+   *(或在 Supabase SQL Editor 中直接运行 `backend/supabase/migrations/` 下的 SQL 迁移文件)*。
+3. **获取免费 Gemini API 密钥并配置变量**：前往 [aistudio.google.com/apikey](https://aistudio.google.com/apikey) 获取免费密钥。当 Render 或 Railway 提示输入环境变量时，填入 `SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`GEMINI_API_KEY`、`NEXT_PUBLIC_SUPABASE_URL` 与 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 即可完成部署。
 
 ---
 

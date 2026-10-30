@@ -46,7 +46,18 @@ interface TimeSlot {
   }>;
 }
 
+export interface EventTypeItem {
+  id: string;
+  title: string;
+  slug: string;
+  duration_minutes: number;
+  price_cents: number;
+  currency: string;
+  description?: string;
+}
+
 interface SlotsResponse {
+  event_types?: EventTypeItem[];
   enabled: boolean;
   message?: string;
   bot_id: string;
@@ -576,13 +587,14 @@ export function InlineBookingCard({
   }, [otpCooldown]);
 
   // Fetch slots
-  const fetchSlots = async (tz: string) => {
+  const fetchSlots = async (tz: string, overrideEventTypeId?: string) => {
     try {
       setLoading(true);
       setError(null);
       const params = new URLSearchParams({
         bot_id: botId,
-        ...(eventTypeId ? { event_type_id: eventTypeId } : {}),
+        const activeEtId = overrideEventTypeId !== undefined ? overrideEventTypeId : (currentEventTypeId || eventTypeId);
+      if (activeEtId) params.set("event_type_id", activeEtId);
         visitor_timezone: tz,
         days: "14",
       });

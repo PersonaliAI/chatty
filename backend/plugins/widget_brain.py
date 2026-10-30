@@ -795,7 +795,7 @@ async def run_widget_assistant(
             f"- Meeting platform: {provider_label}. A meeting link is generated automatically on booking.\n\n"
             f"MANDATORY BOOKING & LEAD CAPTURE WORKFLOW:\n"
             f"CRITICAL UI INSTRUCTION:\n"
-            f"- Whenever the visitor asks to book a demo, meeting, or appointment, or inquires about scheduling or open slots, ALWAYS warmly confirm and append the exact marker `[BOOKING_WIDGET]` at the end of your message. This automatically opens the interactive booking slot picker and contact form directly in the chat!\n"
+            f"- Whenever the visitor asks to book a demo, meeting, or appointment, or inquires about scheduling or open slots, ALWAYS warmly confirm and append the exact marker `[BOOKING_WIDGET]` at the end of your message (or `[BOOKING_WIDGET:<slug>]` if targeting a specific event type). This automatically opens the interactive booking slot picker and contact form directly in the chat!\n"
             f"- NEVER write or repeat raw 'https://.../book/...' links or '📅 *Schedule your appointment:*' lines yourself; only append `[BOOKING_WIDGET]` and the platform will automatically attach a single signed booking link.\n\n"
             f"1. PREFERRED DAY & TIME INQUIRY:\n"
             f"   - When the visitor asks to book a demo, meeting, or appointment, warmly confirm: 'Yes, you can book a demo! You can pick a time slot below or let me know what day and time works best for you.' and append `[BOOKING_WIDGET]`.\n"
@@ -1335,7 +1335,7 @@ async def run_widget_assistant(
             booking_mode = str(bot.get("booking_mode") or "hybrid").lower()
             if scheduling_enabled and booking_mode != "conversational_only" and not booking_tool_succeeded:
                 already_offered_recently = any(
-                    isinstance(m, dict) and m.get("role") == "assistant" and "[BOOKING_WIDGET]" in str(m.get("content") or "")
+                    isinstance(m, dict) and m.get("role") == "assistant" and "[BOOKING_WIDGET" in str(m.get("content") or "")
                     for m in messages[-4:]
                 )
                 should_attach = (
@@ -1344,12 +1344,12 @@ async def run_widget_assistant(
                     or "check_calendar_availability" in called_tools_this_turn
                     or (current_turn_asked_booking and not already_offered_recently)
                 )
-                if should_attach and "[BOOKING_WIDGET]" not in reply:
+                if should_attach and "[BOOKING_WIDGET" not in reply:
                     reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"
                     if on_token and stream_live:
                         await on_token("\n\n[BOOKING_WIDGET]")
             elif booking_tool_succeeded or booking_mode == "conversational_only":
-                reply = reply.replace("[BOOKING_WIDGET]", "").strip()
+                reply = re.sub(r"\[BOOKING_WIDGET(?::[a-zA-Z0-9_-]+)?\]", "", reply).strip()
 
             clean_reply, flow_action = _extract_flow_actions(reply)
             from app.services import multimodal_service as _multimodal_service
@@ -1462,10 +1462,10 @@ async def run_widget_assistant(
             or "check_calendar_availability" in called_tools_this_turn
             or bool(re.search(r"\b(book|booking|demo|schedule|appointment|meeting|calendar|slot|call)\b", user_msg_str, re.IGNORECASE))
         )
-        if should_attach and "[BOOKING_WIDGET]" not in reply:
+        if should_attach and "[BOOKING_WIDGET" not in reply:
             reply = reply.rstrip() + "\n\n[BOOKING_WIDGET]"
     elif booking_tool_succeeded or booking_mode == "conversational_only":
-        reply = reply.replace("[BOOKING_WIDGET]", "").strip()
+        reply = re.sub(r"\[BOOKING_WIDGET(?::[a-zA-Z0-9_-]+)?\]", "", reply).strip()
 
     clean_reply, flow_action = _extract_flow_actions(reply)
     from app.services import multimodal_service as _multimodal_service

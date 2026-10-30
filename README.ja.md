@@ -11,6 +11,12 @@
   <a href="README.es.md">Español</a>
 </p>
 
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
 **オープンソース AI カスタマーサポート：Web チャットウィジェット + 7 チャネル・オムニチャネルハブ + 完全な FastMCP サーバー、独自のナレッジベースに基づいて動作。**
 
 Chatty は、AI チャットウィジェット、ビジュアル会話フロー自動化、および有人オペレーター引き継ぎ（ヒューマンテイクオーバー）対応の共有受信トレイを必要とするチームのための、オープンソースかつセルフホスト可能な **Zendesk 代替** および **Intercom 代替** プラットフォームです。Chatty は独立したプロジェクトであり、Zendesk や Intercom との提携・推奨関係はありません。
@@ -435,6 +441,29 @@ chatty/
 | [Node.js](https://nodejs.org/) | 20+ | Docker を使用しない場合のフロントエンド開発環境 |
 | [Supabase](https://supabase.com) アカウント | 無料枠 (Free tier) | データベース (Postgres + Auth + Storage + Realtime) |
 | [Google AI Studio](https://aistudio.google.com/apikey) API キー | 無料枠 (Free tier) | デフォルト LLM (Gemini) |
+
+---
+
+## ⚡ ワンクリック・クラウドデプロイ (Render & Railway)
+
+サーバーを自前で用意することなく、ワンクリックで Chatty をクラウド上にデプロイできます：
+
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
+Chatty は **マネージド Supabase アーキテクチャ** を採用しています（アプリケーションコンテナは Render / Railway で動作し、認証・Postgres データベース・ベクトル検索・ストレージは Supabase で管理されます）。デプロイボタンをクリックする前、または直後に以下の 3 つのステップを完了してください：
+
+1. **無料の Supabase プロジェクトを作成:** [supabase.com](https://supabase.com) で無料プロジェクトを作成し、Project Settings から **Project URL**、**`anon` 公開キー**、**`service_role` 秘密キー**、および **データベース接続文字列** を取得します。
+2. **データベースマイグレーションの実行:** マイグレーションスクリプトを 1 回実行して、67 以上のテーブルとベクトルインデックスを初期化します：
+   ```bash
+   cd backend && pip install psycopg2-binary
+   python scripts/apply_migrations.py "postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:5432/postgres"
+   ```
+   *(または Supabase SQL Editor で `backend/supabase/migrations/` 内の SQL ファイルを直接実行)*。
+3. **無料の Gemini API キー取得と環境変数の設定:** [aistudio.google.com/apikey](https://aistudio.google.com/apikey) から無料キーを取得します。Render または Railway で環境変数を求められたら、`SUPABASE_URL`、`SUPABASE_SECRET_KEY`、`GEMINI_API_KEY`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定してください。
 
 ---
 

@@ -2342,6 +2342,7 @@ def _sanitize_booking_field(text: Optional[str], max_len: int = 100) -> str:
 @router.get("/api/widget/booking/slots")
 async def widget_booking_slots(
     bot_id: str,
+    event_type_id: Optional[str] = None,
     visitor_timezone: Optional[str] = None,
     visitor_country: Optional[str] = None,
     days: int = 14,
@@ -2355,6 +2356,28 @@ async def widget_booking_slots(
     if not res.data:
         raise HTTPException(status_code=404, detail="Bot not found")
     bot = res.data[0]
+
+    # Resolve event type duration, buffer, and notice rules if event_type_id is passed
+    if event_type_id:
+        try:
+            et_query = await run_db(
+                lambda: supabase.table("chatty_event_types")
+                .select("*")
+                .eq("bot_id", bot_id)
+                .eq("is_active", True)
+                .execute()
+            )
+            for et_item in (et_query.data or []):
+                if et_item.get("id") == event_type_id or et_item.get("slug") == event_type_id:
+                    if et_item.get("duration_minutes"):
+                        bot["scheduling_duration_minutes"] = et_item["duration_minutes"]
+                    if et_item.get("buffer_after_minutes") is not None:
+                        bot["buffer_minutes"] = et_item["buffer_after_minutes"]
+                    if et_item.get("min_notice_hours") is not None:
+                        bot["advance_notice_hours"] = et_item["min_notice_hours"]
+                    break
+        except Exception:
+            pass
 
     # Domain origin check and baseline rate limiting (when called via HTTP)
     if request:
@@ -2514,10 +2537,25 @@ async def widget_booking_slots(
         except Exception:
             logger.exception("Failed to look up prefilled lead details for booking slots")
 
+    active_event_types = []
+    try:
+        et_res = await run_db(
+            lambda: supabase.table("chatty_event_types")
+            .select("id, title, slug, duration_minutes, price_cents, currency, description")
+            .eq("bot_id", bot_id)
+            .eq("is_active", True)
+            .order("duration_minutes", desc=False)
+            .execute()
+        )
+        active_event_types = et_res.data or []
+    except Exception:
+        pass
+
     return {
         "enabled": True,
         "bot_id": bot_id,
         "duration_minutes": int(bot.get("scheduling_duration_minutes") or 30),
+        "event_types": active_event_types,
         "visitor_timezone": visitor_tz_str,
         "visitor_country": (visitor_country or "").strip().upper()[:2] or None,
         "owner_timezone": owner_tz_str,
@@ -2839,6 +2877,27 @@ async def widget_booking_confirm(
             except Exception:
                 safe_session_id = str(body.session_id).replace("\r", "").replace("\n", "")[:80]
                 logger.exception("Failed to dispatch omnichannel booking confirmation for session %s", safe_session_id)
+
+    # Trigger Visual Flow Canvas & Webhooks (meeting.booked)
+    try:
+        from app.services.booking.flow_trigger_service import BookingFlowTriggerService
+        flow_svc = BookingFlowTriggerService(supabase)
+        await flow_svc.emit_meeting_booked(
+            bot_id=body.bot_id,
+            meeting={
+                "id": str(meeting_id_val),
+                "title": summary,
+                "attendee_name": visitor_name,
+                "attendee_email": visitor_email,
+                "start_time": body.start_time,
+                "end_time": body.end_time,
+                "meeting_link": meeting_link,
+                "event_type_id": getattr(body, "event_type_id", None),
+            },
+            session_id=body.session_id,
+        )
+    except Exception:
+        logger.exception("Failed to trigger flow for meeting.booked")
 
     return {
         "success": True,

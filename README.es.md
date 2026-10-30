@@ -11,6 +11,12 @@
   <a href="README.es.md">Español</a>
 </p>
 
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
 **Plataforma de soporte y atención al cliente con IA de código abierto: widget de chat web + hub omnicanal de 7 canales + servidor MCP completo, fundamentado en tu propia base de conocimiento.**
 
 Chatty es una alternativa de código abierto y autoalojable a **Zendesk** e **Intercom** para equipos que necesitan un widget con IA, automatización visual de flujos y una bandeja de entrada compartida con takeover humano. Chatty es un proyecto independiente no afiliado con Zendesk ni Intercom.
@@ -423,6 +429,29 @@ chatty/
 | [Node.js](https://nodejs.org/) | 20+ | Frontend, para desarrollo local sin Docker |
 | Cuenta en [Supabase](https://supabase.com) | Nivel gratuito | Base de datos (Postgres + Auth + Storage + Realtime) |
 | Clave de API de [Google AI Studio](https://aistudio.google.com/apikey) | Nivel gratuito | LLM predeterminado (Gemini) |
+
+---
+
+## ⚡ Despliegue en la Nube con 1 Clic (Render y Railway)
+
+Despliega Chatty directamente en la nube sin necesidad de gestionar servidores:
+
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/PersonaliAI/chatty"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  &nbsp;
+  <a href="https://railway.com/new/template?template=https://github.com/PersonaliAI/chatty"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+</p>
+
+Chatty utiliza una **arquitectura gestionada con Supabase** (los contenedores se ejecutan en Render/Railway, mientras que Auth, Postgres, Storage y Realtime se mantienen gestionados en Supabase). Antes o después de hacer clic en desplegar, completa estos 3 pasos rápidos:
+
+1. **Crear un Proyecto Gratuito en Supabase:** Ve a [supabase.com](https://supabase.com), crea un proyecto gratuito y copia tu **Project URL**, clave **`anon` pública**, clave **`service_role` secreta** y la **cadena de conexión a la base de datos** en Project Settings.
+2. **Aplicar Migraciones de la Base de Datos:** Ejecuta el script de migración una vez para inicializar las más de 67 tablas e índices vectoriales:
+   ```bash
+   cd backend && pip install psycopg2-binary
+   python scripts/apply_migrations.py "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres"
+   ```
+   *(O ejecuta los archivos SQL en `backend/supabase/migrations/` directamente en el editor SQL de Supabase)*.
+3. **Obtener Clave Gratuita de Gemini API y Configurar Variables:** Obtén una clave en [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Cuando Render o Railway soliciten variables de entorno, ingresa `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GEMINI_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
 ---
 
