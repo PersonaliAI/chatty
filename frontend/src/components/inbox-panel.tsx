@@ -1942,9 +1942,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   );
 
   return (
-    <div className="inbox-shell space-y-4" data-conversation-open={Boolean(selected)} data-navigation-collapsed={navigationCollapsed} data-details-open={visitorDetailsOpen && Boolean(selected)}>
+    <div className="inbox-shell space-y-2.5" data-conversation-open={Boolean(selected)} data-navigation-collapsed={navigationCollapsed} data-details-open={visitorDetailsOpen && Boolean(selected)}>
       {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
-      <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl px-3.5 py-1.5 shadow-sm flex flex-wrap items-center justify-between gap-2.5">
         {/* Left: Agent Presence Status & Capacity */}
         <div data-inbox-presence className="flex items-center gap-3">
           <div ref={presenceMenuRef} className="relative">
@@ -2430,13 +2430,18 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
         ) : (
           <>
-            {/* Ticket Header Bar */}
-            <div className="inbox-conversation-tools flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
-              <button type="button" className="inbox-back" onClick={() => selectConversation(null)}><ArrowLeft className="size-4" />Conversations</button>
-              <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
-            </div>
-            <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
+            {/* Unified Sleek Ticket Header */}
+            <div data-inbox-ticket-header className="px-3.5 py-1.5 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className="inbox-back inline-flex items-center gap-1 text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white mr-1 cursor-pointer"
+                  onClick={() => selectConversation(null)}
+                  aria-label="Back to conversations list"
+                >
+                  <ArrowLeft className="size-4" />
+                  <span className="hidden xs:inline">Conversations</span>
+                </button>
                 <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">
                   {current?.visitor_name || `Visitor ${selected.slice(-5)}`}
                 </span>
@@ -2638,8 +2643,24 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 )}
               </div>
 
-              {/* Right Controls: Quick Resolve, Tags, ViewMode, AI */}
-              <div data-inbox-ticket-actions className="flex items-center gap-1.5">
+              {/* Right Controls: Details, Quick Resolve, Tags, ViewMode, AI */}
+              <div data-inbox-ticket-actions className="flex items-center gap-1.5 flex-wrap">
+                {/* Visitor Details Toggle */}
+                <button
+                  type="button"
+                  aria-expanded={visitorDetailsOpen}
+                  onClick={() => setVisitorDetailsOpen((value) => !value)}
+                  className={`text-[10px] font-semibold border px-2 py-1 rounded-lg flex items-center gap-1 transition-colors cursor-pointer ${
+                    visitorDetailsOpen
+                      ? "bg-neutral-200 dark:bg-neutral-700 border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-white"
+                      : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
+                  }`}
+                  title="Toggle Visitor Details and CRM Attributes"
+                >
+                  <User className="size-3 text-neutral-500 dark:text-neutral-400 shrink-0" />
+                  <span className="hidden sm:inline">Details</span>
+                </button>
+
                 {/* 1-Click Resolve / Reopen Action */}
                 {(current?.status === "resolved" || current?.status === "closed") ? (
                   <button
@@ -2818,14 +2839,14 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
             {/* Smart Escalation Notice Banner */}
             {current?.needs_attention && (
-              <div className="bg-red-500/10 border-b border-red-500/20 px-3.5 py-2 flex items-center justify-between text-xs text-red-800 dark:text-red-300 shrink-0">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="size-4 text-red-600 dark:text-red-400 animate-pulse shrink-0" />
-                  <span>
+              <div className="bg-red-500/10 border-b border-red-500/20 px-3.5 py-1.5 flex items-center justify-between text-[11px] text-red-800 dark:text-red-300 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <AlertCircle className="size-3.5 text-red-600 dark:text-red-400 animate-pulse shrink-0" />
+                  <span className="truncate">
                     <strong>Escalation:</strong> {current.escalation_reason || "Customer requested human support takeover."}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
                   <button
                     onClick={() => dismissEscalation(selected)}
                     className="text-[9px] font-bold border border-red-500/30 hover:bg-red-500/20 px-2 py-0.5 rounded transition-colors cursor-pointer text-red-900 dark:text-red-200"
@@ -2838,16 +2859,16 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
             {/* Agent Collision Awareness Banner */}
             {isAssignedToOther && (
-              <div className="bg-amber-500/10 border-b border-amber-500/20 px-3.5 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 shrink-0">
-                <div className="flex items-center gap-2">
-                  <ShieldAlert className="size-4 text-amber-600 shrink-0" />
-                  <span>
+              <div className="bg-amber-500/10 border-b border-amber-500/20 px-3.5 py-1.5 flex items-center justify-between text-[11px] text-amber-800 dark:text-amber-300 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <ShieldAlert className="size-3.5 text-amber-600 shrink-0" />
+                  <span className="truncate">
                     <strong>Agent Collision Notice:</strong> Assigned to {current?.assigned_agent_name || current?.assigned_agent_email}.
                   </span>
                 </div>
                 <button
                   onClick={() => assignSession(selected, currentUserEmail, capitalize(currentUserEmail.split("@")[0]))}
-                  className="text-[9px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 px-2.5 py-0.5 rounded transition-colors cursor-pointer"
+                  className="text-[9px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 px-2 py-0.5 rounded transition-colors cursor-pointer shrink-0 ml-2"
                 >
                   Take Over Ticket
                 </button>
@@ -2856,23 +2877,23 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
             {/* Live Active Viewers Collision Alert */}
             {otherViewers.length > 0 && (
-              <div className="bg-amber-500/15 border-b border-amber-500/30 px-3.5 py-2 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 shrink-0">
-                <div className="flex items-center gap-2">
-                  <Eye className="size-4 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
-                  <span>
+              <div className="bg-amber-500/15 border-b border-amber-500/30 px-3.5 py-1.5 flex items-center justify-between text-[11px] text-amber-900 dark:text-amber-200 shrink-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Eye className="size-3.5 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
+                  <span className="truncate">
                     <strong>Live Collision Warning:</strong>{" "}
                     {otherViewers.map((v) => v.agent_name || v.agent_email).join(", ")}{" "}
                     {otherViewers.length === 1 ? "is" : "are"} also viewing this ticket right now.
                   </span>
                 </div>
-                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/25 text-amber-800 dark:text-amber-300">
+                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/25 text-amber-800 dark:text-amber-300 shrink-0 ml-2">
                   Live Presence
                 </span>
               </div>
             )}
 
             {/* Main Content Pane: Notes or Chat */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+            <div className="flex-1 overflow-y-auto px-4 py-2.5 space-y-2.5 text-xs">
               {viewMode === "notes" ? (
                 /* Multi-Agent Persistent Notes View */
                 <div className="flex flex-col h-full justify-between gap-4">
@@ -2957,7 +2978,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             </div>
 
             {/* Reply Input Bar */}
-            {viewMode === "chat" && <div className="border-t border-neutral-100 dark:border-neutral-850 p-2.5 relative">
+            {viewMode === "chat" && <div className="border-t border-neutral-100 dark:border-neutral-850 px-2.5 py-1.5 relative">
               <input type="file" ref={fileInputRef} onChange={onFilePick} accept="image/*,audio/*,application/pdf,.txt,.doc,.docx" className="hidden" />
               <AnimatePresence>
                 {emojiOpen && (
@@ -3203,7 +3224,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               </AnimatePresence>
               <form
                 onSubmit={(e) => { e.preventDefault(); void sendComposer(); }}
-                className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2.5 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors"
+                className="chat-input-bar rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 pt-2 pb-1.5 focus-within:border-neutral-300 dark:focus-within:border-neutral-700 transition-colors"
               >
                 {/* Canned Responses Dropdown */}
                 <AnimatePresence>
@@ -3306,7 +3327,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </div>
                 )}
                 <textarea
-                  rows={3}
+                  rows={2}
                   aria-label="Reply to conversation"
                   value={composerMode === "note" ? noteDraft : reply}
                   onChange={handleReplyChange}
@@ -3314,7 +3335,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   onFocus={() => { setEmojiOpen(false); setAttachOpen(false); setMobileActionsOpen(false); }}
                   placeholder={recording ? "Recording... tap ■ to send" : composerMode === "note" ? "Add a private note for your team... Type @ to mention a teammate" : "Type a reply (this takes over ticket from AI)..."}
                   disabled={sending || recording}
-                  className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1.5"
+                  className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1"
                 />
                 <div className="flex items-center justify-between relative gap-2">
                   <div className="flex items-center gap-0.5 overflow-x-auto no-scrollbar py-0.5 min-w-0 flex-1">

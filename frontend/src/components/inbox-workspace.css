@@ -1,17 +1,17 @@
-.max-w-6xl:has(> .inbox-shell) { max-width: none; padding: 12px; }
+.max-w-6xl:has(> .inbox-shell) { max-width: none; padding: 6px 12px 10px; }
 .max-w-6xl:has(> .inbox-shell) > div:first-child:not(.inbox-shell) { display: none; }
 .inbox-shell { container: inbox / inline-size; min-width: 0; --inbox-line: #e5e7eb; --inbox-panel: #fff; --inbox-muted: #64748b; }
 .dark .inbox-shell { --inbox-line: #303231; --inbox-panel: #181a19; --inbox-muted: #a3a8a5; }
-.inbox-shell [data-inbox-routing] { border-radius: 10px; flex-wrap: nowrap; gap: 16px; padding: 10px; overflow-x: auto; scrollbar-width: thin; }
+.inbox-shell [data-inbox-routing] { border-radius: 10px; flex-wrap: nowrap; gap: 12px; padding: 6px 12px; overflow-x: auto; scrollbar-width: thin; }
 .inbox-shell [data-inbox-routing] > div { flex-shrink: 0; }
 .inbox-shell button { white-space: nowrap; }
 .inbox-shell button:focus-visible, .inbox-shell [role=button]:focus-visible { outline: 2px solid #f97316; outline-offset: -2px; }
 .inbox-shell svg { flex-shrink: 0; }
-.inbox-workspace { display: grid; grid-template-columns: 172px 288px minmax(0,1fr); height: max(570px,calc(100dvh - 174px)); min-width: 0; border: 1px solid var(--inbox-line); border-radius: 12px; background: var(--inbox-panel); overflow: hidden; }
+.inbox-workspace { display: grid; grid-template-columns: 172px 288px minmax(0,1fr); height: max(720px,calc(100dvh - 108px)); min-width: 0; border: 1px solid var(--inbox-line); border-radius: 12px; background: var(--inbox-panel); overflow: hidden; }
 .inbox-shell[data-details-open=true] .inbox-workspace { grid-template-columns: 172px 288px minmax(0,1fr) 280px; }
 .inbox-workspace > * { min-width: 0; min-height: 0; }
 .inbox-navigation, .inbox-queue, .inbox-conversation { border-right: 1px solid var(--inbox-line); background: var(--inbox-panel); }
-.inbox-pane-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 56px; padding: 14px; border-bottom: 1px solid var(--inbox-line); }
+.inbox-pane-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; padding: 10px 14px; border-bottom: 1px solid var(--inbox-line); }
 .inbox-pane-title { overflow: visible; }
 .inbox-identity-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inbox-navigation .inbox-identity-trigger { max-width: 28px; overflow: hidden; }
@@ -34,15 +34,15 @@
 .inbox-queue-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: #64748b18; font-size: 11px; }
 .inbox-queue .dashboard-action-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
 .inbox-queue > div:last-child { border-radius: 0; scrollbar-width: thin; }
-.inbox-conversation-tools { min-height: 44px; gap: 6px; flex-shrink: 0; overflow-x: auto; scrollbar-width: thin; }
-.inbox-back { display: none; align-items: center; gap: 6px; margin-right: auto; font-size: 12px; }
+.inbox-conversation-tools { display: none; }
+.inbox-back { display: none; align-items: center; gap: 4px; font-size: 11px; }
 .inbox-conversation > .flex-1 { min-height: 0; scrollbar-width: thin; }
-.inbox-message { margin-block: 8px; }
-.inbox-message-bubble { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; border: 1px solid #64748b18; border-radius: 12px; padding: 12px 16px; }
+.inbox-message { margin-block: 6px; }
+.inbox-message-bubble { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; border: 1px solid #64748b18; border-radius: 12px; padding: 10px 14px; }
 .inbox-message-bubble :where(p,li,code,pre) { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
 .inbox-message > div:first-child { width: 28px; height: 28px; }
 .inbox-message > div:last-child > span { font-size: 11px; margin-bottom: 5px; }
-.inbox-reply-textarea { resize: vertical; min-height: 76px; max-height: 220px; line-height: 1.6; }
+.inbox-reply-textarea { resize: vertical; min-height: 44px; max-height: 220px; line-height: 1.45; }
 .inbox-contact-pane { overflow-y: auto; scrollbar-width: thin; background: var(--inbox-panel); }
 .inbox-contact-pane > section { max-height: none; min-height: 100%; border: 0; background: transparent; font-size: 12px; }
 .inbox-contact-pane dl { display: block; }
@@ -83,6 +83,7 @@
     flex-direction: column;
     grid-template-columns: minmax(0, 1fr);
     position: relative;
+    height: max(680px, calc(100dvh - 116px));
   }
   .inbox-shell .inbox-navigation {
     display: block;
@@ -126,8 +127,8 @@
   .inbox-conversation { display: none; border: 0; }
   .inbox-shell[data-conversation-open=true] .inbox-conversation { display: flex; }
   .inbox-shell[data-conversation-open=true] .inbox-queue { display: none; }
-  .inbox-back { display: flex; }
-  .inbox-conversation-tools { justify-content: flex-start; }
+  .inbox-back { display: inline-flex; }
+  .inbox-conversation-tools { display: none; }
   .inbox-contact-pane { position: absolute; inset: 0 0 0 auto; width: min(330px,100%); z-index: 40; border-left: 1px solid var(--inbox-line); box-shadow: -12px 0 24px #0002; }
   .inbox-shell[data-details-open=true] .inbox-contact-pane { display: block; }
   .inbox-conversation-tools > button, .inbox-conversation-tools > div { flex-shrink: 0; }
@@ -136,12 +137,12 @@
 
 @media (max-width: 640px) {
   .inbox-shell { margin-inline: 0; }
-  .inbox-shell [data-inbox-routing] { border-radius: 10px; padding: 8px; gap: 8px; }
+  .inbox-shell [data-inbox-routing] { border-radius: 10px; padding: 6px 8px; gap: 6px; }
   .inbox-shell [data-inbox-routing] > div { max-width: 100%; }
   .inbox-shell .inbox-workspace,
   .inbox-shell[data-details-open=true] .inbox-workspace,
   .inbox-shell[data-navigation-collapsed=true] .inbox-workspace,
-  .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace { display: flex; flex-direction: column; grid-template-columns: minmax(0, 1fr); height: calc(100dvh - 170px); min-height: 520px; border-radius: 10px; }
+  .inbox-shell[data-navigation-collapsed=true][data-details-open=true] .inbox-workspace { display: flex; flex-direction: column; grid-template-columns: minmax(0, 1fr); height: calc(100dvh - 110px); min-height: 560px; border-radius: 10px; }
   /* Keep the inbox section switcher visible on phones. It is a compact,
      swipeable strip above the queue instead of disappearing completely. */
   .inbox-shell .inbox-navigation {
@@ -190,11 +191,11 @@
   .inbox-shell .inbox-pane-title { min-height: 48px; padding: 10px; }
   .inbox-shell .inbox-pane-title h2 { font-size: 14px; }
   .inbox-shell .inbox-queue-sort { padding: 8px 10px; }
-  .inbox-shell .inbox-conversation-tools { min-height: 42px; padding-inline: 8px; }
+  .inbox-shell .inbox-conversation-tools { display: none; }
   .inbox-shell .inbox-message { max-width: 96%; }
-  .inbox-shell .inbox-message-bubble { padding: 12px 14px; font-size: 14px; }
-  .inbox-shell .inbox-queue > div:last-child > [role=button] { padding: 14px 12px; }
+  .inbox-shell .inbox-message-bubble { padding: 10px 12px; font-size: 13.5px; }
+  .inbox-shell .inbox-queue > div:last-child > [role=button] { padding: 12px 10px; }
   .inbox-shell .inbox-conversation { min-height: 0; }
-  .inbox-shell[data-conversation-open=true] .inbox-conversation { min-height: calc(100dvh - 300px); }
-  .inbox-shell .inbox-reply-textarea { min-height: 66px; max-height: 150px; }
+  .inbox-shell[data-conversation-open=true] .inbox-conversation { min-height: calc(100dvh - 180px); }
+  .inbox-shell .inbox-reply-textarea { min-height: 44px; max-height: 150px; }
 }
