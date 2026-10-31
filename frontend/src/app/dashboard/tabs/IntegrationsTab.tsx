@@ -582,6 +582,35 @@ export function IntegrationsTab({
   const [payPublishableKey, setPayPublishableKey] = useState("");
   const [payWebhookSecret, setPayWebhookSecret] = useState("");
   const [payExtraId, setPayExtraId] = useState("");
+  const [registeringPayWebhook, setRegisteringPayWebhook] = useState<string | null>(null);
+  const [copiedPayWebhook, setCopiedPayWebhook] = useState<string | null>(null);
+  const [showPayWebhookGuide, setShowPayWebhookGuide] = useState<Record<string, boolean>>({});
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
+  const [sendOwnerSaleAlert, setSendOwnerSaleAlert] = useState(true);
+  const [receiptBrandColor, setReceiptBrandColor] = useState("#ea580c");
+  const [receiptSupportEmail, setReceiptSupportEmail] = useState("");
+  const [receiptCustomMessage, setReceiptCustomMessage] = useState("");
+  const [emailPreviewTab, setEmailPreviewTab] = useState<"succeeded" | "refunded" | "pending">("succeeded");
+
+  // WooCommerce Webhook Helpers
+  const [registeringWcWebhooks, setRegisteringWcWebhooks] = useState(false);
+  const [copiedWcSecret, setCopiedWcSecret] = useState(false);
+  const [showWcWebhookGuide, setShowWcWebhookGuide] = useState(false);
+
+  // WordPress Knowledge Base Integration State
+  const [wpStatus, setWpStatus] = useState<Record<string, any> | null>(null);
+  const [loadingWp, setLoadingWp] = useState(false);
+  const [syncingWp, setSyncingWp] = useState(false);
+  const [wpSiteUrl, setWpSiteUrl] = useState("");
+  const [wpUsername, setWpUsername] = useState("");
+  const [wpAppPassword, setWpAppPassword] = useState("");
+  const [wpSyncPages, setWpSyncPages] = useState(true);
+  const [wpSyncPosts, setWpSyncPosts] = useState(true);
+  const [showWpAuthFields, setShowWpAuthFields] = useState(false);
+  const [copiedWpSnippet, setCopiedWpSnippet] = useState(false);
+  const [copiedWpWebhook, setCopiedWpWebhook] = useState(false);
+  const [copiedWpSecret, setCopiedWpSecret] = useState(false);
+  const [showWpGuide, setShowWpGuide] = useState(false);
 
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "https://api.chatty.personaliai.com";
 
@@ -615,6 +644,13 @@ export function IntegrationsTab({
           setAiMaxAmountDollars((data.ai_max_amount_cents / 100).toString());
         } else {
           setAiMaxAmountDollars("");
+        }
+        if (data.email_config) {
+          setEmailNotificationsEnabled(data.email_config.email_notifications_enabled !== false);
+          setSendOwnerSaleAlert(data.email_config.send_owner_sale_alert !== false);
+          setReceiptBrandColor(data.email_config.receipt_brand_color || "#ea580c");
+          setReceiptSupportEmail(data.email_config.receipt_support_email || "");
+          setReceiptCustomMessage(data.email_config.receipt_custom_message || "");
         }
       }
     } catch (err) {
@@ -744,6 +780,11 @@ export function IntegrationsTab({
           ai_payment_allowed: targetAllowed,
           ai_max_amount_cents: maxCents,
           ai_payment_instructions: aiPaymentInstructions,
+          email_notifications_enabled: emailNotificationsEnabled,
+          send_owner_sale_alert: sendOwnerSaleAlert,
+          receipt_brand_color: receiptBrandColor,
+          receipt_support_email: receiptSupportEmail,
+          receipt_custom_message: receiptCustomMessage,
         }),
       });
       if (!res.ok) throw new Error("Failed to save payment directives");
@@ -765,6 +806,167 @@ export function IntegrationsTab({
       if (trimmed.includes(rule)) return prev;
       return `${trimmed}\n\n• ${rule}`;
     });
+  };
+
+  const handleRegisterPaymentWebhook = async (provider: "stripe" | "paypal" | "lemonsqueezy" | "polar") => {
+    if (!botId) return;
+    setRegisteringPayWebhook(provider);
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments/${provider}/register-webhook`, {
+        method: "POST",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to register webhook");
+      if (data.auto_configured) {
+        showToast?.(data.message || `${provider} webhook auto-registered!`, "success");
+      } else {
+        showToast?.(data.message || "Manual webhook setup required for this token scope.", "info");
+        setShowPayWebhookGuide((prev) => ({ ...prev, [provider]: true }));
+      }
+      await loadPaymentIntegrations();
+    } catch (err: any) {
+      showToast?.(err.message || "Webhook registration failed", "error");
+    } finally {
+      setRegisteringPayWebhook(null);
+    }
+  };
+
+  const handleRegisterWcWebhooks = async () => {
+    if (!botId) return;
+    setRegisteringWcWebhooks(true);
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/woocommerce/register-webhooks`, {
+        method: "POST",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to register WooCommerce webhooks");
+      if (data.auto_configured) {
+        showToast?.("WooCommerce product webhooks (created, updated, deleted) auto-registered!", "success");
+      } else {
+        showToast?.(data.reason || "Manual webhook setup required (API key is Read-Only).", "info");
+        setShowWcWebhookGuide(true);
+      }
+    } catch (err: any) {
+      showToast?.(err.message || "Failed to register webhooks", "error");
+    } finally {
+      setRegisteringWcWebhooks(false);
+    }
+  };
+
+  // WordPress Integration Load & Handlers
+  const loadWpStatus = useCallback(async () => {
+    if (!botId) return;
+    try {
+      setLoadingWp(true);
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/wordpress`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWpStatus(data);
+        if (data.site_url && !wpSiteUrl) setWpSiteUrl(data.site_url);
+        if (data.username && !wpUsername) setWpUsername(data.username);
+        if (data.sync_pages !== undefined) setWpSyncPages(Boolean(data.sync_pages));
+        if (data.sync_posts !== undefined) setWpSyncPosts(Boolean(data.sync_posts));
+      }
+    } catch (err) {
+      console.error("Failed to load WordPress status", err);
+    } finally {
+      setLoadingWp(false);
+    }
+  }, [botId, authToken, wpSiteUrl, wpUsername, fetchWithFallback]);
+
+  useEffect(() => {
+    if (botId) {
+      void loadWpStatus();
+    }
+  }, [botId, loadWpStatus]);
+
+  const handleConnectWp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!botId || !wpSiteUrl.trim()) return;
+    try {
+      setSyncingWp(true);
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/wordpress/connect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          site_url: wpSiteUrl.trim(),
+          username: wpUsername.trim() || undefined,
+          app_password: wpAppPassword.trim() || undefined,
+          sync_pages: wpSyncPages,
+          sync_posts: wpSyncPosts,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to connect WordPress site");
+      setWpStatus(data);
+      setWpAppPassword("");
+      const syncedTotal = data.sync?.synced_total ?? data.synced_total ?? 0;
+      showToast?.(`WordPress connected! Trained AI on ${syncedTotal} published pages & articles.`, "success");
+    } catch (err: any) {
+      showToast?.(err.message || "Failed to connect WordPress", "error");
+    } finally {
+      setSyncingWp(false);
+    }
+  };
+
+  const handleSyncWp = async () => {
+    if (!botId) return;
+    try {
+      setSyncingWp(true);
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/wordpress/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          sync_pages: wpSyncPages,
+          sync_posts: wpSyncPosts,
+          max_items_per_type: 100,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "WordPress sync failed");
+      setWpStatus(data);
+      showToast?.(`Synced ${data.sync?.synced_total ?? data.synced_total ?? 0} WordPress pages & posts to Knowledge Base!`, "success");
+    } catch (err: any) {
+      showToast?.(err.message || "Failed to sync WordPress content", "error");
+    } finally {
+      setSyncingWp(false);
+    }
+  };
+
+  const handleDisconnectWp = async () => {
+    if (!botId) return;
+    if (!(await confirm("Disconnect WordPress from this bot? Trained pages & posts in your Knowledge Base will be preserved unless you delete them in Knowledge Base."))) return;
+    try {
+      setLoadingWp(true);
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/wordpress`, {
+        method: "DELETE",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        setWpStatus(null);
+        showToast?.("WordPress disconnected", "info");
+      }
+    } catch (err: any) {
+      showToast?.(err.message || "Failed to disconnect WordPress", "error");
+    } finally {
+      setLoadingWp(false);
+    }
   };
 
   const loadWcStatus = useCallback(async () => {
@@ -1136,11 +1338,24 @@ export function IntegrationsTab({
         categoryLabel: "E-Commerce",
         icon: <PlatformIcon domain="woocommerce.com" label="WooCommerce" />,
         iconBg: "bg-[#9b51e0]/10 text-[#9b51e0]",
-        description: "Bidirectional product sync, real-time stock levels, pricing updates, and order lookups directly in AI chat.",
-        statsHighlight: wcStatus?.connected ? `${wcStatus.total_products ?? 0} Products Synced` : "1-Click Connect",
+        description: "Automatic bulk product catalog import, real-time stock & variation pricing, automatic webhooks, and live order lookups.",
+        statsHighlight: wcStatus?.connected ? `${wcStatus.total_products ?? 0} Products Synced` : "1-Click Bulk Sync",
         isConnected: Boolean(wcStatus?.connected),
         isConfigured: Boolean(wcStatus?.connected || wcStatus?.store_url),
         tags: ["woocommerce", "wordpress", "store", "ecommerce", "catalog", "products"],
+      },
+      {
+        id: "wordpress",
+        name: "WordPress Content & KB",
+        category: "embeds" as IntegrationCategory,
+        categoryLabel: "CMS & Knowledge",
+        icon: <PlatformIcon domain="wordpress.org" label="WordPress" />,
+        iconBg: "bg-[#21759b]/10 text-[#21759b]",
+        description: "Train your AI agent on all public WordPress Pages, Blog Posts, and Articles with 1 click + real-time webhook auto-sync.",
+        statsHighlight: wpStatus?.connected ? `${wpStatus.synced_total ?? 0} Pages & Posts Trained` : "Zero-Plugin Sync",
+        isConnected: Boolean(wpStatus?.connected),
+        isConfigured: Boolean(wpStatus?.connected || wpStatus?.site_url),
+        tags: ["wordpress", "cms", "knowledge base", "blog", "posts", "pages", "articles", "training"],
       },
       {
         id: "voice",
@@ -2554,6 +2769,340 @@ export function IntegrationsTab({
             </div>
           </div>
         )}
+
+        {/* Real-Time Webhook Configuration & Manual Setup Guide (Always visible so merchants can copy URL before or after connecting) */}
+        <div className="p-4 sm:p-5 rounded-3xl bg-neutral-50/80 dark:bg-neutral-950/60 border border-neutral-200 dark:border-neutral-800 space-y-3.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
+                  <span>Real-Time Payment Webhook Endpoint</span>
+                </span>
+                {info.webhook_auto_configured ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <Check className="size-3" /> Auto-Registered
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                    Auto or Manual Setup
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                Receives real-time payment completions, subscription renewals, and refund events from {brand.name} to update <b>Orders &amp; Sales</b>, confirm bookings, and send customer receipt emails automatically.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {info.connected && (
+                <button
+                  type="button"
+                  onClick={() => void handleRegisterPaymentWebhook(provider)}
+                  disabled={registeringPayWebhook === provider}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {registeringPayWebhook === provider ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="size-3.5" />
+                  )}
+                  <span>{info.webhook_auto_configured ? "Re-Verify Webhook" : "Auto-Register Webhook"}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  const url = info.webhook_url || `${backendUrl}/api/bots/${botId || ""}/webhooks/payments/${provider}`;
+                  copyText(url, (v) => setCopiedPayWebhook(v ? provider : null), `${brand.name} Webhook URL copied`);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+              >
+                {copiedPayWebhook === provider ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                <span>{copiedPayWebhook === provider ? "Copied!" : "Copy Webhook URL"}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 font-mono text-[11px] text-neutral-800 dark:text-neutral-200 break-all select-all">
+            {info.webhook_url || `${backendUrl}/api/bots/${botId || ""}/webhooks/payments/${provider}`}
+          </div>
+
+          {/* Collapsible Provider-Specific Manual Webhook Guide */}
+          <div className="border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden bg-white dark:bg-neutral-900">
+            <button
+              type="button"
+              onClick={() => setShowPayWebhookGuide((prev) => ({ ...prev, [provider]: !prev[provider] }))}
+              className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+            >
+              <span>Step-by-Step {brand.name} Webhook Setup Guide (Auto &amp; Manual)</span>
+              {showPayWebhookGuide[provider] ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </button>
+            {showPayWebhookGuide[provider] && (
+              <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2.5 text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-900/50 text-[11px] text-emerald-800 dark:text-emerald-300">
+                  <b>Automatic Registration:</b> When you click <b>Verify &amp; Connect</b> or <b>Auto-Register Webhook</b>, Chatty automatically calls the {brand.name} API to register this endpoint and saves the signing secret. Use the steps below only if your API token lacks webhook management permissions.
+                </div>
+                {provider === "stripe" && (
+                  <ol className="list-decimal list-inside space-y-1.5 text-[11px]">
+                    <li>Open your <b>Stripe Dashboard &rarr; Developers &rarr; Webhooks</b> and click <b>Add endpoint</b>.</li>
+                    <li>Paste the <b>Webhook Endpoint URL</b> above into the Endpoint URL field.</li>
+                    <li>Select events: <code>checkout.session.completed</code>, <code>payment_intent.succeeded</code>, <code>payment_intent.payment_failed</code>, and <code>charge.refunded</code>.</li>
+                    <li>Copy the <b>Signing secret (whsec_...)</b> and paste it into the Webhook Secret field when connecting.</li>
+                  </ol>
+                )}
+                {provider === "polar" && (
+                  <ol className="list-decimal list-inside space-y-1.5 text-[11px]">
+                    <li>In your <b>Polar.sh Dashboard</b>, navigate to <b>Settings &rarr; Webhooks &rarr; Add Endpoint</b>.</li>
+                    <li>Paste the <b>Webhook Endpoint URL</b> above and choose format <b>RAW (JSON)</b>.</li>
+                    <li>Enable events: <code>checkout.updated</code>, <code>order.created</code>, <code>order.paid</code>, and <code>order.refunded</code>.</li>
+                    <li>Tip: Include the <code>webhooks:write</code> scope on your Polar Organization Access Token so Chatty can auto-register it with 1 click.</li>
+                  </ol>
+                )}
+                {provider === "lemonsqueezy" && (
+                  <ol className="list-decimal list-inside space-y-1.5 text-[11px]">
+                    <li>In your <b>Lemon Squeezy Dashboard</b>, go to <b>Settings &rarr; Webhooks &rarr; +ff Create Webhook</b>.</li>
+                    <li>Paste the <b>Webhook Endpoint URL</b> above into the Callback URL field.</li>
+                    <li>Check events: <code>order_created</code>, <code>order_refunded</code>, <code>subscription_payment_success</code>, and <code>subscription_payment_failed</code>.</li>
+                  </ol>
+                )}
+                {provider === "paypal" && (
+                  <ol className="list-decimal list-inside space-y-1.5 text-[11px]">
+                    <li>Open <a href="https://developer.paypal.com/dashboard/applications" target="_blank" rel="noopener noreferrer" className="text-orange-600 underline">developer.paypal.com</a>, select your REST App, and scroll to <b>Webhooks &rarr; Add Webhook</b>.</li>
+                    <li>Paste the <b>Webhook Endpoint URL</b> above.</li>
+                    <li>Check events: <code>CHECKOUT.ORDER.APPROVED</code>, <code>PAYMENT.CAPTURE.COMPLETED</code>, <code>PAYMENT.CAPTURE.REFUNDED</code>, and <code>PAYMENT.CAPTURE.DENIED</code>.</li>
+                  </ol>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Customer Receipt & Payment Status Email Designer */}
+        <div className="p-4 sm:p-5 rounded-3xl bg-neutral-50/80 dark:bg-neutral-900/60 border border-neutral-200/80 dark:border-neutral-800 space-y-4 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-200/60 dark:border-neutral-800/60">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="size-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 shrink-0">
+                <EmailBrandIcon className="size-5" />
+              </div>
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h5 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white">
+                    Automated Payment Receipt &amp; Status Emails
+                  </h5>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    emailNotificationsEnabled
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      : "bg-neutral-200 dark:bg-neutral-800 text-neutral-500 border-neutral-300 dark:border-neutral-700"
+                  }`}>
+                    {emailNotificationsEnabled ? "Auto-Send Active" : "Paused"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
+                  Automatically send branded HTML receipts to buyers upon payment completion, refund confirmation, or payment status updates, plus instant sale alerts to your team.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer bg-white dark:bg-neutral-950 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                <input
+                  type="checkbox"
+                  checked={emailNotificationsEnabled}
+                  onChange={(e) => setEmailNotificationsEnabled(e.target.checked)}
+                  className="rounded text-orange-600 focus:ring-orange-500"
+                />
+                <span>Customer Receipts</span>
+              </label>
+              <label className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer bg-white dark:bg-neutral-950 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800">
+                <input
+                  type="checkbox"
+                  checked={sendOwnerSaleAlert}
+                  onChange={(e) => setSendOwnerSaleAlert(e.target.checked)}
+                  className="rounded text-orange-600 focus:ring-orange-500"
+                />
+                <span>Owner Sale Alert</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Left Column: Email Customization Controls */}
+            <div className="lg:col-span-5 space-y-3.5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                  Brand Header Color
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="color"
+                    value={receiptBrandColor}
+                    onChange={(e) => setReceiptBrandColor(e.target.value)}
+                    className="h-8 w-10 rounded-lg border border-neutral-200 dark:border-neutral-800 cursor-pointer bg-transparent"
+                  />
+                  <input
+                    type="text"
+                    value={receiptBrandColor}
+                    onChange={(e) => setReceiptBrandColor(e.target.value)}
+                    className="w-24 text-xs font-mono px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950"
+                  />
+                  {["#ea580c", "#059669", "#2563eb", "#7c3aed", "#18181b"].map((swatch) => (
+                    <button
+                      key={swatch}
+                      type="button"
+                      onClick={() => setReceiptBrandColor(swatch)}
+                      className={`size-6 rounded-full border-2 transition-transform cursor-pointer ${
+                        receiptBrandColor.toLowerCase() === swatch ? "scale-110 border-neutral-900 dark:border-white" : "border-transparent"
+                      }`}
+                      style={{ backgroundColor: swatch }}
+                      title={`Use ${swatch}`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                  Support Reply-To Email (Shown in Footer)
+                </label>
+                <input
+                  type="email"
+                  value={receiptSupportEmail}
+                  onChange={(e) => setReceiptSupportEmail(e.target.value)}
+                  placeholder="support@yourcompany.com"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                  Custom Receipt Note / Onboarding Instructions
+                </label>
+                <textarea
+                  rows={3}
+                  value={receiptCustomMessage}
+                  onChange={(e) => setReceiptCustomMessage(e.target.value)}
+                  placeholder="e.g., Thank you for your order! Your account credentials and onboarding checklist will arrive within 5 minutes."
+                  className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 leading-relaxed focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleSaveAiPaymentPolicy()}
+                disabled={savingPolicy}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
+              >
+                {savingPolicy ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5 text-emerald-400" />}
+                <span>{savingPolicy ? "Saving Email Design..." : "Save Email & Payment Settings"}</span>
+              </button>
+            </div>
+
+            {/* Right Column: Live Interactive Email Template Preview */}
+            <div className="lg:col-span-7 space-y-2.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  Live Customer Email Preview
+                </span>
+                <div className="flex items-center gap-1 rounded-xl bg-neutral-200/70 dark:bg-neutral-800 p-1">
+                  {[
+                    { id: "succeeded", label: "Paid Receipt" },
+                    { id: "refunded", label: "Refund Issued" },
+                    { id: "pending", label: "Payment Link" },
+                  ].map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setEmailPreviewTab(t.id as "succeeded" | "refunded" | "pending")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
+                        emailPreviewTab === t.id
+                          ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-2xs"
+                          : "text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 overflow-hidden shadow-xs">
+                <div
+                  className="px-5 py-4 text-white flex items-center justify-between"
+                  style={{
+                    backgroundColor:
+                      emailPreviewTab === "succeeded"
+                        ? receiptBrandColor || "#ea580c"
+                        : emailPreviewTab === "refunded"
+                        ? "#6366f1"
+                        : "#d97706",
+                  }}
+                >
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-widest opacity-85">
+                      {emailPreviewTab === "succeeded"
+                        ? "Payment Confirmed"
+                        : emailPreviewTab === "refunded"
+                        ? "Refund Processed"
+                        : "Awaiting Payment"}
+                    </div>
+                    <div className="text-sm font-extrabold mt-0.5">
+                      {emailPreviewTab === "succeeded"
+                        ? "Thank you for your purchase!"
+                        : emailPreviewTab === "refunded"
+                        ? "Your refund has been issued"
+                        : "Complete your secure checkout"}
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/20 backdrop-blur-xs">
+                    {brand.name}
+                  </span>
+                </div>
+
+                <div className="p-4 sm:p-5 space-y-3 text-xs">
+                  <p className="text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                    Hi <b>Alex Rivera</b>,{" "}
+                    {emailPreviewTab === "succeeded"
+                      ? "we have received your payment. Below is your official transaction receipt:"
+                      : emailPreviewTab === "refunded"
+                      ? "your payment has been refunded to your original payment method. Please allow 3-5 business days for your bank to post the credit."
+                      : "your secure checkout link is ready. Click the button below to complete your order:"}
+                  </p>
+
+                  <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-neutral-500">Item / Service</span>
+                      <span className="font-bold text-neutral-900 dark:text-white">Pro Growth Consultation</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-neutral-500">Amount</span>
+                      <span className="font-mono font-extrabold text-sm text-neutral-900 dark:text-white">$149.00 USD</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-neutral-500">Reference ID</span>
+                      <span className="font-mono text-neutral-600 dark:text-neutral-400">#ORD-849201</span>
+                    </div>
+                  </div>
+
+                  {receiptCustomMessage && (
+                    <div
+                      className="p-3 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border-l-4 text-[11px] text-neutral-700 dark:text-neutral-300 leading-relaxed"
+                      style={{ borderLeftColor: receiptBrandColor || "#ea580c" }}
+                    >
+                      {receiptCustomMessage}
+                    </div>
+                  )}
+
+                  {receiptSupportEmail && (
+                    <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400">
+                      Questions? Reply directly or contact <span className="text-neutral-700 dark:text-neutral-300 font-medium">{receiptSupportEmail}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -2610,6 +3159,37 @@ export function IntegrationsTab({
         )}
       </div>
 
+      {/* Practical Guide Banner for Existing WooCommerce Stores */}
+      <div className="p-4 rounded-2xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/70 dark:border-purple-900/50 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+        <div className="space-y-1">
+          <div className="font-bold text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-[#9b51e0]" />
+            <span>Zero One-by-One Entry</span>
+          </div>
+          <p className="text-[11px] text-purple-900/80 dark:text-purple-300/80 leading-relaxed">
+            Already selling hundreds or thousands of items? Chatty bulk-imports your entire existing catalog, variations, and photos automatically.
+          </p>
+        </div>
+        <div className="space-y-1">
+          <div className="font-bold text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
+            <RefreshCw className="size-3.5 text-[#9b51e0]" />
+            <span>Auto &amp; Manual Webhooks</span>
+          </div>
+          <p className="text-[11px] text-purple-900/80 dark:text-purple-300/80 leading-relaxed">
+            Provide Read/Write API keys for 1-click automatic webhook setup, or use Read-Only keys and paste the webhook URL manually.
+          </p>
+        </div>
+        <div className="space-y-1">
+          <div className="font-bold text-purple-950 dark:text-purple-200 flex items-center gap-1.5">
+            <ShieldCheck className="size-3.5 text-[#9b51e0]" />
+            <span>Live Order &amp; Tracking Lookup</span>
+          </div>
+          <p className="text-[11px] text-purple-900/80 dark:text-purple-300/80 leading-relaxed">
+            Past &amp; new orders work immediately via live REST API lookup verified against the buyer&apos;s billing email or phone.
+          </p>
+        </div>
+      </div>
+
       {wcSuccessMsg && (
         <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 flex items-start gap-2.5 text-emerald-700 dark:text-emerald-300 text-xs">
           <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
@@ -2654,24 +3234,78 @@ export function IntegrationsTab({
             </div>
           </div>
 
-          {/* Webhook Auto-Sync Box */}
-          <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 flex items-center gap-1.5">
-                <ShieldCheck className="size-3.5 text-emerald-500" /> WooCommerce Instant Sync Webhook
-              </span>
+          {/* Webhook Auto-Sync & Manual Guide Box */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-3.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div>
+                <span className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-emerald-500" /> Real-Time WooCommerce Webhooks (Auto &amp; Manual)
+                </span>
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                  Keeps product prices, variations, and stock levels synchronized in real time when you edit products in WordPress.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => void handleRegisterWcWebhooks()}
+                  disabled={registeringWcWebhooks}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold bg-[#9b51e0] hover:bg-[#8640c4] text-white px-3 py-1.5 rounded-xl cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  {registeringWcWebhooks ? <Loader2 className="size-3.5 animate-spin" /> : <Zap className="size-3.5" />}
+                  <span>Auto-Register Webhooks</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => copyText(WC_WEBHOOK_URL, setCopiedWcWebhook, "WooCommerce Webhook URL copied")}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl hover:bg-neutral-100 cursor-pointer"
+                >
+                  {copiedWcWebhook ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                  <span>{copiedWcWebhook ? "Copied URL" : "Copy Webhook URL"}</span>
+                </button>
+                {wcStatus?.webhook_secret && (
+                  <button
+                    type="button"
+                    onClick={() => copyText(wcStatus.webhook_secret || "", setCopiedWcSecret, "Webhook Secret copied")}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl hover:bg-neutral-100 cursor-pointer"
+                  >
+                    {copiedWcSecret ? <Check className="size-3.5 text-emerald-500" /> : <Key className="size-3.5" />}
+                    <span>{copiedWcSecret ? "Copied Secret" : "Copy Secret"}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 font-mono text-[11px] text-neutral-800 dark:text-neutral-200 break-all select-all">
+              {WC_WEBHOOK_URL}
+            </div>
+
+            <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
               <button
                 type="button"
-                onClick={() => copyText(WC_WEBHOOK_URL, setCopiedWcWebhook, "WooCommerce Webhook URL copied")}
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-neutral-700 dark:text-neutral-300 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2.5 py-1 rounded-md hover:bg-neutral-100 cursor-pointer"
+                onClick={() => setShowWcWebhookGuide(!showWcWebhookGuide)}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
               >
-                {copiedWcWebhook ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
-                <span>{copiedWcWebhook ? "Copied" : "Copy Webhook URL"}</span>
+                <span>How Webhooks &amp; Existing Stores Work (Step-by-Step Guide)</span>
+                {showWcWebhookGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
               </button>
+              {showWcWebhookGuide && (
+                <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2.5 text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                  <p>
+                    <b>1. Do I need to add products one by one for an already-selling store?</b><br />
+                    <b>No.</b> Upon connecting, Chatty automatically runs a background bulk sync that paginates through your entire existing WooCommerce catalog (100 products per page, including variable product sizes/colors, stock status, sale prices, and gallery images) and indexes them into your AI catalog.
+                  </p>
+                  <p>
+                    <b>2. What about historical &amp; live customer orders?</b><br />
+                    Orders are looked up <b>live in real time</b> via the WooCommerce REST API whenever a customer asks <i>&ldquo;Where is my order #1042?&rdquo;</i> after verifying their billing email or phone number.
+                  </p>
+                  <p>
+                    <b>3. Manual Webhook Setup (if using Read-Only API keys):</b><br />
+                    In WordPress Admin, go to <b>WooCommerce &rarr; Settings &rarr; Advanced &rarr; Webhooks &rarr; Add webhook</b>. Set Status to <b>Active</b>, Topic to <code>Product updated</code> (and optionally <code>Product created</code> / <code>Product deleted</code>), paste the <b>Delivery URL</b> and <b>Secret</b> above, and click <b>Save webhook</b>.
+                  </p>
+                </div>
+              )}
             </div>
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed">
-              Add this webhook in your WordPress admin under <b>WooCommerce → Settings → Advanced → Webhooks</b> with topic <code>action.woocommerce_update_product</code> to trigger automatic real-time catalog syncing whenever inventory changes.
-            </p>
           </div>
         </div>
       ) : (
@@ -2790,6 +3424,333 @@ export function IntegrationsTab({
       )}
     </div>
   );
+
+  const renderWordPressSection = () => {
+    const isWpConnected = Boolean(wpStatus?.connected);
+    const wpWebhookUrl = wpStatus?.webhook_url || `${backendUrl}/api/integrations/wordpress/webhook/${botId || ""}`;
+    const wpPhpSnippet =
+      wpStatus?.php_snippet ||
+      `<?php
+// Paste in WPCode or your theme's functions.php to embed Chatty + auto-sync pages/posts
+add_action('wp_footer', function () {
+    if (is_admin()) return;
+    echo '<script src="https://chatty.personaliai.com/widget.js" data-bot-id="${botId || "YOUR_BOT_ID"}" defer></script>';
+});`;
+
+    return (
+      <div
+        id="integration-wordpress"
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+      >
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
+          <div className="flex items-start gap-3.5">
+            <div className="size-12 rounded-2xl bg-[#21759b]/10 text-[#21759b] flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
+              <PlatformIcon domain="wordpress.org" label="WordPress" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                  WordPress Content &amp; Knowledge Base Sync
+                </h3>
+                {isWpConnected ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] leading-none font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Connected &bull; {wpStatus?.synced_total ?? 0} Trained
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] leading-none font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                    Ready to Connect
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-2xl leading-relaxed">
+                Train your AI agent directly on your WordPress <b>Pages</b>, <b>Blog Posts</b>, and <b>Knowledge Articles</b> via the native WordPress REST API (<code>/wp-json/wp/v2</code>) or Sitemap. Every synced page is indexed into your Knowledge Base with clickable source citations.
+              </p>
+            </div>
+          </div>
+
+          {isWpConnected && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => void handleSyncWp()}
+                disabled={syncingWp || !botId}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#21759b] hover:bg-[#1a5f7e] text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {syncingWp ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+                <span>{syncingWp ? "Training Knowledge Base..." : "Sync Content Now"}</span>
+              </button>
+              {onNavigateTab && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab("knowledge")}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+                >
+                  <span>View in Knowledge Base</span>
+                  <ExternalLink className="size-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleDisconnectWp()}
+                disabled={loadingWp}
+                className="px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+              >
+                Disconnect
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* How WordPress Training Works Banner */}
+        <div className="p-4 rounded-2xl bg-sky-50/70 dark:bg-sky-950/20 border border-sky-200/70 dark:border-sky-900/50 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="space-y-1">
+            <div className="font-bold text-sky-950 dark:text-sky-200 flex items-center gap-1.5">
+              <Globe className="size-3.5 text-[#21759b]" />
+              <span>1-Click Public Content Sync</span>
+            </div>
+            <p className="text-[11px] text-sky-900/80 dark:text-sky-300/80 leading-relaxed">
+              Just enter your WordPress URL. Chatty automatically fetches published Pages &amp; Posts via <code>/wp-json/wp/v2</code> — no API keys needed for public sites.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <div className="font-bold text-sky-950 dark:text-sky-200 flex items-center gap-1.5">
+              <Sparkles className="size-3.5 text-[#21759b]" />
+              <span>Trained into Knowledge Base</span>
+            </div>
+            <p className="text-[11px] text-sky-900/80 dark:text-sky-300/80 leading-relaxed">
+              Every page and post is cleaned and stored as a trained Knowledge Base URL source so your AI answers with accurate links.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <div className="font-bold text-sky-950 dark:text-sky-200 flex items-center gap-1.5">
+              <Zap className="size-3.5 text-[#21759b]" />
+              <span>Real-Time Auto-Update Hook</span>
+            </div>
+            <p className="text-[11px] text-sky-900/80 dark:text-sky-300/80 leading-relaxed">
+              Use the included PHP snippet or webhook so publishing or editing any post in WordPress immediately updates your AI&apos;s memory.
+            </p>
+          </div>
+        </div>
+
+        {/* Connected Metrics & Controls OR Connect Form */}
+        {isWpConnected ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">WordPress Site</div>
+                <div className="text-xs font-mono font-bold text-neutral-900 dark:text-neutral-100 truncate mt-1">
+                  {wpStatus?.site_url}
+                </div>
+              </div>
+              <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Trained Pages</div>
+                <div className="text-base font-extrabold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                  {wpStatus?.synced_pages ?? 0} Pages
+                </div>
+              </div>
+              <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Trained Posts</div>
+                <div className="text-base font-extrabold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                  {wpStatus?.synced_posts ?? 0} Articles
+                </div>
+              </div>
+              <div className="p-3.5 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Last Synced</div>
+                <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                  {wpStatus?.last_synced_at ? new Date(wpStatus.last_synced_at).toLocaleString() : "Just now"}
+                </div>
+              </div>
+            </div>
+
+            {/* Content Type Filter Checkboxes */}
+            <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">Content Types to Train:</span>
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={wpSyncPages}
+                    onChange={(e) => setWpSyncPages(e.target.checked)}
+                    className="rounded text-[#21759b]"
+                  />
+                  <span>Published Pages (About, Pricing, FAQ, Services)</span>
+                </label>
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={wpSyncPosts}
+                    onChange={(e) => setWpSyncPosts(e.target.checked)}
+                    className="rounded text-[#21759b]"
+                  />
+                  <span>Blog Posts &amp; News Articles</span>
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleSyncWp()}
+                disabled={syncingWp}
+                className="px-3.5 py-1.5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-bold cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                {syncingWp ? "Syncing..." : "Apply & Re-Sync"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleConnectWp} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                WordPress Website URL <span className="text-red-500">*</span>
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="url"
+                  required
+                  value={wpSiteUrl}
+                  onChange={(e) => setWpSiteUrl(e.target.value)}
+                  placeholder="https://yourwordpresssite.com"
+                  className="flex-1 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-[#21759b]"
+                />
+                <button
+                  type="submit"
+                  disabled={syncingWp || !wpSiteUrl.trim()}
+                  className="px-5 py-2.5 bg-[#21759b] hover:bg-[#1a5f7e] text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                >
+                  {syncingWp ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                  <span>{syncingWp ? "Connecting & Training KB..." : "Connect & Train Knowledge Base"}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 pt-1">
+              <label className="inline-flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wpSyncPages}
+                  onChange={(e) => setWpSyncPages(e.target.checked)}
+                  className="rounded text-[#21759b]"
+                />
+                <span>Train AI on Published Pages</span>
+              </label>
+              <label className="inline-flex items-center gap-2 text-xs font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wpSyncPosts}
+                  onChange={(e) => setWpSyncPosts(e.target.checked)}
+                  className="rounded text-[#21759b]"
+                />
+                <span>Train AI on Blog Posts &amp; Articles</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowWpAuthFields(!showWpAuthFields)}
+                className="text-xs font-semibold text-[#21759b] hover:underline cursor-pointer"
+              >
+                {showWpAuthFields ? "Hide Optional Application Password" : "+ Optional: Add WP Application Password (for protected REST APIs)"}
+              </button>
+            </div>
+
+            {showWpAuthFields && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    WordPress Username (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={wpUsername}
+                    onChange={(e) => setWpUsername(e.target.value)}
+                    placeholder="admin"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Application Password (Optional)
+                  </label>
+                  <input
+                    type="password"
+                    value={wpAppPassword}
+                    onChange={(e) => setWpAppPassword(e.target.value)}
+                    placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+                    className="w-full bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-neutral-400">
+                    Created in WordPress Admin &rarr; Users &rarr; Profile &rarr; Application Passwords.
+                  </p>
+                </div>
+              </div>
+            )}
+          </form>
+        )}
+
+        {/* WordPress All-in-One Auto-Sync & Widget PHP Snippet + Manual Webhook */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                <ShieldCheck className="size-4 text-emerald-500" />
+                <span>Real-Time WordPress Auto-Sync &amp; Widget Embed</span>
+              </h4>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                Paste this lightweight PHP snippet into the free <b>WPCode</b> plugin or your theme&apos;s <code>functions.php</code>. It embeds the Chatty widget AND automatically syncs any new or edited WordPress Page/Post to your Knowledge Base in real time.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => copyText(wpPhpSnippet, setCopiedWpSnippet, "WordPress PHP snippet copied")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#21759b] text-white hover:bg-[#1a5f7e] cursor-pointer"
+              >
+                {copiedWpSnippet ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                <span>{copiedWpSnippet ? "Snippet Copied!" : "Copy PHP Snippet"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => copyText(wpWebhookUrl, setCopiedWpWebhook, "WordPress Webhook URL copied")}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 cursor-pointer"
+              >
+                {copiedWpWebhook ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                <span>{copiedWpWebhook ? "Copied URL" : "Copy Webhook URL"}</span>
+              </button>
+              {wpStatus?.webhook_secret && (
+                <button
+                  type="button"
+                  onClick={() => copyText(wpStatus.webhook_secret, setCopiedWpSecret, "WordPress Webhook Secret copied")}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 cursor-pointer"
+                >
+                  {copiedWpSecret ? <Check className="size-3.5 text-emerald-500" /> : <Key className="size-3.5" />}
+                  <span>{copiedWpSecret ? "Copied Secret" : "Copy Secret"}</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <pre className="p-4 rounded-xl bg-neutral-900 text-neutral-100 font-mono text-[11px] overflow-x-auto leading-relaxed max-h-64">
+            {wpPhpSnippet}
+          </pre>
+
+          <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
+            <button
+              type="button"
+              onClick={() => setShowWpGuide(!showWpGuide)}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
+            >
+              <span>Step-by-Step WordPress Setup &amp; Knowledge Base Training Guide</span>
+              {showWpGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </button>
+            {showWpGuide && (
+              <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2 text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
+                <p><b>Step 1 — Initial Bulk Training:</b> Enter your WordPress URL above and click <b>Connect &amp; Train Knowledge Base</b>. Chatty immediately pulls your published Pages and Blog Posts and indexes them into your Knowledge Base.</p>
+                <p><b>Step 2 — Verify in Knowledge Base:</b> Open the <b>Knowledge Base</b> tab in your Chatty dashboard to see every imported WordPress URL, character count, and training status.</p>
+                <p><b>Step 3 — Real-Time Updates &amp; Widget Embed:</b> In WordPress Admin, install the free <b>WPCode</b> plugin (or open <code>Appearance &rarr; Theme File Editor &rarr; functions.php</code>), paste the PHP snippet above, and activate it. Whenever you publish or update a post, WordPress automatically pushes the change to Chatty.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderSlackSection = () => (
     <div
@@ -5585,6 +6546,10 @@ export function IntegrationsTab({
       {/* SECTION WOOCOMMERCE */}
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "woocommerce")) &&
         renderWooCommerceSection()}
+
+      {/* SECTION WORDPRESS */}
+      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "wordpress")) &&
+        renderWordPressSection()}
 
       {/* SECTION SLACK ESCALATION */}
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "slack")) &&

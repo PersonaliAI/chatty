@@ -590,3 +590,175 @@ class PaymentGatewaysService:
             "amount_cents": amount_cents,
             "currency": currency,
         }
+
+    # -------------------------------------------------------------------------
+    # 6. AUTOMATIC WEBHOOK REGISTRATION ACROSS ALL GATEWAYS
+    # -------------------------------------------------------------------------
+    @classmethod
+    async def auto_register_webhook(
+        cls,
+        provider: str,
+        secret_key: str,
+        webhook_url: str,
+        test_mode: bool = True,
+        publishable_key: Optional[str] = None,
+        extra_config: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Attempt to automatically register the Chatty webhook endpoint on the payment gateway."""
+        prov = provider.lower().strip()
+        extra = extra_config or {}
+        import secrets as _secrets
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                if prov == "stripe":
+                    headers = {"Authorization": f"Bearer {secret_key.strip()}"}
+                    # Check existing endpoints first
+                    list_res = await client.get("https://api.stripe.com/v1/webhook_endpoints?limit=25", headers=headers)
+                    if list_res.status_code == 200:
+                        for ep in list_res.json().get("data", []):
+                            if ep.get("url") == webhook_url and ep.get("status") == "enabled":
+                                return {
+                                    "registered": True,
+                                    "already_existed": True,
+                                    "webhook_id": ep.get("id"),
+                                    "events": ep.get("enabled_events", []),
+                                }
+                    form_data = {
+                        "url": webhook_url,
+                        "enabled_events[0]": "checkout.session.completed",
+                        "enabled_events[1]": "charge.refunded",
+                        "enabled_events[2]": "payment_intent.payment_failed",
+                        "description": "Chatty AI Conversational Commerce Webhook",
+                    }
+                    res = await client.post("https://api.stripe.com/v1/webhook_endpoints", headers=headers, data=form_data)
+                    if res.status_code in (200, 201):
+                        data = res.json()
+                        return {
+                            "registered": True,
+                            "webhook_id": data.get("id"),
+                            "webhook_secret": data.get("secret"),
+                            "events": data.get("enabled_events", []),
+                        }
+                    return {"registered": False, "reason": f"Stripe returned HTTP {res.status_code}"}
+
+                elif prov == "polar":
+                    base_url = "https://sandbox-api.polar.sh" if test_mode else "https://api.polar.sh"
+                    headers = {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {secret_key.strip()}",
+                    }
+                    # Check existing Polar webhook endpoints
+                    list_res = await client.get(f"{base_url}/v1/webhooks/endpoints", headers=headers)
+                    if list_res.status_code == 200:
+                        for ep in list_res.json().get("items", []):
+                            if ep.get("url") == webhook_url:
+                                return {
+                                    "registered": True,
+                                    "already_existed": True,
+                                    "webhook_id": ep.get("id"),
+                                    "webhook_secret": ep.get("secret"),
+                                    "events": ep.get("events", []),
+                                }
+                    generated_secret = f"polar_whs_{_secrets.token_urlsafe(24)}"
+                    payload: dict[str, Any] = {
+                        "url": webhook_url,
+                        "format": "raw",
+                        "secret": generated_secret,
+                        "events": [
+                            "checkout.created",
+                            "checkout.updated",
+                            "order.created",
+                            "subscription.created",
+                            "refund.created",
+                        ],
+                    }
+                    if extra.get("organization_id"):
+                        payload["organization_id"] = extra["organization_id"]
+                    res = await client.post(f"{base_url}/v1/webhooks/endpoints", headers=headers, json=payload)
+                    if res.status_code in (200, 201):
+                        data = res.json()
+                        return {
+                            "registered": True,
+                            "webhook_id": data.get("id"),
+                            "webhook_secret": data.get("secret") or generated_secret,
+                            "events": data.get("events", payload["events"]),
+                        }
+                    return {"registered": False, "reason": f"Polar returned HTTP {res.status_code}"}
+
+                elif prov == "lemonsqueezy":
+                    store_id = str(extra.get("store_id") or "").strip()
+                    if not store_id:
+                        return {"registered": False, "reason": "Store ID required for Lemon Squeezy webhook setup"}
+                    headers = {
+                        "Accept": "application/vnd.api+json",
+                        "Content-Type": "application/vnd.api+json",
+                        "Authorization": f"Bearer {secret_key.strip()}",
+                    }
+                    generated_secret = _secrets.token_hex(16)
+                    payload = {
+                        "data": {
+                            "type": "webhooks",
+                            "attributes": {
+                                "url": webhook_url,
+                                "events": ["order_created", "order_refunded", "subscription_payment_success"],
+                                "secret": generated_secret,
+                                "test_mode": test_mode,
+                            },
+                            "relationships": {
+                                "store": {
+                                    "data": {"type": "stores", "id": store_id}
+                                }
+                            },
+                        }
+                    }
+                    res = await client.post("https://api.lemonsqueezy.com/v1/webhooks", headers=headers, json=payload)
+                    if res.status_code in (200, 201):
+                        data = res.json().get("data", {})
+                        return {
+                            "registered": True,
+                            "webhook_id": data.get("id"),
+                            "webhook_secret": generated_secret,
+                            "events": ["order_created", "order_refunded", "subscription_payment_success"],
+                        }
+                    return {"registered": False, "reason": f"Lemon Squeezy returned HTTP {res.status_code}"}
+
+                elif prov == "paypal":
+                    if not publishable_key:
+                        return {"registered": False, "reason": "PayPal Client ID required"}
+                    token = await cls._paypal_token(publishable_key, secret_key, test_mode)
+                    base = cls._paypal_base(test_mode)
+                    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+                    list_res = await client.get(f"{base}/v1/notifications/webhooks", headers=headers)
+                    if list_res.status_code == 200:
+                        for ep in list_res.json().get("webhooks", []):
+                            if ep.get("url") == webhook_url:
+                                return {
+                                    "registered": True,
+                                    "already_existed": True,
+                                    "webhook_id": ep.get("id"),
+                                }
+                    payload = {
+                        "url": webhook_url,
+                        "event_types": [
+                            {"name": "CHECKOUT.ORDER.APPROVED"},
+                            {"name": "PAYMENT.CAPTURE.COMPLETED"},
+                            {"name": "PAYMENT.CAPTURE.REFUNDED"},
+                        ],
+                    }
+                    res = await client.post(f"{base}/v1/notifications/webhooks", headers=headers, json=payload)
+                    if res.status_code in (200, 201):
+                        data = res.json()
+                        return {
+                            "registered": True,
+                            "webhook_id": data.get("id"),
+                            "events": ["CHECKOUT.ORDER.APPROVED", "PAYMENT.CAPTURE.COMPLETED", "PAYMENT.CAPTURE.REFUNDED"],
+                        }
+                    return {"registered": False, "reason": f"PayPal returned HTTP {res.status_code}"}
+
+        except Exception as exc:
+            logger.warning("Auto-register webhook for %s failed: %s", prov, exc)
+            return {"registered": False, "reason": str(exc)}
+
+        return {"registered": False, "reason": "Unsupported provider"}

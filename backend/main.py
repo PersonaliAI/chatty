@@ -628,6 +628,7 @@ from app.routers import affiliate as _router_affiliate  # noqa: E402
 from app.routers import multimodal as _router_multimodal  # noqa: E402
 from app.routers import marketing as _router_marketing  # noqa: E402
 from app.routers import woocommerce as _router_woocommerce  # noqa: E402
+from app.routers import wordpress as _router_wordpress  # noqa: E402
 from app.routers import voice as _router_voice  # noqa: E402
 from app.routers import claim as _router_claim  # noqa: E402
 from app.routers import storage as _router_storage  # noqa: E402
@@ -645,6 +646,7 @@ app.include_router(_router_email_inbound.router)
 app.include_router(_router_affiliate.router)
 app.include_router(_router_multimodal.router)
 app.include_router(_router_woocommerce.router)
+app.include_router(_router_wordpress.router)
 app.include_router(_router_voice.router)
 app.include_router(_router_team.router)
 app.include_router(_router_admin.router)

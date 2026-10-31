@@ -1310,3 +1310,87 @@ async def lookup_order(
         "edge_case_reasons": mapped["edge_case_reasons"],
     }
 
+
+
+async def auto_register_webhooks(
+    store_url: str,
+    consumer_key: str,
+    consumer_secret: str,
+    webhook_url: str,
+    webhook_secret: str,
+) -> dict[str, Any]:
+    """Attempt to automatically register product.created, product.updated, and product.deleted
+    webhooks on the WooCommerce store via REST API (/wp-json/wc/v3/webhooks).
+    Requires Read/Write REST API keys; gracefully reports manual fallback if keys are Read-Only.
+    """
+    base_url = _normalize_store_url(store_url)
+    webhooks_api = f"{base_url}/wp-json/wc/v3/webhooks"
+    auth = (consumer_key.strip(), consumer_secret.strip())
+    timeout = httpx.Timeout(15.0, connect=10.0)
+    topics = ["product.created", "product.updated", "product.deleted"]
+    registered_topics: list[str] = []
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            list_resp = await ssrf.request_async(
+                client, "GET", webhooks_api, auth=auth, params={"per_page": 50}
+            )
+            existing_by_topic: dict[str, str] = {}
+            if list_resp.status_code == 200 and isinstance(list_resp.json(), list):
+                for hook in list_resp.json():
+                    if not isinstance(hook, dict):
+                        continue
+                    delivery = str(hook.get("delivery_url") or "").strip().rstrip("/")
+                    topic = str(hook.get("topic") or "").strip()
+                    status = str(hook.get("status") or "").strip()
+                    if delivery == webhook_url.rstrip("/") and topic in topics and status == "active":
+                        existing_by_topic[topic] = str(hook.get("id") or "")
+
+            for topic in topics:
+                if topic in existing_by_topic:
+                    registered_topics.append(topic)
+                    continue
+                create_resp = await ssrf.request_async(
+                    client,
+                    "POST",
+                    webhooks_api,
+                    auth=auth,
+                    json={
+                        "name": f"Chatty AI Sync ({topic})",
+                        "topic": topic,
+                        "delivery_url": webhook_url,
+                        "secret": webhook_secret,
+                        "status": "active",
+                    },
+                )
+                if create_resp.status_code in (200, 201):
+                    registered_topics.append(topic)
+                elif create_resp.status_code in (401, 403):
+                    return {
+                        "auto_configured": False,
+                        "registered_topics": registered_topics,
+                        "reason": (
+                            "WooCommerce REST API key has Read-Only permissions. "
+                            "To auto-register webhooks with 1 click, set key permissions to Read/Write in WooCommerce, "
+                            "or add the Webhook URL manually in WooCommerce -> Settings -> Advanced -> Webhooks."
+                        ),
+                    }
+                else:
+                    return {
+                        "auto_configured": False,
+                        "registered_topics": registered_topics,
+                        "reason": f"WooCommerce returned HTTP {create_resp.status_code} when registering {topic}.",
+                    }
+
+            return {
+                "auto_configured": len(registered_topics) == len(topics),
+                "registered_topics": registered_topics,
+                "reason": None,
+            }
+    except Exception as exc:
+        logger.warning("WooCommerce auto_register_webhooks failed: %s", exc)
+        return {
+            "auto_configured": False,
+            "registered_topics": registered_topics,
+            "reason": str(exc),
+        }

@@ -136,7 +136,6 @@ def _verify_auth_state(state: str, max_age_seconds: int = 3600) -> tuple[Optiona
     if not hmac.compare_digest(sig, expected_sig):
         return None, None
 
-    # Add back base64 padding
     rem = len(payload_b64) % 4
     padded = payload_b64 + ("=" * (4 - rem) if rem else "")
     try:
@@ -174,6 +173,15 @@ class WooCommerceAuthCallbackPayload(BaseModel):
     key_permissions: Optional[str] = None
 
 
+def _resolve_webhook_url(bot_id: str, request: Optional[Request] = None) -> str:
+    base_url = (CHATTY_BACKEND_URL or "").strip().rstrip("/")
+    if (not base_url or "localhost" in base_url) and request is not None:
+        base_url = str(request.base_url).rstrip("/")
+    if not base_url:
+        base_url = "https://api.chatty.personaliai.com"
+    return f"{base_url}/api/integrations/woocommerce/webhook/{bot_id}"
+
+
 @router.get("/api/bots/{bot_id}/integrations/woocommerce")
 async def get_woocommerce_status(
     bot_id: str,
@@ -184,7 +192,6 @@ async def get_woocommerce_status(
     await verify_bot_permission(bot_id, user, "sources")
     integration = await woocommerce_service.get_integration(bot_id)
 
-    # Count total synced WooCommerce products in media table
     items_res = await run_db(
         lambda: supabase.table("chatty_media_items")
         .select("id", count="exact", head=True)
@@ -224,12 +231,12 @@ async def get_woocommerce_status(
 async def connect_woocommerce(
     bot_id: str,
     req: WooCommerceConnectRequest,
+    request: Request,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Test WooCommerce credentials and save the connection."""
+    """Test WooCommerce credentials, save connection, auto-register webhooks, and start initial catalog sync."""
     await verify_bot_permission(bot_id, user, "sources")
 
-    # Verify credentials with store
     verify_res = await woocommerce_service.verify_credentials(
         store_url=req.store_url,
         consumer_key=req.consumer_key,
@@ -240,7 +247,6 @@ async def connect_woocommerce(
         err_detail = verify_res.get("error") or "Could not connect to WooCommerce API. Check your store URL and keys."
         raise HTTPException(status_code=400, detail=err_detail)
 
-    # Save integration
     saved = await woocommerce_service.save_integration(
         bot_id=bot_id,
         store_url=req.store_url,
@@ -248,14 +254,64 @@ async def connect_woocommerce(
         consumer_secret=req.consumer_secret,
     )
 
+    # Fetch decrypted webhook_secret to register with WooCommerce
+    decrypted = await woocommerce_service.get_integration(bot_id)
+    plain_secret = str((decrypted or {}).get("webhook_secret") or "")
+    webhook_url = _resolve_webhook_url(bot_id, request)
+
+    webhook_reg = await woocommerce_service.auto_register_webhooks(
+        store_url=req.store_url,
+        consumer_key=req.consumer_key,
+        consumer_secret=req.consumer_secret,
+        webhook_url=webhook_url,
+        webhook_secret=plain_secret,
+    )
+
+    sync_started = False
+    try:
+        await _start_woocommerce_sync(bot_id)
+        sync_started = True
+    except Exception as exc:
+        logger.info("Initial WooCommerce sync not auto-queued on connect: %s", exc)
+
     return {
         "connected": True,
         "store_info": verify_res,
+        "webhook_registration": webhook_reg,
+        "sync_started": sync_started,
         "integration": {
             "store_url": saved.get("store_url"),
-            "sync_status": saved.get("sync_status"),
-            "webhook_secret": saved.get("webhook_secret"),
+            "sync_status": "syncing" if sync_started else saved.get("sync_status"),
+            "webhook_secret": plain_secret or saved.get("webhook_secret"),
+            "webhook_url": webhook_url,
         },
+    }
+
+
+@router.post("/api/bots/{bot_id}/integrations/woocommerce/register-webhooks")
+async def register_woocommerce_webhooks(
+    bot_id: str,
+    request: Request,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Attempt 1-click automatic registration of WooCommerce product webhooks."""
+    await verify_bot_permission(bot_id, user, "sources")
+    integration = await woocommerce_service.get_integration(bot_id)
+    if not integration:
+        raise HTTPException(status_code=400, detail="WooCommerce store is not connected.")
+
+    webhook_url = _resolve_webhook_url(bot_id, request)
+    res = await woocommerce_service.auto_register_webhooks(
+        store_url=str(integration.get("store_url") or ""),
+        consumer_key=str(integration.get("consumer_key") or ""),
+        consumer_secret=str(integration.get("consumer_secret") or ""),
+        webhook_url=webhook_url,
+        webhook_secret=str(integration.get("webhook_secret") or ""),
+    )
+    return {
+        "ok": True,
+        "webhook_url": webhook_url,
+        **res,
     }
 
 
@@ -329,8 +385,6 @@ async def receive_woocommerce_webhook(
         raise HTTPException(status_code=404, detail="Integration not found")
 
     secret = integration.get("webhook_secret") or ""
-    # WooCommerce must sign every event. Accepting unsigned requests would let
-    # anyone create, mutate, or delete a tenant's catalog records.
     if not x_wc_webhook_signature:
         logger.warning("Missing WooCommerce webhook signature")
         raise HTTPException(status_code=401, detail="Missing webhook signature")
@@ -384,8 +438,6 @@ async def get_woocommerce_authorize_url(
     frontend_base = (CHATTY_FRONTEND_URL or "").rstrip("/")
     return_url = req.return_url
     if not return_url:
-        # The catalog is rendered inside Knowledge Base. Returning to the old
-        # `catalog` tab mounts only the dashboard shell and leaves a blank page.
         return_url = f"{frontend_base}/dashboard?tab=knowledge&bot_id={bot_id}&wc_auth=success"
     elif return_url.startswith("/"):
         return_url = f"{frontend_base}{return_url}"
@@ -451,7 +503,6 @@ async def receive_woocommerce_auth_callback(
         logger.warning("WooCommerce auth callback for non-existent bot")
         raise HTTPException(status_code=404, detail="Bot not found")
 
-    # Save credentials into database
     saved = await woocommerce_service.save_integration(
         bot_id=bot_id,
         store_url=store_url,
@@ -459,8 +510,6 @@ async def receive_woocommerce_auth_callback(
         consumer_secret=consumer_secret,
     )
 
-    # Automatically trigger initial product sync. Production deployments route
-    # this through Redis so a Cloud Run restart cannot abandon the import.
     await _start_woocommerce_sync(bot_id)
     logger.info("WooCommerce 1-click authorization completed successfully")
 

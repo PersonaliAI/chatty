@@ -186,8 +186,9 @@ async def update_bot_omnichannel_safe(
             current_omni_env[k] = prepared[k]
             has_extended = True
 
-    if has_extended or current_omni_env:
+    if has_extended or current_omni_env or (isinstance(raw_wqr, dict) and "_wordpress" in raw_wqr):
         prepared["whatsapp_quick_replies"] = {
+            **(raw_wqr if isinstance(raw_wqr, dict) else {}),
             "items": current_wqr_items,
             "_omnichannel": current_omni_env,
         }

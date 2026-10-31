@@ -18,9 +18,12 @@ import {
   User,
   RefreshCw,
   X,
-  TrendingUp,
   DollarSign,
   AlertCircle,
+  Mail,
+  Send,
+  Loader2,
+  Palette,
 } from "lucide-react";
 
 interface Order {
@@ -77,6 +80,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackToast, setFeedbackToast] = useState<{ text: string; kind: "success" | "error" } | null>(null);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -88,6 +92,23 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [copiedUrlId, setCopiedUrlId] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [sendingEmailOrderId, setSendingEmailOrderId] = useState<string | null>(null);
+  const [customRecipientEmail, setCustomRecipientEmail] = useState("");
+
+  // Email Design Modal State
+  const [showEmailDesigner, setShowEmailDesigner] = useState(false);
+  const [savingEmailDesign, setSavingEmailDesign] = useState(false);
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState(true);
+  const [sendOwnerSaleAlert, setSendOwnerSaleAlert] = useState(true);
+  const [receiptBrandColor, setReceiptBrandColor] = useState("#ea580c");
+  const [receiptSupportEmail, setReceiptSupportEmail] = useState("");
+  const [receiptCustomMessage, setReceiptCustomMessage] = useState("");
+  const [emailPreviewTab, setEmailPreviewTab] = useState<"succeeded" | "refunded" | "pending">("succeeded");
+
+  const notify = (text: string, kind: "success" | "error" = "success") => {
+    setFeedbackToast({ text, kind });
+    setTimeout(() => setFeedbackToast(null), 4000);
+  };
 
   const fetchOrders = useCallback(async () => {
     if (!botId) return;
@@ -119,9 +140,94 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
     }
   }, [botId, statusFilter, providerFilter, attributionFilter, search, fetchWithFallback, authToken]);
 
+  const loadEmailConfig = useCallback(async () => {
+    if (!botId) return;
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.email_config) {
+          setEmailNotificationsEnabled(data.email_config.email_notifications_enabled !== false);
+          setSendOwnerSaleAlert(data.email_config.send_owner_sale_alert !== false);
+          setReceiptBrandColor(data.email_config.receipt_brand_color || "#ea580c");
+          setReceiptSupportEmail(data.email_config.receipt_support_email || "");
+          setReceiptCustomMessage(data.email_config.receipt_custom_message || "");
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [botId, fetchWithFallback, authToken]);
+
   useEffect(() => {
     void fetchOrders();
-  }, [fetchOrders]);
+    void loadEmailConfig();
+  }, [fetchOrders, loadEmailConfig]);
+
+  const handleSaveEmailDesign = async () => {
+    if (!botId) return;
+    setSavingEmailDesign(true);
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments/policy`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          email_notifications_enabled: emailNotificationsEnabled,
+          send_owner_sale_alert: sendOwnerSaleAlert,
+          receipt_brand_color: receiptBrandColor,
+          receipt_support_email: receiptSupportEmail,
+          receipt_custom_message: receiptCustomMessage,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save email design");
+      notify("Receipt & status email design saved!", "success");
+      setShowEmailDesigner(false);
+    } catch {
+      notify("Failed to save email design settings", "error");
+    } finally {
+      setSavingEmailDesign(false);
+    }
+  };
+
+  const handleSendOrderEmail = async (order: Order, overrideEmail?: string) => {
+    if (!botId) return;
+    const recipient = (overrideEmail || order.customer_email || "").trim();
+    if (!recipient) {
+      setSelectedOrder(order);
+      notify("Please enter a customer email address in the order drawer to send a receipt.", "error");
+      return;
+    }
+    setSendingEmailOrderId(order.id);
+    try {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/orders/${order.id}/send-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          status: order.status,
+          recipient_email: recipient,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "Failed to send email");
+      notify(`Order ${order.status === "succeeded" ? "receipt" : "status"} email sent to ${recipient}!`, "success");
+      void fetchOrders();
+    } catch (err: any) {
+      notify(err.message || "Could not send email", "error");
+    } finally {
+      setSendingEmailOrderId(null);
+    }
+  };
 
   const handleCopyLink = (order: Order) => {
     void navigator.clipboard.writeText(order.checkout_url);
@@ -140,17 +246,23 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
           "Content-Type": "application/json",
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus, send_email: true }),
       });
       if (res.ok) {
         const data = await res.json();
         if (selectedOrder && selectedOrder.id === orderId) {
           setSelectedOrder(data.order);
         }
+        notify(
+          data.email_sent
+            ? `Order marked as ${newStatus} & customer notification email sent!`
+            : `Order status updated to ${newStatus}.`,
+          "success"
+        );
         void fetchOrders();
       }
     } catch {
-      // ignore
+      notify("Failed to update order status", "error");
     } finally {
       setUpdatingStatus(false);
     }
@@ -242,6 +354,19 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
 
   return (
     <div className="max-w-7xl mx-auto w-full py-6 px-4 sm:px-6 flex flex-col gap-6">
+      {feedbackToast && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-2xl shadow-lg border text-xs font-bold flex items-center gap-2 ${
+            feedbackToast.kind === "success"
+              ? "bg-emerald-600 text-white border-emerald-500"
+              : "bg-red-600 text-white border-red-500"
+          }`}
+        >
+          {feedbackToast.kind === "success" ? <CheckCircle2 className="size-4" /> : <AlertCircle className="size-4" />}
+          <span>{feedbackToast.text}</span>
+        </div>
+      )}
+
       {/* Top Hero Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-xs">
         <div className="flex items-start sm:items-center gap-3">
@@ -259,25 +384,34 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-2xl">
-              Complete transaction ledger for in-chat sales, payment links, and paid booking appointments.
+              Complete transaction ledger for in-chat sales, payment links, and paid booking appointments. Automatically sends customer receipt &amp; status emails.
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void fetchOrders()}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors cursor-pointer self-end sm:self-auto shrink-0"
-        >
-          <RefreshCw className={`size-3.5 ${loading ? "animate-spin text-orange-500" : ""}`} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 self-end sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowEmailDesigner(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 text-xs font-bold text-[#f97316] transition-colors cursor-pointer"
+          >
+            <Palette className="size-3.5" />
+            <span>Receipt &amp; Email Design</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void fetchOrders()}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors cursor-pointer"
+          >
+            <RefreshCw className={`size-3.5 ${loading ? "animate-spin text-orange-500" : ""}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-        {/* Total Succeeded Revenue */}
         <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between text-neutral-400 mb-1">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Total Revenue</span>
@@ -295,7 +429,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
           </div>
         </div>
 
-        {/* AI Agent Closed Revenue */}
         <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-indigo-200/60 dark:border-indigo-900/40 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between text-indigo-500 dark:text-indigo-400 mb-1">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">AI Autonomous</span>
@@ -315,7 +448,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
           </div>
         </div>
 
-        {/* Human Agent Closed */}
         <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-orange-200/60 dark:border-orange-900/40 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between text-orange-600 dark:text-orange-400 mb-1">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Human Agent</span>
@@ -333,7 +465,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
           </div>
         </div>
 
-        {/* Pending Orders */}
         <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-2xs">
           <div className="flex items-center justify-between text-neutral-400 mb-1">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Pending Links</span>
@@ -368,7 +499,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-          {/* Status Filter */}
           <ModernSelect
             value={statusFilter}
             onChange={setStatusFilter}
@@ -384,7 +514,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
             ]}
           />
 
-          {/* Provider Filter */}
           <ModernSelect
             value={providerFilter}
             onChange={setProviderFilter}
@@ -400,7 +529,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
             ]}
           />
 
-          {/* Attribution Filter */}
           <ModernSelect
             value={attributionFilter}
             onChange={setAttributionFilter}
@@ -458,10 +586,12 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                   return (
                     <tr
                       key={order.id}
-                      onClick={() => setSelectedOrder(order)}
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setCustomRecipientEmail(order.customer_email || "");
+                      }}
                       className="hover:bg-neutral-50/80 dark:hover:bg-neutral-800/40 transition-colors cursor-pointer group"
                     >
-                      {/* Customer Profile Column */}
                       <td className="py-4 px-4 sm:px-6">
                         <div className="flex items-center gap-3">
                           <div className="size-8 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 font-bold flex items-center justify-center shrink-0 border border-neutral-200/60 dark:border-neutral-700/60">
@@ -479,7 +609,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         </div>
                       </td>
 
-                      {/* Item & Provider */}
                       <td className="py-4 px-4">
                         <div className="space-y-1">
                           <div className="font-semibold text-neutral-900 dark:text-neutral-100 truncate max-w-[200px]">
@@ -494,12 +623,10 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         </div>
                       </td>
 
-                      {/* Amount */}
                       <td className="py-4 px-4 font-bold text-neutral-900 dark:text-neutral-100 whitespace-nowrap">
                         {formatMoney(order.amount_cents, order.currency)}
                       </td>
 
-                      {/* Attribution */}
                       <td className="py-4 px-4 whitespace-nowrap">
                         {order.attributed_to === "ai_agent" ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60">
@@ -514,10 +641,8 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         )}
                       </td>
 
-                      {/* Status */}
                       <td className="py-4 px-4">{statusBadge(order.status)}</td>
 
-                      {/* Date */}
                       <td className="py-4 px-4 text-[11px] text-neutral-500 dark:text-neutral-400 whitespace-nowrap">
                         {new Date(order.created_at).toLocaleDateString(undefined, {
                           month: "short",
@@ -527,9 +652,22 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         })}
                       </td>
 
-                      {/* Actions */}
                       <td className="py-4 px-4 sm:px-6 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            disabled={sendingEmailOrderId === order.id}
+                            onClick={() => void handleSendOrderEmail(order)}
+                            title={order.customer_email ? `Send ${order.status === "succeeded" ? "Receipt" : "Status"} Email to ${order.customer_email}` : "Open drawer to enter customer email"}
+                            className="size-7 rounded-lg border border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            {sendingEmailOrderId === order.id ? (
+                              <Loader2 className="size-3.5 animate-spin text-orange-500" />
+                            ) : (
+                              <Mail className="size-3.5" />
+                            )}
+                          </button>
+
                           {order.session_id && onOpenConversation && (
                             <button
                               type="button"
@@ -569,6 +707,228 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
           </div>
         )}
       </div>
+
+      {/* Receipt & Status Email Designer Modal */}
+      {showEmailDesigner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-2xs animate-in fade-in duration-150">
+          <div className="w-full max-w-4xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-5 sm:p-6 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-2xl bg-orange-500/10 text-[#f97316] flex items-center justify-center border border-orange-500/20">
+                  <Mail className="size-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-neutral-900 dark:text-white">
+                    Transactional Order &amp; Receipt Email Designer
+                  </h3>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                    Customize the automated receipt, refund, and payment link emails sent to customers across all gateways.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmailDesigner(false)}
+                className="size-8 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              <div className="lg:col-span-5 space-y-4">
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 cursor-pointer">
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                      Auto-Send Customer Receipts
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={emailNotificationsEnabled}
+                      onChange={(e) => setEmailNotificationsEnabled(e.target.checked)}
+                      className="rounded text-orange-600"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 cursor-pointer">
+                    <span className="text-xs font-bold text-neutral-800 dark:text-neutral-200">
+                      Instant Sale Alert to Bot Owner
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={sendOwnerSaleAlert}
+                      onChange={(e) => setSendOwnerSaleAlert(e.target.checked)}
+                      className="rounded text-orange-600"
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Brand Header Color
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="color"
+                      value={receiptBrandColor}
+                      onChange={(e) => setReceiptBrandColor(e.target.value)}
+                      className="h-8 w-10 rounded-lg border border-neutral-200 dark:border-neutral-800 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={receiptBrandColor}
+                      onChange={(e) => setReceiptBrandColor(e.target.value)}
+                      className="w-24 text-xs font-mono px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950"
+                    />
+                    {["#ea580c", "#059669", "#2563eb", "#7c3aed", "#18181b"].map((swatch) => (
+                      <button
+                        key={swatch}
+                        type="button"
+                        onClick={() => setReceiptBrandColor(swatch)}
+                        className={`size-6 rounded-full border-2 cursor-pointer ${
+                          receiptBrandColor.toLowerCase() === swatch ? "scale-110 border-neutral-900 dark:border-white" : "border-transparent"
+                        }`}
+                        style={{ backgroundColor: swatch }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Support Reply-To Email
+                  </label>
+                  <input
+                    type="email"
+                    value={receiptSupportEmail}
+                    onChange={(e) => setReceiptSupportEmail(e.target.value)}
+                    placeholder="support@yourcompany.com"
+                    className="w-full text-xs px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                    Custom Receipt Note / Next Steps
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={receiptCustomMessage}
+                    onChange={(e) => setReceiptCustomMessage(e.target.value)}
+                    placeholder="Thank you for your purchase! Your onboarding guide and access details are below..."
+                    className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleSaveEmailDesign()}
+                  disabled={savingEmailDesign}
+                  className="w-full py-2.5 px-4 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {savingEmailDesign ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5 text-emerald-400" />}
+                  <span>{savingEmailDesign ? "Saving..." : "Save Email Design"}</span>
+                </button>
+              </div>
+
+              <div className="lg:col-span-7 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Live Email Preview
+                  </span>
+                  <div className="flex items-center gap-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1">
+                    {[
+                      { id: "succeeded", label: "Paid Receipt" },
+                      { id: "refunded", label: "Refund Issued" },
+                      { id: "pending", label: "Payment Link" },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setEmailPreviewTab(t.id as "succeeded" | "refunded" | "pending")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                          emailPreviewTab === t.id
+                            ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-2xs"
+                            : "text-neutral-500"
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 overflow-hidden shadow-xs">
+                  <div
+                    className="px-5 py-4 text-white flex items-center justify-between"
+                    style={{
+                      backgroundColor:
+                        emailPreviewTab === "succeeded"
+                          ? receiptBrandColor || "#ea580c"
+                          : emailPreviewTab === "refunded"
+                          ? "#6366f1"
+                          : "#d97706",
+                    }}
+                  >
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest opacity-85">
+                        {emailPreviewTab === "succeeded"
+                          ? "Payment Confirmed"
+                          : emailPreviewTab === "refunded"
+                          ? "Refund Processed"
+                          : "Awaiting Payment"}
+                      </div>
+                      <div className="text-sm font-extrabold mt-0.5">
+                        {emailPreviewTab === "succeeded"
+                          ? "Thank you for your purchase!"
+                          : emailPreviewTab === "refunded"
+                          ? "Your refund has been issued"
+                          : "Complete your secure checkout"}
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/20">
+                      Official Receipt
+                    </span>
+                  </div>
+
+                  <div className="p-5 space-y-3 text-xs">
+                    <p className="text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                      Hi <b>Customer</b>,{" "}
+                      {emailPreviewTab === "succeeded"
+                        ? "we have received your payment. Here is your official transaction summary:"
+                        : emailPreviewTab === "refunded"
+                        ? "your refund has been processed back to your original payment method."
+                        : "your secure checkout link is ready below:"}
+                    </p>
+                    <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Order Item</span>
+                        <span className="font-bold text-neutral-900 dark:text-white">AI Growth Package</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">Total Amount</span>
+                        <span className="font-mono font-extrabold text-sm text-neutral-900 dark:text-white">$199.00 USD</span>
+                      </div>
+                    </div>
+                    {receiptCustomMessage && (
+                      <div
+                        className="p-3 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border-l-4 text-[11px] text-neutral-700 dark:text-neutral-300"
+                        style={{ borderLeftColor: receiptBrandColor || "#ea580c" }}
+                      >
+                        {receiptCustomMessage}
+                      </div>
+                    )}
+                    {receiptSupportEmail && (
+                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400">
+                        Questions? Contact <span className="font-semibold text-neutral-700 dark:text-neutral-300">{receiptSupportEmail}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Slide-over Detail Drawer */}
       {selectedOrder && (
@@ -638,6 +998,38 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
               </div>
             </div>
 
+            {/* Direct Customer Receipt / Status Email Sender */}
+            <div className="space-y-2.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Customer Email Dispatch</h4>
+              <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="email"
+                    value={customRecipientEmail}
+                    onChange={(e) => setCustomRecipientEmail(e.target.value)}
+                    placeholder="customer@example.com"
+                    className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs font-mono"
+                  />
+                  <button
+                    type="button"
+                    disabled={sendingEmailOrderId === selectedOrder.id || !customRecipientEmail.trim()}
+                    onClick={() => void handleSendOrderEmail(selectedOrder, customRecipientEmail)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-bold cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {sendingEmailOrderId === selectedOrder.id ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Send className="size-3.5" />
+                    )}
+                    <span>Send {selectedOrder.status === "succeeded" ? "Receipt" : "Status"} Email</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-neutral-400">
+                  Sends the branded {selectedOrder.status} email template immediately to this address.
+                </p>
+              </div>
+            </div>
+
             {/* Attribution Breakdown */}
             <div className="space-y-3">
               <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Sales Attribution</h4>
@@ -704,7 +1096,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
 
                 {/* Quick Status Adjustments */}
                 <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-neutral-400 font-medium">Audit Status:</span>
+                  <span className="text-[11px] text-neutral-400 font-medium">Audit Status (Auto-Emails Buyer):</span>
                   <div className="flex gap-1.5">
                     {selectedOrder.status !== "succeeded" && (
                       <button
@@ -713,7 +1105,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         onClick={() => handleUpdateStatus(selectedOrder.id, "succeeded")}
                         className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors cursor-pointer"
                       >
-                        Mark as Paid
+                        Mark Paid &amp; Email Receipt
                       </button>
                     )}
                     {selectedOrder.status !== "refunded" && (
@@ -723,7 +1115,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         onClick={() => handleUpdateStatus(selectedOrder.id, "refunded")}
                         className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors cursor-pointer"
                       >
-                        Mark as Refunded
+                        Mark Refunded &amp; Email
                       </button>
                     )}
                   </div>

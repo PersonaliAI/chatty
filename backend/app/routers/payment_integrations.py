@@ -6,9 +6,12 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
+import hashlib
+import hmac
+import os
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from app.services.order_email_service import render_order_status_email, send_order_notification_emails
 
 from app.core.clients import supabase
 from app.core.crypto import encrypt_secret, decrypt_secret
@@ -34,6 +37,7 @@ class PaymentPolicyUpdate(BaseModel):
     ai_payment_allowed: bool
     ai_max_amount_cents: Optional[int] = Field(None, ge=100, le=10000000)
     ai_payment_instructions: Optional[str] = Field(None, max_length=5000)
+    email_config: Optional[dict[str, Any]] = None
 
 
 class InboxSendCheckoutRequest(BaseModel):
@@ -76,10 +80,13 @@ async def get_bot_payment_integrations(
     res = await run_db(_fetch)
     rows = {r["provider"]: r for r in (res.data or [])}
 
+    backend_base = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com").rstrip("/")
     providers_status = {}
     for p in ["stripe", "lemonsqueezy", "polar", "paypal"]:
+        wh_url = f"{backend_base}/api/bots/{bot_id}/webhooks/payments/{p}"
         row = rows.get(p)
         if row:
+            ec = row.get("extra_config") or {}
             providers_status[p] = {
                 "connected": True,
                 "is_active": row.get("is_active", True),
@@ -87,7 +94,10 @@ async def get_bot_payment_integrations(
                 "publishable_key": row.get("publishable_key"),
                 "secret_key_preview": _mask_key(decrypt_secret(row.get("secret_key_encrypted") or "")),
                 "webhook_secret_preview": _mask_key(decrypt_secret(row.get("webhook_secret_encrypted") or "")),
-                "extra_config": row.get("extra_config") or {},
+                "webhook_url": wh_url,
+                "webhook_auto_configured": bool(ec.get("webhook_auto_configured")),
+                "webhook_id": ec.get("webhook_id"),
+                "extra_config": ec,
                 "ai_payment_allowed": row.get("ai_payment_allowed", True),
                 "ai_max_amount_cents": row.get("ai_max_amount_cents"),
                 "last_tested_at": row.get("last_tested_at"),
@@ -98,14 +108,23 @@ async def get_bot_payment_integrations(
                 "is_active": False,
                 "test_mode": True,
                 "ai_payment_allowed": True,
+                "webhook_url": wh_url,
+                "webhook_auto_configured": False,
             }
 
     # Aggregate AI policy (if any active gateway has ai_payment_allowed = false, global flag is false)
     ai_allowed = all(v.get("ai_payment_allowed", True) for v in providers_status.values() if v.get("connected"))
 
-    # Extract payment directives and max amount limit across connected gateways
+    # Extract payment directives, max amount limit, and email_config across connected gateways
     ai_instructions = ""
     ai_max_cents = None
+    email_config: dict[str, Any] = {
+        "email_notifications_enabled": True,
+        "send_owner_sale_alert": True,
+        "receipt_brand_color": "#f97316",
+        "receipt_custom_message": "Thank you for your business! If you need any assistance with your order, reply to this email or message us in chat.",
+        "receipt_support_email": user.get("email") or "support@personaliai.com",
+    }
     for p, pdata in providers_status.items():
         if pdata.get("connected"):
             ec = pdata.get("extra_config") or {}
@@ -113,6 +132,8 @@ async def get_bot_payment_integrations(
                 ai_instructions = ec["ai_payment_instructions"]
             if pdata.get("ai_max_amount_cents") and not ai_max_cents:
                 ai_max_cents = pdata["ai_max_amount_cents"]
+            if isinstance(ec.get("email_config"), dict):
+                email_config.update(ec["email_config"])
 
     return {
         "bot_id": bot_id,
@@ -120,6 +141,7 @@ async def get_bot_payment_integrations(
         "ai_payment_allowed": ai_allowed,
         "ai_max_amount_cents": ai_max_cents,
         "ai_payment_instructions": ai_instructions,
+        "email_config": email_config,
     }
 
 
@@ -235,9 +257,27 @@ async def connect_payment_gateway(
             detail=test_res.get("error") or f"Invalid credentials for {prov.capitalize()}",
         )
 
-    # 2. Encrypt Secrets at Rest
+    # 2. Auto-Register Webhook on Provider if possible
+    backend_base = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com").rstrip("/")
+    webhook_url = f"{backend_base}/api/bots/{bot_id}/webhooks/payments/{prov}"
+    wh_res = await PaymentGatewaysService.auto_register_webhook(
+        provider=prov,
+        secret_key=body.secret_key.strip(),
+        webhook_url=webhook_url,
+        test_mode=body.test_mode,
+        publishable_key=body.publishable_key.strip() if body.publishable_key else None,
+        extra_config=extra,
+    )
+    resolved_wh_secret = (body.webhook_secret or "").strip() or (wh_res.get("webhook_secret") or "").strip()
+    extra["webhook_auto_configured"] = bool(wh_res.get("registered"))
+    if wh_res.get("webhook_id"):
+        extra["webhook_id"] = wh_res["webhook_id"]
+    if wh_res.get("reason") and not wh_res.get("registered"):
+        extra["webhook_note"] = wh_res["reason"]
+
+    # 3. Encrypt Secrets at Rest
     encrypted_secret = encrypt_secret(body.secret_key.strip())
-    encrypted_webhook = encrypt_secret(body.webhook_secret.strip()) if body.webhook_secret else None
+    encrypted_webhook = encrypt_secret(resolved_wh_secret) if resolved_wh_secret else None
 
     row_data = {
         "bot_id": bot_id,
@@ -266,7 +306,69 @@ async def connect_payment_gateway(
         "provider": prov,
         "connected": True,
         "verification": test_res,
-        "message": f"{prov.capitalize()} successfully connected and verified.",
+        "webhook_url": webhook_url,
+        "webhook_auto_configured": bool(wh_res.get("registered")),
+        "webhook_id": wh_res.get("webhook_id"),
+        "message": f"{prov.capitalize()} connected! " + (
+            "Webhook auto-configured." if wh_res.get("registered") else "You can also copy the Webhook URL below for manual setup."
+        ),
+    }
+
+
+@router.post("/api/bots/{bot_id}/integrations/payments/{provider}/register-webhook")
+async def register_payment_webhook_endpoint(
+    bot_id: str,
+    provider: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Trigger automatic webhook registration for an already-connected payment gateway."""
+    await verify_bot_permission(bot_id, user, "integrations")
+    prov = provider.lower().strip()
+
+    res = await run_db(
+        lambda: supabase.table("chatty_payment_integrations")
+        .select("*")
+        .eq("bot_id", bot_id)
+        .eq("provider", prov)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail=f"{prov.capitalize()} is not connected.")
+
+    row = res.data[0]
+    secret_key = decrypt_secret(row.get("secret_key_encrypted") or "")
+    extra = row.get("extra_config") or {}
+    backend_base = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com").rstrip("/")
+    webhook_url = f"{backend_base}/api/bots/{bot_id}/webhooks/payments/{prov}"
+
+    wh_res = await PaymentGatewaysService.auto_register_webhook(
+        provider=prov,
+        secret_key=secret_key,
+        webhook_url=webhook_url,
+        test_mode=bool(row.get("test_mode", True)),
+        publishable_key=row.get("publishable_key"),
+        extra_config=extra,
+    )
+    extra["webhook_auto_configured"] = bool(wh_res.get("registered"))
+    if wh_res.get("webhook_id"):
+        extra["webhook_id"] = wh_res["webhook_id"]
+
+    upd: dict[str, Any] = {
+        "extra_config": extra,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if wh_res.get("webhook_secret"):
+        upd["webhook_secret_encrypted"] = encrypt_secret(wh_res["webhook_secret"])
+
+    await run_db(lambda: supabase.table("chatty_payment_integrations").update(upd).eq("id", row["id"]).execute())
+
+    return {
+        "status": "success" if wh_res.get("registered") else "manual_required",
+        "registered": bool(wh_res.get("registered")),
+        "webhook_url": webhook_url,
+        "webhook_id": wh_res.get("webhook_id"),
+        "reason": wh_res.get("reason"),
     }
 
 
@@ -318,6 +420,10 @@ async def update_ai_payment_policy(
         ec = r.get("extra_config") or {}
         if body.ai_payment_instructions is not None:
             ec["ai_payment_instructions"] = body.ai_payment_instructions.strip()
+        if body.email_config is not None:
+            curr_ec_mail = ec.get("email_config") if isinstance(ec.get("email_config"), dict) else {}
+            curr_ec_mail.update(body.email_config)
+            ec["email_config"] = curr_ec_mail
 
         await run_db(
             lambda r_id=r["id"], r_ec=ec: supabase.table("chatty_payment_integrations")
@@ -670,6 +776,30 @@ async def list_bot_orders(
     }
 
 
+async def _get_bot_email_context(bot_id: str) -> tuple[str, dict[str, Any], Optional[str]]:
+    """Load bot name, email_config from payment integrations, and owner email."""
+    bot_name = "Chatty Store"
+    owner_email = None
+    email_config: dict[str, Any] = {"email_notifications_enabled": True, "send_owner_sale_alert": True}
+    try:
+        b_res = await run_db(lambda: supabase.table("chatty_bots").select("name, user_id").eq("id", bot_id).limit(1).execute())
+        if b_res and b_res.data:
+            bot_name = b_res.data[0].get("name") or bot_name
+            uid = b_res.data[0].get("user_id")
+            if uid:
+                u_res = await run_db(lambda: supabase.table("users").select("email").eq("auth_user_id", uid).limit(1).execute())
+                if u_res and u_res.data:
+                    owner_email = u_res.data[0].get("email")
+        pi_res = await run_db(lambda: supabase.table("chatty_payment_integrations").select("extra_config").eq("bot_id", bot_id).execute())
+        for r in (pi_res.data or []):
+            ec = r.get("extra_config") or {}
+            if isinstance(ec.get("email_config"), dict):
+                email_config.update(ec["email_config"])
+    except Exception:
+        logger.warning("Non-fatal: failed to load bot email context for %s", bot_id)
+    return bot_name, email_config, owner_email
+
+
 @router.post("/api/bots/{bot_id}/orders/{order_id}/status")
 async def update_order_status(
     bot_id: str,
@@ -677,7 +807,7 @@ async def update_order_status(
     body: dict[str, Any],
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Manually update or refund order status."""
+    """Manually update or refund order status and automatically send customer notification email."""
     await verify_bot_permission(bot_id, user, "orders")
     new_status = body.get("status", "").lower()
     if new_status not in {"pending", "succeeded", "failed", "refunded", "cancelled"}:
@@ -693,4 +823,352 @@ async def update_order_status(
     res = await run_db(_update)
     if not res.data:
         raise HTTPException(status_code=404, detail="Order not found")
-    return {"status": "success", "order": res.data[0]}
+
+    order_row = res.data[0]
+    email_res = {"customer_email_sent": False}
+    if body.get("send_email", True):
+        bot_name, email_cfg, owner_email = await _get_bot_email_context(bot_id)
+        email_res = await send_order_notification_emails(
+            order=order_row,
+            bot_name=bot_name,
+            email_config=email_cfg,
+            owner_email=owner_email,
+        )
+
+    return {"status": "success", "order": order_row, "email_delivery": email_res}
+
+
+@router.post("/api/bots/{bot_id}/orders/{order_id}/send-email")
+async def send_order_email_manual(
+    bot_id: str,
+    order_id: str,
+    body: Optional[dict[str, Any]] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Manually send or resend the receipt / status update email to the customer."""
+    await verify_bot_permission(bot_id, user, "orders")
+    res = await run_db(
+        lambda: supabase.table("chatty_orders").select("*").eq("bot_id", bot_id).eq("id", order_id).limit(1).execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    order_row = dict(res.data[0])
+    override_email = (body or {}).get("customer_email")
+    if override_email:
+        order_row["customer_email"] = str(override_email).strip()
+
+    if not order_row.get("customer_email"):
+        raise HTTPException(status_code=400, detail="Order does not have a customer email address.")
+
+    bot_name, email_cfg, owner_email = await _get_bot_email_context(bot_id)
+    email_res = await send_order_notification_emails(
+        order=order_row,
+        bot_name=bot_name,
+        email_config=email_cfg,
+        owner_email=None,
+        force_send=True,
+    )
+    return {
+        "status": "success",
+        "sent": email_res.get("customer_email_sent", False),
+        "recipient": order_row.get("customer_email"),
+        "delivery": email_res,
+    }
+
+
+@router.post("/api/bots/{bot_id}/orders/preview-email")
+async def preview_order_email_template(
+    bot_id: str,
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Render live HTML preview of the customer order receipt/status email template."""
+    await verify_bot_permission(bot_id, user, "orders")
+    bot_name, saved_cfg, _ = await _get_bot_email_context(bot_id)
+    merged_cfg = {**saved_cfg, **(body.get("email_config") or {})}
+    sample_order = {
+        "id": "ord_preview_98412",
+        "gateway_order_id": "ch_3Q9xLm2eZvKYlo2C0192",
+        "title": body.get("title") or "Enterprise AI Strategy Session & Pro Plan",
+        "amount_cents": int(body.get("amount_cents") or 14900),
+        "currency": body.get("currency") or "USD",
+        "provider": body.get("provider") or "polar",
+        "status": body.get("status") or "succeeded",
+        "customer_name": body.get("customer_name") or "Alex Rivera",
+        "customer_email": body.get("customer_email") or "alex.rivera@acme.io",
+        "checkout_url": "https://chatty.personaliai.com",
+    }
+    subject, html_body = render_order_status_email(sample_order, bot_name=bot_name, email_config=merged_cfg)
+    return {"subject": subject, "html": html_body}
+
+
+# --- 7. PUBLIC INBOUND PAYMENT GATEWAY WEBHOOK RECEIVER ---
+@router.post("/api/bots/{bot_id}/webhooks/payments/{provider}")
+async def receive_payment_gateway_webhook(
+    bot_id: str,
+    provider: str,
+    request: Request,
+):
+    """Receive real-time payment events from Stripe, Polar.sh, Lemon Squeezy, and PayPal.
+    Updates chatty_orders, confirms paid bookings, posts chat confirmation, and dispatches receipt emails."""
+    prov = provider.lower().strip()
+    raw_body = await request.body()
+
+    try:
+        payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except Exception:
+        payload = {}
+
+    # Fetch integration to check webhook secret if configured
+    pi_res = await run_db(
+        lambda: supabase.table("chatty_payment_integrations")
+        .select("*")
+        .eq("bot_id", bot_id)
+        .eq("provider", prov)
+        .limit(1)
+        .execute()
+    )
+    integration = pi_res.data[0] if (pi_res and pi_res.data) else {}
+    wh_secret = decrypt_secret(integration.get("webhook_secret_encrypted") or "") if integration else ""
+
+    # Verify HMAC signature when secret is present
+    if wh_secret:
+        if prov == "lemonsqueezy":
+            sig = request.headers.get("x-signature", "")
+            if sig:
+                expected = hmac.new(wh_secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+                if not hmac.compare_digest(expected, sig):
+                    raise HTTPException(status_code=401, detail="Invalid Lemon Squeezy webhook signature")
+        elif prov == "stripe":
+            sig_header = request.headers.get("stripe-signature", "")
+            if sig_header and "v1=" in sig_header:
+                parts = dict(item.split("=", 1) for item in sig_header.split(",") if "=" in item)
+                ts = parts.get("t", "")
+                v1 = parts.get("v1", "")
+                signed_payload = f"{ts}.{raw_body.decode('utf-8', errors='replace')}".encode("utf-8")
+                expected = hmac.new(wh_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+                if v1 and not hmac.compare_digest(expected, v1):
+                    raise HTTPException(status_code=401, detail="Invalid Stripe webhook signature")
+
+    # Normalize event across Stripe, Polar.sh, Lemon Squeezy, PayPal
+    event_type = ""
+    target_status: Optional[str] = None
+    gateway_order_id = ""
+    customer_email = ""
+    customer_name = ""
+    amount_cents = 0
+    currency = "USD"
+    title = "Order Payment"
+    meta: dict[str, Any] = {}
+
+    if prov == "stripe":
+        event_type = str(payload.get("type") or "")
+        obj = (payload.get("data") or {}).get("object") or {}
+        gateway_order_id = str(obj.get("id") or obj.get("payment_intent") or "")
+        meta = obj.get("metadata") or {}
+        customer_email = str(obj.get("customer_email") or (obj.get("customer_details") or {}).get("email") or meta.get("customer_email") or "")
+        customer_name = str((obj.get("customer_details") or {}).get("name") or meta.get("customer_name") or "")
+        amount_cents = int(obj.get("amount_total") or obj.get("amount") or 0)
+        currency = str(obj.get("currency") or "USD").upper()
+        if event_type in ("checkout.session.completed", "payment_intent.succeeded", "charge.succeeded"):
+            target_status = "succeeded"
+        elif event_type in ("charge.refunded", "charge.dispute.created"):
+            target_status = "refunded"
+        elif event_type in ("payment_intent.payment_failed", "checkout.session.expired"):
+            target_status = "failed"
+
+    elif prov == "polar":
+        event_type = str(payload.get("type") or "")
+        obj = payload.get("data") or {}
+        gateway_order_id = str(obj.get("id") or obj.get("checkout_id") or "")
+        meta = obj.get("metadata") or {}
+        customer_email = str(obj.get("customer_email") or (obj.get("customer") or {}).get("email") or (obj.get("user") or {}).get("email") or "")
+        customer_name = str(obj.get("customer_name") or (obj.get("customer") or {}).get("name") or meta.get("customer_name") or "")
+        amount_cents = int(obj.get("amount") or obj.get("total_amount") or 0)
+        currency = str(obj.get("currency") or "USD").upper()
+        title = str((obj.get("product") or {}).get("name") or obj.get("product_name") or title)
+        polar_status = str(obj.get("status") or "").lower()
+        if event_type in ("order.created", "order.paid", "subscription.created", "subscription.active") or (
+            event_type == "checkout.updated" and polar_status in ("succeeded", "confirmed")
+        ):
+            target_status = "succeeded"
+        elif event_type in ("refund.created", "order.refunded") or polar_status == "refunded":
+            target_status = "refunded"
+        elif polar_status in ("failed", "expired"):
+            target_status = "failed"
+
+    elif prov == "lemonsqueezy":
+        meta_root = payload.get("meta") or {}
+        event_type = str(meta_root.get("event_name") or "")
+        meta = meta_root.get("custom_data") or {}
+        data_obj = payload.get("data") or {}
+        gateway_order_id = str(data_obj.get("id") or "")
+        attrs = data_obj.get("attributes") or {}
+        customer_email = str(attrs.get("user_email") or "")
+        customer_name = str(attrs.get("user_name") or meta.get("customer_name") or "")
+        amount_cents = int(attrs.get("total") or attrs.get("subtotal") or 0)
+        currency = str(attrs.get("currency") or "USD").upper()
+        title = str((attrs.get("first_order_item") or {}).get("product_name") or title)
+        if event_type in ("order_created", "subscription_payment_success"):
+            target_status = "succeeded"
+        elif event_type == "order_refunded":
+            target_status = "refunded"
+
+    elif prov == "paypal":
+        event_type = str(payload.get("event_type") or "")
+        res_obj = payload.get("resource") or {}
+        gateway_order_id = str(res_obj.get("id") or "")
+        payer = res_obj.get("payer") or {}
+        customer_email = str(payer.get("email_address") or "")
+        payer_name = payer.get("name") or {}
+        customer_name = f"{payer_name.get('given_name', '')} {payer_name.get('surname', '')}".strip()
+        pu_list = res_obj.get("purchase_units") or []
+        if pu_list:
+            amt_obj = pu_list[0].get("amount") or {}
+            try:
+                amount_cents = int(round(float(amt_obj.get("value") or 0) * 100))
+            except Exception:
+                amount_cents = 0
+            currency = str(amt_obj.get("currency_code") or "USD").upper()
+            title = str(pu_list[0].get("description") or title)
+            if pu_list[0].get("custom_id"):
+                meta["session_id"] = pu_list[0]["custom_id"]
+        if event_type in ("CHECKOUT.ORDER.APPROVED", "PAYMENT.CAPTURE.COMPLETED"):
+            target_status = "succeeded"
+        elif event_type == "PAYMENT.CAPTURE.REFUNDED":
+            target_status = "refunded"
+        elif event_type in ("PAYMENT.CAPTURE.DENIED", "PAYMENT.CAPTURE.DECLINED"):
+            target_status = "failed"
+
+    if not target_status:
+        return {"status": "ignored", "event_type": event_type}
+
+    # Find matching order in chatty_orders by gateway_order_id or session_id
+    matched_order = None
+    if gateway_order_id:
+        o_res = await run_db(
+            lambda: supabase.table("chatty_orders")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("gateway_order_id", gateway_order_id)
+            .limit(1)
+            .execute()
+        )
+        if o_res and o_res.data:
+            matched_order = o_res.data[0]
+
+    session_id = str(meta.get("session_id") or "")
+    if not matched_order and session_id:
+        o_res = await run_db(
+            lambda: supabase.table("chatty_orders")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("session_id", session_id)
+            .eq("status", "pending")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if o_res and o_res.data:
+            matched_order = o_res.data[0]
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if matched_order:
+        upd_fields: dict[str, Any] = {
+            "status": target_status,
+            "updated_at": now_iso,
+        }
+        if target_status == "succeeded":
+            upd_fields["paid_at"] = now_iso
+        if customer_email and not matched_order.get("customer_email"):
+            upd_fields["customer_email"] = customer_email
+        if customer_name and not matched_order.get("customer_name"):
+            upd_fields["customer_name"] = customer_name
+
+        u_res = await run_db(
+            lambda: supabase.table("chatty_orders")
+            .update(upd_fields)
+            .eq("id", matched_order["id"])
+            .execute()
+        )
+        order_record = u_res.data[0] if (u_res and u_res.data) else {**matched_order, **upd_fields}
+    else:
+        new_order = {
+            "bot_id": bot_id,
+            "session_id": session_id or None,
+            "provider": prov,
+            "order_type": "booking_deposit" if meta.get("meeting_id") else "product_checkout",
+            "attributed_to": "ai_agent" if meta.get("caller") == "ai" or not meta.get("sent_by") else "human_agent",
+            "channel": meta.get("channel") or "web",
+            "title": title,
+            "amount_cents": amount_cents,
+            "currency": currency,
+            "customer_name": customer_name or None,
+            "customer_email": customer_email or None,
+            "gateway_order_id": gateway_order_id,
+            "status": target_status,
+            "paid_at": now_iso if target_status == "succeeded" else None,
+            "metadata": meta,
+        }
+        ins_res = await run_db(lambda: supabase.table("chatty_orders").insert(new_order).execute())
+        order_record = ins_res.data[0] if (ins_res and ins_res.data) else new_order
+
+    # Confirm paid appointment booking if meeting_id is present
+    meeting_id = meta.get("meeting_id") or (order_record.get("metadata") or {}).get("meeting_id")
+    if meeting_id and target_status == "succeeded":
+        try:
+            from app.services.booking.payment_service import BookingPaymentService
+            pay_svc = BookingPaymentService(supabase, run_db)
+            await pay_svc.handle_payment_completed(
+                meeting_id=str(meeting_id),
+                payment_intent_id=gateway_order_id or str(order_record.get("id")),
+                amount_cents=int(order_record.get("amount_cents") or amount_cents),
+            )
+        except Exception:
+            logger.exception("Failed to confirm meeting %s on payment webhook", meeting_id)
+
+    # Post confirmation message in conversation thread if session_id is known
+    eff_session_id = str(order_record.get("session_id") or session_id or "").strip()
+    if eff_session_id and target_status in ("succeeded", "refunded"):
+        amt_str = f"${(int(order_record.get('amount_cents') or 0) / 100):.2f} {order_record.get('currency', 'USD')}"
+        if target_status == "succeeded":
+            chat_msg = (
+                f"✅ **Payment Confirmed!** Thank you for your purchase of **{order_record.get('title', 'Order')}** "
+                f"({amt_str}) via {prov.capitalize()}. A confirmation receipt has been sent to your email."
+            )
+        else:
+            chat_msg = (
+                f"🔄 **Refund Processed:** Your refund of {amt_str} for **{order_record.get('title', 'Order')}** "
+                f"has been initiated via {prov.capitalize()}."
+            )
+        try:
+            await run_db(
+                lambda: supabase.table("chatty_conversations")
+                .insert({
+                    "bot_id": bot_id,
+                    "session_id": eff_session_id,
+                    "role": "assistant",
+                    "content": chat_msg,
+                    "created_at": now_iso,
+                })
+                .execute()
+            )
+        except Exception:
+            logger.warning("Non-fatal: failed to insert payment confirmation chat message")
+
+    # Send Customer Receipt / Status Update Email & Owner Sale Alert
+    bot_name, email_cfg, owner_email = await _get_bot_email_context(bot_id)
+    email_res = await send_order_notification_emails(
+        order=order_record,
+        bot_name=bot_name,
+        email_config=email_cfg,
+        owner_email=owner_email,
+    )
+
+    return {
+        "status": "ok",
+        "order_status": target_status,
+        "order_id": order_record.get("id"),
+        "email_delivery": email_res,
+    }

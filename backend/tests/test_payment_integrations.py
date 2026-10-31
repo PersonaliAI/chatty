@@ -205,3 +205,82 @@ async def test_order_recording_and_kpi_computation():
         assert kpis["human_revenue_cents"] == 5000   # ord_2
         assert kpis["succeeded_orders"] == 2
 
+
+
+def test_order_status_email_rendering():
+    """Verify transactional order email HTML rendering for succeeded, refunded, failed, and pending."""
+    from app.services.order_email_service import render_order_status_email
+
+    order = {
+        "id": "ord_99112233",
+        "title": "Enterprise AI Setup",
+        "amount_cents": 24900,
+        "currency": "USD",
+        "provider": "polar",
+        "customer_name": "Elena Rostova",
+        "customer_email": "elena@example.com",
+        "checkout_url": "https://polar.sh/checkout/test_123",
+    }
+    email_cfg = {
+        "receipt_brand_color": "#059669",
+        "receipt_custom_message": "Your onboarding specialist will reach out within 2 hours.",
+        "receipt_support_email": "concierge@personaliai.com",
+    }
+
+    for status, expected_phrase in [
+        ("succeeded", "Payment Receipt"),
+        ("refunded", "Refund Processed"),
+        ("failed", "Action Required"),
+        ("pending", "Complete Your Purchase"),
+    ]:
+        subject, html_body = render_order_status_email(
+            {**order, "status": status},
+            bot_name="PersonaliAI Concierge",
+            email_config=email_cfg,
+        )
+        assert expected_phrase in subject
+        assert "Elena Rostova" in html_body
+        assert "$249.00 USD" in html_body
+        assert "Your onboarding specialist will reach out within 2 hours." in html_body
+        assert "concierge@personaliai.com" in html_body
+
+
+def test_wordpress_content_formatting_and_webhook_hmac():
+    """Verify WordPress HTML cleaning, KB source formatting, PHP snippet, and HMAC signature validation."""
+    import hashlib
+    import hmac
+    from app.services import wordpress_service
+
+    raw_post = {
+        "id": 501,
+        "link": "https://blog.example.com/ai-customer-support-guide",
+        "title": {"rendered": "How <b>AI Agents</b> Transform Support &amp; Sales"},
+        "excerpt": {"rendered": "<p>A practical guide to autonomous commerce.</p>"},
+        "content": {
+            "rendered": "<h2>Overview</h2><p>Customers expect instant answers 24/7.</p><script>alert(1)</script><ul><li>Fast</li><li>Accurate</li></ul>"
+        },
+        "modified_gmt": "2026-10-31T10:00:00",
+    }
+
+    formatted = wordpress_service.format_wp_item_for_kb(raw_post, kind="post")
+    assert formatted is not None
+    assert formatted["name"] == "https://blog.example.com/ai-customer-support-guide"
+    assert "How AI Agents Transform Support & Sales" in formatted["title"]
+    assert "Customers expect instant answers 24/7." in formatted["content"]
+    assert "alert(1)" not in formatted["content"]
+
+    secret = "wp_secret_test_key_999"
+    body = b'{"action":"updated","id":501}'
+    valid_sig = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+    assert wordpress_service.verify_webhook_signature(secret, body, valid_sig) is True
+    assert wordpress_service.verify_webhook_signature(secret, body, "bad_sig") is False
+
+    snippet = wordpress_service.build_wordpress_php_snippet(
+        bot_id="bot_123",
+        frontend_url="https://chatty.personaliai.com",
+        webhook_url="https://api.chatty.personaliai.com/api/integrations/wordpress/webhook/bot_123",
+        webhook_secret=secret,
+    )
+    assert "add_action('wp_footer'" in snippet
+    assert "add_action('save_post'" in snippet
+    assert "X-WP-Chatty-Signature" in snippet
