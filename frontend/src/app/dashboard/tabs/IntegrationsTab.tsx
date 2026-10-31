@@ -3428,14 +3428,7 @@ export function IntegrationsTab({
   const renderWordPressSection = () => {
     const isWpConnected = Boolean(wpStatus?.connected);
     const wpWebhookUrl = wpStatus?.webhook_url || `${backendUrl}/api/integrations/wordpress/webhook/${botId || ""}`;
-    const wpPhpSnippet =
-      wpStatus?.php_snippet ||
-      `<?php
-// Paste in WPCode or your theme's functions.php to embed Chatty + auto-sync pages/posts
-add_action('wp_footer', function () {
-    if (is_admin()) return;
-    echo '<script src="https://chatty.personaliai.com/widget.js" data-bot-id="${botId || "YOUR_BOT_ID"}" defer></script>';
-});`;
+    const wpPhpSnippet = wpStatus?.php_snippet || "";
 
     return (
       <div
@@ -3528,7 +3521,7 @@ add_action('wp_footer', function () {
               <span>Real-Time Auto-Update Hook</span>
             </div>
             <p className="text-[11px] text-sky-900/80 dark:text-sky-300/80 leading-relaxed">
-              Use the included PHP snippet or webhook so publishing or editing any post in WordPress immediately updates your AI&apos;s memory.
+              Once connected, use the optional <code>save_post</code> webhook so publishing or editing any post in WordPress immediately updates your AI&apos;s memory.
             </p>
           </div>
         </div>
@@ -3594,6 +3587,57 @@ add_action('wp_footer', function () {
               >
                 {syncingWp ? "Syncing..." : "Apply & Re-Sync"}
               </button>
+            </div>
+
+            {/* Optional Real-Time Content Webhook (save_post) — shown only when connected */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
+                    <ShieldCheck className="size-4 text-emerald-500" />
+                    <span>Optional: Real-Time Content Webhook (<code>save_post</code> Auto-Sync)</span>
+                  </h4>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                    Want newly published or edited WordPress Pages &amp; Posts to sync into your Knowledge Base automatically without clicking &ldquo;Sync Content Now&rdquo;? Add this lightweight <code>save_post</code> webhook hook in <b>WPCode</b> or <code>functions.php</code>.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {wpPhpSnippet && (
+                    <button
+                      type="button"
+                      onClick={() => copyText(wpPhpSnippet, setCopiedWpSnippet, "WordPress webhook hook copied")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#21759b] text-white hover:bg-[#1a5f7e] cursor-pointer"
+                    >
+                      {copiedWpSnippet ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                      <span>{copiedWpSnippet ? "Copied Hook!" : "Copy save_post Hook"}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => copyText(wpWebhookUrl, setCopiedWpWebhook, "WordPress Webhook URL copied")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 cursor-pointer"
+                  >
+                    {copiedWpWebhook ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                    <span>{copiedWpWebhook ? "Copied URL" : "Copy Webhook URL"}</span>
+                  </button>
+                  {wpStatus?.webhook_secret && (
+                    <button
+                      type="button"
+                      onClick={() => copyText(wpStatus.webhook_secret, setCopiedWpSecret, "WordPress Webhook Secret copied")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 cursor-pointer"
+                    >
+                      {copiedWpSecret ? <Check className="size-3.5 text-emerald-500" /> : <Key className="size-3.5" />}
+                      <span>{copiedWpSecret ? "Copied Secret" : "Copy Secret"}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {wpPhpSnippet && (
+                <pre className="p-4 rounded-xl bg-neutral-900 text-neutral-100 font-mono text-[11px] overflow-x-auto leading-relaxed max-h-60">
+                  {wpPhpSnippet}
+                </pre>
+              )}
             </div>
           </div>
         ) : (
@@ -3683,86 +3727,6 @@ add_action('wp_footer', function () {
             )}
           </form>
         )}
-
-        {/* WordPress All-in-One Auto-Sync & Widget PHP Snippet + Manual Webhook */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div>
-              <h4 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
-                <ShieldCheck className="size-4 text-emerald-500" />
-                <span>Real-Time WordPress Auto-Sync &amp; Widget Embed</span>
-              </h4>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                Paste this lightweight PHP snippet into the free <b>WPCode</b> plugin or your theme&apos;s <code>functions.php</code>. It embeds the Chatty widget AND automatically syncs any new or edited WordPress Page/Post to your Knowledge Base in real time.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => copyText(wpPhpSnippet, setCopiedWpSnippet, "WordPress PHP snippet copied")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#21759b] text-white hover:bg-[#1a5f7e] cursor-pointer"
-              >
-                {copiedWpSnippet ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                <span>{copiedWpSnippet ? "Snippet Copied!" : "Copy PHP Snippet"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => copyText(wpWebhookUrl, setCopiedWpWebhook, "WordPress Webhook URL copied")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 cursor-pointer"
-              >
-                {copiedWpWebhook ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
-                <span>{copiedWpWebhook ? "Copied URL" : "Copy Webhook URL"}</span>
-              </button>
-              {wpStatus?.webhook_secret && (
-                <button
-                  type="button"
-                  onClick={() => copyText(wpStatus.webhook_secret, setCopiedWpSecret, "WordPress Webhook Secret copied")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 cursor-pointer"
-                >
-                  {copiedWpSecret ? <Check className="size-3.5 text-emerald-500" /> : <Key className="size-3.5" />}
-                  <span>{copiedWpSecret ? "Copied Secret" : "Copy Secret"}</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          <pre className="p-4 rounded-xl bg-neutral-900 text-neutral-100 font-mono text-[11px] overflow-x-auto leading-relaxed max-h-64">
-            {wpPhpSnippet}
-          </pre>
-
-          <div className="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/70 dark:border-sky-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-            <div className="text-sky-900 dark:text-sky-200">
-              <b>Prefer a 1-click WordPress Plugin for widget embedding?</b> Install the official <b>PersonaliAI Customer Support Chatbot</b> plugin directly from WordPress.org.
-            </div>
-            <a
-              href="https://wordpress.org/plugins/personaliai-customer-support-chatbot"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-900 border border-sky-200 dark:border-sky-800 text-[#21759b] dark:text-sky-300 font-bold hover:bg-sky-50 shrink-0"
-            >
-              <span>Official WordPress.org Plugin</span>
-              <ExternalLink className="size-3.5" />
-            </a>
-          </div>
-
-          <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
-            <button
-              type="button"
-              onClick={() => setShowWpGuide(!showWpGuide)}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-bold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 cursor-pointer"
-            >
-              <span>Step-by-Step WordPress Setup &amp; Knowledge Base Training Guide</span>
-              {showWpGuide ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-            </button>
-            {showWpGuide && (
-              <div className="p-4 border-t border-neutral-200 dark:border-neutral-800 space-y-2 text-[11px] text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                <p><b>Step 1 — Initial Bulk Training:</b> Enter your WordPress URL above and click <b>Connect &amp; Train Knowledge Base</b>. Chatty immediately pulls your published Pages and Blog Posts and indexes them into your Knowledge Base.</p>
-                <p><b>Step 2 — Verify in Knowledge Base:</b> Open the <b>Knowledge Base</b> tab in your Chatty dashboard to see every imported WordPress URL, character count, and training status.</p>
-                <p><b>Step 3 — Real-Time Updates &amp; Widget Embed:</b> In WordPress Admin, install the free <b>WPCode</b> plugin (or open <code>Appearance &rarr; Theme File Editor &rarr; functions.php</code>), paste the PHP snippet above, and activate it. Whenever you publish or update a post, WordPress automatically pushes the change to Chatty.</p>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     );
   };

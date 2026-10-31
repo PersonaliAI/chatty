@@ -700,28 +700,14 @@ def build_wordpress_php_snippet(
     webhook_secret: str,
 ) -> str:
     """Return a ready-to-paste WordPress PHP snippet for WPCode or functions.php
-    that both embeds the Chatty widget and pushes real-time save_post / trashed_post updates.
+    that pushes real-time save_post / trashed_post updates to the Chatty Knowledge Base.
     """
-    clean_frontend = (frontend_url or "https://chatty.personaliai.com").rstrip("/")
     return f"""<?php
 /**
- * Chatty AI — WordPress Widget Embed + Automatic Knowledge Base Sync
+ * Chatty AI — Real-Time WordPress Knowledge Base Auto-Sync Hook
  * Paste into WPCode (Code Snippets plugin) or your active theme's functions.php
+ * Automatically updates your Chatty Knowledge Base whenever a Page or Post is published or edited.
  */
-
-// 1. Embed the Chatty AI Assistant Widget on your WordPress site
-add_action('wp_footer', function () {{
-    if (is_admin()) return;
-    ?>
-    <script
-      src="{clean_frontend}/widget.js"
-      data-bot-id="{bot_id}"
-      defer
-    ></script>
-    <?php
-}});
-
-// 2. Automatically sync published Pages & Posts to Chatty Knowledge Base in real time
 add_action('save_post', function ($post_id, $post, $update) {{
     if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
     if (!in_array($post->post_type, array('post', 'page'), true)) return;

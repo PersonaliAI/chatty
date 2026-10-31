@@ -281,7 +281,7 @@ def test_wordpress_content_formatting_and_webhook_hmac():
         webhook_url="https://api.chatty.personaliai.com/api/integrations/wordpress/webhook/bot_123",
         webhook_secret=secret,
     )
-    assert "add_action('wp_footer'" in snippet
+    assert "add_action('wp_footer'" not in snippet
     assert "add_action('save_post'" in snippet
     assert "X-WP-Chatty-Signature" in snippet
 
