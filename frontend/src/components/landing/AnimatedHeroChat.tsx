@@ -667,8 +667,8 @@ export function AnimatedHeroChat() {
         </button>
       </div>
 
-      {/* 5. 4-Item Grid: Guaranteed 100% Visibility of All Slider Items with Lucide Icons */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5 sm:p-3 bg-[#e9edef] border-t border-black/8">
+      {/* 5. 5-Item Grid: Guaranteed 100% Single-Row Visibility with Lucide Icons */}
+      <div className="flex sm:grid sm:grid-cols-5 gap-1.5 sm:gap-2 p-2 sm:p-2.5 bg-[#e9edef] border-t border-black/8 overflow-x-auto no-scrollbar">
         {BUSINESS_SITUATIONS.map((sit, i) => {
           const isActive = i === currentIndex;
           return (
@@ -676,18 +676,18 @@ export function AnimatedHeroChat() {
               key={sit.id}
               type="button"
               onClick={() => selectSituation(i)}
-              className={`px-2.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-2 border ${
+              className={`flex-1 sm:flex-initial min-w-[110px] sm:min-w-0 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 border shrink-0 ${
                 isActive
                   ? "bg-[#008069] text-white border-[#008069] shadow-sm"
                   : "bg-white text-neutral-700 hover:text-neutral-900 border-black/8 hover:bg-neutral-50"
               }`}
             >
               <span
-                className={`size-6 rounded-lg flex items-center justify-center shrink-0 ${
+                className={`size-5 sm:size-6 rounded-md sm:rounded-lg flex items-center justify-center shrink-0 ${
                   isActive ? "bg-white/20 text-white" : `${sit.businessAvatarBg} text-white`
                 }`}
               >
-                {renderBusinessIcon(sit.businessIcon, "size-3.5 text-white")}
+                {renderBusinessIcon(sit.businessIcon, "size-3 sm:size-3.5 text-white")}
               </span>
               <span className="truncate">{sit.tabLabel}</span>
             </button>
