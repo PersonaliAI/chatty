@@ -2037,6 +2037,39 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Refresh Knowledge Base sources when switching to the Knowledge tab (e.g. after syncing WordPress or cloud sources in Integrations)
+  useEffect(() => {
+    if (activeTab !== "knowledge" || !botId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resp = await fetchWithFallback(`/api/bots/${botId}/sources`);
+        if (!cancelled && resp.ok) {
+          const json = await resp.json();
+          if (Array.isArray(json.sources)) {
+            setSources(
+              (json.sources as SourceRecord[]).map((s) => ({
+                id: s.id,
+                type: s.type,
+                name: s.name,
+                content: s.content ?? "",
+                status: s.status,
+                charCount: s.char_count ?? s.charCount ?? 0,
+                crawlSchedule: s.crawl_schedule || "off",
+                nextCrawlAt: s.next_crawl_at,
+              }))
+            );
+          }
+        }
+      } catch {
+        // Non-fatal background refresh
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, botId, fetchWithFallback]);
+
   // Handle post-claim redirect toast and tab navigation
   useEffect(() => {
     if (!user?.id || typeof window === "undefined") return;

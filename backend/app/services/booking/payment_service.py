@@ -204,6 +204,27 @@ class BookingPaymentService:
 
         await self.run_db(_update)
 
+        # Also record booking deposit order in chatty_orders for unified ledger & receipt emails
+        try:
+            order_row = {
+                "bot_id": bot_id,
+                "provider": provider,
+                "order_type": "booking_deposit",
+                "attributed_to": "ai_agent" if caller == "ai" else "human_agent",
+                "channel": "web",
+                "title": title,
+                "amount_cents": price_cents,
+                "currency": currency.upper(),
+                "customer_email": attendee_email,
+                "checkout_url": checkout_url,
+                "gateway_order_id": session_id or "",
+                "status": "pending",
+                "metadata": metadata,
+            }
+            await self.run_db(lambda: self.supabase.table("chatty_orders").insert(order_row).execute())
+        except Exception:
+            logger.debug("Non-fatal: could not insert booking order into chatty_orders")
+
         return {
             "requires_payment": True,
             "provider": provider,

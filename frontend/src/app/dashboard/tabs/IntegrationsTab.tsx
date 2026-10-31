@@ -3730,6 +3730,21 @@ add_action('wp_footer', function () {
             {wpPhpSnippet}
           </pre>
 
+          <div className="p-3.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/70 dark:border-sky-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="text-sky-900 dark:text-sky-200">
+              <b>Prefer a 1-click WordPress Plugin for widget embedding?</b> Install the official <b>PersonaliAI Customer Support Chatbot</b> plugin directly from WordPress.org.
+            </div>
+            <a
+              href="https://wordpress.org/plugins/personaliai-customer-support-chatbot"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-neutral-900 border border-sky-200 dark:border-sky-800 text-[#21759b] dark:text-sky-300 font-bold hover:bg-sky-50 shrink-0"
+            >
+              <span>Official WordPress.org Plugin</span>
+              <ExternalLink className="size-3.5" />
+            </a>
+          </div>
+
           <div className="border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-900">
             <button
               type="button"

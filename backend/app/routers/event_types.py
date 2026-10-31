@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
@@ -259,12 +260,13 @@ async def create_booking_checkout_endpoint(
         raise HTTPException(status_code=404, detail="Meeting not found")
     meeting = meet_res.data[0]
 
+    backend_base = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com").rstrip("/")
     session = await payment_service.create_checkout_session(
         bot_id=bot_id,
         meeting_id=meeting_id,
         event_type=et,
         attendee_email=meeting["attendee_email"],
-        success_url=success_url or "https://app.chatty.com/booking/confirmed",
-        cancel_url=cancel_url or "https://app.chatty.com/booking/cancelled",
+        success_url=success_url or f"{backend_base}/api/bots/{bot_id}/payments/return?status=success",
+        cancel_url=cancel_url or f"{backend_base}/api/bots/{bot_id}/payments/return?status=cancel",
     )
     return session

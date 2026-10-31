@@ -415,6 +415,7 @@ def format_wp_item_for_kb(item: dict[str, Any], kind: str = "page") -> Optional[
     label = "WordPress Page" if kind == "page" else "WordPress Article / Post"
 
     sections = [
+        f"Title: {title}",
         f"# {title}",
         f"Source Type: {label}",
         f"Canonical URL: {link}",
@@ -571,6 +572,59 @@ async def sync_wordpress_content(
                     logger.warning("WordPress sync error on %s page %s: %s", kind, page_num, exc)
                     errors.append(str(exc))
                     break
+
+        # Sitemap XML + HTML extraction fallback when WP REST API is restricted by a security plugin
+        if synced_pages + synced_posts == 0:
+            candidate_urls: list[str] = []
+            for sm_path in ("/wp-sitemap.xml", "/sitemap_index.xml", "/sitemap.xml"):
+                try:
+                    sm_resp = await ssrf.request_async(client, "GET", f"{base_url}{sm_path}", auth=auth)
+                    if sm_resp.status_code == 200 and "<loc>" in sm_resp.text:
+                        locs = re.findall(r"<loc>\s*(https?://[^<\s]+)\s*</loc>", sm_resp.text)
+                        for loc in locs:
+                            if loc.endswith(".xml") and len(candidate_urls) < 40:
+                                try:
+                                    sub_resp = await ssrf.request_async(client, "GET", loc, auth=auth)
+                                    if sub_resp.status_code == 200:
+                                        sub_locs = re.findall(r"<loc>\s*(https?://[^<\s]+)\s*</loc>", sub_resp.text)
+                                        candidate_urls.extend([u for u in sub_locs if not u.endswith(".xml")])
+                                except Exception:
+                                    continue
+                            elif not loc.endswith(".xml"):
+                                candidate_urls.append(loc)
+                        if candidate_urls:
+                            break
+                except Exception:
+                    continue
+
+            for page_url in candidate_urls[:35]:
+                try:
+                    p_resp = await ssrf.request_async(client, "GET", page_url, auth=auth)
+                    if p_resp.status_code != 200 or not p_resp.text:
+                        continue
+                    raw_html = p_resp.text
+                    title_m = re.search(r"<title[^>]*>(.*?)</title>", raw_html, re.IGNORECASE | re.DOTALL)
+                    page_title = clean_wp_html(title_m.group(1)) if title_m else page_url
+                    body_m = (
+                        re.search(r"<main[^>]*>(.*?)</main>", raw_html, re.IGNORECASE | re.DOTALL)
+                        or re.search(r"<article[^>]*>(.*?)</article>", raw_html, re.IGNORECASE | re.DOTALL)
+                        or re.search(r"<body[^>]*>(.*?)</body>", raw_html, re.IGNORECASE | re.DOTALL)
+                    )
+                    body_html = body_m.group(1) if body_m else raw_html
+                    formatted = format_wp_item_for_kb(
+                        {"link": page_url, "title": page_title, "content": body_html},
+                        kind="page",
+                    )
+                    if not formatted:
+                        continue
+                    action = await upsert_kb_source(bot_id, formatted)
+                    if action == "created":
+                        created_count += 1
+                    else:
+                        updated_count += 1
+                    synced_pages += 1
+                except Exception:
+                    continue
 
     total_synced = synced_pages + synced_posts
     now_iso = datetime.now(timezone.utc).isoformat()

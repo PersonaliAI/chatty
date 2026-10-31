@@ -8,8 +8,11 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 import hashlib
 import hmac
+import html as _html
 import os
+import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from app.services.order_email_service import render_order_status_email, send_order_notification_emails
 
@@ -474,8 +477,10 @@ async def inbox_send_checkout_link(
     secret = decrypt_secret(integration.get("secret_key_encrypted") or "")
     extra = integration.get("extra_config") or {}
 
-    success_url = "https://app.chatty.com/payment/success"
-    cancel_url = "https://app.chatty.com/payment/cancel"
+    order_id = str(uuid.uuid4())
+    backend_base = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com").rstrip("/")
+    success_url = f"{backend_base}/api/bots/{bot_id}/payments/return?status=success&order_id={order_id}&provider={prov}"
+    cancel_url = f"{backend_base}/api/bots/{bot_id}/payments/return?status=cancel&order_id={order_id}&provider={prov}"
 
     # 1. Industrial Pre-Checkout Lead Hydration
     customer_name: Optional[str] = None
@@ -527,6 +532,7 @@ async def inbox_send_checkout_link(
             pass
 
     metadata = {
+        "order_id": order_id,
         "bot_id": bot_id,
         "session_id": body.session_id,
         "sent_by": user.get("email") or "human_agent",
@@ -632,6 +638,7 @@ async def inbox_send_checkout_link(
 
     # 2. Record Transaction in chatty_orders
     order_record = {
+        "id": order_id,
         "bot_id": bot_id,
         "session_id": body.session_id,
         "provider": prov,
@@ -741,8 +748,13 @@ async def list_bot_orders(
         if attributed_val and attributed_val.lower() != "all":
             q = q.eq("attributed_to", attributed_val.lower())
         if search_val and search_val.strip():
-            s = search_val.strip()
-            q = q.ilike("title", f"%{s}%")
+            s = search_val.strip().replace(",", " ")
+            if hasattr(q, "or_"):
+                q = q.or_(
+                    f"title.ilike.%{s}%,customer_name.ilike.%{s}%,customer_email.ilike.%{s}%,gateway_order_id.ilike.%{s}%"
+                )
+            else:
+                q = q.ilike("title", f"%{s}%")
         q = q.order("created_at", desc=True).range(offset_val, offset_val + limit_val - 1)
         return q.execute()
 
@@ -1044,9 +1056,22 @@ async def receive_payment_gateway_webhook(
     if not target_status:
         return {"status": "ignored", "event_type": event_type}
 
-    # Find matching order in chatty_orders by gateway_order_id or session_id
+    # Find matching order in chatty_orders by order_id, gateway_order_id, or session_id
     matched_order = None
-    if gateway_order_id:
+    meta_order_id = str(meta.get("order_id") or "").strip()
+    if meta_order_id:
+        o_res = await run_db(
+            lambda: supabase.table("chatty_orders")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("id", meta_order_id)
+            .limit(1)
+            .execute()
+        )
+        if o_res and o_res.data:
+            matched_order = o_res.data[0]
+
+    if not matched_order and gateway_order_id:
         o_res = await run_db(
             lambda: supabase.table("chatty_orders")
             .select("*")
@@ -1073,14 +1098,32 @@ async def receive_payment_gateway_webhook(
         if o_res and o_res.data:
             matched_order = o_res.data[0]
 
+    # Idempotency guard: if order was already processed & notified for this exact status, skip duplicate emails/messages
+    existing_meta = dict((matched_order or {}).get("metadata") or {})
+    if (
+        matched_order is not None
+        and matched_order.get("status") == target_status
+        and existing_meta.get("notified_status") == target_status
+    ):
+        return {
+            "status": "ok",
+            "order_status": target_status,
+            "order_id": matched_order.get("id"),
+            "deduplicated": True,
+        }
+
     now_iso = datetime.now(timezone.utc).isoformat()
+    merged_meta = {**existing_meta, **meta, "notified_status": target_status}
     if matched_order:
         upd_fields: dict[str, Any] = {
             "status": target_status,
             "updated_at": now_iso,
+            "metadata": merged_meta,
         }
         if target_status == "succeeded":
             upd_fields["paid_at"] = now_iso
+        if gateway_order_id and not matched_order.get("gateway_order_id"):
+            upd_fields["gateway_order_id"] = gateway_order_id
         if customer_email and not matched_order.get("customer_email"):
             upd_fields["customer_email"] = customer_email
         if customer_name and not matched_order.get("customer_name"):
@@ -1109,13 +1152,13 @@ async def receive_payment_gateway_webhook(
             "gateway_order_id": gateway_order_id,
             "status": target_status,
             "paid_at": now_iso if target_status == "succeeded" else None,
-            "metadata": meta,
+            "metadata": merged_meta,
         }
         ins_res = await run_db(lambda: supabase.table("chatty_orders").insert(new_order).execute())
         order_record = ins_res.data[0] if (ins_res and ins_res.data) else new_order
 
     # Confirm paid appointment booking if meeting_id is present
-    meeting_id = meta.get("meeting_id") or (order_record.get("metadata") or {}).get("meeting_id")
+    meeting_id = merged_meta.get("meeting_id") or (order_record.get("metadata") or {}).get("meeting_id")
     if meeting_id and target_status == "succeeded":
         try:
             from app.services.booking.payment_service import BookingPaymentService
@@ -1172,3 +1215,196 @@ async def receive_payment_gateway_webhook(
         "order_id": order_record.get("id"),
         "email_delivery": email_res,
     }
+
+
+# --- 8. PUBLIC CUSTOMER CHECKOUT RETURN / RECEIPT LANDING ENDPOINT ---
+@router.get("/api/bots/{bot_id}/payments/return", response_class=HTMLResponse)
+async def handle_payment_return_redirect(
+    bot_id: str,
+    status: str = Query("success"),
+    order_id: Optional[str] = Query(None),
+    provider: Optional[str] = Query(None),
+    token: Optional[str] = Query(None),  # PayPal order ID query param on return
+    session_id: Optional[str] = Query(None),
+    checkout_id: Optional[str] = Query(None),
+):
+    """Customer-facing return endpoint after completing or cancelling hosted checkout.
+    Captures PayPal orders if needed, confirms pending orders & bookings idempotently,
+    sends customer receipt email, and renders a mobile-responsive receipt page."""
+    prov = (provider or "stripe").lower().strip()
+    is_cancel = status.lower().strip() in ("cancel", "cancelled", "failed")
+
+    matched_order = None
+    if order_id:
+        o_res = await run_db(
+            lambda: supabase.table("chatty_orders")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("id", order_id)
+            .limit(1)
+            .execute()
+        )
+        if o_res and o_res.data:
+            matched_order = o_res.data[0]
+
+    gw_lookup = token or checkout_id or session_id
+    if not matched_order and gw_lookup:
+        o_res = await run_db(
+            lambda: supabase.table("chatty_orders")
+            .select("*")
+            .eq("bot_id", bot_id)
+            .eq("gateway_order_id", str(gw_lookup))
+            .limit(1)
+            .execute()
+        )
+        if o_res and o_res.data:
+            matched_order = o_res.data[0]
+
+    bot_name, email_cfg, owner_email = await _get_bot_email_context(bot_id)
+    brand_color = str(email_cfg.get("receipt_brand_color") or "#f97316").strip()
+
+    if is_cancel:
+        retry_url = (matched_order or {}).get("checkout_url") or "https://chatty.personaliai.com"
+        item_title = _html.escape(str((matched_order or {}).get("title") or "Your Order"))
+        cancel_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Checkout Cancelled — {_html.escape(bot_name)}</title>
+</head>
+<body style="margin:0;padding:32px 16px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#0f172a;">
+  <div style="max-width:480px;margin:40px auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:32px;text-align:center;box-shadow:0 4px 20px rgba(15,23,42,0.06);">
+    <div style="width:48px;height:48px;border-radius:12px;background:#fef2f2;color:#ef4444;display:inline-flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin-bottom:16px;">✕</div>
+    <h1 style="margin:0 0 8px 0;font-size:20px;font-weight:800;">Payment Not Completed</h1>
+    <p style="margin:0 0 24px 0;font-size:14px;line-height:1.6;color:#475569;">
+      No charge was made for <strong>{item_title}</strong>. You can return to the chat window or retry your secure checkout anytime.
+    </p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="{_html.escape(retry_url)}" style="display:inline-block;padding:12px 22px;background:{_html.escape(brand_color)};color:#ffffff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;">Retry Checkout</a>
+      <button onclick="window.close()" style="padding:12px 22px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">Close Window</button>
+    </div>
+  </div>
+</body>
+</html>"""
+        return HTMLResponse(content=cancel_html, status_code=200)
+
+    # If PayPal order return, capture the approved order automatically
+    if prov == "paypal" and (token or (matched_order and matched_order.get("gateway_order_id"))):
+        pp_order_id = token or matched_order.get("gateway_order_id")
+        try:
+            pi_res = await run_db(
+                lambda: supabase.table("chatty_payment_integrations")
+                .select("*")
+                .eq("bot_id", bot_id)
+                .eq("provider", "paypal")
+                .limit(1)
+                .execute()
+            )
+            if pi_res and pi_res.data:
+                pi_row = pi_res.data[0]
+                pp_secret = decrypt_secret(pi_row.get("secret_key_encrypted") or "")
+                await PaymentGatewaysService.capture_paypal_order(
+                    client_id=pi_row.get("publishable_key") or "",
+                    client_secret=pp_secret,
+                    test_mode=bool(pi_row.get("test_mode", True)),
+                    order_id=str(pp_order_id),
+                )
+        except Exception:
+            logger.warning("Non-fatal: PayPal capture on return encountered an issue", exc_info=True)
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if matched_order:
+        existing_meta = dict(matched_order.get("metadata") or {})
+        already_notified = (
+            matched_order.get("status") == "succeeded"
+            and existing_meta.get("notified_status") == "succeeded"
+        )
+        if not already_notified:
+            existing_meta["notified_status"] = "succeeded"
+            upd_fields = {
+                "status": "succeeded",
+                "paid_at": now_iso,
+                "updated_at": now_iso,
+                "metadata": existing_meta,
+            }
+            u_res = await run_db(
+                lambda: supabase.table("chatty_orders")
+                .update(upd_fields)
+                .eq("id", matched_order["id"])
+                .execute()
+            )
+            matched_order = u_res.data[0] if (u_res and u_res.data) else {**matched_order, **upd_fields}
+
+            meeting_id = existing_meta.get("meeting_id")
+            if meeting_id:
+                try:
+                    from app.services.booking.payment_service import BookingPaymentService
+                    pay_svc = BookingPaymentService(supabase, run_db)
+                    await pay_svc.handle_payment_completed(
+                        meeting_id=str(meeting_id),
+                        payment_intent_id=str(matched_order.get("gateway_order_id") or matched_order.get("id")),
+                        amount_cents=int(matched_order.get("amount_cents") or 0),
+                    )
+                except Exception:
+                    logger.warning("Non-fatal: failed to confirm meeting on payment return", exc_info=True)
+
+            eff_sid = str(matched_order.get("session_id") or existing_meta.get("session_id") or "").strip()
+            if eff_sid:
+                amt_str = f"${(int(matched_order.get('amount_cents') or 0) / 100):.2f} {matched_order.get('currency', 'USD')}"
+                chat_msg = (
+                    f"✅ **Payment Confirmed!** Thank you for your purchase of **{matched_order.get('title', 'Order')}** "
+                    f"({amt_str}) via {str(matched_order.get('provider') or prov).capitalize()}. "
+                    "A confirmation receipt has been sent to your email."
+                )
+                try:
+                    await run_db(
+                        lambda: supabase.table("chatty_conversations")
+                        .insert({
+                            "bot_id": bot_id,
+                            "session_id": eff_sid,
+                            "role": "assistant",
+                            "content": chat_msg,
+                            "created_at": now_iso,
+                        })
+                        .execute()
+                    )
+                except Exception:
+                    pass
+
+            try:
+                await send_order_notification_emails(
+                    order=matched_order,
+                    bot_name=bot_name,
+                    email_config=email_cfg,
+                    owner_email=owner_email,
+                )
+            except Exception:
+                logger.warning("Non-fatal: failed to send receipt email on payment return", exc_info=True)
+
+    display_order = matched_order or {
+        "id": order_id or "confirmed",
+        "title": "Completed Order",
+        "amount_cents": 0,
+        "currency": "USD",
+        "provider": prov,
+        "status": "succeeded",
+        "customer_name": "Valued Customer",
+        "checkout_url": "https://chatty.personaliai.com",
+    }
+    _, receipt_html = render_order_status_email(
+        {**display_order, "status": "succeeded"},
+        bot_name=bot_name,
+        email_config=email_cfg,
+    )
+    top_bar = (
+        '<div style="background:#0f172a;color:#ffffff;padding:12px 20px;text-align:center;'
+        'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;display:flex;'
+        'align-items:center;justify-content:center;gap:16px;">'
+        '<span>✅ Payment verified &amp; confirmed. You may now return to the chat conversation.</span>'
+        '<button onclick="window.close()" style="background:#10b981;color:#ffffff;border:none;'
+        'padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">'
+        'Close Tab &amp; Return to Chat</button></div>'
+    )
+    full_page = receipt_html.replace("<body>", f"<body>{top_bar}", 1) if "<body>" in receipt_html else (top_bar + receipt_html)
+    return HTMLResponse(content=full_page, status_code=200)

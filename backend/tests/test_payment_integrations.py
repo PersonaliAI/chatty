@@ -284,3 +284,69 @@ def test_wordpress_content_formatting_and_webhook_hmac():
     assert "add_action('wp_footer'" in snippet
     assert "add_action('save_post'" in snippet
     assert "X-WP-Chatty-Signature" in snippet
+
+
+@pytest.mark.anyio
+async def test_ai_agent_create_payment_checkout_tool():
+    """Verify the AI agent `create_payment_checkout` tool enforces amount caps and creates `[CHECKOUT_LINK:...]` cards."""
+    from plugins.agent_tools import _create_payment_checkout
+
+    inserted_orders = []
+
+    class FakeAgentCheckoutDB:
+        def table(self, name: str):
+            self._t = name
+            return self
+        def select(self, *args, **kwargs): return self
+        def eq(self, *args): return self
+        def limit(self, *args): return self
+        def insert(self, payload):
+            if self._t == "chatty_orders":
+                inserted_orders.append(payload)
+            return self
+        def execute(self):
+            if self._t == "chatty_payment_integrations":
+                return MockDBResult([{
+                    "id": "pi_polar_1",
+                    "bot_id": "bot_123",
+                    "provider": "polar",
+                    "is_active": True,
+                    "ai_payment_allowed": True,
+                    "ai_max_amount_cents": 20000,  # $200.00 cap
+                    "secret_key_encrypted": encrypt_secret("polar_oat_test_key"),
+                    "extra_config": {"organization_id": "org_123"},
+                }])
+            if self._t == "chatty_leads":
+                return MockDBResult([{"name": "Maya Lin", "email": "maya@acme.io", "phone": "+15550100", "country": "US"}])
+            return MockDBResult([])
+
+    fake_db = FakeAgentCheckoutDB()
+
+    # 1. Amount exceeding $200.00 cap is blocked
+    capped_res = await _create_payment_checkout(
+        {"title": "Enterprise Custom Setup", "amount_dollars": 350.00},
+        user={"id": "u1"},
+        supabase=fake_db,
+        context={"bot_id": "bot_123", "session_id": "sess_abc"},
+    )
+    assert capped_res.get("amount_exceeds_cap") is True
+    assert len(inserted_orders) == 0
+
+    # 2. Valid $49.00 checkout creates Polar checkout session, records AI-attributed order, and returns CHECKOUT_LINK token
+    with patch.object(
+        PaymentGatewaysService,
+        "create_polar_checkout",
+        return_value={"checkout_url": "https://polar.sh/checkout/chk_999", "session_id": "chk_999"},
+    ):
+        ok_res = await _create_payment_checkout(
+            {"title": "Pro Plan Monthly", "amount_dollars": 49.00, "currency": "USD"},
+            user={"id": "u1"},
+            supabase=fake_db,
+            context={"bot_id": "bot_123", "session_id": "sess_abc"},
+        )
+        assert ok_res.get("status") == "success"
+        assert "[CHECKOUT_LINK:" in ok_res.get("checkout_card_token", "")
+        assert len(inserted_orders) == 1
+        assert inserted_orders[0]["attributed_to"] == "ai_agent"
+        assert inserted_orders[0]["amount_cents"] == 4900
+        assert inserted_orders[0]["customer_email"] == "maya@acme.io"

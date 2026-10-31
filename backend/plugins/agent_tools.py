@@ -366,6 +366,35 @@ DECLARATIONS: list[dict] = [
         },
         ["timezone"],
     ),
+    _tool(
+        "create_payment_checkout",
+        "Generate a secure, hosted payment checkout link (Stripe, Polar.sh, Lemon Squeezy, or PayPal) so the visitor can purchase a product, subscription plan, service, or custom quote directly in the chat. "
+        "Call this tool whenever the visitor asks to buy, subscribe, pay, or receive a checkout link and autonomous checkout is permitted. "
+        "Returns a `checkout_card_token` (`[CHECKOUT_LINK:...]`) which automatically renders an interactive payment card in the chat widget.",
+        {
+            "title": {
+                "type": "string",
+                "description": "Product, plan, or service name (e.g. 'Pro Plan Subscription', 'Onboarding Package').",
+            },
+            "amount_dollars": {
+                "type": "number",
+                "description": "Price in major currency units / dollars (e.g. 49.00 for $49.00, or 99 for $99.00).",
+            },
+            "currency": {
+                "type": "string",
+                "description": "3-letter ISO currency code (default: 'USD').",
+            },
+            "customer_email": {
+                "type": "string",
+                "description": "Customer email address for receipt delivery and checkout pre-fill.",
+            },
+            "customer_name": {
+                "type": "string",
+                "description": "Customer full name if known.",
+            },
+        },
+        ["title", "amount_dollars"],
+    ),
 ]
 
 
@@ -1723,6 +1752,248 @@ async def _web_search(args: dict, user: dict, supabase) -> dict:
     return {"error": "Web search is unavailable right now."}
 
 
+async def _create_payment_checkout(
+    args: dict[str, Any],
+    user: dict[str, Any],
+    supabase,
+    *,
+    context: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Autonomously generate a payment checkout session for a visitor in chat and record the pending order in chatty_orders."""
+    import uuid as _uuid
+    from app.core.crypto import decrypt_secret
+    from app.services.booking.payment_gateways import PaymentGatewaysService
+
+    ctx = context or {}
+    bot_id = str(ctx.get("bot_id") or (ctx.get("bot") or {}).get("id") or "").strip()
+    session_id = str(ctx.get("session_id") or "").strip()
+    if not bot_id:
+        return {"error": "Bot ID is missing from conversation context."}
+
+    title = str(args.get("title") or "Order Payment").strip()[:250]
+    currency = str(args.get("currency") or "USD").strip().lower()[:5] or "usd"
+    raw_dollars = args.get("amount_dollars")
+    raw_cents = args.get("amount_cents")
+    amount_cents = 0
+    try:
+        if raw_dollars is not None:
+            amount_cents = int(round(float(raw_dollars) * 100))
+        elif raw_cents is not None:
+            amount_cents = int(raw_cents)
+    except Exception:
+        amount_cents = 0
+
+    if amount_cents < 50:
+        return {"error": "Amount must be at least $0.50 (50 cents) to create a checkout session."}
+
+    # 1. Load active payment integrations for this bot
+    res = await run_db(
+        lambda: supabase.table("chatty_payment_integrations")
+        .select("*")
+        .eq("bot_id", bot_id)
+        .eq("is_active", True)
+        .execute()
+    )
+    rows = res.data if (res and res.data) else []
+    if not rows:
+        return {
+            "error": (
+                "No active payment gateway is connected for this chatbot yet. "
+                "Politely ask the visitor for their email address so our team can send them an invoice."
+            )
+        }
+
+    integration = rows[0]
+    if not all(r.get("ai_payment_allowed", True) for r in rows):
+        return {
+            "ai_restricted": True,
+            "message": (
+                "Autonomous payment checkout is restricted by business policy. "
+                "Collect the visitor's name and email address and let them know a human team member will dispatch a secure checkout link shortly."
+            ),
+        }
+
+    max_cents = None
+    for r in rows:
+        if r.get("ai_max_amount_cents"):
+            max_cents = int(r["ai_max_amount_cents"])
+            break
+
+    if max_cents and amount_cents > max_cents:
+        max_fmt = f"${(max_cents / 100):,.2f}"
+        req_fmt = f"${(amount_cents / 100):,.2f}"
+        return {
+            "amount_exceeds_cap": True,
+            "message": (
+                f"The requested amount ({req_fmt}) exceeds the autonomous AI checkout cap ({max_fmt}). "
+                f"Do NOT generate a checkout link; invite the visitor to book a call or share their email so our sales team can send a custom quote."
+            ),
+        }
+
+    prov = str(integration.get("provider") or "stripe").lower().strip()
+    secret = decrypt_secret(integration.get("secret_key_encrypted") or "")
+    extra = integration.get("extra_config") or {}
+
+    # 2. Hydrate customer details from args, chatty_leads, and chatty_sessions
+    customer_email = str(args.get("customer_email") or "").strip() or None
+    customer_name = str(args.get("customer_name") or "").strip() or None
+    customer_phone: Optional[str] = None
+    customer_country: Optional[str] = None
+    channel = "web"
+
+    if session_id:
+        if session_id.startswith("wa:"): channel = "whatsapp"
+        elif session_id.startswith("tg:"): channel = "telegram"
+        elif session_id.startswith("ig:"): channel = "instagram"
+        elif session_id.startswith("fb:"): channel = "messenger"
+        elif session_id.startswith("sms:"): channel = "sms"
+        elif session_id.startswith("tt:"): channel = "tiktok"
+
+        try:
+            lead_res = await run_db(
+                lambda: supabase.table("chatty_leads")
+                .select("name, email, phone, country")
+                .eq("bot_id", bot_id)
+                .eq("session_id", session_id)
+                .limit(1)
+                .execute()
+            )
+            if lead_res and lead_res.data:
+                lrow = lead_res.data[0]
+                customer_name = customer_name or lrow.get("name")
+                customer_email = customer_email or lrow.get("email")
+                customer_phone = lrow.get("phone")
+                customer_country = lrow.get("country")
+        except Exception:
+            pass
+
+    order_id = str(_uuid.uuid4())
+    backend_base = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com").rstrip("/")
+    success_url = f"{backend_base}/api/bots/{bot_id}/payments/return?status=success&order_id={order_id}&provider={prov}"
+    cancel_url = f"{backend_base}/api/bots/{bot_id}/payments/return?status=cancel&order_id={order_id}&provider={prov}"
+
+    metadata = {
+        "order_id": order_id,
+        "bot_id": bot_id,
+        "session_id": session_id,
+        "caller": "ai",
+        "sent_by": "ai_agent",
+        "customer_name": customer_name or "",
+        "customer_email": customer_email or "",
+        "channel": channel,
+    }
+
+    try:
+        if prov == "stripe":
+            checkout_res = await PaymentGatewaysService.create_stripe_checkout(
+                secret_key=secret,
+                amount_cents=amount_cents,
+                currency=currency,
+                title=title,
+                customer_email=customer_email,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata=metadata,
+            )
+        elif prov == "polar":
+            checkout_res = await PaymentGatewaysService.create_polar_checkout(
+                access_token=secret,
+                organization_id=extra.get("organization_id") or "",
+                amount_cents=amount_cents,
+                currency=currency,
+                title=title,
+                customer_email=customer_email,
+                success_url=success_url,
+                metadata=metadata,
+            )
+        elif prov == "lemonsqueezy":
+            variant_id = await PaymentGatewaysService.resolve_lemonsqueezy_variant(
+                secret, extra.get("store_id"), None
+            )
+            checkout_res = await PaymentGatewaysService.create_lemonsqueezy_checkout(
+                variant_id=variant_id,
+                api_key=secret,
+                store_id=extra.get("store_id") or "",
+                amount_cents=amount_cents,
+                currency=currency,
+                title=title,
+                customer_email=customer_email,
+                success_url=success_url,
+                metadata=metadata,
+            )
+        elif prov == "paypal":
+            checkout_res = await PaymentGatewaysService.create_paypal_checkout(
+                client_id=integration.get("publishable_key") or "",
+                client_secret=secret,
+                test_mode=bool(integration.get("test_mode", True)),
+                amount_cents=amount_cents,
+                currency=currency,
+                title=title,
+                customer_email=customer_email,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata=metadata,
+            )
+        else:
+            return {"error": f"Unsupported payment gateway provider: {prov}"}
+    except Exception as exc:
+        logger.warning("AI autonomous checkout creation failed for %s: %s", prov, exc)
+        return {"error": f"Could not generate checkout link: {exc}"}
+
+    checkout_url = checkout_res["checkout_url"]
+    gw_id = checkout_res.get("session_id") or checkout_res.get("order_id") or ""
+
+    order_record = {
+        "id": order_id,
+        "bot_id": bot_id,
+        "session_id": session_id or None,
+        "provider": prov,
+        "order_type": "product_checkout",
+        "attributed_to": "ai_agent",
+        "channel": channel,
+        "title": title,
+        "amount_cents": amount_cents,
+        "currency": currency.upper(),
+        "customer_name": customer_name,
+        "customer_email": customer_email,
+        "customer_phone": customer_phone,
+        "customer_country": customer_country,
+        "checkout_url": checkout_url,
+        "gateway_order_id": gw_id,
+        "status": "pending",
+        "metadata": metadata,
+    }
+    try:
+        await run_db(lambda: supabase.table("chatty_orders").insert(order_record).execute())
+    except Exception:
+        logger.warning("Non-fatal: failed to insert AI order in chatty_orders", exc_info=True)
+
+    token_data = {
+        "provider": prov,
+        "title": title,
+        "amount_cents": amount_cents,
+        "currency": currency.upper(),
+        "url": checkout_url,
+    }
+    checkout_card_token = f"[CHECKOUT_LINK:{json.dumps(token_data)}]"
+    amount_formatted = f"${(amount_cents / 100):.2f} {currency.upper()}"
+
+    return {
+        "status": "success",
+        "order_id": order_id,
+        "provider": prov,
+        "title": title,
+        "amount_formatted": amount_formatted,
+        "checkout_url": checkout_url,
+        "checkout_card_token": checkout_card_token,
+        "instruction": (
+            f"The interactive payment card for '{title}' ({amount_formatted}) has been generated and will be "
+            "attached automatically to your response. Do not output raw URLs; simply invite the customer to click "
+            "the secure payment button below."
+        ),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
@@ -2080,6 +2351,8 @@ async def execute(
                 except Exception:
                     logger.warning("Failed to flag session for order edge-case human review", exc_info=True)
             return res
+        if name == "create_payment_checkout":
+            return await _create_payment_checkout(args, user, supabase, context=context)
         if name == "web_search":
             return await _web_search(args, user, supabase)
         if name == "list_outlook_events":

@@ -591,6 +591,27 @@ class PaymentGatewaysService:
             "currency": currency,
         }
 
+    @classmethod
+    async def capture_paypal_order(
+        cls,
+        client_id: str,
+        client_secret: str,
+        test_mode: bool,
+        order_id: str,
+    ) -> dict[str, Any]:
+        """Capture an approved PayPal order upon buyer return."""
+        oid = safe_gateway_id(order_id, "PayPal order ID")
+        token = await cls._paypal_token(client_id, client_secret, test_mode)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(
+                f"{cls._paypal_base(test_mode)}/v2/checkout/orders/{oid}/capture",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json={},
+            )
+        if res.status_code in (200, 201):
+            return {"captured": True, "data": res.json()}
+        return {"captured": False, "status_code": res.status_code, "error": res.text[:300]}
+
     # -------------------------------------------------------------------------
     # 6. AUTOMATIC WEBHOOK REGISTRATION ACROSS ALL GATEWAYS
     # -------------------------------------------------------------------------

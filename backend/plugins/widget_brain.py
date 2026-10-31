@@ -262,6 +262,7 @@ def scheduling_tool_names(
     names.append("create_lead")
     names.append("lookup_woocommerce_order")
     names.append("update_visitor_timezone")
+    names.append("create_payment_checkout")
     return names
 
 
@@ -909,7 +910,9 @@ async def run_widget_assistant(
             else:
                 p_lines.extend([
                     "AUTONOMOUS CHECKOUT PERMISSION: PERMITTED.",
-                    "- You are authorized to assist with pricing, share checkout links, and facilitate payments.",
+                    "- You are authorized to assist with pricing, generate checkout links, and facilitate payments.",
+                    "- Whenever a visitor asks to purchase, subscribe, or pay for a plan, product, or service (or asks for a payment/checkout link), call the `create_payment_checkout` tool with `title` and `amount_dollars` (plus `customer_email` and `customer_name` if known) to generate an interactive payment checkout card in the chat.",
+                    "- Never fabricate or guess a checkout URL yourself; ALWAYS call `create_payment_checkout` so a real Stripe, Polar.sh, Lemon Squeezy, or PayPal session is created and recorded.",
                 ])
                 if max_cents:
                     max_dollars = max_cents / 100
@@ -1287,6 +1290,7 @@ async def run_widget_assistant(
     thinking_parts: list[str] = []
     booking_tool_succeeded = False
     order_card_tokens: list[str] = []
+    checkout_card_tokens: list[str] = []
     order_requires_handoff = False
     booking_correction_attempted = False
     called_tools_this_turn: set[str] = set()
@@ -1413,6 +1417,11 @@ async def run_widget_assistant(
             for oc_tok in order_card_tokens:
                 if oc_tok not in clean_reply and "[ORDER_CARD:" not in clean_reply:
                     clean_reply = clean_reply.rstrip() + "\n\n" + oc_tok
+            for ck_tok in checkout_card_tokens:
+                if ck_tok not in clean_reply and "[CHECKOUT_LINK:" not in clean_reply:
+                    clean_reply = clean_reply.rstrip() + "\n\n" + ck_tok
+                    if on_token and stream_live:
+                        await on_token("\n\n" + ck_tok)
             if order_requires_handoff and "[HANDOFF_ACTIONS]" not in clean_reply:
                 clean_reply = clean_reply.rstrip() + "\n\n[HANDOFF_ACTIONS]"
             if on_token and not stream_live:
@@ -1484,6 +1493,11 @@ async def run_widget_assistant(
                         order_card_tokens.append(tok)
                 if result.get("requires_human_review"):
                     order_requires_handoff = True
+            if fn_name == "create_payment_checkout" and isinstance(result, dict):
+                if result.get("checkout_card_token"):
+                    ck_tok = str(result["checkout_card_token"]).strip()
+                    if ck_tok and ck_tok not in checkout_card_tokens:
+                        checkout_card_tokens.append(ck_tok)
             if fn_name == "update_visitor_timezone" and isinstance(result, dict) and result.get("timezone"):
                 visitor_timezone = result["timezone"]
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": json.dumps({"result": result})})
