@@ -99,7 +99,7 @@ function capitalize(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-/* â”€â”€ Canned Responses helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Canned Responses helpers ────────────────────────────────────── */
 interface CannedResponse {
   id: string;
   shortcut: string;   // e.g. "greeting"
@@ -147,7 +147,7 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   return new Blob([view], { type: "audio/wav" });
 }
 
-/* â”€â”€ Helpdesk Engine Interfaces & Configurations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Helpdesk Engine Interfaces & Configurations ─────────────────── */
 interface Session {
   id: string;
   session_id: string;
@@ -321,13 +321,13 @@ function getSlaState(s: Session): SlaState | null {
   if (status === "resolved" || status === "closed") {
     if (s.sla_status === "breached") {
       return {
-        label: "âš ï¸ SLA Breached",
+        label: "SLA Breached",
         badge: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 font-medium",
         isBreached: true,
       };
     }
     return {
-      label: "âœ… SLA Met",
+      label: "SLA Met",
       badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium",
       isBreached: false,
     };
@@ -341,20 +341,20 @@ function getSlaState(s: Session): SlaState | null {
     const diff = due - now;
     if (diff < 0) {
       return {
-        label: `ðŸš¨ Breached ${formatTimeRemaining(diff)} ago`,
+        label: `Breached ${formatTimeRemaining(diff)} ago`,
         badge: "bg-red-500 text-white font-bold animate-pulse shadow-sm",
         isBreached: true,
       };
     }
     if (diff <= 5 * 60 * 1000) {
       return {
-        label: `âš ï¸ ${formatTimeRemaining(diff)} left (Resp)`,
+        label: `${formatTimeRemaining(diff)} left (Resp)`,
         badge: "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40",
         isBreached: false,
       };
     }
     return {
-      label: `â±ï¸ ${formatTimeRemaining(diff)} left`,
+      label: `${formatTimeRemaining(diff)} left`,
       badge: "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 font-medium",
       isBreached: false,
     };
@@ -366,20 +366,20 @@ function getSlaState(s: Session): SlaState | null {
     const diff = due - now;
     if (diff < 0) {
       return {
-        label: `ðŸš¨ Breached ${formatTimeRemaining(diff)} ago (Res)`,
+        label: `Breached ${formatTimeRemaining(diff)} ago (Res)`,
         badge: "bg-red-500 text-white font-bold animate-pulse shadow-sm",
         isBreached: true,
       };
     }
     if (diff <= 30 * 60 * 1000) {
       return {
-        label: `âš ï¸ ${formatTimeRemaining(diff)} left (Res)`,
+        label: `${formatTimeRemaining(diff)} left (Res)`,
         badge: "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40",
         isBreached: false,
       };
     }
     return {
-      label: `â±ï¸ ${formatTimeRemaining(diff)} left`,
+      label: `${formatTimeRemaining(diff)} left`,
       badge: "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 font-medium",
       isBreached: false,
     };
@@ -543,12 +543,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [chatFocusMode, setChatFocusMode] = useState(false);
 
   useEffect(() => {
-    if (!isMaximized) return;
+    if (!isMaximized && !chatFocusMode) return;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setIsMaximized(false);
+        setChatFocusMode(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -556,7 +557,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       document.body.style.overflow = prevOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isMaximized]);
+  }, [isMaximized, chatFocusMode]);
   const presencePopupRef = useRef<HTMLDivElement | null>(null);
   const rosterPopupRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -589,7 +590,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
-  // â”€â”€ Helpdesk Engine State â”€â”€
+  // ── Helpdesk Engine State ──
   const [selectedStatusTab, setSelectedStatusTab] = useState<InboxStatusTab>("open");
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>("all");
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>("all");
@@ -599,7 +600,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
 
-  // â”€â”€ Omnichannel Routing & Presence State (Pillar 3) â”€â”€
+  // ── Omnichannel Routing & Presence State (Pillar 3) ──
   const [myPresence, setMyPresence] = useState<{
     status: "online" | "away" | "busy" | "offline";
     max_capacity: number;
@@ -642,17 +643,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return merged;
   }, [assignees, teamPresence]);
 
-  // â”€â”€ Agent Collision Detection State â”€â”€
+  // ── Agent Collision Detection State ──
   const [activeViewers, setActiveViewers] = useState<ActiveViewer[]>([]);
 
-  // â”€â”€ AI Copilot State â”€â”€
+  // ── AI Copilot State ──
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [savingSummaryAsNote, setSavingSummaryAsNote] = useState(false);
   const [threadSummary, setThreadSummary] = useState<ThreadSummary | null>(null);
 
-  // â”€â”€ Automation Rules State â”€â”€
+  // ── Automation Rules State ──
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [automationRules, setAutomationRules] = useState<AutomationRuleItem[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
@@ -739,7 +740,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [tags, setTags] = useState<Record<string, string[]>>({});
   const PREDEFINED_TAGS = ["VIP", "Bug", "Billing", "Feature Request", "Urgent", "Lead"];
 
-  // â”€â”€ Canned Responses state â”€â”€
+  // ── Canned Responses state ──
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>(() =>
     typeof window === "undefined" ? [] : loadCannedResponses()
   );
@@ -909,7 +910,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     (c) => !cannedFilter || c.shortcut.includes(cannedFilter) || c.text.toLowerCase().includes(cannedFilter)
   );
 
-  // â”€â”€ Knowledge Base Quick-Insert state â”€â”€
+  // ── Knowledge Base Quick-Insert state ──
   const [waTemplateOpen, setWaTemplateOpen] = useState(false);
   const [waTemplates, setWaTemplates] = useState<WhatsAppTemplateItem[]>([]);
   const [loadingWaTemplates, setLoadingWaTemplates] = useState(false);
@@ -1056,7 +1057,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return /\b(book|booking|schedule|demo|meeting|appointment|call|slots?|calendar)\b/i.test(visitorLastMsg);
   }, [visitorLastMsg]);
 
-  // â”€â”€ Load Sessions, Messages, Notes, and Assignees â”€â”€
+  // ── Load Sessions, Messages, Notes, and Assignees ──
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
     try {
@@ -1295,7 +1296,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return () => clearInterval(id);
   }, [selected, loadSessions, loadMessages, loadPresence]);
 
-  // â”€â”€ Agent Collision Detection & Viewer Heartbeat â”€â”€
+  // ── Agent Collision Detection & Viewer Heartbeat ──
   const sendHeartbeatAndFetchViewers = useCallback(async (sid: string) => {
     try {
       await fetchBackend("/api/admin/inbox/session/heartbeat", {
@@ -1323,7 +1324,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return () => clearInterval(interval);
   }, [selected, sendHeartbeatAndFetchViewers]);
 
-  // â”€â”€ AI Copilot (Draft Reply & Summarizer) â”€â”€
+  // ── AI Copilot (Draft Reply & Summarizer) ──
   const handleAiDraftReply = async () => {
     if (!selected) return;
     setGeneratingDraft(true);
@@ -1380,7 +1381,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const handleSaveSummaryAsNote = async () => {
     if (!threadSummary || !selected) return;
     setSavingSummaryAsNote(true);
-    const bullets = (threadSummary.bullet_points || []).map((b) => `â€¢ ${b}`).join("\n");
+    const bullets = (threadSummary.bullet_points || []).map((b) => `• ${b}`).join("\n");
     const formattedNote = `[AI Conversation Summary]\n${threadSummary.summary}\n\nKey Takeaways:\n${bullets}\n\nSentiment: ${threadSummary.sentiment}\nRecommended Action: ${threadSummary.recommended_action}`;
     try {
       const res = await fetchBackend("/api/admin/inbox/notes", {
@@ -1403,7 +1404,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   };
 
-  // â”€â”€ Automation Rules Engine Operations â”€â”€
+  // ── Automation Rules Engine Operations ──
   const loadAutomationRules = useCallback(async () => {
     if (!botId) return;
     setLoadingRules(true);
@@ -1465,7 +1466,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   };
 
-  // â”€â”€ Session Update (Helpdesk Lifecycle Engine) â”€â”€
+  // ── Session Update (Helpdesk Lifecycle Engine) ──
   const updateSession = useCallback(async (sid: string, patch: Partial<Session> & { unassign?: boolean }) => {
     setSessions((prev) => prev.map((s) => {
       if (s.session_id !== sid) return s;
@@ -1539,7 +1540,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     updateSession(sid, { tags: newTags });
   };
 
-  // â”€â”€ Staff Notes Operations â”€â”€
+  // ── Staff Notes Operations ──
   const addNote = async () => {
     if (!noteDraft.trim() || !selected) return;
     const text = noteDraft.trim();
@@ -1573,7 +1574,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   };
 
-  // â”€â”€ Conversation Reply and Actions â”€â”€
+  // ── Conversation Reply and Actions ──
   const setFeedback = useCallback(async (messageId: string, rating: "up" | "down" | null, correction?: string) => {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, feedback_rating: rating, correction: correction ?? m.correction } : m)));
     try {
@@ -1790,7 +1791,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         if (activeSessionRef.current !== selected) return;
         const { latitude, longitude } = pos.coords;
         const link = `https://www.google.com/maps?q=${latitude},${longitude}`;
-        setReply((v) => (v.trim() ? `${v} ðŸ“ ${link}` : `ðŸ“ Location: ${link}`));
+    setReply((v) => (v.trim() ? `${v} 📍 ${link}` : `📍 Location: ${link}`));
       },
       () => showToast("Couldn't access your location.", "error"),
       { enableHighAccuracy: true, timeout: 10000 }
@@ -1863,7 +1864,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     } catch {}
   };
 
-  // â”€â”€ Ticket Counters & Filtering â”€â”€
+  // ── Ticket Counters & Filtering ──
   const ticketCounts = {
     all: sessions.length,
     unassigned: sessions.filter((s) => !s.assigned_agent_email && isHumanQueueTicket(s) && (s.status || "open") !== "resolved" && (s.status || "open") !== "closed").length,
@@ -1969,7 +1970,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       data-maximized={isMaximized}
       data-chat-focused={chatFocusMode && Boolean(selected)}
     >
-      {/* â”€â”€ Omnichannel Routing, Agent Presence & Live Queue Bar â”€â”€ */}
+      {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
       <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
         <div data-inbox-presence className="flex items-center gap-3">
@@ -2154,20 +2155,25 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           {/* Maximize / Fullscreen Workspace Toggle */}
           <button
             type="button"
-            onClick={() => setIsMaximized((prev) => !prev)}
-            title={isMaximized ? "Restore inbox view (Esc)" : "Maximize inbox to full space"}
+            onClick={() => {
+              if (selected) {
+                setChatFocusMode((prev) => !prev);
+              } else {
+                setIsMaximized((prev) => !prev);
+              }
+            }}
+            title={selected ? (chatFocusMode ? "Exit Fullscreen (Esc)" : "Maximize Chat to Whole Screen") : isMaximized ? "Restore inbox view (Esc)" : "Maximize inbox to full space"}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer border ${
-              isMaximized
+              isMaximized || chatFocusMode
                 ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white hover:opacity-90 active:scale-95"
                 : "bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-750"
             }`}
           >
-            {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-            <span className="hidden sm:inline">{isMaximized ? "Restore" : "Maximize"}</span>
+            {isMaximized || chatFocusMode ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+            <span className="hidden sm:inline">{isMaximized || chatFocusMode ? "Restore" : "Maximize"}</span>
           </button>
         </div>
       </div>
-
       <div className="inbox-workspace">
         <nav className="inbox-navigation" aria-label="Inbox views">
           <div className="inbox-pane-title">
@@ -2190,7 +2196,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <button type="button" onClick={() => { setSelectedStatusTab("all"); setSelectedAssigneeFilter("all"); setSelectedPriorityFilter("all"); setSelectedChannelFilter("all"); setSelectedTagFilter("all"); setSearchQuery(""); }}>Clear filters</button>
           </div>
         </nav>
-        {/* â”€â”€ Sessions / Tickets List Pane â”€â”€ */}
+        {/* ── Sessions / Tickets List Pane ── */}
         <div className="inbox-queue bg-white dark:bg-neutral-900 flex flex-col">
           <div className="inbox-pane-title">
             <h2>{selectedAssigneeFilter === "me" ? "My inbox" : selectedAssigneeFilter === "mentions" ? "Mentions" : selectedStatusTab === "all" ? "All conversations" : capitalize(selectedStatusTab)}</h2>
@@ -2372,7 +2378,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   )}
 
                   <p className="text-[10px] text-neutral-400 truncate mt-0.5">
-                    {formatMessagePreview(s.last_message) || "â€¦"}
+                    {formatMessagePreview(s.last_message) || "..."}
                   </p>
 
                   {/* Badges Row: Priority, SLA, Channel, Assignee, Tags */}
@@ -2462,8 +2468,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       </div>
 
-      {/* â”€â”€ Ticket Detail & Workspace Pane â”€â”€ */}
-      <div className="inbox-conversation bg-white dark:bg-neutral-900 overflow-hidden flex flex-col">
+      {/* ── Ticket Detail & Workspace Pane ── */}
+      <div className="inbox-conversation bg-white dark:bg-neutral-900 overflow-hidden flex flex-col relative" data-chat-fullscreen={chatFocusMode && Boolean(selected)}>
         {!selected ? (
           <div className="flex-1 flex flex-col items-center justify-center text-xs text-neutral-400 p-8 space-y-2">
             <InboxIcon className="size-10 text-neutral-300 stroke-1" />
@@ -2472,34 +2478,40 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         ) : (
           <>
             {/* Ticket Header Bar */}
+            {/* Pure Chat Fullscreen Floating Exit Pill */}
+            {chatFocusMode && (
+              <div className="absolute top-3 right-4 z-50 flex items-center gap-2 pointer-events-auto">
+                <div className="bg-neutral-900/90 dark:bg-neutral-100/95 text-white dark:text-neutral-900 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-2xl border border-white/10 dark:border-black/10 flex items-center gap-2.5">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <MessageSquare className="size-3.5 text-emerald-400 dark:text-emerald-600" />
+                    {current?.visitor_name || `Visitor ${selected.slice(-5)}`}
+                  </span>
+                  <span className="opacity-30">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setChatFocusMode(false)}
+                    className="flex items-center gap-1.5 text-white/95 dark:text-neutral-900 hover:text-amber-300 dark:hover:text-amber-600 transition cursor-pointer"
+                    title="Exit Fullscreen (Esc)"
+                  >
+                    <Minimize2 className="size-3.5" />
+                    <span>Exit Fullscreen</span>
+                    <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10 text-white dark:text-neutral-700">Esc</kbd>
+                  </button>
+                </div>
+              </div>
+            )}
+            {/* Ticket Header Bar */}
             <div className="inbox-conversation-tools flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
               <button type="button" className="inbox-back" onClick={() => selectConversation(null)}><ArrowLeft className="size-4" />Conversations</button>
               <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
               <button
                 type="button"
-                onClick={() => setChatFocusMode((v) => !v)}
-                className={`text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer ${
-                  chatFocusMode
-                    ? "bg-[#f97316]/15 text-[#f97316] border border-[#f97316]/30 font-bold"
-                    : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                }`}
-                title={chatFocusMode ? "Show queue list" : "Maximize chat area (hide queue)"}
+                onClick={() => setChatFocusMode(true)}
+                className="text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
+                title="Maximize Chat Area to Whole Screen (No Top Buttons)"
               >
-                {chatFocusMode ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-                <span>{chatFocusMode ? "Exit Focus" : "Maximize Chat"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsMaximized((v) => !v)}
-                className={`text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer ${
-                  isMaximized
-                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-                    : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                }`}
-                title={isMaximized ? "Exit full screen (Esc)" : "Full screen workspace"}
-              >
-                {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-                <span className="hidden sm:inline">{isMaximized ? "Exit Fullscreen" : "Fullscreen"}</span>
+                <Maximize2 className="size-3.5 text-neutral-500" />
+                <span>Maximize Chat</span>
               </button>
             </div>
             <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
@@ -2749,7 +2761,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     }}
                     className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer"
                   >
-                    ðŸ·ï¸ Tags
+                    <Tag className="size-3 text-neutral-500 dark:text-neutral-400 shrink-0" />
+                    <span>Tags</span>
+                    {(current?.tags || tags[selected] || []).length > 0 && (
+                      <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200">
+                        {(current?.tags || tags[selected] || []).length}
+                      </span>
+                    )}
                   </button>
                   {tagPopoverOpen && (
                     <MobilePopoverPortal>
@@ -2768,7 +2786,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                               className="w-full text-left px-2 py-1 rounded hover:bg-neutral-50 dark:hover:bg-neutral-850 text-[10px] flex items-center justify-between cursor-pointer"
                             >
                               <span>{t}</span>
-                              {hasTag && <span className="text-green-600 font-bold">âœ“</span>}
+                              {hasTag && <Check className="size-3 text-emerald-600 font-bold shrink-0" />}
                             </button>
                           );
                         })}
@@ -3373,7 +3391,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   onChange={handleReplyChange}
                   onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!sending && !recording) void sendComposer(); } }}
                   onFocus={() => { setEmojiOpen(false); setAttachOpen(false); setMobileActionsOpen(false); }}
-                  placeholder={recording ? "Recordingâ€¦ tap â—¼ to send" : composerMode === "note" ? "Add a private note for your teamâ€¦ Type @ to mention a teammate" : "Type a reply (this takes over ticket from AI)â€¦"}
+                  placeholder={recording ? "Recording... tap ■ to send" : composerMode === "note" ? "Add a private note for your team... Type @ to mention a teammate" : "Type a reply (this takes over ticket from AI)..."}
                   disabled={sending || recording}
                   className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1.5"
                 />
@@ -3595,7 +3613,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       </>} /></aside>}
     </div>
 
-      {/* â”€â”€ Toast Notification â”€â”€ */}
+      {/* ── Toast Notification ── */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-4 py-3 shadow-2xl text-xs font-semibold text-neutral-855 dark:text-white animate-in slide-in-from-bottom-5 fade-in duration-300">
           {toast.type === "success" ? (
@@ -3617,7 +3635,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* â”€â”€ Canned Responses Management Dialog â”€â”€ */}
+      {/* ── Canned Responses Management Dialog ── */}
       {cannedManageOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Quick responses" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 max-w-md w-full shadow-2xl text-neutral-900 dark:text-neutral-100">
@@ -3668,7 +3686,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* â”€â”€ Confirm Dialog â”€â”€ */}
+      {/* ── Confirm Dialog ── */}
       {confirmModal && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-label={confirmModal.title} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
@@ -3700,7 +3718,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* â”€â”€ AI Summarize Dialog â”€â”€ */}
+      {/* ── AI Summarize Dialog ── */}
       {summaryModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Copilot Summary" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
@@ -3734,7 +3752,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 <div className="flex items-center justify-between bg-neutral-50 dark:bg-neutral-950 p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Customer Sentiment</span>
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-neutral-200/60 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 capitalize">
-                    {threadSummary.sentiment === "frustrated" || threadSummary.sentiment === "angry" ? "âš ï¸ " : threadSummary.sentiment === "positive" ? "ðŸ˜Š " : "ðŸ’¬ "}
+                    {threadSummary.sentiment === "frustrated" || threadSummary.sentiment === "angry" ? "⚠ " : threadSummary.sentiment === "positive" ? "😊 " : "💬 "}
                     {threadSummary.sentiment}
                   </span>
                 </div>
@@ -3754,7 +3772,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     <ul className="space-y-1 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-xl border border-neutral-100 dark:border-neutral-850">
                       {threadSummary.bullet_points.map((pt, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-xs text-neutral-700 dark:text-neutral-300">
-                          <span className="text-amber-500 font-bold">â€¢</span>
+                          <span className="text-amber-500 font-bold">•</span>
                           <span>{pt}</span>
                         </li>
                       ))}
@@ -3815,7 +3833,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* â”€â”€ Automation Rules Dialog â”€â”€ */}
+      {/* ── Automation Rules Dialog ── */}
       {rulesModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Automation Rules" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto overflow-x-hidden chatty-custom-scrollbar scrollbar-thin">

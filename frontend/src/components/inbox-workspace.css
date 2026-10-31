@@ -68,19 +68,44 @@
 .inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-pane-title { justify-content: center; }
 .inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-identity-trigger { display: none; }
 
-/* Focus / Maximize Active Chat Pane */
-.inbox-shell[data-chat-focused=true] .inbox-workspace {
-  grid-template-columns: minmax(0, 1fr) !important;
+/* Pure Chat Fullscreen Mode (Whole Screen Only Chat Area, No Top Buttons) */
+.inbox-shell[data-chat-focused=true] .inbox-conversation,
+.inbox-conversation[data-chat-fullscreen=true] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99999 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--color-background, #ffffff) !important;
 }
-.inbox-shell[data-chat-focused=true][data-details-open=true] .inbox-workspace {
-  grid-template-columns: minmax(0, 1fr) 280px !important;
+.dark .inbox-shell[data-chat-focused=true] .inbox-conversation,
+.dark .inbox-conversation[data-chat-fullscreen=true] {
+  background: #0d0f12 !important;
 }
+
+/* Hide all top button bars and surrounding chrome in pure chat fullscreen mode */
+.inbox-shell[data-chat-focused=true] .inbox-conversation-tools,
+.inbox-shell[data-chat-focused=true] [data-inbox-ticket-header],
+.inbox-conversation[data-chat-fullscreen=true] .inbox-conversation-tools,
+.inbox-conversation[data-chat-fullscreen=true] [data-inbox-ticket-header],
+.inbox-shell[data-chat-focused=true] [data-inbox-routing],
 .inbox-shell[data-chat-focused=true] .inbox-navigation,
-.inbox-shell[data-chat-focused=true] .inbox-queue {
+.inbox-shell[data-chat-focused=true] .inbox-queue,
+.inbox-shell[data-chat-focused=true] .inbox-visitor-details {
   display: none !important;
 }
-.inbox-shell[data-chat-focused=true] .inbox-back {
-  display: flex !important;
+
+.inbox-conversation[data-chat-fullscreen=true] > .flex-1 {
+  min-height: 0 !important;
+  height: 100% !important;
 }
 
 /* Fullscreen / Maximize Entire Workspace (All Screens: Desktop, Tablet, Mobile) */
