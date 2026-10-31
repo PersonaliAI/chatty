@@ -62,7 +62,7 @@ async def get_bot_payment_integrations(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Retrieve connected payment gateways with safe masked credentials and AI restriction flags."""
-    await verify_bot_permission(user, bot_id, required_tab="sources")
+    await verify_bot_permission(bot_id, user, "integrations")
 
     def _fetch():
         return (
@@ -118,9 +118,9 @@ async def list_gateway_products(
 ):
     """Fetch active products and price plans from connected payment gateway platforms."""
     try:
-        await verify_bot_permission(user, bot_id, required_tab="sources")
+        await verify_bot_permission(bot_id, user, "integrations")
     except Exception:
-        await verify_bot_permission(user, bot_id, required_tab="conversations")
+        await verify_bot_permission(bot_id, user, "orders")
 
     def _fetch():
         q = supabase.table("chatty_payment_integrations").select("*").eq("bot_id", bot_id).eq("is_active", True)
@@ -172,7 +172,7 @@ async def connect_payment_gateway(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Verify credentials and securely encrypt keys at rest."""
-    await verify_bot_permission(user, bot_id, required_tab="sources")
+    await verify_bot_permission(bot_id, user, "integrations")
     prov = provider.lower().strip()
     if prov not in {"stripe", "lemonsqueezy", "polar", "paypal"}:
         raise HTTPException(status_code=400, detail="Unsupported payment provider")
@@ -198,10 +198,15 @@ async def connect_payment_gateway(
             )
         elif prov == "polar":
             test_res = await PaymentGatewaysService.verify_polar(
-                body.secret_key, organization_id=extra.get("organization_id")
+                body.secret_key,
+                organization_id=extra.get("organization_id"),
+                test_mode=body.test_mode,
             )
             if test_res.get("organization_id"):
                 extra["organization_id"] = test_res["organization_id"]
+            if test_res.get("detected_environment") == "live" and body.test_mode:
+                # Token is live, auto-adjust mode to live so checkouts work seamlessly
+                body.test_mode = False
     except HTTPException:
         raise
     except ValueError as e:
@@ -259,7 +264,7 @@ async def disconnect_payment_gateway(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Disconnect and remove payment provider credentials for this bot."""
-    await verify_bot_permission(user, bot_id, required_tab="sources")
+    await verify_bot_permission(bot_id, user, "integrations")
     prov = provider.lower().strip()
 
     def _delete():
@@ -283,7 +288,7 @@ async def update_ai_payment_policy(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Configure whether AI agent is permitted to autonomously generate payment checkouts."""
-    await verify_bot_permission(user, bot_id, required_tab="sources")
+    await verify_bot_permission(bot_id, user, "integrations")
 
     def _update():
         return (
@@ -313,7 +318,7 @@ async def inbox_send_checkout_link(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Human Agent action to generate and dispatch a secure payment link in the conversation."""
-    await verify_bot_permission(user, bot_id, required_tab="conversations")
+    await verify_bot_permission(bot_id, user, "orders")
 
     # Fetch active integration
     def _fetch_integrations():
@@ -583,7 +588,7 @@ async def list_bot_orders(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Retrieve full audit record of customer transactions, revenue KPIs, and attribution."""
-    await verify_bot_permission(user, bot_id, required_tab="conversations")
+    await verify_bot_permission(bot_id, user, "orders")
 
     status_val = status if isinstance(status, str) else None
     provider_val = provider if isinstance(provider, str) else None
@@ -644,7 +649,7 @@ async def update_order_status(
     user: dict[str, Any] = Depends(require_user),
 ):
     """Manually update or refund order status."""
-    await verify_bot_permission(user, bot_id, required_tab="conversations")
+    await verify_bot_permission(bot_id, user, "orders")
     new_status = body.get("status", "").lower()
     if new_status not in {"pending", "succeeded", "failed", "refunded", "cancelled"}:
         raise HTTPException(status_code=400, detail="Invalid status")

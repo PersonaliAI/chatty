@@ -233,37 +233,58 @@ class PaymentGatewaysService:
     # 3. POLAR.SH ADAPTER
     # -------------------------------------------------------------------------
     @staticmethod
-    async def verify_polar(access_token: str, organization_id: Optional[str] = None) -> dict[str, Any]:
-        """Verify Polar.sh API credentials."""
+    async def verify_polar(
+        access_token: str,
+        organization_id: Optional[str] = None,
+        test_mode: bool = False,
+    ) -> dict[str, Any]:
+        """Verify Polar.sh API credentials (supporting both live & sandbox tokens seamlessly)."""
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {access_token.strip()}",
         }
-        url = (
-            f"https://api.polar.sh/v1/organizations/{safe_gateway_id(organization_id, 'organization ID')}"
-            if organization_id
-            else "https://api.polar.sh/v1/organizations"
-        )
+        candidates = [
+            ("sandbox", "https://sandbox-api.polar.sh"),
+            ("live", "https://api.polar.sh"),
+        ] if test_mode else [
+            ("live", "https://api.polar.sh"),
+            ("sandbox", "https://sandbox-api.polar.sh"),
+        ]
+
+        last_error = "Failed to reach Polar.sh API"
         async with httpx.AsyncClient(timeout=10.0) as client:
-            res = await client.get(url, headers=headers)
-            if res.status_code == 200:
-                data = res.json()
-                org_name = "Polar Organization"
-                resolved_org_id = organization_id
-                if "items" in data and len(data["items"]) > 0:
-                    org_name = data["items"][0].get("name", org_name)
-                    resolved_org_id = data["items"][0].get("id")
-                elif "name" in data:
-                    org_name = data.get("name", org_name)
-                return {
-                    "valid": True,
-                    "organization_name": org_name,
-                    "organization_id": resolved_org_id,
-                }
-            return {
-                "valid": False,
-                "error": res.json().get("detail", f"HTTP {res.status_code}"),
-            }
+            for env_name, base_url in candidates:
+                url = (
+                    f"{base_url}/v1/organizations/{safe_gateway_id(organization_id, 'organization ID')}"
+                    if organization_id
+                    else f"{base_url}/v1/organizations"
+                )
+                try:
+                    res = await client.get(url, headers=headers)
+                    if res.status_code == 200:
+                        data = res.json()
+                        org_name = "Polar Organization"
+                        resolved_org_id = organization_id
+                        if "items" in data and len(data["items"]) > 0:
+                            org_name = data["items"][0].get("name", org_name)
+                            resolved_org_id = data["items"][0].get("id")
+                        elif "name" in data:
+                            org_name = data.get("name", org_name)
+                        return {
+                            "valid": True,
+                            "organization_name": org_name,
+                            "organization_id": resolved_org_id,
+                            "detected_environment": env_name,
+                        }
+                    else:
+                        last_error = f"Polar {env_name} returned HTTP {res.status_code}"
+                except Exception as exc:
+                    last_error = str(exc)
+
+        return {
+            "valid": False,
+            "error": last_error,
+        }
 
     @staticmethod
     async def create_polar_checkout(
