@@ -23,6 +23,7 @@ ALL_TABS = (
     "map",
     "meetings",
     "mailbox",
+    "orders",
     "notifications",
     "audit_log",
     "analytics",
@@ -48,19 +49,19 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
     "admin": [
         "overview", "workspace", "customizer", "knowledge", "playground",
         "inbox", "campaigns", "flow_builder", "leads", "feedback", "map",
-        "meetings", "mailbox", "notifications", "audit_log", "analytics",
+        "meetings", "mailbox", "orders", "notifications", "audit_log", "analytics",
         "integrations", "voice", "mcp", "developer", "settings", "team",
         "sources", "design", "webhooks",
     ],
     "agent": [
-        "overview", "inbox", "playground", "meetings", "mailbox", "leads", "feedback",
+        "overview", "inbox", "playground", "meetings", "mailbox", "orders", "leads", "feedback",
     ],
     "editor": [
         "overview", "customizer", "knowledge", "playground", "flow_builder",
         "campaigns", "voice", "inbox", "sources", "design",
     ],
     "billing_manager": [
-        "overview", "billing", "analytics",
+        "overview", "billing", "orders", "analytics",
     ],
     "viewer": [
         "overview", "leads", "feedback", "map", "analytics", "audit_log", "inbox",
@@ -84,6 +85,7 @@ TAB_EQUIVALENTS: dict[str, set[str]] = {
     "voice": {"voice", "settings"},
     "calendar": {"meetings"},
     "meetings": {"meetings", "calendar"},
+    "orders": {"orders", "billing", "inbox"},
 }
 
 
@@ -113,11 +115,24 @@ async def get_bot_role_and_permissions(bot_id: str, user: dict[str, Any]) -> tup
     raise HTTPException(status_code=403, detail="Unauthorized")
 
 
-async def verify_bot_permission(bot_id: str, user: dict[str, Any], tab: str) -> str:
+async def verify_bot_permission(
+    bot_id_or_user: str | dict[str, Any],
+    user_or_bot_id: dict[str, Any] | str,
+    tab: str = "",
+    required_tab: str | None = None,
+) -> str:
+    if isinstance(bot_id_or_user, str):
+        bot_id = bot_id_or_user
+        user = user_or_bot_id if isinstance(user_or_bot_id, dict) else {}
+    else:
+        user = bot_id_or_user
+        bot_id = str(user_or_bot_id)
+
+    target_tab = required_tab or tab or "settings"
     role, permissions = await get_bot_role_and_permissions(bot_id, user)
-    if role == "owner" or tab in permissions:
+    if role == "owner" or target_tab in permissions:
         return role
-    equivalents = TAB_EQUIVALENTS.get(tab, set())
+    equivalents = TAB_EQUIVALENTS.get(target_tab, set())
     if any(eq in permissions for eq in equivalents):
         return role
-    raise HTTPException(status_code=403, detail=f"You don't have access to '{tab}' for this bot")
+    raise HTTPException(status_code=403, detail=f"You don't have access to '{target_tab}' for this bot")
