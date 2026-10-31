@@ -373,3 +373,75 @@ def test_get_store_info_live_validates_coupon_and_lists_categories(monkeypatch):
     assert coupon["discount_type"] == "percent"
     assert coupon["amount"] == "20.00"
     assert coupon["free_shipping"] is True
+
+
+
+def test_get_store_info_live_supports_payment_methods_shipping_locations_attributes_and_taxes(monkeypatch):
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    async def fake_request(client, method, url, **kwargs):
+        if url.endswith("/payment_gateways"):
+            return Response([
+                {"id": "stripe", "title": "Credit / Debit Card (Stripe)", "description": "Pay securely via Stripe", "enabled": True},
+                {"id": "cheque", "title": "Check payments", "enabled": False},
+            ])
+        if url.endswith("/shipping/zones"):
+            return Response([{"id": 1, "name": "North America"}])
+        if url.endswith("/shipping/zones/1/locations"):
+            return Response([{"code": "US", "type": "country"}, {"code": "CA", "type": "country"}])
+        if url.endswith("/shipping/zones/1/methods"):
+            return Response([{
+                "id": 11,
+                "title": "Free Shipping",
+                "method_id": "free_shipping",
+                "enabled": True,
+                "settings": {"min_amount": {"value": "75.00"}},
+            }])
+        if url.endswith("/products/shipping_classes"):
+            return Response([{"name": "Express", "slug": "express", "description": "1-2 day air"}])
+        if url.endswith("/products/attributes"):
+            return Response([{"id": 5, "name": "Size", "slug": "pa_size"}])
+        if url.endswith("/products/attributes/5/terms"):
+            return Response([{"name": "Large", "slug": "large", "count": 8}])
+        if url.endswith("/settings/general"):
+            return Response([{"id": "woocommerce_currency", "value": "USD"}, {"id": "woocommerce_calc_taxes", "value": "yes"}])
+        if url.endswith("/settings/products"):
+            return Response([{"id": "woocommerce_weight_unit", "value": "kg"}, {"id": "woocommerce_dimension_unit", "value": "cm"}])
+        if url.endswith("/taxes"):
+            return Response([{"country": "US", "state": "NY", "rate": "8.8750", "name": "NY Sales Tax", "shipping": True}])
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    pm = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="payment_methods"))
+    assert pm["found"] is True
+    assert pm["count"] == 1
+    assert pm["payment_methods"][0]["id"] == "stripe"
+
+    ship = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="shipping"))
+    assert ship["found"] is True
+    assert ship["zones"][0]["locations"] == [{"code": "US", "type": "country"}, {"code": "CA", "type": "country"}]
+    assert ship["zones"][0]["methods"][0]["min_amount_for_free_shipping"] == "75.00"
+    assert ship["shipping_classes"][0]["slug"] == "express"
+
+    attrs = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="attributes"))
+    assert attrs["found"] is True
+    assert attrs["attributes"][0]["name"] == "Size"
+    assert attrs["attributes"][0]["terms"][0]["name"] == "Large"
+
+    taxes = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="taxes_and_policies"))
+    assert taxes["found"] is True
+    assert taxes["store_settings"]["woocommerce_weight_unit"] == "kg"
+    assert taxes["tax_rates"][0]["rate_percent"] == "8.8750"

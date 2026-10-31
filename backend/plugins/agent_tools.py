@@ -337,15 +337,15 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "lookup_woocommerce_order",
-        "Look up a real-time WooCommerce order status, tracking numbers, carrier links, line items, and refund status (Read-Only). "
+        "Look up a real-time WooCommerce order status, tracking numbers, carrier links, customer-visible merchant notes, line items, and refund breakdowns (Read-Only). "
         "STRICT SECURITY RULE: You MUST require and pass either the customer's billing `email` or `phone` number alongside `order_number` to verify ownership before order details or tracking links are returned. "
-        "If the customer has not provided their email or phone number yet, ask for it first or call this tool and follow the `verification_required` prompt.",
+        "If the customer forgot their `order_number`, you may omit `order_number` ONLY IF you pass BOTH `email` AND `phone` together.",
         {
-            "order_number": {"type": "string", "description": "The order number or ID (e.g. '1042' or '#1042')."},
+            "order_number": {"type": "string", "description": "The order number or ID (e.g. '1042' or '#1042'). Optional ONLY if both email and phone are provided."},
             "email": {"type": "string", "description": "Customer billing email address used on the order for identity verification."},
             "phone": {"type": "string", "description": "Customer billing phone number (or last 4-6 digits) for identity verification."},
         },
-        ["order_number"],
+        [],
     ),
     _tool(
         "search_woocommerce_products",
@@ -377,15 +377,35 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "get_woocommerce_store_info",
-        "Inspect live read-only WooCommerce store metadata: product categories, customer reviews for a product, shipping zones/rates, or validate a specific coupon/promo code a customer asks about.",
+        "Inspect live read-only WooCommerce store metadata across all buyer-useful endpoints: product categories, tags, global attributes (sizes/colors/brands), customer reviews, shipping zones/locations/rates, enabled checkout payment methods, store tax/currency/unit settings, or validate a specific coupon/promo code.",
         {
             "info_type": {
                 "type": "string",
-                "enum": ["categories", "coupon", "reviews", "shipping"],
-                "description": "Type of live store info to fetch: 'categories' (all product categories & counts), 'coupon' (verify a specific coupon_code), 'reviews' (customer reviews for a product_id), or 'shipping' (shipping zones & methods).",
+                "enum": [
+                    "categories",
+                    "tags",
+                    "attributes",
+                    "coupon",
+                    "reviews",
+                    "shipping",
+                    "payment_methods",
+                    "taxes_and_policies",
+                ],
+                "description": (
+                    "Type of live store info to fetch: "
+                    "'categories' (all product categories & counts), "
+                    "'tags' (all product tags), "
+                    "'attributes' (global store attributes like Size, Color, Brand & their terms), "
+                    "'coupon' (verify a specific coupon_code), "
+                    "'reviews' (approved customer reviews for a product_id or product_name), "
+                    "'shipping' (shipping zones, covered countries/states, shipping methods/rates & free-shipping minimums), "
+                    "'payment_methods' (enabled checkout payment gateways like Stripe, PayPal, COD, Klarna), "
+                    "or 'taxes_and_policies' (store currency, weight/dimension units, and regional tax/VAT rates)."
+                ),
             },
             "coupon_code": {"type": "string", "description": "Required when info_type='coupon'. The exact promo/coupon code the visitor asked to verify (e.g. 'SAVE20')."},
-            "product_id": {"type": "string", "description": "Optional when info_type='reviews'. The WooCommerce product ID to fetch reviews for."},
+            "product_id": {"type": "string", "description": "Optional when info_type='reviews'. Numeric WooCommerce product ID."},
+            "product_name": {"type": "string", "description": "Optional when info_type='reviews'. Product name if numeric product_id is not known."},
         },
         ["info_type"],
     ),
@@ -2430,6 +2450,7 @@ async def execute(
                 info_type=str(args.get("info_type") or "categories").strip(),
                 coupon_code=str(args.get("coupon_code") or "").strip() or None,
                 product_id=str(args.get("product_id") or "").strip() or None,
+                product_name=str(args.get("product_name") or "").strip() or None,
             )
         if name == "create_payment_checkout":
             return await _create_payment_checkout(args, user, supabase, context=context)
