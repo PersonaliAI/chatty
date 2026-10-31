@@ -612,16 +612,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   // Assignees & Current Agent
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>("");
-  const mentionAssignees = useMemo<Assignee[]>(() => {
-    const merged = [...assignees];
-    for (const agent of teamPresence) {
-      const email = (agent.agent_email || "").trim().toLowerCase();
-      if (email && !merged.some((item) => item.email.toLowerCase() === email)) {
-        merged.push({ email, name: agent.agent_name || "Teammate", role: "agent" });
-      }
-    }
-    return merged;
-  }, [assignees, teamPresence]);
+  
 
   // ── Agent Collision Detection State ──
   const [activeViewers, setActiveViewers] = useState<ActiveViewer[]>([]);
@@ -838,6 +829,27 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   };
 
   const current = sessions.find((s) => s.session_id === selected);
+  const mentionAssignees = useMemo<Assignee[]>(() => {
+    const merged = [...assignees];
+    for (const agent of teamPresence) {
+      const email = (agent.agent_email || "").trim().toLowerCase();
+      if (email && !merged.some((item) => item.email.toLowerCase() === email)) {
+        merged.push({ email, name: agent.agent_name || "Teammate", role: "agent" });
+      }
+    }
+    const currentAgentEmail = (current?.assigned_agent_email || "").trim().toLowerCase();
+    const currentAgentName = (current?.assigned_agent_name || "").trim();
+    if (currentAgentEmail && !merged.some((item) => item.email.toLowerCase() === currentAgentEmail)) {
+      merged.push({ email: currentAgentEmail, name: currentAgentName || currentAgentEmail.split("@")[0], role: "agent" });
+    } else if (currentAgentName && !merged.some((item) => (item.name || "").toLowerCase() === currentAgentName.toLowerCase())) {
+      merged.push({ email: `${currentAgentName.toLowerCase().replace(/\s+/g, ".")}@team.local`, name: currentAgentName, role: "agent" });
+    }
+    const myEmail = (currentUserEmail || "").trim().toLowerCase();
+    if (myEmail && !merged.some((item) => item.email.toLowerCase() === myEmail)) {
+      merged.push({ email: myEmail, name: capitalize(myEmail.split("@")[0]), role: "agent" });
+    }
+    return merged;
+  }, [assignees, teamPresence, current?.assigned_agent_email, current?.assigned_agent_name, currentUserEmail]);
 
   const selectConversation = (sid: string | null) => {
     if (selected) draftsRef.current.set(selected, {reply, note: noteDraft});
@@ -1523,6 +1535,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     if (!noteDraft.trim() || !selected) return;
     const text = noteDraft.trim();
     setNoteDraft("");
+    setMentionQuery(null);
     try {
       const res = await fetchBackend("/api/admin/inbox/notes", {
         method: "POST",
@@ -1706,8 +1719,12 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   };
 
   const insertMention = (assignee: Assignee) => {
-    const update = (value: string) => value.replace(/(?:^|\s)@[\w.-]*$/, (match) => `${match.startsWith(" ") ? " " : ""}@${assignee.name || assignee.email.split("@")[0]} `);
-    if (composerMode === "note") setNoteDraft(update); else setReply(update);
+    const update = (value: string) => value.replace(/(?:^|\s)@([\w.-]*)$/, (match) => `${match.startsWith(" ") ? " " : ""}@${assignee.name || assignee.email.split("@")[0]} `);
+    if (viewMode === "notes" || composerMode === "note") {
+      setNoteDraft(update);
+    } else {
+      setReply(update);
+    }
     setMentionQuery(null);
   };
 
@@ -2917,15 +2934,52 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   </div>
 
                   {/* Add Note Input */}
-                  <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3 space-y-2 mt-auto">
+                  <div className="border-t border-neutral-100 dark:border-neutral-850 pt-3 space-y-2 mt-auto relative">
+                    {mentionQuery !== null && mentionAssignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).length > 0 && (
+                      <div role="listbox" aria-label="Mention teammate" className="absolute bottom-full mb-2 left-0 z-30 max-h-48 w-64 overflow-y-auto chatty-custom-scrollbar [scrollbar-width:thin] rounded-xl border border-neutral-200 bg-white p-1 shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
+                        <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-neutral-400">Mention teammate</p>
+                        {mentionAssignees.filter((assignee) => `${assignee.name} ${assignee.email}`.toLowerCase().includes(mentionQuery)).map((assignee) => (
+                          <button key={assignee.email} type="button" role="option" aria-selected="false" onClick={() => insertMention(assignee)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer">
+                            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f97316]/10 text-[10px] font-bold text-[#f97316]">{(assignee.name || assignee.email)[0].toUpperCase()}</span>
+                            <span className="min-w-0"><span className="block truncate font-semibold text-neutral-800 dark:text-neutral-200">{assignee.name || "Teammate"}</span><span className="block truncate text-[10px] text-neutral-400">{assignee.email || assignee.role}</span></span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <textarea
                       rows={3}
                       value={noteDraft}
-                      onChange={(e) => setNoteDraft(e.target.value)}
-                      placeholder="Add an internal staff note (stored securely in database, only visible to team)..."
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNoteDraft(val);
+                        const mention = val.match(/(?:^|\s)@([\w.-]*)$/);
+                        setMentionQuery(mention ? mention[1].toLowerCase() : null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setMentionQuery(null);
+                        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                          e.preventDefault();
+                          if (noteDraft.trim()) void addNote();
+                        }
+                      }}
+                      placeholder="Add an internal staff note (type @ to mention a teammate)..."
                       className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-[#f97316]/50"
                     />
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const val = noteDraft;
+                          const next = `${val}${val && !val.endsWith(" ") ? " " : ""}@`;
+                          setNoteDraft(next);
+                          setMentionQuery("");
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 text-[11px] text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
+                        title="Mention teammate (@)"
+                      >
+                        <AtSign className="size-3.5 text-neutral-400" />
+                        <span>Mention</span>
+                      </button>
                       <button
                         onClick={addNote}
                         disabled={!noteDraft.trim()}
