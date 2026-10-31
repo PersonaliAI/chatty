@@ -5,7 +5,7 @@ export interface EmailCapturedData {
 }
 
 export interface CheckoutLinkData {
-  provider: "stripe" | "lemonsqueezy" | "polar" | string;
+  provider: "stripe" | "lemonsqueezy" | "polar" | "paypal" | string;
   title: string;
   amount_cents: number;
   currency: string;
@@ -98,11 +98,20 @@ function extractMarker<T extends object>(source: string, marker: string): { text
     }
 
     let parsed: T | null = null;
+    const rawSlice = source.slice(jsonStart, end + 1);
     try {
-      const candidate = JSON.parse(source.slice(jsonStart, end + 1));
+      const candidate = JSON.parse(rawSlice);
       if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) parsed = candidate as T;
     } catch {
-      // Preserve malformed markers as visible response text.
+      try {
+        const normalizedJson = rawSlice.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_m, inner: string) =>
+          JSON.stringify(inner)
+        );
+        const candidate = JSON.parse(normalizedJson);
+        if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) parsed = candidate as T;
+      } catch {
+        // Preserve malformed markers as visible response text.
+      }
     }
     text += source.slice(cursor, markerStart);
     if (parsed) items.push(parsed);
@@ -143,11 +152,18 @@ export function parseRichContent<
   const bookingResult = extractMarker<BookingConfirmedData>(emailResult.text, "[BOOKING_CONFIRMED:");
   const checkoutResult = extractMarker<CheckoutLinkData>(bookingResult.text, "[CHECKOUT_LINK:");
 
-  const cleaned = checkoutResult.text
+  let cleaned = checkoutResult.text
     .replace(/\[BOOKING_WIDGET(?::[a-zA-Z0-9_-]+)?\]/g, "")
     .replace(/\[HANDOFF_ACTIONS\]/g, "")
     .replace(/\[LIVE_AGENT_REQUESTED\]/g, "")
     .trim();
+
+  if (checkoutResult.items.length > 0) {
+    cleaned = cleaned
+      .replace(/^💳\s*\*\*[^*]+\*\*\s*\([^)]+\)\s*/i, "")
+      .replace(/Please click below to complete your secure payment via [^:]+:\s*$/i, "")
+      .trim();
+  }
 
   const bookingConfirmed =
     bookingResult.items[0] || parseLegacyBookingConfirmation(cleaned) || null;
@@ -221,6 +237,9 @@ export function formatMessagePreview(content?: string | null): string {
     return "Select a time slot to schedule your meeting";
   }
   const richParsed = parseRichContent(raw);
+  if (richParsed.checkoutLinks && richParsed.checkoutLinks.length > 0) {
+    const first = richParsed.checkoutLinks[0];
+    return `Payment link: ${first.title} ($${(first.amount_cents / 100).toFixed(2)} ${first.currency.toUpperCase()})`;
+  }
   return richParsed.cleanContent || "Conversation updated";
 }
-

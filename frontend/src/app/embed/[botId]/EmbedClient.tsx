@@ -18,6 +18,7 @@ import { InlineBookingCard, ConfirmedMeeting } from "@/components/inline-booking
 import { ProductCard, type ProductCardData } from "@/components/product-card";
 import { VideoCard, type VideoClipData } from "@/components/video-card";
 import { OrderCard, type OrderCardData } from "@/components/order-card";
+import { CheckoutCard } from "@/components/checkout-card";
 import { getOnColor, primaryColorCssVars, buildColorSchemeCss, type WidgetColorScheme } from "@/lib/color-contrast";
 import { normalizeWidgetStyle, getPresetSignature, PANEL_RADIUS, PRESET_SIGNATURES } from "@/lib/widget-style";
 import { AudioBubble, RECORD_BAR_COUNT, VOICE_MESSAGE_PLACEHOLDER, audioBlobToWav } from "./widget-media";
@@ -3907,7 +3908,8 @@ function IdentifiedEmbedClient({
                         msgBookingConfirmed ||
                         i === lastBookingMsgIdx)
                     );
-                    const hasBooking = shouldRenderBookingCard;
+                    const hasCheckoutLinks = Boolean(parsedRich?.checkoutLinks && parsedRich.checkoutLinks.length > 0);
+                    const hasBooking = shouldRenderBookingCard || hasCheckoutLinks;
 
                     const nextMsg = messages[i + 1];
                     const showLegacyHandoffAckBelow = Boolean(
@@ -3977,7 +3979,7 @@ function IdentifiedEmbedClient({
                               {msg.role === "assistant" && parsedRich ? (
                                 <>
                                   {(() => {
-                                    const { cleanContent, products, videoClips, orders, hasHandoffActions, isLiveHandoffAck, emailCaptured } = parsedRich;
+                                    const { cleanContent, products, videoClips, orders, checkoutLinks, hasHandoffActions, isLiveHandoffAck, emailCaptured } = parsedRich;
                                     return (
                                       <>
                                         {cleanContent && (
@@ -4047,6 +4049,13 @@ function IdentifiedEmbedClient({
                                           <div className="flex flex-col gap-2 my-2 w-full">
                                             {orders.map((ord, oIdx) => (
                                               <OrderCard key={ord.order_id || ord.order_number || oIdx} order={ord} primaryColor={primaryColor} />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {checkoutLinks && checkoutLinks.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-1 w-full">
+                                            {checkoutLinks.map((chk, cIdx) => (
+                                              <CheckoutCard key={chk.url || cIdx} data={chk} primaryColor={primaryColor} />
                                             ))}
                                           </div>
                                         )}

@@ -2251,7 +2251,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     []
   );
   const countryOptions: ModernSelectOption[] = useMemo(
-    () => COUNTRIES.map((c) => ({ value: c.code, label: c.name, icon: <span>{c.flag}</span> })),
+    () => COUNTRIES.map((c) => ({ value: c.code, label: c.name, hint: c.code })),
     []
   );
   const fontOptions: ModernSelectOption[] = useMemo(

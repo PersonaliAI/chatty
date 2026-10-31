@@ -614,12 +614,7 @@ async def inbox_send_checkout_link(
         "currency": body.currency.upper(),
         "url": checkout_url,
     }
-    amount_formatted = f"${(body.amount_cents / 100):.2f} {body.currency.upper()}"
-    message_text = (
-        f"💳 **{body.title}** ({amount_formatted})\n\n"
-        f"Please click below to complete your secure payment via {prov.capitalize()}:\n"
-        f"[CHECKOUT_LINK:{json.dumps(token_data)}]"
-    )
+    message_text = f"[CHECKOUT_LINK:{json.dumps(token_data)}]"
 
     # Post message into chatty_conversations as assistant message with human sender
     def _insert_msg():

@@ -15,6 +15,7 @@ import { InlineBookingCard, ConfirmedMeeting } from "./inline-booking-card";
 import { ProductCard, type ProductCardData } from "./product-card";
 import { VideoCard, type VideoClipData } from "./video-card";
 import { OrderCard, type OrderCardData } from "./order-card";
+import { CheckoutCard } from "./checkout-card";
 // Use the exact LiveKit voice panel rendered by the dashboard preview. The
 // public widget must not maintain a second visualizer/transcript implementation.
 import { VoiceAgentPanel } from "../../../src/components/voice/VoiceAgentPanel";
@@ -3529,6 +3530,7 @@ function IdentifiedChatWidget({
                     );
                     const hasWideCard = Boolean(
                       shouldRenderBookingCard ||
+                      (parsedRich?.checkoutLinks && parsedRich.checkoutLinks.length > 0) ||
                       parsedRich?.emailCaptured ||
                       parsedRich?.isLiveHandoffAck ||
                       parsedRich?.hasHandoffActions ||
@@ -3607,7 +3609,7 @@ function IdentifiedChatWidget({
                               {msg.role === "assistant" && parsedRich ? (
                                 <>
                                   {(() => {
-                                    const { cleanContent, products, videoClips, orders, hasHandoffActions, isLiveHandoffAck, emailCaptured } = parsedRich;
+                                    const { cleanContent, products, videoClips, orders, checkoutLinks, hasHandoffActions, isLiveHandoffAck, emailCaptured } = parsedRich;
                                     const handoffLocked = liveAgent || offlineSubmitted || i < messages.length - 1 || isBotResponding;
                                     return (
                                       <>
@@ -3639,6 +3641,13 @@ function IdentifiedChatWidget({
                                           <div className="flex flex-col gap-2 my-2 w-full">
                                             {orders.map((ord, oIdx) => (
                                               <OrderCard key={ord.order_id || ord.order_number || oIdx} order={ord} primaryColor={primaryColor} />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {checkoutLinks && checkoutLinks.length > 0 && (
+                                          <div className="flex flex-col gap-2 my-1 w-full">
+                                            {checkoutLinks.map((chk, cIdx) => (
+                                              <CheckoutCard key={chk.url || cIdx} data={chk} primaryColor={primaryColor} />
                                             ))}
                                           </div>
                                         )}

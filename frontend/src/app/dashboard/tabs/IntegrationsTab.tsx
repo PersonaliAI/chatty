@@ -39,27 +39,22 @@ const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
 
 const PAYMENT_RULE_PRESETS = [
   {
-    icon: "🛡️",
     label: "Require Lead Info First",
     rule: "Always gather and confirm the customer's Full Name, Business Email, and Phone number before generating or sharing any checkout link.",
   },
   {
-    icon: "🏷️",
     label: "10% Courtesy Discount Cap",
     rule: "You are authorized to offer a maximum 10% courtesy discount only if the visitor objects to pricing. Never discount further without escalating to a human team member.",
   },
   {
-    icon: "💼",
     label: "Escalate Deals > $500",
     rule: "For high-ticket purchases or custom solutions over $500, do not send a direct checkout link; invite the visitor to book a strategy call with our sales team.",
   },
   {
-    icon: "🔄",
     label: "14-Day Refund Guarantee",
     rule: "Always inform the customer before checkout that all digital purchases include a 14-day money-back guarantee with zero cancellation fees.",
   },
   {
-    icon: "⚡",
     label: "Instant Order Confirmation",
     rule: "Upon receiving payment confirmation, immediately acknowledge the transaction, confirm their order details, and notify them that receipt and access credentials were sent to their email.",
   },
@@ -2545,7 +2540,7 @@ export function IntegrationsTab({
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-neutral-700 dark:text-neutral-300 hover:border-orange-500/50 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer shadow-2xs"
                         title={preset.rule}
                       >
-                        <span>{preset.icon}</span>
+                        <Plus className="size-3 text-orange-500" />
                         <span>{preset.label}</span>
                       </button>
                     ))}

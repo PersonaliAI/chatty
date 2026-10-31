@@ -51,6 +51,7 @@ export function ModernSelect({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [openUpwards, setOpenUpwards] = useState(false);
+  const [computedAlign, setComputedAlign] = useState<"left" | "right">(align);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -66,6 +67,25 @@ export function ModernSelect({
     );
   }, [options, query, searchable]);
 
+  const updatePopupPlacement = () => {
+    if (!rootRef.current || typeof window === "undefined") return;
+    const rect = rootRef.current.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom;
+    setOpenUpwards(below < 220 && rect.top > 220);
+
+    // Prevent horizontal viewport cropping on mobile / narrow screens
+    const estimatedPopupWidth = Math.max(rect.width, 200);
+    const spaceRight = window.innerWidth - rect.left;
+    const spaceLeft = rect.right;
+    if (align === "left" && spaceRight < estimatedPopupWidth + 16 && spaceLeft > spaceRight) {
+      setComputedAlign("right");
+    } else if (align === "right" && spaceLeft < estimatedPopupWidth + 16 && spaceRight > spaceLeft) {
+      setComputedAlign("left");
+    } else {
+      setComputedAlign(align);
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent | TouchEvent) => {
@@ -80,15 +100,18 @@ export function ModernSelect({
         rootRef.current?.querySelector("button")?.focus();
       }
     };
+    const onResize = () => updatePopupPlacement();
     document.addEventListener("mousedown", onDown);
     document.addEventListener("touchstart", onDown);
     document.addEventListener("keydown", onKey);
+    window.addEventListener("resize", onResize);
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("touchstart", onDown);
       document.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", onResize);
     };
-  }, [open]);
+  }, [open, align]);
 
   useEffect(() => {
     if (open && searchable) setTimeout(() => searchRef.current?.focus(), 30);
@@ -100,10 +123,8 @@ export function ModernSelect({
 
   const toggleOpen = () => {
     if (disabled) return;
-    if (!open && rootRef.current) {
-      const rect = rootRef.current.getBoundingClientRect();
-      const below = window.innerHeight - rect.bottom;
-      setOpenUpwards(below < 220 && rect.top > 220);
+    if (!open) {
+      updatePopupPlacement();
     }
     setOpen((o) => !o);
   };
@@ -115,9 +136,10 @@ export function ModernSelect({
   };
 
   const pad = size === "sm" ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-2 text-xs";
+  const hasExplicitWidth = /\b(w-|min-w-|max-w-|flex-1|flex-auto|flex-initial|inline-)/.test(className);
 
   return (
-    <div ref={rootRef} className={`relative w-full ${className}`}>
+    <div ref={rootRef} className={`relative ${hasExplicitWidth ? "" : "w-full"} ${className}`.trim()}>
       <button
         data-modern-select-trigger
         id={id}
@@ -132,11 +154,7 @@ export function ModernSelect({
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
             if (!open) {
-              if (rootRef.current) {
-                const rect = rootRef.current.getBoundingClientRect();
-                const below = window.innerHeight - rect.bottom;
-                setOpenUpwards(below < 220 && rect.top > 220);
-              }
+              updatePopupPlacement();
               setOpen(true);
             }
             requestAnimationFrame(() =>
@@ -181,10 +199,10 @@ export function ModernSelect({
             }
             if (event.key === "Escape") rootRef.current?.querySelector("button")?.focus();
           }}
-          className={`absolute z-[100] ${
+          className={`absolute z-[100] max-w-[calc(100vw-1.5rem)] ${
             openUpwards ? "bottom-full mb-1.5" : "top-full mt-1.5"
           } ${
-            align === "right" ? "right-0" : "left-0"
+            computedAlign === "right" ? "right-0" : "left-0"
           } ${popupWidth || "w-full min-w-full"} bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl shadow-2xl overflow-hidden ${popupClassName}`}
         >
           {searchable && (
