@@ -557,11 +557,24 @@ class PaymentGatewaysService:
                 prod_meta = prod.get("metadata") or {}
                 if isinstance(prod_meta, dict) and str(prod_meta.get("chatty_adhoc_custom") or "").lower() in ("true", "1", "yes"):
                     continue
+                p_name = str(prod.get("name") or "").strip().lower()
+                p_desc = str(prod.get("description") or "").strip()
                 prices = prod.get("prices") or []
                 primary_price = prices[0] if len(prices) > 0 else {}
+                rec = primary_price.get("recurring_interval")
+
+                # Filter out ad-hoc dynamic custom quotes generated during chat/inbox sessions
+                if not rec and not p_desc and p_name in (
+                    "consultation & service deposit",
+                    "order payment",
+                    "custom checkout",
+                    "custom payment",
+                    "custom deposit",
+                ):
+                    continue
+
                 amount_cents = primary_price.get("price_amount") or 0
                 currency = (primary_price.get("price_currency") or "usd").upper()
-                rec = primary_price.get("recurring_interval")
                 formatted = f"${(amount_cents / 100):.2f} {currency}"
                 if rec:
                     formatted += f" / {rec}"

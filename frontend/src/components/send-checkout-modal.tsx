@@ -70,7 +70,20 @@ export const SendCheckoutModal = memo(function SendCheckoutModal({
       const res = await fetchBackend(`/api/bots/${botId}/integrations/payments/products`);
       if (res.ok) {
         const data = await res.json();
-        const prods: GatewayCatalogProduct[] = data.products || [];
+        const rawProds: GatewayCatalogProduct[] = data.products || [];
+        // Strictly filter out any one-off ad-hoc quotes generated during in-chat custom checkouts
+        const prods = rawProds.filter((p) => {
+          const name = (p.name || "").trim().toLowerCase();
+          const isAdhoc =
+            !p.recurring &&
+            !p.description &&
+            (name === "consultation & service deposit" ||
+              name === "order payment" ||
+              name === "custom checkout" ||
+              name === "custom payment" ||
+              name === "custom deposit");
+          return !isAdhoc;
+        });
         setGatewayProducts(prods);
         if (prods.length > 0) {
           setSelectedProduct((prev) =>
