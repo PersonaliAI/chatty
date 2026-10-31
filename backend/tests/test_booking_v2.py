@@ -391,7 +391,7 @@ def test_voice_booking_tool():
     assert "spoken_confirmation" in book_res
 
 
-def test_payment_and_flow_triggers():
+def test_payment_and_flow_triggers(monkeypatch):
     from app.services.booking.payment_service import BookingPaymentService
     from app.services.booking.flow_trigger_service import BookingFlowTriggerService
 
@@ -442,7 +442,7 @@ def test_payment_and_flow_triggers():
     flow_svc = BookingFlowTriggerService(mock_db)
     # Mock enqueue_webhook_event to verify it completes cleanly
     import plugins.notifications as notify
-    notify.enqueue_webhook_event = lambda *args, **kwargs: asyncio.sleep(0, result=True)
+    monkeypatch.setattr(notify, "enqueue_webhook_event", lambda *args, **kwargs: asyncio.sleep(0, result=True))
 
     flow_ok = asyncio.run(flow_svc.emit_meeting_booked("bot_1", paid_res["meeting"]))
     assert flow_ok is True
