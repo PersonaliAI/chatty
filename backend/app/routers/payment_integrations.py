@@ -33,6 +33,7 @@ class PaymentConnectRequest(BaseModel):
 class PaymentPolicyUpdate(BaseModel):
     ai_payment_allowed: bool
     ai_max_amount_cents: Optional[int] = Field(None, ge=100, le=10000000)
+    ai_payment_instructions: Optional[str] = Field(None, max_length=5000)
 
 
 class InboxSendCheckoutRequest(BaseModel):
@@ -102,10 +103,23 @@ async def get_bot_payment_integrations(
     # Aggregate AI policy (if any active gateway has ai_payment_allowed = false, global flag is false)
     ai_allowed = all(v.get("ai_payment_allowed", True) for v in providers_status.values() if v.get("connected"))
 
+    # Extract payment directives and max amount limit across connected gateways
+    ai_instructions = ""
+    ai_max_cents = None
+    for p, pdata in providers_status.items():
+        if pdata.get("connected"):
+            ec = pdata.get("extra_config") or {}
+            if ec.get("ai_payment_instructions") and not ai_instructions:
+                ai_instructions = ec["ai_payment_instructions"]
+            if pdata.get("ai_max_amount_cents") and not ai_max_cents:
+                ai_max_cents = pdata["ai_max_amount_cents"]
+
     return {
         "bot_id": bot_id,
         "providers": providers_status,
         "ai_payment_allowed": ai_allowed,
+        "ai_max_amount_cents": ai_max_cents,
+        "ai_payment_instructions": ai_instructions,
     }
 
 
@@ -280,33 +294,48 @@ async def disconnect_payment_gateway(
     return {"status": "success", "message": f"{prov.capitalize()} disconnected."}
 
 
-# --- 4. UPDATE AI AGENT RESTRICTION POLICY ---
+# --- 4. UPDATE AI AGENT RESTRICTION POLICY & DIRECTIVES ---
 @router.patch("/api/bots/{bot_id}/integrations/payments/policy")
 async def update_ai_payment_policy(
     bot_id: str,
     body: PaymentPolicyUpdate,
     user: dict[str, Any] = Depends(require_user),
 ):
-    """Configure whether AI agent is permitted to autonomously generate payment checkouts."""
+    """Configure whether AI agent is permitted to autonomously generate payment checkouts and set checkout directives."""
     await verify_bot_permission(bot_id, user, "integrations")
 
-    def _update():
+    def _fetch():
         return (
             supabase.table("chatty_payment_integrations")
-            .update({
-                "ai_payment_allowed": body.ai_payment_allowed,
-                "ai_max_amount_cents": body.ai_max_amount_cents,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
+            .select("id, extra_config")
             .eq("bot_id", bot_id)
             .execute()
         )
 
-    await run_db(_update)
+    res = await run_db(_fetch)
+    rows = res.data or []
+    for r in rows:
+        ec = r.get("extra_config") or {}
+        if body.ai_payment_instructions is not None:
+            ec["ai_payment_instructions"] = body.ai_payment_instructions.strip()
+
+        await run_db(
+            lambda r_id=r["id"], r_ec=ec: supabase.table("chatty_payment_integrations")
+            .update({
+                "ai_payment_allowed": body.ai_payment_allowed,
+                "ai_max_amount_cents": body.ai_max_amount_cents,
+                "extra_config": r_ec,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            })
+            .eq("id", r_id)
+            .execute()
+        )
+
     return {
         "status": "success",
         "ai_payment_allowed": body.ai_payment_allowed,
         "ai_max_amount_cents": body.ai_max_amount_cents,
+        "ai_payment_instructions": body.ai_payment_instructions,
     }
 
 

@@ -37,6 +37,35 @@ import {
 
 const LOGO_DEV_TOKEN = "pk_O9y7kfwmQGa93ZxG6XwufQ";
 
+const PAYMENT_RULE_PRESETS = [
+  {
+    icon: "🛡️",
+    label: "Require Lead Info First",
+    rule: "Always gather and confirm the customer's Full Name, Business Email, and Phone number before generating or sharing any checkout link.",
+  },
+  {
+    icon: "🏷️",
+    label: "10% Courtesy Discount Cap",
+    rule: "You are authorized to offer a maximum 10% courtesy discount only if the visitor objects to pricing. Never discount further without escalating to a human team member.",
+  },
+  {
+    icon: "💼",
+    label: "Escalate Deals > $500",
+    rule: "For high-ticket purchases or custom solutions over $500, do not send a direct checkout link; invite the visitor to book a strategy call with our sales team.",
+  },
+  {
+    icon: "🔄",
+    label: "14-Day Refund Guarantee",
+    rule: "Always inform the customer before checkout that all digital purchases include a 14-day money-back guarantee with zero cancellation fees.",
+  },
+  {
+    icon: "⚡",
+    label: "Instant Order Confirmation",
+    rule: "Upon receiving payment confirmation, immediately acknowledge the transaction, confirm their order details, and notify them that receipt and access credentials were sent to their email.",
+  },
+];
+
+
 const logoUrl = (domain: string) =>
   `https://img.logo.dev/${domain}?token=${LOGO_DEV_TOKEN}&size=80&format=png&retina=true`;
 
@@ -543,6 +572,9 @@ export function IntegrationsTab({
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [savingPaymentProvider, setSavingPaymentProvider] = useState<string | null>(null);
   const [aiPaymentAllowed, setAiPaymentAllowed] = useState(true);
+  const [aiPaymentInstructions, setAiPaymentInstructions] = useState("");
+  const [aiMaxAmountDollars, setAiMaxAmountDollars] = useState("");
+  const [savingPolicy, setSavingPolicy] = useState(false);
   const [syncedProducts, setSyncedProducts] = useState<Record<string, any[]>>({});
   const [loadingSyncedProducts, setLoadingSyncedProducts] = useState<Record<string, boolean>>({});
   const [payTestMode, setPayTestMode] = useState(true);
@@ -576,6 +608,14 @@ export function IntegrationsTab({
         const data = await res.json();
         setPaymentProviders(data.providers || {});
         setAiPaymentAllowed(data.ai_payment_allowed !== false);
+        if (data.ai_payment_instructions !== undefined) {
+          setAiPaymentInstructions(data.ai_payment_instructions || "");
+        }
+        if (data.ai_max_amount_cents) {
+          setAiMaxAmountDollars((data.ai_max_amount_cents / 100).toString());
+        } else {
+          setAiMaxAmountDollars("");
+        }
       }
     } catch (err) {
       console.error("Failed to load payment integrations", err);
@@ -686,26 +726,45 @@ export function IntegrationsTab({
     }
   }, [botId, selectedIntegrationId, paymentProviders, loadProductsForProvider]);
 
-  const handleToggleAiPaymentPolicy = async (newVal: boolean) => {
+  const handleSaveAiPaymentPolicy = async (overrideAllowed?: boolean) => {
     if (!botId) return;
-    setAiPaymentAllowed(newVal);
+    const targetAllowed = overrideAllowed !== undefined ? overrideAllowed : aiPaymentAllowed;
+    setSavingPolicy(true);
     try {
       const fetcher = fetchWithFallback || fetch;
-      await fetcher(`/api/bots/${botId}/integrations/payments/policy`, {
+      const parsedDollars = parseFloat(aiMaxAmountDollars);
+      const maxCents = !isNaN(parsedDollars) && parsedDollars > 0 ? Math.round(parsedDollars * 100) : null;
+      const res = await fetcher(`/api/bots/${botId}/integrations/payments/policy`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
-        body: JSON.stringify({ ai_payment_allowed: newVal }),
+        body: JSON.stringify({
+          ai_payment_allowed: targetAllowed,
+          ai_max_amount_cents: maxCents,
+          ai_payment_instructions: aiPaymentInstructions,
+        }),
       });
-      showToast?.(
-        newVal ? "AI Agent is permitted to generate checkouts." : "AI Agent restricted from generating checkouts.",
-        "info"
-      );
+      if (!res.ok) throw new Error("Failed to save payment directives");
+      if (overrideAllowed !== undefined) {
+        setAiPaymentAllowed(overrideAllowed);
+      }
+      showToast?.("AI payment governance directives saved successfully.", "success");
     } catch {
-      showToast?.("Failed to update AI policy", "error");
+      showToast?.("Failed to update AI payment policy", "error");
+    } finally {
+      setSavingPolicy(false);
     }
+  };
+
+  const handleApplyPresetRule = (rule: string) => {
+    setAiPaymentInstructions((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return rule;
+      if (trimmed.includes(rule)) return prev;
+      return `${trimmed}\n\n• ${rule}`;
+    });
   };
 
   const loadWcStatus = useCallback(async () => {
@@ -2158,37 +2217,139 @@ export function IntegrationsTab({
           )}
         </div>
 
-        {/* AI Agent Restriction Policy Banner */}
+        {/* AI Agent Payment Governance & Directives Card (Unified across all Gateways) */}
         {info.connected && (
-          <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-4 sm:p-5 rounded-3xl bg-neutral-50/80 dark:bg-neutral-900/60 border border-neutral-200/80 dark:border-neutral-800 space-y-4 shadow-xs">
+            {/* Top Row: Title, Icon, Toggle Switch */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-200/60 dark:border-neutral-800/60">
               <div className="flex items-start gap-3 min-w-0">
-                <div className="size-9 rounded-xl bg-orange-500/10 text-[#f97316] flex items-center justify-center border border-orange-500/20 shrink-0">
-                  <ShieldCheck className="size-4" />
+                <div className="size-10 rounded-2xl bg-orange-500/10 text-[#f97316] flex items-center justify-center border border-orange-500/20 shrink-0">
+                  <ShieldCheck className="size-5" />
                 </div>
-                <div className="min-w-0">
-                  <h5 className="text-xs font-bold text-neutral-900 dark:text-white">AI Agent Checkout Policy</h5>
-                  <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400 mt-0.5">
-                    Control whether the AI may autonomously offer checkout links in chat.
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h5 className="text-xs sm:text-sm font-bold text-neutral-900 dark:text-white">
+                      AI Payment &amp; Checkout Governance
+                    </h5>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border whitespace-nowrap ${
+                      aiPaymentAllowed
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                    }`}>
+                      <span className={`size-1.5 rounded-full ${aiPaymentAllowed ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+                      {aiPaymentAllowed ? "AI Autonomous Active" : "AI Checkout Restricted"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                    Define custom instructions, discount limits, and transaction safety caps for your AI agent across all payment gateways.
                   </p>
                 </div>
               </div>
-              <label className="inline-flex items-center gap-2 cursor-pointer self-start sm:self-auto shrink-0 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-                <input
-                  type="checkbox"
-                  checked={aiPaymentAllowed}
-                  onChange={(e) => handleToggleAiPaymentPolicy(e.target.checked)}
-                  className="rounded text-[#f97316] focus:ring-[#f97316] shrink-0"
-                />
-                <span className="text-xs font-semibold whitespace-nowrap text-neutral-800 dark:text-neutral-200">
-                  {aiPaymentAllowed ? "AI Permitted" : "AI Restricted"}
-                </span>
-              </label>
+
+              {/* Toggle Permission */}
+              <button
+                type="button"
+                onClick={() => void handleSaveAiPaymentPolicy(!aiPaymentAllowed)}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer self-start sm:self-auto shrink-0 ${
+                  aiPaymentAllowed
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-950/60"
+                    : "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                }`}
+              >
+                <div className={`size-2 rounded-full ${aiPaymentAllowed ? "bg-emerald-500" : "bg-amber-500"}`} />
+                <span>{aiPaymentAllowed ? "AI Permitted" : "AI Restricted"}</span>
+              </button>
             </div>
-            {!aiPaymentAllowed && (
-              <p className="text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-800">
-                ðŸ”’ <strong>AI Checkout Disabled:</strong> The AI will tell visitors a team member will review their request and send a payment link. Human agents can always send checkout links from the <strong>Inbox</strong>.
-              </p>
+
+            {/* If Restricted Alert */}
+            {!aiPaymentAllowed ? (
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2.5 text-amber-800 dark:text-amber-300">
+                <AlertCircle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="text-[11px] leading-relaxed space-y-0.5">
+                  <p className="font-semibold">Autonomous In-Chat Checkout Disabled</p>
+                  <p className="text-amber-700 dark:text-amber-400/90">
+                    The AI agent will inform buyers that a human team member will review their request and send a verified payment link. Human operators can always dispatch custom checkout links from the <strong>Inbox</strong>.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 pt-1">
+                {/* Max Autonomous Amount Cap & Directives Textarea */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+                  <div className="sm:col-span-1 space-y-1">
+                    <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-1.5">
+                      <span>Max Autonomous Cap ($)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 text-xs font-mono">$</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="e.g. 250"
+                        value={aiMaxAmountDollars}
+                        onChange={(e) => setAiMaxAmountDollars(e.target.value)}
+                        className="w-full text-xs pl-7 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 font-mono focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white"
+                      />
+                    </div>
+                    <p className="text-[10px] text-neutral-400">
+                      Orders exceeding this require human approval in Inbox.
+                    </p>
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                        AI Payment &amp; Checkout Directives
+                      </label>
+                      <span className="text-[10px] font-mono text-neutral-400">
+                        {aiPaymentInstructions.length}/5000
+                      </span>
+                    </div>
+                    <textarea
+                      rows={3}
+                      value={aiPaymentInstructions}
+                      onChange={(e) => setAiPaymentInstructions(e.target.value)}
+                      placeholder="e.g., Always verify full name and work email before sending checkout. Max discount 10%. Purchases > $500 require booking a sales call..."
+                      className="w-full text-xs p-3 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-neutral-800 dark:text-neutral-200 leading-relaxed focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-white resize-y min-h-[80px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Preset Chips */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
+                    Quick-Insert Payment Directives
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PAYMENT_RULE_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleApplyPresetRule(preset.rule)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-neutral-700 dark:text-neutral-300 hover:border-orange-500/50 hover:text-orange-600 dark:hover:text-orange-400 transition-colors cursor-pointer shadow-2xs"
+                        title={preset.rule}
+                      >
+                        <span>{preset.icon}</span>
+                        <span>{preset.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Save Directives Button */}
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveAiPaymentPolicy()}
+                    disabled={savingPolicy}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-800 dark:hover:bg-neutral-100 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
+                  >
+                    {savingPolicy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5 text-orange-400" />}
+                    <span>{savingPolicy ? "Saving Directives..." : "Save Payment Directives"}</span>
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         )}

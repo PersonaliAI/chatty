@@ -871,6 +871,61 @@ async def run_widget_assistant(
     else:
         lead_capture_block = ""
 
+    # Payment Governance & Checkout Directives
+    payment_governance_block = ""
+    try:
+        pay_res = await run_db(
+            lambda: supabase.table("chatty_payment_integrations")
+            .select("provider, is_active, ai_payment_allowed, ai_max_amount_cents, extra_config")
+            .eq("bot_id", bot_id)
+            .eq("is_active", True)
+            .execute()
+        )
+        if pay_res and pay_res.data:
+            active_gateways = [p.get("provider", "gateway").capitalize() for p in pay_res.data]
+            ai_allowed = all(p.get("ai_payment_allowed", True) for p in pay_res.data)
+
+            custom_pay_rules = ""
+            max_cents = None
+            for p in pay_res.data:
+                ec = p.get("extra_config") or {}
+                if ec.get("ai_payment_instructions"):
+                    custom_pay_rules = ec["ai_payment_instructions"].strip()
+                if p.get("ai_max_amount_cents"):
+                    max_cents = p.get("ai_max_amount_cents")
+
+            p_lines = [
+                "=== PAYMENT & CHECKOUT GOVERNANCE (Configured via Payment Gateway) ===",
+                f"Connected Payment Gateways: {', '.join(active_gateways)}",
+            ]
+            if not ai_allowed:
+                p_lines.extend([
+                    "AUTONOMOUS CHECKOUT PERMISSION: RESTRICTED.",
+                    "- You are NOT permitted to generate or dispatch direct checkout links.",
+                    "- If a visitor asks to purchase, subscribe, or pay, explain politely:",
+                    "  'Our team will review your order details and send a secure checkout link directly in this chat shortly.'",
+                    "- Collect the visitor's Full Name and Business Email so a team member can dispatch their invoice.",
+                ])
+            else:
+                p_lines.extend([
+                    "AUTONOMOUS CHECKOUT PERMISSION: PERMITTED.",
+                    "- You are authorized to assist with pricing, share checkout links, and facilitate payments.",
+                ])
+                if max_cents:
+                    max_dollars = max_cents / 100
+                    p_lines.append(
+                        f"- TRANSACTION AMOUNT CAP: ${max_dollars:,.2f}. If an order, quote, or project exceeds ${max_dollars:,.2f}, do NOT send a direct checkout link; invite the visitor to schedule a call with our sales team."
+                    )
+                if custom_pay_rules:
+                    p_lines.extend([
+                        "BUSINESS OWNER'S SPECIALIZED PAYMENT & PRICING DIRECTIVES:",
+                        custom_pay_rules,
+                    ])
+            p_lines.append("=== END PAYMENT GOVERNANCE ===\n")
+            payment_governance_block = "\n".join(p_lines) + "\n"
+    except Exception:
+        logger.exception("Failed to load payment governance into widget brain")
+
     bot_display_name = bot.get("name") or "the assistant"
     has_knowledge = bool(knowledge_context.strip())
 
@@ -1134,6 +1189,7 @@ async def run_widget_assistant(
         f"=== END KNOWLEDGE ===\n\n"
         f"{scheduling_block}"
         f"{lead_capture_block}"
+        f"{payment_governance_block}"
         f"{visitor_memory_block}"
         f"{language_continuity_block}"
         f"(Internal - never share: Bot ID {bot_id})"
