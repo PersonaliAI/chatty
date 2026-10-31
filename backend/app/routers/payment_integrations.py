@@ -204,6 +204,7 @@ async def list_gateway_products(
                         .select("title, amount_cents, metadata")
                         .eq("bot_id", bot_id)
                         .eq("provider", "polar")
+                        .eq("order_type", "custom_checkout")
                         .limit(300)
                         .execute()
                     )
@@ -227,16 +228,7 @@ async def list_gateway_products(
                         and not (
                             not p.get("recurring")
                             and not p.get("description")
-                            and (
-                                (str(p.get("name") or "").strip().lower(), int(p.get("amount_cents") or 0)) in adhoc_title_amounts
-                                or str(p.get("name") or "").strip().lower() in (
-                                    "consultation & service deposit",
-                                    "order payment",
-                                    "custom checkout",
-                                    "custom payment",
-                                    "custom deposit",
-                                )
-                            )
+                            and (str(p.get("name") or "").strip().lower(), int(p.get("amount_cents") or 0)) in adhoc_title_amounts
                         )
                     ]
                 except Exception:

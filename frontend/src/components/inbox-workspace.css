@@ -67,6 +67,53 @@
 .inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-pane-title { padding: 8px; }
 .inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-pane-title { justify-content: center; }
 .inbox-shell[data-navigation-collapsed=true] .inbox-navigation .inbox-identity-trigger { display: none; }
+
+/* Focus / Maximize Active Chat Pane */
+.inbox-shell[data-chat-focused=true] .inbox-workspace {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+.inbox-shell[data-chat-focused=true][data-details-open=true] .inbox-workspace {
+  grid-template-columns: minmax(0, 1fr) 280px !important;
+}
+.inbox-shell[data-chat-focused=true] .inbox-navigation,
+.inbox-shell[data-chat-focused=true] .inbox-queue {
+  display: none !important;
+}
+.inbox-shell[data-chat-focused=true] .inbox-back {
+  display: flex !important;
+}
+
+/* Fullscreen / Maximize Entire Workspace (All Screens: Desktop, Tablet, Mobile) */
+.inbox-shell[data-maximized=true] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 8px !important;
+  background: var(--color-background, #f8fafc) !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+.dark .inbox-shell[data-maximized=true] {
+  background: #0d0f12 !important;
+}
+.inbox-shell[data-maximized=true] [data-inbox-routing] {
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+}
+.inbox-shell[data-maximized=true] .inbox-workspace {
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  border-radius: 12px !important;
+  margin: 0 !important;
+}
 @container inbox (max-width: 1190px) {
   .inbox-shell .inbox-workspace { grid-template-columns: 48px 270px minmax(0,1fr); }
   .inbox-shell[data-details-open=true] .inbox-workspace { grid-template-columns: 48px 250px minmax(0,1fr) 250px; }

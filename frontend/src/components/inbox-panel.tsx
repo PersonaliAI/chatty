@@ -55,6 +55,8 @@ import {
   ArrowLeft,
   PanelLeftClose,
   AtSign,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -537,6 +539,24 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [visitorDetailsOpen, setVisitorDetailsOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [queueSort, setQueueSort] = useState("newest");
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [chatFocusMode, setChatFocusMode] = useState(false);
+
+  useEffect(() => {
+    if (!isMaximized) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMaximized(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isMaximized]);
   const presencePopupRef = useRef<HTMLDivElement | null>(null);
   const rosterPopupRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -1941,7 +1961,14 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   );
 
   return (
-    <div className="inbox-shell space-y-4" data-conversation-open={Boolean(selected)} data-navigation-collapsed={navigationCollapsed} data-details-open={visitorDetailsOpen && Boolean(selected)}>
+    <div
+      className={`inbox-shell space-y-4 ${isMaximized ? "inbox-shell-maximized" : ""}`}
+      data-conversation-open={Boolean(selected)}
+      data-navigation-collapsed={navigationCollapsed}
+      data-details-open={visitorDetailsOpen && Boolean(selected)}
+      data-maximized={isMaximized}
+      data-chat-focused={chatFocusMode && Boolean(selected)}
+    >
       {/* â”€â”€ Omnichannel Routing, Agent Presence & Live Queue Bar â”€â”€ */}
       <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
@@ -2122,6 +2149,21 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               <Zap className="size-3.5 fill-current" />
             )}
             <span>Auto-Assign</span>
+          </button>
+
+          {/* Maximize / Fullscreen Workspace Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMaximized((prev) => !prev)}
+            title={isMaximized ? "Restore inbox view (Esc)" : "Maximize inbox to full space"}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer border ${
+              isMaximized
+                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white hover:opacity-90 active:scale-95"
+                : "bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-750"
+            }`}
+          >
+            {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+            <span className="hidden sm:inline">{isMaximized ? "Restore" : "Maximize"}</span>
           </button>
         </div>
       </div>
@@ -2433,6 +2475,32 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <div className="inbox-conversation-tools flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
               <button type="button" className="inbox-back" onClick={() => selectConversation(null)}><ArrowLeft className="size-4" />Conversations</button>
               <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
+              <button
+                type="button"
+                onClick={() => setChatFocusMode((v) => !v)}
+                className={`text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer ${
+                  chatFocusMode
+                    ? "bg-[#f97316]/15 text-[#f97316] border border-[#f97316]/30 font-bold"
+                    : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                }`}
+                title={chatFocusMode ? "Show queue list" : "Maximize chat area (hide queue)"}
+              >
+                {chatFocusMode ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                <span>{chatFocusMode ? "Exit Focus" : "Maximize Chat"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMaximized((v) => !v)}
+                className={`text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 transition-colors cursor-pointer ${
+                  isMaximized
+                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                    : "hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                }`}
+                title={isMaximized ? "Exit full screen (Esc)" : "Full screen workspace"}
+              >
+                {isMaximized ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
+                <span className="hidden sm:inline">{isMaximized ? "Exit Fullscreen" : "Fullscreen"}</span>
+              </button>
             </div>
             <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">

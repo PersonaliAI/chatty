@@ -26,6 +26,9 @@ import {
   CalendarCheck,
   Truck,
   RotateCcw,
+  CreditCard,
+  ShieldCheck,
+  CheckCircle2,
 } from "lucide-react";
 
 interface BusinessSituation {
@@ -34,7 +37,7 @@ interface BusinessSituation {
   businessName: string;
   businessCategory: string;
   businessAvatarBg: string;
-  businessIcon: "keyboard" | "apparel" | "health" | "logistics";
+  businessIcon: "keyboard" | "apparel" | "health" | "logistics" | "checkout";
   badgeText: string;
   userMessage: string;
   userTime: string;
@@ -42,7 +45,7 @@ interface BusinessSituation {
   userVoiceDuration?: string;
   botMessage: string;
   botTime: string;
-  type: "product" | "policy" | "calendar" | "voice";
+  type: "product" | "policy" | "calendar" | "voice" | "checkout";
 }
 
 const BUSINESS_SITUATIONS: BusinessSituation[] = [
@@ -59,6 +62,20 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
     botMessage: "Here is our top-rated Mac mechanical keyboard in stock: Keychron K2 Pro Wireless (Hot-swappable RGB, Bluetooth 5.1 & Type-C, 4000mAh battery).",
     botTime: "10:14 AM",
     type: "product",
+  },
+  {
+    id: "checkout",
+    tabLabel: "In-Chat Checkout",
+    businessName: "Nordic Atelier & Consulting",
+    businessCategory: "Design & Consulting · Verified Business",
+    businessAvatarBg: "bg-[#059669]",
+    businessIcon: "checkout",
+    badgeText: "In-Chat Checkout",
+    userMessage: "Can you send the checkout link for the $50 Consultation & Strategy Deposit?",
+    userTime: "10:15 AM",
+    botMessage: "I generated your secure hosted checkout session via Polar & Stripe. You can complete your deposit directly below:",
+    botTime: "10:15 AM",
+    type: "checkout",
   },
   {
     id: "policy",
@@ -116,6 +133,7 @@ export function AnimatedHeroChat() {
   const [isPaused, setIsPaused] = useState(false);
   const [animStage, setAnimStage] = useState(0);
   const [cartAdded, setCartAdded] = useState(false);
+  const [checkoutPaid, setCheckoutPaid] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<string>("2:00 PM EST");
   const [voicePlaying, setVoicePlaying] = useState(false);
   const [activeQuickReply, setActiveQuickReply] = useState<string | null>(null);
@@ -164,6 +182,7 @@ export function AnimatedHeroChat() {
   useEffect(() => {
     setAnimStage(0);
     setCartAdded(false);
+    setCheckoutPaid(false);
     setVoicePlaying(false);
     setActiveQuickReply(null);
 
@@ -182,6 +201,7 @@ export function AnimatedHeroChat() {
     setCurrentIndex(idx);
     setProgress(0);
     setCartAdded(false);
+    setCheckoutPaid(false);
     setVoicePlaying(false);
     setActiveQuickReply(null);
   };
@@ -196,6 +216,8 @@ export function AnimatedHeroChat() {
         return <Sparkles className={className} />;
       case "logistics":
         return <Truck className={className} />;
+      case "checkout":
+        return <CreditCard className={className} />;
     }
   };
 
@@ -446,6 +468,56 @@ export function AnimatedHeroChat() {
                           </button>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-widget: In-Chat Checkout Card */}
+                {current.type === "checkout" && animStage >= 3 && (
+                  <div className="pt-2 border-t border-neutral-100 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="rounded-xl border border-black/8 bg-gradient-to-br from-neutral-50 to-emerald-50/50 p-3 space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="size-8 rounded-lg bg-[#008069]/10 text-[#008069] flex items-center justify-center shrink-0">
+                            <CreditCard className="size-4 text-[#008069]" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-bold text-neutral-900 leading-tight">Consultation &amp; Strategy Deposit</h5>
+                            <p className="text-[10px] text-neutral-500">1-on-1 Architecture &amp; Implementation Session</p>
+                          </div>
+                        </div>
+                        <span className="font-bold text-xs text-neutral-900 shrink-0">$50.00 USD</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[10px] text-neutral-600 pt-1 border-t border-black/5">
+                        <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                          <ShieldCheck className="size-3 text-emerald-600" />
+                          PCI-DSS Level 1 · Polar / Stripe
+                        </span>
+                        <span className="font-mono text-neutral-400">One-Time Hosted</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setCheckoutPaid(!checkoutPaid)}
+                        className={`w-full py-2 px-3 rounded-lg text-xs font-semibold transition shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 ${
+                          checkoutPaid
+                            ? "bg-emerald-600 text-white"
+                            : "bg-[#008069] text-white hover:bg-emerald-800"
+                        }`}
+                      >
+                        {checkoutPaid ? (
+                          <>
+                            <CheckCircle2 className="size-3.5" />
+                            <span>Payment Completed ($50.00 USD) ✓</span>
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="size-3.5" />
+                            <span>Pay $50.00 Now via Polar →</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
                 )}
