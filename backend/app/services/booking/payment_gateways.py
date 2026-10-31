@@ -8,12 +8,27 @@ Provides:
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
+import re
 from typing import Any, Optional
 import httpx
 
 logger = logging.getLogger("chatty.payment_gateways")
+
+_SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
+
+PAYPAL_LIVE_BASE = "https://api-m.paypal.com"
+PAYPAL_SANDBOX_BASE = "https://api-m.sandbox.paypal.com"
+
+
+def safe_gateway_id(value: Any, label: str) -> str:
+    """Validate a user-supplied identifier before it is interpolated into an outbound URL path/query (SSRF guard)."""
+    text = str(value).strip() if value is not None else ""
+    if not _SAFE_ID_RE.match(text):
+        raise ValueError(f"Invalid {label}: only letters, digits, '-' and '_' are allowed")
+    return text
 
 
 class PaymentGatewaysService:
@@ -105,7 +120,7 @@ class PaymentGatewaysService:
             "Authorization": f"Bearer {api_key.strip()}",
         }
         url = (
-            f"https://api.lemonsqueezy.com/v1/stores/{store_id}"
+            f"https://api.lemonsqueezy.com/v1/stores/{safe_gateway_id(store_id, 'store ID')}"
             if store_id
             else "https://api.lemonsqueezy.com/v1/stores"
         )
@@ -141,8 +156,20 @@ class PaymentGatewaysService:
         customer_email: Optional[str],
         success_url: str,
         metadata: Optional[dict[str, Any]] = None,
+        variant_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Create a Lemon Squeezy custom price checkout session."""
+        """Create a Lemon Squeezy checkout.
+
+        Lemon Squeezy cannot create products on the fly: a checkout must reference an
+        existing variant, and `custom_price` only overrides that variant's price.
+        """
+        if not variant_id:
+            raise RuntimeError(
+                "Lemon Squeezy needs an existing product variant to attach a custom price to. "
+                "Create at least one product in your Lemon Squeezy store, or pick one from the synced catalog."
+            )
+        store_id = safe_gateway_id(store_id, "store ID")
+        variant_id = safe_gateway_id(variant_id, "variant ID")
         headers = {
             "Accept": "application/vnd.api+json",
             "Content-Type": "application/vnd.api+json",
@@ -168,7 +195,13 @@ class PaymentGatewaysService:
                             "type": "stores",
                             "id": str(store_id),
                         }
-                    }
+                    },
+                    "variant": {
+                        "data": {
+                            "type": "variants",
+                            "id": variant_id,
+                        }
+                    },
                 },
             }
         }
@@ -207,7 +240,7 @@ class PaymentGatewaysService:
             "Authorization": f"Bearer {access_token.strip()}",
         }
         url = (
-            f"https://api.polar.sh/v1/organizations/{organization_id}"
+            f"https://api.polar.sh/v1/organizations/{safe_gateway_id(organization_id, 'organization ID')}"
             if organization_id
             else "https://api.polar.sh/v1/organizations"
         )
@@ -338,7 +371,7 @@ class PaymentGatewaysService:
         }
         url = "https://api.lemonsqueezy.com/v1/products?include=variants&page[size]=100"
         if store_id:
-            url += f"&filter[store_id]={store_id}"
+            url += f"&filter[store_id]={safe_gateway_id(store_id, 'store ID')}"
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.get(url, headers=headers)
@@ -353,31 +386,54 @@ class PaymentGatewaysService:
                     variants_map[inc["id"]] = inc.get("attributes", {})
 
             items = []
+            variants_by_product: dict[str, list[dict[str, Any]]] = {}
+            for vid, vattrs in variants_map.items():
+                variants_by_product.setdefault(str(vattrs.get("product_id")), []).append({"id": vid, **vattrs})
+
             for prod in data.get("data", []):
                 attrs = prod.get("attributes", {})
+                if attrs.get("status") not in (None, "published"):
+                    continue
                 name = attrs.get("name") or "Lemon Squeezy Product"
-                desc = attrs.get("description")
-                thumb = attrs.get("thumb_url")
-                buy_url = attrs.get("buy_now_url")
-
-                # Try to get price from primary variant or price field
-                amount_cents = attrs.get("from_price") or attrs.get("price") or 0
-                formatted = f"${(amount_cents / 100):.2f} USD"
-
-                items.append({
-                    "id": prod["id"],
-                    "product_id": prod["id"],
-                    "provider": "lemonsqueezy",
-                    "name": name,
-                    "description": desc,
-                    "amount_cents": amount_cents,
-                    "currency": "USD",
-                    "formatted_price": formatted,
-                    "recurring": None,
-                    "image_url": thumb,
-                    "checkout_url": buy_url,
-                })
+                currency = (attrs.get("currency") or "USD").upper()
+                variants = [
+                    v for v in variants_by_product.get(str(prod["id"]), [])
+                    if v.get("status") in (None, "published", "pending")
+                ]
+                if not variants:
+                    continue
+                for v in variants:
+                    amount_cents = v.get("price") or 0
+                    interval = v.get("interval") if v.get("is_subscription") else None
+                    vname = v.get("name")
+                    display = name if not vname or vname.lower() in ("default", name.lower()) else f"{name} - {vname}"
+                    formatted = f"${(amount_cents / 100):.2f} {currency}"
+                    if interval:
+                        formatted += f" / {interval}"
+                    items.append({
+                        "id": f"{prod['id']}:{v['id']}",
+                        "product_id": prod["id"],
+                        "price_id": str(v["id"]),
+                        "variant_id": str(v["id"]),
+                        "provider": "lemonsqueezy",
+                        "name": display,
+                        "description": attrs.get("description"),
+                        "amount_cents": amount_cents,
+                        "currency": currency,
+                        "formatted_price": formatted,
+                        "recurring": interval,
+                        "image_url": attrs.get("thumb_url"),
+                        "checkout_url": attrs.get("buy_now_url"),
+                    })
             return items
+
+    @classmethod
+    async def resolve_lemonsqueezy_variant(cls, api_key: str, store_id: Optional[str], preferred: Optional[str] = None) -> Optional[str]:
+        """Pick the variant a custom-priced Lemon Squeezy checkout is attached to (preferred, else first published)."""
+        if preferred:
+            return safe_gateway_id(preferred, "variant ID")
+        products = await cls.fetch_lemonsqueezy_products(api_key, store_id)
+        return products[0]["variant_id"] if products else None
 
     @classmethod
     async def fetch_polar_products(cls, access_token: str, organization_id: Optional[str] = None) -> list[dict[str, Any]]:
@@ -388,7 +444,7 @@ class PaymentGatewaysService:
         }
         url = "https://api.polar.sh/v1/products/?is_archived=false&limit=100"
         if organization_id:
-            url += f"&organization_id={organization_id}"
+            url += f"&organization_id={safe_gateway_id(organization_id, 'organization ID')}"
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.get(url, headers=headers)
@@ -421,3 +477,95 @@ class PaymentGatewaysService:
                     "image_url": None,
                 })
             return items
+
+    # -------------------------------------------------------------------------
+    # 5. PAYPAL ADAPTER (Orders v2, REST OAuth2 client-credentials)
+    # -------------------------------------------------------------------------
+    @staticmethod
+    def _paypal_base(test_mode: bool) -> str:
+        return PAYPAL_SANDBOX_BASE if test_mode else PAYPAL_LIVE_BASE
+
+    @classmethod
+    async def _paypal_token(cls, client_id: str, client_secret: str, test_mode: bool) -> str:
+        basic = base64.b64encode(f"{client_id.strip()}:{client_secret.strip()}".encode()).decode()
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(
+                f"{cls._paypal_base(test_mode)}/v1/oauth2/token",
+                headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded"},
+                data={"grant_type": "client_credentials"},
+            )
+        if res.status_code != 200:
+            try:
+                detail = res.json().get("error_description") or res.json().get("error") or f"HTTP {res.status_code}"
+            except Exception:
+                detail = f"HTTP {res.status_code}"
+            raise RuntimeError(f"PayPal authentication failed: {detail}")
+        return res.json()["access_token"]
+
+    @classmethod
+    async def verify_paypal(cls, client_id: str, client_secret: str, test_mode: bool = True) -> dict[str, Any]:
+        """Verify PayPal REST app credentials by exchanging them for an access token."""
+        try:
+            await cls._paypal_token(client_id, client_secret, test_mode)
+        except RuntimeError as e:
+            return {"valid": False, "error": str(e)}
+        return {"valid": True, "mode": "sandbox" if test_mode else "live"}
+
+    @classmethod
+    async def create_paypal_checkout(
+        cls,
+        client_id: str,
+        client_secret: str,
+        test_mode: bool,
+        amount_cents: int,
+        currency: str,
+        title: str,
+        customer_email: Optional[str],
+        success_url: str,
+        cancel_url: str,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        """Create a PayPal order and return the hosted payer-approval URL."""
+        token = await cls._paypal_token(client_id, client_secret, test_mode)
+        payload: dict[str, Any] = {
+            "intent": "CAPTURE",
+            "purchase_units": [{
+                "description": title[:127],
+                "custom_id": str((metadata or {}).get("session_id", ""))[:127],
+                "amount": {"currency_code": currency.upper(), "value": f"{amount_cents / 100:.2f}"},
+            }],
+            "payment_source": {
+                "paypal": {
+                    "experience_context": {
+                        "user_action": "PAY_NOW",
+                        "return_url": success_url,
+                        "cancel_url": cancel_url,
+                    }
+                }
+            },
+        }
+        if customer_email:
+            payload["payment_source"]["paypal"]["email_address"] = customer_email
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.post(
+                f"{cls._paypal_base(test_mode)}/v2/checkout/orders",
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json=payload,
+            )
+        if res.status_code not in (200, 201):
+            try:
+                err = res.json().get("message") or res.text
+            except Exception:
+                err = res.text
+            raise RuntimeError(f"PayPal API error: {err}")
+        data = res.json()
+        link = next((l.get("href") for l in data.get("links", []) if l.get("rel") in ("payer-action", "approve")), None)
+        if not link:
+            raise RuntimeError("PayPal did not return an approval link")
+        return {
+            "provider": "paypal",
+            "checkout_url": link,
+            "session_id": data.get("id"),
+            "amount_cents": amount_cents,
+            "currency": currency,
+        }

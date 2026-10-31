@@ -731,7 +731,10 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [loadingGatewayProducts, setLoadingGatewayProducts] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [productSearch, setProductSearch] = useState("");
-  const [paymentProvider, setPaymentProvider] = useState<"stripe" | "lemonsqueezy" | "polar">("stripe");
+  type PaymentProviderId = "stripe" | "paypal" | "lemonsqueezy" | "polar";
+  const [paymentProvider, setPaymentProvider] = useState<PaymentProviderId | "">("");
+  const [connectedGateways, setConnectedGateways] = useState<PaymentProviderId[]>([]);
+  const [gatewaysLoaded, setGatewaysLoaded] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("50.00");
   const [paymentCurrency, setPaymentCurrency] = useState("usd");
   const [paymentTitle, setPaymentTitle] = useState("Consultation & Service Deposit");
@@ -1590,11 +1593,32 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   }, [botId, fetchBackend]);
 
+  const loadConnectedGateways = useCallback(async () => {
+    if (!botId) return;
+    try {
+      const res = await fetchBackend(`/api/bots/${botId}/integrations/payments`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const providers = (data.providers || {}) as Record<string, { connected?: boolean; is_active?: boolean }>;
+      const connected = (["stripe", "paypal", "lemonsqueezy", "polar"] as const).filter(
+        (id) => providers[id]?.connected && providers[id]?.is_active !== false
+      );
+      setConnectedGateways(connected);
+      setPaymentProvider((prev) => (prev && connected.includes(prev) ? prev : connected[0] ?? ""));
+    } catch (err) {
+      console.error("Failed to load connected payment gateways", err);
+    } finally {
+      setGatewaysLoaded(true);
+    }
+  }, [botId, fetchBackend]);
+
   useEffect(() => {
     if (paymentModalOpen) {
+      setGatewaysLoaded(false);
+      void loadConnectedGateways();
       void loadGatewayProducts();
     }
-  }, [paymentModalOpen, loadGatewayProducts]);
+  }, [paymentModalOpen, loadGatewayProducts, loadConnectedGateways]);
 
   const handleSendPaymentCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1603,15 +1627,21 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     let titleToSend = paymentTitle.trim();
     let amountToSendCents = Math.round((parseFloat(paymentAmount) || 0) * 100);
     let currencyToSend = paymentCurrency.toLowerCase();
-    let providerToSend = paymentProvider;
+    let providerToSend: string = paymentProvider;
+    let variantToSend: string | undefined;
 
     if (checkoutMode === "catalog" && selectedProduct) {
+      variantToSend = selectedProduct.variant_id || undefined;
       titleToSend = selectedProduct.name;
       amountToSendCents = selectedProduct.amount_cents;
       currencyToSend = (selectedProduct.currency || "usd").toLowerCase();
       providerToSend = selectedProduct.provider;
     }
 
+    if (!providerToSend) {
+      showToast("Connect a payment gateway in Integrations first.", "error");
+      return;
+    }
     if (amountToSendCents < 50) {
       showToast("Amount must be at least $0.50", "error");
       return;
@@ -1629,6 +1659,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           title: titleToSend || "Payment Request",
           customer_email: current?.visitor_email || undefined,
           provider: providerToSend,
+          variant_id: variantToSend,
         }),
       });
       const data = await res.json();
@@ -3894,38 +3925,39 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/50 dark:bg-neutral-950/50 sticky top-0 z-10">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="size-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 shrink-0">
                   <CreditCard className="size-4" />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-neutral-900 dark:text-white">Send Checkout Link</h4>
-                  <p className="text-[11px] text-neutral-400">Generate an in-chat payment card for this visitor.</p>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-neutral-900 dark:text-white leading-tight">Send Checkout Link</h4>
+                  <p className="text-[11px] leading-snug text-neutral-400 mt-0.5">Send a secure in-chat payment card.</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setPaymentModalOpen(false)}
-                className="p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg cursor-pointer"
+                className="p-2 -mr-1 shrink-0 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg cursor-pointer"
+                aria-label="Close"
               >
                 <X className="size-4" />
               </button>
             </div>
 
             {/* Mode Switcher Tabs */}
-            <div className="p-3 border-b border-neutral-100 dark:border-neutral-800 flex items-center gap-2 bg-neutral-50/30 dark:bg-neutral-950/30">
+            <div className="p-3 border-b border-neutral-100 dark:border-neutral-800 grid grid-cols-2 gap-2 bg-neutral-50/30 dark:bg-neutral-950/30">
               <button
                 type="button"
                 onClick={() => setCheckoutMode("catalog")}
-                className={`flex-1 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`min-w-0 px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                   checkoutMode === "catalog"
                     ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
                     : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 }`}
               >
-                <span>Synced Products &amp; Plans</span>
+                <span className="truncate"><span className="sm:hidden">Products</span><span className="hidden sm:inline">Synced Products &amp; Plans</span></span>
                 {gatewayProducts.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-800 font-mono">
+                  <span className="text-[10px] leading-none px-1.5 py-1 rounded-full shrink-0 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-800 font-mono">
                     {gatewayProducts.length}
                   </span>
                 )}
@@ -3933,13 +3965,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
               <button
                 type="button"
                 onClick={() => setCheckoutMode("custom")}
-                className={`flex-1 py-1.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`min-w-0 px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
                   checkoutMode === "custom"
                     ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
                     : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                 }`}
               >
-                <span>Custom One-Time Amount</span>
+                <span className="truncate"><span className="sm:hidden">Custom Amount</span><span className="hidden sm:inline">Custom One-Time Amount</span></span>
               </button>
             </div>
 
@@ -4055,22 +4087,37 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     <label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">
                       Select Gateway
                     </label>
-                    <div className="grid grid-cols-3 gap-2 mt-1">
-                      {(["stripe", "lemonsqueezy", "polar"] as const).map((prov) => (
-                        <button
-                          key={prov}
-                          type="button"
-                          onClick={() => setPaymentProvider(prov)}
-                          className={`py-2 px-3 rounded-xl border text-xs font-bold capitalize transition-all cursor-pointer ${
-                            paymentProvider === prov
-                              ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                              : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300"
-                          }`}
-                        >
-                          {prov === "lemonsqueezy" ? "Lemon Squeezy" : prov === "polar" ? "Polar.sh" : "Stripe"}
-                        </button>
-                      ))}
-                    </div>
+                    {!gatewaysLoaded ? (
+                      <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-400">
+                        <Loader2 className="size-3.5 animate-spin" /> Checking connected gateways...
+                      </div>
+                    ) : connectedGateways.length === 0 ? (
+                      <p className="mt-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+                        No payment gateway is connected. Connect Stripe, PayPal, Lemon Squeezy, or Polar in Dashboard → Integrations first.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {connectedGateways.map((prov) => (
+                          <button
+                            key={prov}
+                            type="button"
+                            onClick={() => setPaymentProvider(prov)}
+                            className={`px-3.5 py-2 rounded-xl border text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                              paymentProvider === prov
+                                ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300"
+                            }`}
+                          >
+                            {prov === "lemonsqueezy" ? "Lemon Squeezy" : prov === "polar" ? "Polar.sh" : prov === "paypal" ? "PayPal" : "Stripe"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {paymentProvider === "lemonsqueezy" && (
+                      <p className="mt-2 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                        Lemon Squeezy cannot create products on the fly. The custom amount re-prices an existing variant from your store (the first synced product).
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -4126,26 +4173,26 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   PCI-DSS Level 1 Hosted Checkout
                 </span>
                 <span className="font-mono text-[10px] uppercase font-bold text-neutral-400">
-                  {checkoutMode === "catalog" && selectedProduct ? selectedProduct.provider : paymentProvider}
+                  {checkoutMode === "catalog" && selectedProduct ? selectedProduct.provider : paymentProvider || "-"}
                 </span>
               </div>
 
               {/* Modal Footer */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800">
+              <div className="pt-3 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800">
                 <button
                   type="button"
                   onClick={() => setPaymentModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={paymentBusy || (checkoutMode === "catalog" && !selectedProduct)}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  disabled={paymentBusy || !gatewaysLoaded || connectedGateways.length === 0 || (checkoutMode === "catalog" && !selectedProduct)}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50 min-w-0"
                 >
                   {paymentBusy && <Loader2 className="size-3.5 animate-spin" />}
-                  <span>
+                  <span className="truncate">
                     {checkoutMode === "catalog" && selectedProduct
                       ? `Send "${selectedProduct.name}" (${selectedProduct.formatted_price})`
                       : "Generate & Send Card"}

@@ -47,7 +47,7 @@ class BookingPaymentService:
                     row["webhook_secret"] = decrypt_secret(row["webhook_secret_encrypted"])
                 return row
         except Exception as e:
-            logger.warning("Could not fetch payment integration for bot %s: %s", bot_id, e)
+            logger.warning("Could not fetch payment integration for bot %s: %s", str(bot_id).replace("\r", "").replace("\n", ""), type(e).__name__)
         return None
 
     async def create_checkout_session(
@@ -74,7 +74,7 @@ class BookingPaymentService:
         # Enforce AI Agent Restriction Setting
         if caller == "ai" and integration:
             if not integration.get("ai_payment_allowed", True):
-                logger.info("AI payment checkout restricted by policy for bot %s", bot_id)
+                logger.info("AI payment checkout restricted by policy for bot %s", str(bot_id).replace("\r", "").replace("\n", ""))
                 return {
                     "requires_payment": True,
                     "ai_restricted": True,
@@ -112,7 +112,11 @@ class BookingPaymentService:
                     session_id = res["session_id"]
                 elif provider == "lemonsqueezy":
                     store_id = extra.get("store_id") or ""
+                    variant_id = await PaymentGatewaysService.resolve_lemonsqueezy_variant(
+                        secret, store_id, event_type.get("lemonsqueezy_variant_id")
+                    )
                     res = await PaymentGatewaysService.create_lemonsqueezy_checkout(
+                        variant_id=variant_id,
                         api_key=secret,
                         store_id=store_id,
                         amount_cents=price_cents,
@@ -120,6 +124,21 @@ class BookingPaymentService:
                         title=title,
                         customer_email=attendee_email,
                         success_url=success_url,
+                        metadata=metadata,
+                    )
+                    checkout_url = res["checkout_url"]
+                    session_id = res["session_id"]
+                elif provider == "paypal":
+                    res = await PaymentGatewaysService.create_paypal_checkout(
+                        client_id=integration.get("publishable_key") or "",
+                        client_secret=secret,
+                        test_mode=bool(integration.get("test_mode", True)),
+                        amount_cents=price_cents,
+                        currency=currency,
+                        title=title,
+                        customer_email=attendee_email,
+                        success_url=success_url,
+                        cancel_url=cancel_url,
                         metadata=metadata,
                     )
                     checkout_url = res["checkout_url"]
@@ -139,7 +158,7 @@ class BookingPaymentService:
                     checkout_url = res["checkout_url"]
                     session_id = res["session_id"]
             except Exception as e:
-                logger.exception("Failed to create %s checkout session: %s", provider, e)
+                logger.exception("Failed to create %s checkout session", str(provider).replace("\r", "").replace("\n", ""))
 
         # Fallback to Server Environment Stripe or Simulation
         if not checkout_url:

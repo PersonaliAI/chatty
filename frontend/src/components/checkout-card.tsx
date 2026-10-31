@@ -28,6 +28,13 @@ export function CheckoutCard({ data, primaryColor = "#f97316" }: CheckoutCardPro
         accent: "#ffc233",
       };
     }
+    if (p === "paypal") {
+      return {
+        name: "PayPal",
+        badgeBg: "bg-sky-500/10 text-sky-800 dark:text-sky-400 border-sky-500/20",
+        accent: "#003087",
+      };
+    }
     if (p === "polar") {
       return {
         name: "Polar.sh",

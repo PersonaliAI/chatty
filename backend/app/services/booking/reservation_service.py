@@ -132,7 +132,7 @@ class ReservationService:
             raise HTTPException(status_code=500, detail="Failed to persist booking reservation")
 
         created = res.data[0]
-        logger.info("Successfully created meeting: %s for %s", created["id"], req.visitor_email)
+        logger.info("Successfully created meeting: %s", str(created["id"]).replace("\r", "").replace("\n", ""))
         return created
 
     async def reschedule_booking(

@@ -41,7 +41,8 @@ class InboxSendCheckoutRequest(BaseModel):
     currency: str = Field("usd", min_length=3, max_length=5)
     title: str = Field(..., min_length=2, max_length=255)
     customer_email: Optional[str] = None
-    provider: Optional[str] = None  # stripe, lemonsqueezy, polar (or default active)
+    provider: Optional[str] = None  # stripe, lemonsqueezy, polar, paypal (or default active)
+    variant_id: Optional[str] = Field(None, max_length=64)
 
 
 def _mask_key(key: Optional[str]) -> Optional[str]:
@@ -75,7 +76,7 @@ async def get_bot_payment_integrations(
     rows = {r["provider"]: r for r in (res.data or [])}
 
     providers_status = {}
-    for p in ["stripe", "lemonsqueezy", "polar"]:
+    for p in ["stripe", "lemonsqueezy", "polar", "paypal"]:
         row = rows.get(p)
         if row:
             providers_status[p] = {
@@ -173,7 +174,7 @@ async def connect_payment_gateway(
     """Verify credentials and securely encrypt keys at rest."""
     await verify_bot_permission(user, bot_id, required_tab="sources")
     prov = provider.lower().strip()
-    if prov not in {"stripe", "lemonsqueezy", "polar"}:
+    if prov not in {"stripe", "lemonsqueezy", "polar", "paypal"}:
         raise HTTPException(status_code=400, detail="Unsupported payment provider")
 
     # 1. Live Verification Ping
@@ -189,15 +190,25 @@ async def connect_payment_gateway(
             )
             if test_res.get("store_id"):
                 extra["store_id"] = test_res["store_id"]
+        elif prov == "paypal":
+            if not (body.publishable_key or "").strip():
+                raise HTTPException(status_code=400, detail="PayPal requires the REST app Client ID")
+            test_res = await PaymentGatewaysService.verify_paypal(
+                body.publishable_key, body.secret_key, test_mode=body.test_mode
+            )
         elif prov == "polar":
             test_res = await PaymentGatewaysService.verify_polar(
                 body.secret_key, organization_id=extra.get("organization_id")
             )
             if test_res.get("organization_id"):
                 extra["organization_id"] = test_res["organization_id"]
-    except Exception as e:
-        logger.exception("Verification call failed for %s: %s", prov, e)
-        raise HTTPException(status_code=400, detail=f"Failed to connect {prov}: {str(e)}")
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Verification call failed for %s", prov)
+        raise HTTPException(status_code=400, detail=f"Failed to connect {prov}. Check your credentials and try again.")
 
     if not test_res.get("valid"):
         raise HTTPException(
@@ -315,7 +326,7 @@ async def inbox_send_checkout_link(
     if not res.data:
         raise HTTPException(
             status_code=400,
-            detail="No active payment gateway connected. Please connect Stripe, Lemon Squeezy, or Polar in Integrations.",
+            detail="No active payment gateway connected. Please connect Stripe, PayPal, Lemon Squeezy, or Polar in Integrations.",
         )
 
     integration = res.data[0]
@@ -343,8 +354,25 @@ async def inbox_send_checkout_link(
                 cancel_url=cancel_url,
                 metadata=metadata,
             )
+        elif prov == "paypal":
+            checkout_res = await PaymentGatewaysService.create_paypal_checkout(
+                client_id=integration.get("publishable_key") or "",
+                client_secret=secret,
+                test_mode=bool(integration.get("test_mode", True)),
+                amount_cents=body.amount_cents,
+                currency=body.currency,
+                title=body.title,
+                customer_email=body.customer_email,
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata=metadata,
+            )
         elif prov == "lemonsqueezy":
+            variant_id = await PaymentGatewaysService.resolve_lemonsqueezy_variant(
+                secret, extra.get("store_id"), body.variant_id
+            )
             checkout_res = await PaymentGatewaysService.create_lemonsqueezy_checkout(
+                variant_id=variant_id,
                 api_key=secret,
                 store_id=extra.get("store_id") or "",
                 amount_cents=body.amount_cents,
@@ -367,9 +395,14 @@ async def inbox_send_checkout_link(
             )
         else:
             raise HTTPException(status_code=400, detail="Unsupported provider")
-    except Exception as e:
-        logger.exception("Failed to create checkout link: %s", e)
-        raise HTTPException(status_code=500, detail=f"Checkout generation failed: {str(e)}")
+    except HTTPException:
+        raise
+    except (RuntimeError, ValueError) as e:
+        logger.warning("Checkout generation rejected for %s: %s", prov, type(e).__name__)
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Failed to create checkout link for %s", prov)
+        raise HTTPException(status_code=500, detail="Checkout generation failed. Please try again.")
 
     checkout_url = checkout_res["checkout_url"]
 

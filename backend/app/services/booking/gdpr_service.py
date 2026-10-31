@@ -81,7 +81,7 @@ class BookingGDPRService:
             )
 
         await self.run_db(_update_records)
-        logger.info("Scrubbed %d booking records for GDPR request on %s", len(target_ids), clean_email)
+        logger.info("Scrubbed %d booking records for GDPR request", len(target_ids))
 
         return {
             "email": clean_email,
