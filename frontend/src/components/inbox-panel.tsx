@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { InboxIdentitySettings } from "./inbox-identity-settings";
+import { SendCheckoutModal } from "./send-checkout-modal";
 import "./inbox-workspace.css";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
@@ -96,7 +97,7 @@ function capitalize(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
-/* ── Canned Responses helpers ─────────────────────────────────── */
+/* â”€â”€ Canned Responses helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface CannedResponse {
   id: string;
   shortcut: string;   // e.g. "greeting"
@@ -144,7 +145,7 @@ async function audioBlobToWav(blob: Blob): Promise<Blob> {
   return new Blob([view], { type: "audio/wav" });
 }
 
-/* ── Helpdesk Engine Interfaces & Configurations ───────────────── */
+/* â”€â”€ Helpdesk Engine Interfaces & Configurations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 interface Session {
   id: string;
   session_id: string;
@@ -318,13 +319,13 @@ function getSlaState(s: Session): SlaState | null {
   if (status === "resolved" || status === "closed") {
     if (s.sla_status === "breached") {
       return {
-        label: "⚠️ SLA Breached",
+        label: "âš ï¸ SLA Breached",
         badge: "bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 font-medium",
         isBreached: true,
       };
     }
     return {
-      label: "✅ SLA Met",
+      label: "âœ… SLA Met",
       badge: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium",
       isBreached: false,
     };
@@ -338,20 +339,20 @@ function getSlaState(s: Session): SlaState | null {
     const diff = due - now;
     if (diff < 0) {
       return {
-        label: `🚨 Breached ${formatTimeRemaining(diff)} ago`,
+        label: `ðŸš¨ Breached ${formatTimeRemaining(diff)} ago`,
         badge: "bg-red-500 text-white font-bold animate-pulse shadow-sm",
         isBreached: true,
       };
     }
     if (diff <= 5 * 60 * 1000) {
       return {
-        label: `⚠️ ${formatTimeRemaining(diff)} left (Resp)`,
+        label: `âš ï¸ ${formatTimeRemaining(diff)} left (Resp)`,
         badge: "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40",
         isBreached: false,
       };
     }
     return {
-      label: `⏱️ ${formatTimeRemaining(diff)} left`,
+      label: `â±ï¸ ${formatTimeRemaining(diff)} left`,
       badge: "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 font-medium",
       isBreached: false,
     };
@@ -363,20 +364,20 @@ function getSlaState(s: Session): SlaState | null {
     const diff = due - now;
     if (diff < 0) {
       return {
-        label: `🚨 Breached ${formatTimeRemaining(diff)} ago (Res)`,
+        label: `ðŸš¨ Breached ${formatTimeRemaining(diff)} ago (Res)`,
         badge: "bg-red-500 text-white font-bold animate-pulse shadow-sm",
         isBreached: true,
       };
     }
     if (diff <= 30 * 60 * 1000) {
       return {
-        label: `⚠️ ${formatTimeRemaining(diff)} left (Res)`,
+        label: `âš ï¸ ${formatTimeRemaining(diff)} left (Res)`,
         badge: "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/40",
         isBreached: false,
       };
     }
     return {
-      label: `⏱️ ${formatTimeRemaining(diff)} left`,
+      label: `â±ï¸ ${formatTimeRemaining(diff)} left`,
       badge: "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 font-medium",
       isBreached: false,
     };
@@ -568,7 +569,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const emojiButtonRef = useRef<HTMLButtonElement | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
-  // ── Helpdesk Engine State ──
+  // â”€â”€ Helpdesk Engine State â”€â”€
   const [selectedStatusTab, setSelectedStatusTab] = useState<InboxStatusTab>("open");
   const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>("all");
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>("all");
@@ -578,7 +579,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
 
-  // ── Omnichannel Routing & Presence State (Pillar 3) ──
+  // â”€â”€ Omnichannel Routing & Presence State (Pillar 3) â”€â”€
   const [myPresence, setMyPresence] = useState<{
     status: "online" | "away" | "busy" | "offline";
     max_capacity: number;
@@ -621,17 +622,17 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return merged;
   }, [assignees, teamPresence]);
 
-  // ── Agent Collision Detection State ──
+  // â”€â”€ Agent Collision Detection State â”€â”€
   const [activeViewers, setActiveViewers] = useState<ActiveViewer[]>([]);
 
-  // ── AI Copilot State ──
+  // â”€â”€ AI Copilot State â”€â”€
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [savingSummaryAsNote, setSavingSummaryAsNote] = useState(false);
   const [threadSummary, setThreadSummary] = useState<ThreadSummary | null>(null);
 
-  // ── Automation Rules State ──
+  // â”€â”€ Automation Rules State â”€â”€
   const [rulesModalOpen, setRulesModalOpen] = useState(false);
   const [automationRules, setAutomationRules] = useState<AutomationRuleItem[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
@@ -718,7 +719,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [tags, setTags] = useState<Record<string, string[]>>({});
   const PREDEFINED_TAGS = ["VIP", "Bug", "Billing", "Feature Request", "Urgent", "Lead"];
 
-  // ── Canned Responses state ──
+  // â”€â”€ Canned Responses state â”€â”€
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>(() =>
     typeof window === "undefined" ? [] : loadCannedResponses()
   );
@@ -888,7 +889,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     (c) => !cannedFilter || c.shortcut.includes(cannedFilter) || c.text.toLowerCase().includes(cannedFilter)
   );
 
-  // ── Knowledge Base Quick-Insert state ──
+  // â”€â”€ Knowledge Base Quick-Insert state â”€â”€
   const [waTemplateOpen, setWaTemplateOpen] = useState(false);
   const [waTemplates, setWaTemplates] = useState<WhatsAppTemplateItem[]>([]);
   const [loadingWaTemplates, setLoadingWaTemplates] = useState(false);
@@ -1035,7 +1036,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return /\b(book|booking|schedule|demo|meeting|appointment|call|slots?|calendar)\b/i.test(visitorLastMsg);
   }, [visitorLastMsg]);
 
-  // ── Load Sessions, Messages, Notes, and Assignees ──
+  // â”€â”€ Load Sessions, Messages, Notes, and Assignees â”€â”€
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
     try {
@@ -1274,7 +1275,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return () => clearInterval(id);
   }, [selected, loadSessions, loadMessages, loadPresence]);
 
-  // ── Agent Collision Detection & Viewer Heartbeat ──
+  // â”€â”€ Agent Collision Detection & Viewer Heartbeat â”€â”€
   const sendHeartbeatAndFetchViewers = useCallback(async (sid: string) => {
     try {
       await fetchBackend("/api/admin/inbox/session/heartbeat", {
@@ -1302,7 +1303,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     return () => clearInterval(interval);
   }, [selected, sendHeartbeatAndFetchViewers]);
 
-  // ── AI Copilot (Draft Reply & Summarizer) ──
+  // â”€â”€ AI Copilot (Draft Reply & Summarizer) â”€â”€
   const handleAiDraftReply = async () => {
     if (!selected) return;
     setGeneratingDraft(true);
@@ -1359,7 +1360,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const handleSaveSummaryAsNote = async () => {
     if (!threadSummary || !selected) return;
     setSavingSummaryAsNote(true);
-    const bullets = (threadSummary.bullet_points || []).map((b) => `• ${b}`).join("\n");
+    const bullets = (threadSummary.bullet_points || []).map((b) => `â€¢ ${b}`).join("\n");
     const formattedNote = `[AI Conversation Summary]\n${threadSummary.summary}\n\nKey Takeaways:\n${bullets}\n\nSentiment: ${threadSummary.sentiment}\nRecommended Action: ${threadSummary.recommended_action}`;
     try {
       const res = await fetchBackend("/api/admin/inbox/notes", {
@@ -1382,7 +1383,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   };
 
-  // ── Automation Rules Engine Operations ──
+  // â”€â”€ Automation Rules Engine Operations â”€â”€
   const loadAutomationRules = useCallback(async () => {
     if (!botId) return;
     setLoadingRules(true);
@@ -1444,7 +1445,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   };
 
-  // ── Session Update (Helpdesk Lifecycle Engine) ──
+  // â”€â”€ Session Update (Helpdesk Lifecycle Engine) â”€â”€
   const updateSession = useCallback(async (sid: string, patch: Partial<Session> & { unassign?: boolean }) => {
     setSessions((prev) => prev.map((s) => {
       if (s.session_id !== sid) return s;
@@ -1518,7 +1519,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     updateSession(sid, { tags: newTags });
   };
 
-  // ── Staff Notes Operations ──
+  // â”€â”€ Staff Notes Operations â”€â”€
   const addNote = async () => {
     if (!noteDraft.trim() || !selected) return;
     const text = noteDraft.trim();
@@ -1552,7 +1553,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   };
 
-  // ── Conversation Reply and Actions ──
+  // â”€â”€ Conversation Reply and Actions â”€â”€
   const setFeedback = useCallback(async (messageId: string, rating: "up" | "down" | null, correction?: string) => {
     setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, feedback_rating: rating, correction: correction ?? m.correction } : m)));
     try {
@@ -1613,7 +1614,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   }, [botId, fetchBackend]);
 
   useEffect(() => {
-    if (paymentModalOpen) {
+    if (false && paymentModalOpen) {
       setGatewaysLoaded(false);
       void loadConnectedGateways();
       void loadGatewayProducts();
@@ -1769,7 +1770,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         if (activeSessionRef.current !== selected) return;
         const { latitude, longitude } = pos.coords;
         const link = `https://www.google.com/maps?q=${latitude},${longitude}`;
-        setReply((v) => (v.trim() ? `${v} 📍 ${link}` : `📍 Location: ${link}`));
+        setReply((v) => (v.trim() ? `${v} ðŸ“ ${link}` : `ðŸ“ Location: ${link}`));
       },
       () => showToast("Couldn't access your location.", "error"),
       { enableHighAccuracy: true, timeout: 10000 }
@@ -1842,7 +1843,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     } catch {}
   };
 
-  // ── Ticket Counters & Filtering ──
+  // â”€â”€ Ticket Counters & Filtering â”€â”€
   const ticketCounts = {
     all: sessions.length,
     unassigned: sessions.filter((s) => !s.assigned_agent_email && isHumanQueueTicket(s) && (s.status || "open") !== "resolved" && (s.status || "open") !== "closed").length,
@@ -1941,7 +1942,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
 
   return (
     <div className="inbox-shell space-y-4" data-conversation-open={Boolean(selected)} data-navigation-collapsed={navigationCollapsed} data-details-open={visitorDetailsOpen && Boolean(selected)}>
-      {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
+      {/* â”€â”€ Omnichannel Routing, Agent Presence & Live Queue Bar â”€â”€ */}
       <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
         <div data-inbox-presence className="flex items-center gap-3">
@@ -2147,7 +2148,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <button type="button" onClick={() => { setSelectedStatusTab("all"); setSelectedAssigneeFilter("all"); setSelectedPriorityFilter("all"); setSelectedChannelFilter("all"); setSelectedTagFilter("all"); setSearchQuery(""); }}>Clear filters</button>
           </div>
         </nav>
-        {/* ── Sessions / Tickets List Pane ── */}
+        {/* â”€â”€ Sessions / Tickets List Pane â”€â”€ */}
         <div className="inbox-queue bg-white dark:bg-neutral-900 flex flex-col">
           <div className="inbox-pane-title">
             <h2>{selectedAssigneeFilter === "me" ? "My inbox" : selectedAssigneeFilter === "mentions" ? "Mentions" : selectedStatusTab === "all" ? "All conversations" : capitalize(selectedStatusTab)}</h2>
@@ -2329,7 +2330,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   )}
 
                   <p className="text-[10px] text-neutral-400 truncate mt-0.5">
-                    {formatMessagePreview(s.last_message) || "…"}
+                    {formatMessagePreview(s.last_message) || "â€¦"}
                   </p>
 
                   {/* Badges Row: Priority, SLA, Channel, Assignee, Tags */}
@@ -2419,7 +2420,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       </div>
 
-      {/* ── Ticket Detail & Workspace Pane ── */}
+      {/* â”€â”€ Ticket Detail & Workspace Pane â”€â”€ */}
       <div className="inbox-conversation bg-white dark:bg-neutral-900 overflow-hidden flex flex-col">
         {!selected ? (
           <div className="flex-1 flex flex-col items-center justify-center text-xs text-neutral-400 p-8 space-y-2">
@@ -2680,7 +2681,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     }}
                     className="text-[10px] font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer"
                   >
-                    🏷️ Tags
+                    ðŸ·ï¸ Tags
                   </button>
                   {tagPopoverOpen && (
                     <MobilePopoverPortal>
@@ -2699,7 +2700,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                               className="w-full text-left px-2 py-1 rounded hover:bg-neutral-50 dark:hover:bg-neutral-850 text-[10px] flex items-center justify-between cursor-pointer"
                             >
                               <span>{t}</span>
-                              {hasTag && <span className="text-green-600 font-bold">✓</span>}
+                              {hasTag && <span className="text-green-600 font-bold">âœ“</span>}
                             </button>
                           );
                         })}
@@ -3304,7 +3305,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                   onChange={handleReplyChange}
                   onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); if (!sending && !recording) void sendComposer(); } }}
                   onFocus={() => { setEmojiOpen(false); setAttachOpen(false); setMobileActionsOpen(false); }}
-                  placeholder={recording ? "Recording… tap ◼ to send" : composerMode === "note" ? "Add a private note for your team… Type @ to mention a teammate" : "Type a reply (this takes over ticket from AI)…"}
+                  placeholder={recording ? "Recordingâ€¦ tap â—¼ to send" : composerMode === "note" ? "Add a private note for your teamâ€¦ Type @ to mention a teammate" : "Type a reply (this takes over ticket from AI)â€¦"}
                   disabled={sending || recording}
                   className="inbox-reply-textarea w-full bg-transparent text-sm focus:outline-none disabled:opacity-60 mb-1.5"
                 />
@@ -3526,7 +3527,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       </>} /></aside>}
     </div>
 
-      {/* ── Toast Notification ── */}
+      {/* â”€â”€ Toast Notification â”€â”€ */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-[9999] flex items-center gap-3 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-4 py-3 shadow-2xl text-xs font-semibold text-neutral-855 dark:text-white animate-in slide-in-from-bottom-5 fade-in duration-300">
           {toast.type === "success" ? (
@@ -3548,7 +3549,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* ── Canned Responses Management Dialog ── */}
+      {/* â”€â”€ Canned Responses Management Dialog â”€â”€ */}
       {cannedManageOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Quick responses" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-5 max-w-md w-full shadow-2xl text-neutral-900 dark:text-neutral-100">
@@ -3599,7 +3600,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* ── Confirm Dialog ── */}
+      {/* â”€â”€ Confirm Dialog â”€â”€ */}
       {confirmModal && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="alertdialog" aria-modal="true" aria-label={confirmModal.title} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100">
@@ -3631,7 +3632,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* ── AI Summarize Dialog ── */}
+      {/* â”€â”€ AI Summarize Dialog â”€â”€ */}
       {summaryModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Copilot Summary" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150">
@@ -3665,7 +3666,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 <div className="flex items-center justify-between bg-neutral-50 dark:bg-neutral-950 p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-850">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Customer Sentiment</span>
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-lg bg-neutral-200/60 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 capitalize">
-                    {threadSummary.sentiment === "frustrated" || threadSummary.sentiment === "angry" ? "⚠️ " : threadSummary.sentiment === "positive" ? "😊 " : "💬 "}
+                    {threadSummary.sentiment === "frustrated" || threadSummary.sentiment === "angry" ? "âš ï¸ " : threadSummary.sentiment === "positive" ? "ðŸ˜Š " : "ðŸ’¬ "}
                     {threadSummary.sentiment}
                   </span>
                 </div>
@@ -3685,7 +3686,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                     <ul className="space-y-1 bg-neutral-50 dark:bg-neutral-950 p-3 rounded-xl border border-neutral-100 dark:border-neutral-850">
                       {threadSummary.bullet_points.map((pt, idx) => (
                         <li key={idx} className="flex items-start gap-2 text-xs text-neutral-700 dark:text-neutral-300">
-                          <span className="text-amber-500 font-bold">•</span>
+                          <span className="text-amber-500 font-bold">â€¢</span>
                           <span>{pt}</span>
                         </li>
                       ))}
@@ -3746,7 +3747,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* ── Automation Rules Dialog ── */}
+      {/* â”€â”€ Automation Rules Dialog â”€â”€ */}
       {rulesModalOpen && (
         <div className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Ticket Automation Rules" className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-xl w-full space-y-4 shadow-2xl text-neutral-900 dark:text-neutral-100 animate-in fade-in zoom-in-95 duration-150 max-h-[90dvh] overflow-y-auto overflow-x-hidden chatty-custom-scrollbar scrollbar-thin">
@@ -3919,290 +3920,20 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         </div>
       )}
 
-      {/* Send Checkout / Payment Modal with Gateway Products & Pricings */}
-      {paymentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            {/* Modal Header */}
-            <div className="p-4 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/50 dark:bg-neutral-950/50 sticky top-0 z-10">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="size-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 shrink-0">
-                  <CreditCard className="size-4" />
-                </div>
-                <div className="min-w-0">
-                  <h4 className="text-sm font-bold text-neutral-900 dark:text-white leading-tight">Send Checkout Link</h4>
-                  <p className="text-[11px] leading-snug text-neutral-400 mt-0.5">Send a secure in-chat payment card.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPaymentModalOpen(false)}
-                className="p-2 -mr-1 shrink-0 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 rounded-lg cursor-pointer"
-                aria-label="Close"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-
-            {/* Mode Switcher Tabs */}
-            <div className="p-3 border-b border-neutral-100 dark:border-neutral-800 grid grid-cols-2 gap-2 bg-neutral-50/30 dark:bg-neutral-950/30">
-              <button
-                type="button"
-                onClick={() => setCheckoutMode("catalog")}
-                className={`min-w-0 px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
-                  checkoutMode === "catalog"
-                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
-                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                }`}
-              >
-                <span className="truncate"><span className="sm:hidden">Products</span><span className="hidden sm:inline">Synced Products &amp; Plans</span></span>
-                {gatewayProducts.length > 0 && (
-                  <span className="text-[10px] leading-none px-1.5 py-1 rounded-full shrink-0 bg-neutral-700 text-white dark:bg-neutral-200 dark:text-neutral-800 font-mono">
-                    {gatewayProducts.length}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setCheckoutMode("custom")}
-                className={`min-w-0 px-3 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all cursor-pointer ${
-                  checkoutMode === "custom"
-                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
-                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                }`}
-              >
-                <span className="truncate"><span className="sm:hidden">Custom Amount</span><span className="hidden sm:inline">Custom One-Time Amount</span></span>
-              </button>
-            </div>
-
-            {/* Modal Body Form */}
-            <form onSubmit={handleSendPaymentCheckout} className="p-5 space-y-4 overflow-y-auto flex-1">
-              {/* TAB A: CATALOG PRODUCTS & PRICING PLANS */}
-              {checkoutMode === "catalog" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                      Select Pre-Configured Product or Plan:
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => void loadGatewayProducts()}
-                      className="text-[11px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 flex items-center gap-1 cursor-pointer"
-                    >
-                      <RefreshCw className={`size-3 ${loadingGatewayProducts ? "animate-spin text-[#f97316]" : ""}`} />
-                      <span>Refresh</span>
-                    </button>
-                  </div>
-
-                  {loadingGatewayProducts ? (
-                    <div className="p-8 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex items-center justify-center">
-                      <Loader2 className="size-5 animate-spin text-[#f97316]" />
-                    </div>
-                  ) : gatewayProducts.length === 0 ? (
-                    <div className="p-6 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-2xl text-center space-y-2">
-                      <p className="text-xs text-neutral-500">No products synced from connected gateways yet.</p>
-                      <button
-                        type="button"
-                        onClick={() => setCheckoutMode("custom")}
-                        className="text-xs text-[#f97316] font-semibold hover:underline cursor-pointer"
-                      >
-                        Switch to Custom Amount &rarr;
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Search box for products */}
-                      <div className="relative">
-                        <Search className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                        <input
-                          type="text"
-                          value={productSearch}
-                          onChange={(e) => setProductSearch(e.target.value)}
-                          placeholder="Search product title, plan..."
-                          className="w-full text-xs pl-8 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
-
-                      {/* Products List */}
-                      <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                        {gatewayProducts
-                          .filter((p) =>
-                            p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                            p.provider.toLowerCase().includes(productSearch.toLowerCase())
-                          )
-                          .map((prod) => {
-                            const isSelected = selectedProduct?.id === prod.id && selectedProduct?.provider === prod.provider;
-                            return (
-                              <button
-                                key={`${prod.provider}-${prod.id}-${prod.price_id}`}
-                                type="button"
-                                onClick={() => setSelectedProduct(prod)}
-                                className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
-                                  isSelected
-                                    ? "border-emerald-500 bg-emerald-500/5 dark:bg-emerald-500/10 ring-1 ring-emerald-500"
-                                    : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 bg-white dark:bg-neutral-900"
-                                }`}
-                              >
-                                <div className="space-y-0.5 min-w-0 pr-3">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold text-neutral-900 dark:text-white truncate">
-                                      {prod.name}
-                                    </span>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-neutral-100 dark:bg-neutral-800 uppercase font-semibold text-neutral-600 dark:text-neutral-400">
-                                      {prod.provider}
-                                    </span>
-                                    {prod.recurring && (
-                                      <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
-                                        Recurring
-                                      </span>
-                                    )}
-                                  </div>
-                                  {prod.description && (
-                                    <p className="text-[11px] text-neutral-400 line-clamp-1">{prod.description}</p>
-                                  )}
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                                    {prod.formatted_price}
-                                  </span>
-                                  {isSelected && (
-                                    <div className="flex justify-end mt-1 text-emerald-600">
-                                      <Check className="size-3.5" />
-                                    </div>
-                                  )}
-                                </div>
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* TAB B: CUSTOM AMOUNT & TITLE */}
-              {checkoutMode === "custom" && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">
-                      Select Gateway
-                    </label>
-                    {!gatewaysLoaded ? (
-                      <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-400">
-                        <Loader2 className="size-3.5 animate-spin" /> Checking connected gateways...
-                      </div>
-                    ) : connectedGateways.length === 0 ? (
-                      <p className="mt-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
-                        No payment gateway is connected. Connect Stripe, PayPal, Lemon Squeezy, or Polar in Dashboard → Integrations first.
-                      </p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {connectedGateways.map((prov) => (
-                          <button
-                            key={prov}
-                            type="button"
-                            onClick={() => setPaymentProvider(prov)}
-                            className={`px-3.5 py-2 rounded-xl border text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                              paymentProvider === prov
-                                ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300"
-                            }`}
-                          >
-                            {prov === "lemonsqueezy" ? "Lemon Squeezy" : prov === "polar" ? "Polar.sh" : prov === "paypal" ? "PayPal" : "Stripe"}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    {paymentProvider === "lemonsqueezy" && (
-                      <p className="mt-2 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                        Lemon Squeezy cannot create products on the fly. The custom amount re-prices an existing variant from your store (the first synced product).
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">
-                      Item Description / Title
-                    </label>
-                    <input
-                      type="text"
-                      value={paymentTitle}
-                      onChange={(e) => setPaymentTitle(e.target.value)}
-                      placeholder="e.g. 1-Hour Strategy Session"
-                      className="w-full mt-1 text-xs px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">
-                        Amount
-                      </label>
-                      <div className="relative mt-1">
-                        <DollarSign className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.50"
-                          value={paymentAmount}
-                          onChange={(e) => setPaymentAmount(e.target.value)}
-                          className="w-full text-xs pl-8 pr-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wide">
-                        Currency
-                      </label>
-                      <input
-                        type="text"
-                        value={paymentCurrency}
-                        onChange={(e) => setPaymentCurrency(e.target.value.toLowerCase())}
-                        placeholder="usd"
-                        className="w-full mt-1 text-xs px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 uppercase font-mono text-center focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Security Banner */}
-              <div className="p-3 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800/80 flex items-center justify-between text-[11px] text-neutral-500">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <ShieldCheck className="size-3.5 text-emerald-500" />
-                  PCI-DSS Level 1 Hosted Checkout
-                </span>
-                <span className="font-mono text-[10px] uppercase font-bold text-neutral-400">
-                  {checkoutMode === "catalog" && selectedProduct ? selectedProduct.provider : paymentProvider || "-"}
-                </span>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="pt-3 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800">
-                <button
-                  type="button"
-                  onClick={() => setPaymentModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={paymentBusy || !gatewaysLoaded || connectedGateways.length === 0 || (checkoutMode === "catalog" && !selectedProduct)}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50 min-w-0"
-                >
-                  {paymentBusy && <Loader2 className="size-3.5 animate-spin" />}
-                  <span className="truncate">
-                    {checkoutMode === "catalog" && selectedProduct
-                      ? `Send "${selectedProduct.name}" (${selectedProduct.formatted_price})`
-                      : "Generate & Send Card"}
-                  </span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Send Checkout / Payment Modal (isolated memoized component for zero-lag selection) */}
+      <SendCheckoutModal
+        open={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        botId={botId}
+        sessionId={selected}
+        visitorEmail={current?.visitor_email}
+        fetchBackend={fetchBackend}
+        showToast={showToast}
+        onSuccess={(sid) => {
+          loadMessages(sid);
+          loadSessions();
+        }}
+      />
     </div>
   );
 }

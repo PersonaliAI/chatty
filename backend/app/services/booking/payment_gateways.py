@@ -326,6 +326,7 @@ class PaymentGatewaysService:
             # 2. Resolve or create a Polar product matching the requested title & amount
             is_org_token = access_token.strip().startswith("polar_oat_")
             resolved_product_id = product_id.strip() if (product_id and str(product_id).strip()) else None
+            is_adhoc_custom = not bool(resolved_product_id)
 
             if not resolved_product_id:
                 list_url = f"{base_url}/v1/products/?is_archived=false&limit=100"
@@ -344,6 +345,7 @@ class PaymentGatewaysService:
                 prod_payload: dict[str, Any] = {
                     "name": clean_title,
                     "recurring_interval": None,
+                    "metadata": {"chatty_adhoc_custom": "true"},
                     "prices": [
                         {
                             "amount_type": "fixed",
@@ -397,6 +399,7 @@ class PaymentGatewaysService:
                     "session_id": data.get("id"),
                     "amount_cents": amount_cents,
                     "currency": currency,
+                    "adhoc_product_id": resolved_product_id if is_adhoc_custom else None,
                 }
             try:
                 err = res.json().get("detail", res.text)
@@ -443,6 +446,7 @@ class PaymentGatewaysService:
                 items.append({
                     "id": item["id"],
                     "price_id": item["id"],
+                    "variant_id": item["id"],
                     "product_id": prod.get("id") if isinstance(prod, dict) else prod,
                     "provider": "stripe",
                     "name": prod_name,
@@ -550,6 +554,9 @@ class PaymentGatewaysService:
 
             items = []
             for prod in res.json().get("items", []):
+                prod_meta = prod.get("metadata") or {}
+                if isinstance(prod_meta, dict) and str(prod_meta.get("chatty_adhoc_custom") or "").lower() in ("true", "1", "yes"):
+                    continue
                 prices = prod.get("prices") or []
                 primary_price = prices[0] if len(prices) > 0 else {}
                 amount_cents = primary_price.get("price_amount") or 0
@@ -562,6 +569,7 @@ class PaymentGatewaysService:
                 items.append({
                     "id": prod["id"],
                     "product_id": prod["id"],
+                    "variant_id": prod["id"],
                     "price_id": primary_price.get("id"),
                     "provider": "polar",
                     "name": prod.get("name") or "Polar Product",

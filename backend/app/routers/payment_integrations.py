@@ -191,6 +191,42 @@ async def list_gateway_products(
                 prods = await PaymentGatewaysService.fetch_polar_products(
                     secret, organization_id=extra.get("organization_id")
                 )
+                try:
+                    custom_orders_res = await run_db(
+                        lambda: supabase.table("chatty_orders")
+                        .select("title, amount_cents, metadata")
+                        .eq("bot_id", bot_id)
+                        .eq("provider", "polar")
+                        .eq("order_type", "custom_checkout")
+                        .limit(200)
+                        .execute()
+                    )
+                    adhoc_ids: set[str] = set()
+                    adhoc_title_amounts: set[tuple[str, int]] = set()
+                    for ord_row in (custom_orders_res.data or []):
+                        if not isinstance(ord_row, dict):
+                            continue
+                        ometa = ord_row.get("metadata") or {}
+                        if isinstance(ometa, dict) and ometa.get("adhoc_product_id"):
+                            adhoc_ids.add(str(ometa["adhoc_product_id"]))
+                        t_str = str(ord_row.get("title") or "").strip().lower()
+                        a_int = int(ord_row.get("amount_cents") or 0)
+                        if t_str and a_int > 0:
+                            adhoc_title_amounts.add((t_str, a_int))
+
+                    prods = [
+                        p
+                        for p in prods
+                        if str(p.get("id") or "") not in adhoc_ids
+                        and not (
+                            not p.get("recurring")
+                            and not p.get("description")
+                            and (str(p.get("name") or "").strip().lower(), int(p.get("amount_cents") or 0))
+                            in adhoc_title_amounts
+                        )
+                    ]
+                except Exception:
+                    pass
                 all_products.extend(prods)
         except Exception as e:
             logger.warning("Error fetching products from payment gateway (%s)", type(e).__name__)
@@ -633,6 +669,8 @@ async def inbox_send_checkout_link(
     await run_db(_insert_msg)
 
     # 2. Record Transaction in chatty_orders
+    if checkout_res.get("adhoc_product_id"):
+        metadata["adhoc_product_id"] = checkout_res["adhoc_product_id"]
     order_record = {
         "id": order_id,
         "bot_id": bot_id,
