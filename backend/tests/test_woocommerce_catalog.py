@@ -246,3 +246,130 @@ def test_search_reapplies_stock_filter_after_live_refresh(monkeypatch):
     monkeypatch.setattr(woocommerce_service, "refresh_live_product_facts", fake_refresh)
     results, _ = asyncio.run(multimodal_service.search_multimodal_catalog(bot_id="bot-1", query_text="shoe"))
     assert results == []
+
+
+
+def test_search_products_live_filters_by_price_sale_and_category(monkeypatch):
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+    monkeypatch.setattr(
+        woocommerce_service,
+        "run_db",
+        lambda callback: asyncio.sleep(0, result=SimpleNamespace(data=[])),
+    )
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    captured_params = {}
+
+    async def fake_request(client, method, url, **kwargs):
+        if url.endswith("/products/categories"):
+            return Response([{"id": 9, "name": "Hoodies", "slug": "hoodies", "count": 4}])
+        if url.endswith("/products"):
+            captured_params.update(kwargs.get("params") or {})
+            return Response([
+                {
+                    "id": 77,
+                    "type": "simple",
+                    "name": "Fleece Pullover Hoodie",
+                    "sku": "HD-77",
+                    "price": "39.00",
+                    "regular_price": "59.00",
+                    "sale_price": "39.00",
+                    "on_sale": True,
+                    "stock_status": "instock",
+                    "permalink": "https://shop.example/products/fleece-hoodie",
+                    "images": [{"src": "https://shop.example/images/hoodie.jpg"}],
+                    "categories": [{"id": 9, "name": "Hoodies"}],
+                    "short_description": "<p>Warm fleece pullover hoodie.</p>",
+                }
+            ])
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    res = asyncio.run(
+        woocommerce_service.search_products_live(
+            "bot-1",
+            category="Hoodies",
+            max_price=50.0,
+            on_sale=True,
+            sort_by="price_asc",
+        )
+    )
+    assert res["found"] is True
+    assert res["count"] == 1
+    assert captured_params["category"] == "9"
+    assert captured_params["max_price"] == "50.0"
+    assert captured_params["on_sale"] == "true"
+    assert captured_params["orderby"] == "price"
+    assert captured_params["order"] == "asc"
+    prod = res["products"][0]
+    assert prod["title"] == "Fleece Pullover Hoodie"
+    assert prod["price"] == 39.0
+    assert prod["on_sale"] is True
+    assert prod["product_card_token"].startswith("[PRODUCT_CARD:")
+    sanitized = multimodal_service.sanitize_product_cards(
+        f"Here is a hoodie on sale: {prod['product_card_token']}",
+        res["_catalog_items"],
+    )
+    assert '"title":"Fleece Pullover Hoodie"' in sanitized
+    assert '"price":39.0' in sanitized
+
+
+def test_get_store_info_live_validates_coupon_and_lists_categories(monkeypatch):
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    async def fake_request(client, method, url, **kwargs):
+        if url.endswith("/products/categories"):
+            return Response([{"id": 3, "name": "Skincare", "slug": "skincare", "count": 12, "description": "Natural skincare"}])
+        if url.endswith("/coupons"):
+            assert kwargs.get("params", {}).get("code") == "SAVE20"
+            return Response([{
+                "id": 10,
+                "code": "save20",
+                "amount": "20.00",
+                "discount_type": "percent",
+                "description": "20% off orders over $50",
+                "minimum_amount": "50.00",
+                "free_shipping": True,
+                "usage_limit": 100,
+                "usage_count": 14,
+                "date_expires_gmt": "2099-12-31T23:59:59",
+            }])
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    cats = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="categories"))
+    assert cats["found"] is True
+    assert cats["categories"][0]["name"] == "Skincare"
+    assert cats["categories"][0]["count"] == 12
+
+    coupon = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="coupon", coupon_code="SAVE20"))
+    assert coupon["found"] is True
+    assert coupon["valid"] is True
+    assert coupon["discount_type"] == "percent"
+    assert coupon["amount"] == "20.00"
+    assert coupon["free_shipping"] is True

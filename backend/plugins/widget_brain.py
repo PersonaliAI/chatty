@@ -261,6 +261,8 @@ def scheduling_tool_names(
             names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
     names.append("lookup_woocommerce_order")
+    names.append("search_woocommerce_products")
+    names.append("get_woocommerce_store_info")
     names.append("update_visitor_timezone")
     names.append("create_payment_checkout")
     return names
@@ -529,13 +531,32 @@ async def run_widget_assistant(
         from app.services import multimodal_service
         is_visual = bool(media_bytes and media_mime and media_mime.startswith("image/"))
         media_keywords = [
-            "available", "product", "price", "cloth", "dress", "shirt", "shoe", "pant", "jacket",
-            "stock", "buy", "catalog", "video", "demo", "photo", "look like", "show me", "size",
-            "bag", "bags", "handbag", "purse", "wallet", "item", "items", "cost", "how much", "store",
+            "available", "product", "products", "price", "prices", "cloth", "dress", "shirt", "shoe", "pant", "jacket",
+            "stock", "buy", "catalog", "video", "demo", "photo", "look like", "show me", "size", "sizes", "color", "colour",
+            "bag", "bags", "handbag", "purse", "wallet", "item", "items", "cost", "how much", "store", "sale", "discount",
+            "cheap", "cheapest", "under", "below", "between", "category", "categories", "sku", "recommend", "have any",
+            "do you have", "sell", "selling", "collection", "featured", "best seller", "new arrival",
             "shop", "order", "purchase", "ganna", "puluwand", "tiyenawada", "mila", "ganan", "thiyeda", "thiyenawada"
         ]
         clean_txt = (text or "").lower()
         is_media_query = is_visual or any(k in clean_txt for k in media_keywords)
+        if not is_media_query and len(clean_txt.strip()) >= 4:
+            # If the bot has an active WooCommerce store connected, also run catalog search
+            # for brand/model queries that don't include generic shopping keywords.
+            try:
+                wc_chk = await run_db(
+                    lambda: supabase.table("chatty_woocommerce_integrations")
+                    .select("bot_id")
+                    .eq("bot_id", bot_id)
+                    .limit(1)
+                    .execute()
+                )
+                if wc_chk and wc_chk.data:
+                    greetings_only = {"hi", "hello", "hey", "thanks", "thank you", "ok", "okay", "bye"}
+                    if clean_txt.strip(" ?!.,") not in greetings_only:
+                        is_media_query = True
+            except Exception:
+                pass
 
         english_query_for_mm = ""
         if (text or "").strip() and not _is_probably_english(text):
@@ -1101,10 +1122,14 @@ async def run_widget_assistant(
         + "- E-COMMERCE ORDER LOOKUP (WISMO), TRACKING & EDGE-CASE SAFETY: "
         "Whenever a customer asks 'Where is my order?', asks for tracking status, shipment updates, delivery status, or refund/return status for an order, "
         "use the `lookup_woocommerce_order` tool! "
-        "STRICT VERIFICATION RULE: Never disclose order details without verifying the customer's billing email or phone number. If they only gave an order number, ask for their billing email or phone number (or call `lookup_woocommerce_order` and follow its `verification_required` prompt). "
+        "STRICT VERIFICATION RULE: Never disclose order details without verifying the customer's billing email or phone number. If they only gave an order number, ask for their billing email or phone number (or call `lookup_woocommerce_order` and follow its `verification_required` prompt). If they forgot their order number, ask for BOTH their billing email and phone number. "
         "When `lookup_woocommerce_order` returns a verified order with `order_card_token`, ALWAYS include that exact `[ORDER_CARD:{...}]` token in your reply so the interactive Order & Tracking Card renders with clickable carrier links! "
         "HIGH-STAKES EDGE-CASE DEFENSE (SPLIT SHIPMENTS & PARTIAL REFUNDS): "
         "If an order has `is_split_shipment: true` or `is_partial_refund: true` (or `requires_human_review: true`), state the exact factual per-shipment or partial-refund breakdown returned by the tool, NEVER guess or promise financial/logistical actions, inform the customer you have flagged their order for priority human review, and ALWAYS append `[HANDOFF_ACTIONS]` at the end of your reply.\n"
+        + "- AGENTIC WOOCOMMERCE LIVE API & STRUCTURED FILTERS (READ-ONLY): "
+        "Do NOT rely solely on static training snippets when a visitor asks structured shopping questions! "
+        "1) Call `search_woocommerce_products` whenever the visitor filters by price range (e.g. 'under $50', 'between $20 and $80'), asks what is on sale (`on_sale=true`), asks for featured/popular/cheapest/newest items (`sort_by`), filters by category/tag/SKU/size/color (`category`, `sku`, `attribute_filter`), or asks about a specific product not already shown in your context. "
+        "2) Call `get_woocommerce_store_info` when the visitor asks what product categories the store carries (`info_type='categories'`), asks to check/validate a specific promo or coupon code (`info_type='coupon'`, `coupon_code='...'`), asks for customer reviews of a product (`info_type='reviews'`), or asks about live shipping zones/methods (`info_type='shipping'`).\n"
         + "- MULTIMODAL & PRODUCT CARDS: When recommending, showing, or answering about available products or inventory items, "
         "always include the structured token [PRODUCT_CARD:{\"id\":\"...\",\"title\":\"...\",\"price\":\"...\",\"currency\":\"...\",\"url\":\"...\",\"image_url\":\"...\",\"in_stock\":true}] "
         "so the widget displays an interactive product card with photo and purchase link. "
@@ -1438,7 +1463,7 @@ async def run_widget_assistant(
                 args = json.loads(tc["function"]["arguments"] or "{}")
             except (json.JSONDecodeError, TypeError):
                 args = {}
-            logger.info("widget tool call: %s(%s)", fn_name, args)
+            logger.info("widget tool call: %s", fn_name)
             # web_search is handled inline (not an agent_tools declaration).
             if fn_name == "web_search":
                 result = await _web_search(args.get("query", ""))
@@ -1493,6 +1518,21 @@ async def run_widget_assistant(
                         order_card_tokens.append(tok)
                 if result.get("requires_human_review"):
                     order_requires_handoff = True
+            if fn_name == "search_woocommerce_products" and isinstance(result, dict):
+                live_cat_items = result.pop("_catalog_items", None) or []
+                if isinstance(live_cat_items, list):
+                    existing_cat_ids = {
+                        str((c.get("metadata") or {}).get("woocommerce_id") or c.get("id") or "")
+                        for c in catalog_items
+                        if isinstance(c, dict)
+                    }
+                    for l_item in live_cat_items:
+                        if not isinstance(l_item, dict):
+                            continue
+                        l_key = str((l_item.get("metadata") or {}).get("woocommerce_id") or l_item.get("id") or "")
+                        if l_key and l_key not in existing_cat_ids:
+                            catalog_items.append(l_item)
+                            existing_cat_ids.add(l_key)
             if fn_name == "create_payment_checkout" and isinstance(result, dict):
                 if result.get("checkout_card_token"):
                     ck_tok = str(result["checkout_card_token"]).strip()

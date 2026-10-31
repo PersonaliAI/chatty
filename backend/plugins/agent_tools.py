@@ -337,7 +337,7 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "lookup_woocommerce_order",
-        "Look up a real-time WooCommerce order status, tracking numbers, carrier links, line items, and refund status. "
+        "Look up a real-time WooCommerce order status, tracking numbers, carrier links, line items, and refund status (Read-Only). "
         "STRICT SECURITY RULE: You MUST require and pass either the customer's billing `email` or `phone` number alongside `order_number` to verify ownership before order details or tracking links are returned. "
         "If the customer has not provided their email or phone number yet, ask for it first or call this tool and follow the `verification_required` prompt.",
         {
@@ -346,6 +346,48 @@ DECLARATIONS: list[dict] = [
             "phone": {"type": "string", "description": "Customer billing phone number (or last 4-6 digits) for identity verification."},
         },
         ["order_number"],
+    ),
+    _tool(
+        "search_woocommerce_products",
+        "Search and filter the live WooCommerce product catalog using real-time REST API filters and indexed inventory (Read-Only). "
+        "Call this tool whenever a visitor asks to filter products by price range (e.g. 'under $50', 'between $20 and $100'), "
+        "asks what is on sale/discounted, asks for products in a specific category, searches by SKU or product ID, "
+        "filters by size/color/attribute, asks for cheapest/newest/most popular items, or asks about a specific product not already shown in context. "
+        "Returns live prices, sale prices, stock status, variations, and `product_card_token` (`[PRODUCT_CARD:{...}]`) strings to include in your reply.",
+        {
+            "query": {"type": "string", "description": "Keyword, product name, brand, or model to search for (optional if filtering by price/category/on_sale)."},
+            "product_id": {"type": "string", "description": "Exact WooCommerce product ID if looking up one specific product."},
+            "sku": {"type": "string", "description": "Exact or partial product/variation SKU (e.g. 'WC-104')."},
+            "category": {"type": "string", "description": "Product category name or slug (e.g. 'Hoodies', 'Skincare', 'Accessories')."},
+            "tag": {"type": "string", "description": "Product tag name or slug."},
+            "min_price": {"type": "number", "description": "Minimum price filter in store currency (e.g. 20 for $20+)."},
+            "max_price": {"type": "number", "description": "Maximum price filter in store currency (e.g. 50 for 'under $50')."},
+            "on_sale": {"type": "boolean", "description": "Set true when visitor asks for discounted / on-sale items."},
+            "featured": {"type": "boolean", "description": "Set true when visitor asks for featured or best-selling products."},
+            "in_stock_only": {"type": "boolean", "description": "Default true. Set false only if visitor explicitly asks about out-of-stock items."},
+            "attribute_filter": {"type": "string", "description": "Size, color, material, or variation option to filter by (e.g. 'XL', 'Black', 'Cotton')."},
+            "sort_by": {
+                "type": "string",
+                "enum": ["relevance", "price_asc", "price_desc", "popularity", "rating", "newest"],
+                "description": "Sort order: 'price_asc' (cheapest first), 'price_desc' (most expensive), 'popularity', 'rating', 'newest', or 'relevance'.",
+            },
+            "limit": {"type": "integer", "description": "Maximum number of products to return (1 to 6, default 4)."},
+        },
+        [],
+    ),
+    _tool(
+        "get_woocommerce_store_info",
+        "Inspect live read-only WooCommerce store metadata: product categories, customer reviews for a product, shipping zones/rates, or validate a specific coupon/promo code a customer asks about.",
+        {
+            "info_type": {
+                "type": "string",
+                "enum": ["categories", "coupon", "reviews", "shipping"],
+                "description": "Type of live store info to fetch: 'categories' (all product categories & counts), 'coupon' (verify a specific coupon_code), 'reviews' (customer reviews for a product_id), or 'shipping' (shipping zones & methods).",
+            },
+            "coupon_code": {"type": "string", "description": "Required when info_type='coupon'. The exact promo/coupon code the visitor asked to verify (e.g. 'SAVE20')."},
+            "product_id": {"type": "string", "description": "Optional when info_type='reviews'. The WooCommerce product ID to fetch reviews for."},
+        },
+        ["info_type"],
     ),
     _tool(
         "update_visitor_timezone",
@@ -2351,6 +2393,44 @@ async def execute(
                 except Exception:
                     logger.warning("Failed to flag session for order edge-case human review", exc_info=True)
             return res
+        if name == "search_woocommerce_products":
+            from app.services import woocommerce_service
+            bot_id_val = (context or {}).get("bot_id") or args.get("bot_id") or ((context or {}).get("bot") or {}).get("id")
+            if not bot_id_val:
+                return {"error": "Bot ID is missing from context."}
+            min_p = float(args["min_price"]) if args.get("min_price") not in (None, "") else None
+            max_p = float(args["max_price"]) if args.get("max_price") not in (None, "") else None
+            on_sale_val = bool(args["on_sale"]) if args.get("on_sale") is not None else None
+            featured_val = bool(args["featured"]) if args.get("featured") is not None else None
+            in_stock_val = bool(args.get("in_stock_only", True))
+            limit_val = int(args.get("limit") or 5)
+            return await woocommerce_service.search_products_live(
+                str(bot_id_val),
+                query=str(args.get("query") or "").strip() or None,
+                product_id=str(args.get("product_id") or "").strip() or None,
+                sku=str(args.get("sku") or "").strip() or None,
+                category=str(args.get("category") or "").strip() or None,
+                tag=str(args.get("tag") or "").strip() or None,
+                min_price=min_p,
+                max_price=max_p,
+                on_sale=on_sale_val,
+                featured=featured_val,
+                in_stock_only=in_stock_val,
+                attribute_filter=str(args.get("attribute_filter") or "").strip() or None,
+                sort_by=str(args.get("sort_by") or "relevance").strip(),
+                limit=limit_val,
+            )
+        if name == "get_woocommerce_store_info":
+            from app.services import woocommerce_service
+            bot_id_val = (context or {}).get("bot_id") or args.get("bot_id") or ((context or {}).get("bot") or {}).get("id")
+            if not bot_id_val:
+                return {"error": "Bot ID is missing from context."}
+            return await woocommerce_service.get_store_info_live(
+                str(bot_id_val),
+                info_type=str(args.get("info_type") or "categories").strip(),
+                coupon_code=str(args.get("coupon_code") or "").strip() or None,
+                product_id=str(args.get("product_id") or "").strip() or None,
+            )
         if name == "create_payment_checkout":
             return await _create_payment_checkout(args, user, supabase, context=context)
         if name == "web_search":

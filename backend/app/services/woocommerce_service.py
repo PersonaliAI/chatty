@@ -1257,7 +1257,7 @@ async def lookup_order(
                 if resp.status_code == 200 and isinstance(resp.json(), dict):
                     matched_order = resp.json()
             except Exception as exc:
-                logger.warning("WooCommerce direct order lookup failed for %s: %s", clean_id, exc)
+                logger.warning("WooCommerce direct order lookup failed (%s)", type(exc).__name__)
 
         if matched_order is None:
             search_url = f"{store_url}/wp-json/wc/v3/orders"
@@ -1275,7 +1275,7 @@ async def lookup_order(
                             matched_order = candidate
                             break
             except Exception as exc:
-                logger.warning("WooCommerce order search failed for %s: %s", clean_id, exc)
+                logger.warning("WooCommerce order search failed (%s)", type(exc).__name__)
 
     if not matched_order:
         return {
@@ -1310,6 +1310,643 @@ async def lookup_order(
         "edge_case_reasons": mapped["edge_case_reasons"],
     }
 
+
+
+def _item_matches_structured_filters(
+    item: dict[str, Any],
+    *,
+    query: Optional[str] = None,
+    sku: Optional[str] = None,
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    on_sale: Optional[bool] = None,
+    in_stock_only: bool = True,
+    attribute_filter: Optional[str] = None,
+) -> bool:
+    """Evaluate structured commerce filters against a normalized catalog item."""
+    meta = item.get("metadata") or {}
+    in_stock = bool(meta.get("in_stock", True))
+    if in_stock_only and not in_stock:
+        return False
+
+    price_val: Optional[float] = None
+    for p_candidate in (meta.get("sale_price"), item.get("price"), meta.get("regular_price")):
+        if p_candidate not in (None, ""):
+            try:
+                price_val = float(p_candidate)
+                break
+            except (TypeError, ValueError):
+                continue
+
+    if min_price is not None and (price_val is None or price_val < float(min_price)):
+        return False
+    if max_price is not None and (price_val is None or price_val > float(max_price)):
+        return False
+
+    if on_sale is True:
+        is_sale = bool(meta.get("on_sale")) or (
+            meta.get("sale_price") not in (None, "")
+            and meta.get("regular_price") not in (None, "")
+            and float(meta["sale_price"]) < float(meta["regular_price"])
+        )
+        if not is_sale:
+            return False
+
+    if sku:
+        sku_q = sku.strip().lower()
+        item_sku = str(item.get("sku") or "").strip().lower()
+        variant_skus = [
+            str(v.get("sku") or "").strip().lower()
+            for v in (meta.get("variations") or [])
+            if isinstance(v, dict) and v.get("sku")
+        ]
+        if sku_q not in item_sku and not any(sku_q in vs for vs in variant_skus):
+            return False
+
+    if category:
+        cat_q = category.strip().lower()
+        cats = [str(c).strip().lower() for c in (meta.get("categories") or []) if c]
+        if not any(cat_q in c or c in cat_q for c in cats):
+            return False
+
+    if tag:
+        tag_q = tag.strip().lower()
+        tags = [str(t).strip().lower() for t in (meta.get("tags") or []) if t]
+        if not any(tag_q in t or t in tag_q for t in tags):
+            return False
+
+    if attribute_filter:
+        attr_tokens = [tok for tok in re.findall(r"[a-z0-9]+", attribute_filter.lower()) if tok]
+        if attr_tokens:
+            haystack_parts = [
+                str(item.get("title") or ""),
+                str(item.get("description") or ""),
+                " ".join(str(s) for s in (meta.get("sizes") or [])),
+            ]
+            for attr in (meta.get("attributes") or []):
+                if isinstance(attr, dict):
+                    haystack_parts.append(str(attr.get("name") or ""))
+                    haystack_parts.extend(str(o) for o in (attr.get("options") or []))
+            for v in (meta.get("variations") or []):
+                if isinstance(v, dict):
+                    if in_stock_only and not v.get("in_stock", v.get("stock_status") == "instock"):
+                        continue
+                    for va in (v.get("attributes") or []):
+                        if isinstance(va, dict):
+                            haystack_parts.append(f"{va.get('name', '')} {va.get('option', '')}")
+            haystack = " ".join(haystack_parts).lower()
+            if not all(tok in haystack for tok in attr_tokens):
+                return False
+
+    if query:
+        q_tokens = [
+            tok for tok in re.findall(r"[a-z0-9]+", query.lower())
+            if len(tok) > 1 and tok not in {"the", "and", "for", "with", "under", "over", "below", "above", "from", "show", "items", "products", "product"}
+        ]
+        if q_tokens:
+            searchable = " ".join([
+                str(item.get("title") or ""),
+                str(item.get("description") or ""),
+                str(item.get("sku") or ""),
+                " ".join(str(c) for c in (meta.get("categories") or [])),
+                " ".join(str(t) for t in (meta.get("tags") or [])),
+            ]).lower()
+            if not any(tok in searchable for tok in q_tokens):
+                return False
+
+    return True
+
+
+async def search_products_live(
+    bot_id: str,
+    *,
+    query: Optional[str] = None,
+    product_id: Optional[str] = None,
+    sku: Optional[str] = None,
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    on_sale: Optional[bool] = None,
+    featured: Optional[bool] = None,
+    in_stock_only: bool = True,
+    attribute_filter: Optional[str] = None,
+    sort_by: str = "relevance",
+    limit: int = 5,
+) -> dict[str, Any]:
+    """Read-Only Agentic WooCommerce Product Search & Filter Engine.
+
+    Combines live WooCommerce REST API queries (`/wp-json/wc/v3/products` with
+    server-side filters, category resolution, and variation hydration) and
+    indexed multimodal catalog filtering so the AI agent can answer any
+    product, price-range, sale, SKU, category, or variant question accurately.
+    """
+    capped_limit = max(1, min(int(limit or 5), 8))
+    clean_query = (query or "").strip() or None
+    clean_product_id = re.sub(r"[^0-9]", "", str(product_id or "").strip()) or None
+    clean_sku = (sku or "").strip() or None
+    clean_category = (category or "").strip() or None
+    clean_tag = (tag or "").strip() or None
+    clean_attr = (attribute_filter or "").strip() or None
+    clean_sort = (sort_by or "relevance").strip().lower()
+
+    integration = await get_integration(bot_id)
+    currency = "USD"
+    live_items: list[dict[str, Any]] = []
+    checked_at = datetime.now(timezone.utc).isoformat()
+
+    # ------------------------------------------------------------------
+    # Stage 1: Live WooCommerce REST API Filtered Query (Read-Only GET)
+    # ------------------------------------------------------------------
+    if integration:
+        store_url = _normalize_store_url(str(integration.get("store_url") or ""))
+        consumer_key = str(integration.get("consumer_key") or "").strip()
+        consumer_secret = str(integration.get("consumer_secret") or "").strip()
+        parsed_store = httpx.URL(store_url) if store_url else None
+
+        if parsed_store and parsed_store.scheme == "https" and parsed_store.host and consumer_key and consumer_secret:
+            auth = (consumer_key, consumer_secret)
+            timeout = httpx.Timeout(8.0, connect=3.5)
+            products_api = f"{store_url}/wp-json/wc/v3/products"
+
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                raw_products: list[dict[str, Any]] = []
+                try:
+                    if clean_product_id:
+                        resp = await ssrf.request_async(
+                            client, "GET", f"{products_api}/{clean_product_id}", auth=auth
+                        )
+                        if resp.status_code == 200 and isinstance(resp.json(), dict):
+                            raw_products = [resp.json()]
+                    else:
+                        params: dict[str, Any] = {
+                            "status": "publish",
+                            "per_page": min(max(capped_limit * 3, 12), 30),
+                        }
+                        if clean_query:
+                            params["search"] = clean_query
+                        if clean_sku:
+                            params["sku"] = clean_sku
+                        if min_price is not None:
+                            params["min_price"] = str(min_price)
+                        if max_price is not None:
+                            params["max_price"] = str(max_price)
+                        if on_sale is True:
+                            params["on_sale"] = "true"
+                        if featured is True:
+                            params["featured"] = "true"
+                        if in_stock_only:
+                            params["stock_status"] = "instock"
+
+                        if clean_sort == "price_asc":
+                            params["orderby"] = "price"
+                            params["order"] = "asc"
+                        elif clean_sort == "price_desc":
+                            params["orderby"] = "price"
+                            params["order"] = "desc"
+                        elif clean_sort == "popularity":
+                            params["orderby"] = "popularity"
+                            params["order"] = "desc"
+                        elif clean_sort == "rating":
+                            params["orderby"] = "rating"
+                            params["order"] = "desc"
+                        elif clean_sort == "newest":
+                            params["orderby"] = "date"
+                            params["order"] = "desc"
+
+                        if clean_category:
+                            if clean_category.isdigit():
+                                params["category"] = clean_category
+                            else:
+                                try:
+                                    cat_resp = await ssrf.request_async(
+                                        client,
+                                        "GET",
+                                        f"{products_api}/categories",
+                                        auth=auth,
+                                        params={"search": clean_category, "per_page": 10},
+                                    )
+                                    if cat_resp.status_code == 200 and isinstance(cat_resp.json(), list) and cat_resp.json():
+                                        best_cat = cat_resp.json()[0]
+                                        if isinstance(best_cat, dict) and best_cat.get("id"):
+                                            params["category"] = str(best_cat["id"])
+                                except Exception:
+                                    pass
+
+                        resp = await ssrf.request_async(client, "GET", products_api, auth=auth, params=params)
+                        if resp.status_code == 200 and isinstance(resp.json(), list):
+                            raw_products = [p for p in resp.json() if isinstance(p, dict)]
+
+                        if not raw_products and clean_query and any([clean_category, min_price is not None, max_price is not None, on_sale]):
+                            fallback_params = {k: v for k, v in params.items() if k != "search"}
+                            resp2 = await ssrf.request_async(client, "GET", products_api, auth=auth, params=fallback_params)
+                            if resp2.status_code == 200 and isinstance(resp2.json(), list):
+                                raw_products = [p for p in resp2.json() if isinstance(p, dict)]
+
+                    hydrated_count = 0
+                    for raw_prod in raw_products:
+                        if raw_prod.get("type") == "variable" and hydrated_count < capped_limit:
+                            await _fetch_product_variations(client, products_api, raw_prod, auth)
+                            hydrated_count += 1
+                        mapped = _map_wc_product(raw_prod, currency=currency)
+                        wc_id = (mapped.get("metadata") or {}).get("woocommerce_id")
+                        mapped["id"] = str(wc_id or raw_prod.get("id") or "")
+                        meta = dict(mapped.get("metadata") or {})
+                        meta["average_rating"] = raw_prod.get("average_rating")
+                        meta["rating_count"] = raw_prod.get("rating_count")
+                        meta["live_check_status"] = "fresh"
+                        meta["live_checked_at"] = checked_at
+                        meta["live_variant_ids"] = [
+                            str(v.get("id"))
+                            for v in (meta.get("variations") or [])
+                            if isinstance(v, dict) and v.get("id") is not None
+                        ]
+                        mapped["metadata"] = meta
+                        if _item_matches_structured_filters(
+                            mapped,
+                            query=None if clean_product_id else clean_query,
+                            sku=clean_sku,
+                            category=clean_category,
+                            tag=clean_tag,
+                            min_price=min_price,
+                            max_price=max_price,
+                            on_sale=on_sale,
+                            in_stock_only=in_stock_only,
+                            attribute_filter=clean_attr,
+                        ):
+                            live_items.append(mapped)
+                except Exception as exc:
+                    logger.warning("WooCommerce live product search fallback triggered (%s)", type(exc).__name__)
+
+    # ------------------------------------------------------------------
+    # Stage 2: Indexed Catalog (`chatty_media_items`) Structured Filter
+    # ------------------------------------------------------------------
+    indexed_items: list[dict[str, Any]] = []
+    if len(live_items) < capped_limit:
+        try:
+            res_db = await run_db(
+                lambda: supabase.table("chatty_media_items")
+                .select("*")
+                .eq("bot_id", bot_id)
+                .limit(120)
+                .execute()
+            )
+            candidates = []
+            for row in (res_db.data or []):
+                if clean_product_id:
+                    row_wc_id = str((row.get("metadata") or {}).get("woocommerce_id") or "")
+                    if str(row.get("id")) != clean_product_id and row_wc_id != clean_product_id:
+                        continue
+                if _item_matches_structured_filters(
+                    row,
+                    query=None if clean_product_id else clean_query,
+                    sku=clean_sku,
+                    category=clean_category,
+                    tag=clean_tag,
+                    min_price=min_price,
+                    max_price=max_price,
+                    on_sale=on_sale,
+                    in_stock_only=in_stock_only,
+                    attribute_filter=clean_attr,
+                ):
+                    candidates.append(row)
+
+            if candidates and integration:
+                candidates = await refresh_live_product_facts(
+                    bot_id, candidates[: capped_limit], max_items=min(capped_limit, 6)
+                )
+            indexed_items = candidates
+        except Exception as exc:
+            logger.warning("Indexed catalog structured filter fallback warning (%s)", type(exc).__name__)
+
+    merged: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    for item in [*live_items, *indexed_items]:
+        meta = item.get("metadata") or {}
+        dedup_key = str(meta.get("woocommerce_id") or item.get("id") or item.get("title") or "").strip().lower()
+        if not dedup_key or dedup_key in seen_keys:
+            continue
+        seen_keys.add(dedup_key)
+        merged.append(item)
+
+    def _effective_price(it: dict[str, Any]) -> float:
+        m = it.get("metadata") or {}
+        for p in (m.get("sale_price"), it.get("price"), m.get("regular_price")):
+            if p not in (None, ""):
+                try:
+                    return float(p)
+                except (TypeError, ValueError):
+                    continue
+        return 999999.0
+
+    if clean_sort == "price_asc":
+        merged.sort(key=_effective_price)
+    elif clean_sort == "price_desc":
+        merged.sort(key=_effective_price, reverse=True)
+
+    final_items = merged[:capped_limit]
+    formatted_products: list[dict[str, Any]] = []
+
+    for item in final_items:
+        meta = item.get("metadata") or {}
+        wc_id = meta.get("woocommerce_id")
+        cat_id = str(item.get("id") or wc_id or "")
+        variations = [v for v in (meta.get("variations") or []) if isinstance(v, dict)]
+
+        chosen_variant = None
+        if variations:
+            chosen_variant = multimodal_service._resolve_variant_from_query(
+                variations, f"{clean_query or ''} {clean_attr or ''}".strip()
+            )
+            if chosen_variant is None and len(variations) == 1:
+                chosen_variant = variations[0]
+
+        card_price = (
+            (chosen_variant.get("sale_price") or chosen_variant.get("price"))
+            if chosen_variant
+            else (meta.get("sale_price") or item.get("price"))
+        )
+        card_url = (chosen_variant.get("url") if chosen_variant else None) or item.get("url") or ""
+        card_in_stock = (
+            bool(chosen_variant.get("in_stock", chosen_variant.get("stock_status") == "instock"))
+            if chosen_variant
+            else bool(meta.get("in_stock", True))
+        )
+
+        card_payload = {
+            "id": cat_id,
+            "variant_id": str(chosen_variant.get("id") or "") if chosen_variant else "",
+            "variant_sku": str(chosen_variant.get("sku") or "") if chosen_variant else "",
+            "title": str(item.get("title") or "Product")[:240],
+            "price": card_price,
+            "currency": str(item.get("currency") or currency)[:12],
+            "url": card_url,
+            "image_url": str(item.get("thumbnail_url") or item.get("media_url") or ""),
+            "in_stock": card_in_stock,
+        }
+        product_card_token = (
+            f"[PRODUCT_CARD:{json.dumps(card_payload)}]"
+            if (not variations or chosen_variant is not None)
+            else None
+        )
+
+        formatted_products.append({
+            "id": cat_id,
+            "woocommerce_id": wc_id,
+            "title": item.get("title"),
+            "sku": item.get("sku"),
+            "price": card_price,
+            "regular_price": meta.get("regular_price"),
+            "sale_price": meta.get("sale_price"),
+            "on_sale": bool(meta.get("on_sale")),
+            "currency": item.get("currency") or currency,
+            "in_stock": card_in_stock,
+            "stock_status": meta.get("stock_status", "instock"),
+            "categories": meta.get("categories") or [],
+            "tags": meta.get("tags") or [],
+            "short_description": (item.get("description") or "")[:360],
+            "url": card_url,
+            "image_url": item.get("thumbnail_url") or item.get("media_url") or "",
+            "average_rating": meta.get("average_rating"),
+            "rating_count": meta.get("rating_count"),
+            "has_variations": bool(variations),
+            "variations": [
+                {
+                    "id": v.get("id"),
+                    "sku": v.get("sku"),
+                    "price": v.get("sale_price") or v.get("price"),
+                    "regular_price": v.get("regular_price"),
+                    "in_stock": v.get("in_stock", v.get("stock_status") == "instock"),
+                    "attributes": [
+                        f"{a.get('name')}: {a.get('option')}"
+                        for a in (v.get("attributes") or [])
+                        if isinstance(a, dict) and a.get("option")
+                    ],
+                    "url": v.get("url") or item.get("url"),
+                }
+                for v in variations[:15]
+            ],
+            "product_card_token": product_card_token,
+        })
+
+    return {
+        "found": len(formatted_products) > 0,
+        "count": len(formatted_products),
+        "applied_filters": {
+            k: v
+            for k, v in {
+                "query": clean_query,
+                "product_id": clean_product_id,
+                "sku": clean_sku,
+                "category": clean_category,
+                "tag": clean_tag,
+                "min_price": min_price,
+                "max_price": max_price,
+                "on_sale": on_sale,
+                "featured": featured,
+                "in_stock_only": in_stock_only,
+                "attribute_filter": clean_attr,
+                "sort_by": clean_sort,
+            }.items()
+            if v is not None
+        },
+        "products": formatted_products,
+        "_catalog_items": final_items,
+    }
+
+
+async def get_store_info_live(
+    bot_id: str,
+    *,
+    info_type: str = "categories",
+    coupon_code: Optional[str] = None,
+    product_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Read-Only Live WooCommerce Store Metadata Inspector.
+
+    Supports:
+    - `info_type='categories'`: List active store product categories & counts.
+    - `info_type='coupon'`: Validate a specific customer-supplied `coupon_code` (discount, expiry, min spend).
+    - `info_type='reviews'`: Fetch approved customer reviews for a `product_id`.
+    - `info_type='shipping'`: Fetch active shipping zones, locations, and shipping methods/rates.
+    """
+    integration = await get_integration(bot_id)
+    if not integration:
+        return {"found": False, "error": "WooCommerce store integration is not connected for this assistant."}
+
+    store_url = _normalize_store_url(str(integration.get("store_url") or ""))
+    consumer_key = str(integration.get("consumer_key") or "").strip()
+    consumer_secret = str(integration.get("consumer_secret") or "").strip()
+    parsed_store = httpx.URL(store_url) if store_url else None
+    if not parsed_store or parsed_store.scheme != "https" or not parsed_store.host or not consumer_key or not consumer_secret:
+        return {"found": False, "error": "WooCommerce store credentials are incomplete."}
+
+    auth = (consumer_key, consumer_secret)
+    timeout = httpx.Timeout(8.0, connect=4.0)
+    clean_type = (info_type or "categories").strip().lower()
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        if clean_type == "categories":
+            try:
+                resp = await ssrf.request_async(
+                    client,
+                    "GET",
+                    f"{store_url}/wp-json/wc/v3/products/categories",
+                    auth=auth,
+                    params={"per_page": 50, "hide_empty": "true"},
+                )
+                if resp.status_code == 200 and isinstance(resp.json(), list):
+                    categories = [
+                        {
+                            "id": c.get("id"),
+                            "name": _clean_html(c.get("name")),
+                            "slug": c.get("slug"),
+                            "count": c.get("count", 0),
+                            "description": _clean_html(c.get("description"))[:240],
+                        }
+                        for c in resp.json()
+                        if isinstance(c, dict) and c.get("name")
+                    ]
+                    return {"found": True, "info_type": "categories", "count": len(categories), "categories": categories}
+            except Exception as exc:
+                logger.warning("WooCommerce categories lookup failed (%s)", type(exc).__name__)
+            return {"found": False, "info_type": "categories", "error": "Unable to fetch store categories right now."}
+
+        if clean_type == "coupon":
+            code_clean = (coupon_code or "").strip()
+            if not code_clean:
+                return {
+                    "found": False,
+                    "info_type": "coupon",
+                    "error": "Please ask the customer for the specific coupon or promo code they want to check.",
+                }
+            try:
+                resp = await ssrf.request_async(
+                    client,
+                    "GET",
+                    f"{store_url}/wp-json/wc/v3/coupons",
+                    auth=auth,
+                    params={"code": code_clean},
+                )
+                if resp.status_code == 200 and isinstance(resp.json(), list) and resp.json():
+                    c = resp.json()[0]
+                    if isinstance(c, dict):
+                        expires = c.get("date_expires_gmt") or c.get("date_expires")
+                        is_expired = False
+                        if expires:
+                            try:
+                                exp_dt = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+                                if exp_dt.tzinfo is None:
+                                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                                is_expired = exp_dt < datetime.now(timezone.utc)
+                            except ValueError:
+                                pass
+                        usage_limit = c.get("usage_limit")
+                        usage_count = int(c.get("usage_count") or 0)
+                        limit_reached = bool(usage_limit is not None and usage_count >= int(usage_limit))
+                        is_valid = not is_expired and not limit_reached
+                        return {
+                            "found": True,
+                            "info_type": "coupon",
+                            "code": c.get("code"),
+                            "valid": is_valid,
+                            "is_expired": is_expired,
+                            "usage_limit_reached": limit_reached,
+                            "discount_type": c.get("discount_type"),
+                            "amount": c.get("amount"),
+                            "description": _clean_html(c.get("description")),
+                            "minimum_amount": c.get("minimum_amount"),
+                            "maximum_amount": c.get("maximum_amount"),
+                            "free_shipping": bool(c.get("free_shipping")),
+                            "individual_use": bool(c.get("individual_use")),
+                            "exclude_sale_items": bool(c.get("exclude_sale_items")),
+                            "date_expires": expires,
+                        }
+                return {
+                    "found": False,
+                    "info_type": "coupon",
+                    "code": code_clean,
+                    "valid": False,
+                    "message": f"Coupon code '{code_clean}' was not found or is not active.",
+                }
+            except Exception as exc:
+                logger.warning("WooCommerce coupon lookup failed (%s)", type(exc).__name__)
+                return {"found": False, "info_type": "coupon", "error": "Unable to verify coupon code right now."}
+
+        if clean_type == "reviews":
+            clean_pid = re.sub(r"[^0-9]", "", str(product_id or "").strip())
+            params_rev: dict[str, Any] = {"per_page": 10, "status": "approved"}
+            if clean_pid:
+                params_rev["product"] = clean_pid
+            try:
+                resp = await ssrf.request_async(
+                    client,
+                    "GET",
+                    f"{store_url}/wp-json/wc/v3/products/reviews",
+                    auth=auth,
+                    params=params_rev,
+                )
+                if resp.status_code == 200 and isinstance(resp.json(), list):
+                    reviews = [
+                        {
+                            "id": r.get("id"),
+                            "product_id": r.get("product_id"),
+                            "product_name": _clean_html(r.get("product_name")),
+                            "reviewer": r.get("reviewer"),
+                            "rating": r.get("rating"),
+                            "verified": bool(r.get("verified")),
+                            "review": _clean_html(r.get("review"))[:400],
+                            "date_created": r.get("date_created"),
+                        }
+                        for r in resp.json()
+                        if isinstance(r, dict)
+                    ]
+                    return {"found": True, "info_type": "reviews", "count": len(reviews), "reviews": reviews}
+            except Exception as exc:
+                logger.warning("WooCommerce reviews lookup failed (%s)", type(exc).__name__)
+            return {"found": False, "info_type": "reviews", "error": "Unable to fetch product reviews right now."}
+
+        if clean_type == "shipping":
+            try:
+                zones_resp = await ssrf.request_async(
+                    client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones", auth=auth
+                )
+                if zones_resp.status_code == 200 and isinstance(zones_resp.json(), list):
+                    zones_out = []
+                    for z in zones_resp.json()[:8]:
+                        if not isinstance(z, dict) or z.get("id") is None:
+                            continue
+                        zid = z["id"]
+                        methods_resp = await ssrf.request_async(
+                            client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones/{zid}/methods", auth=auth
+                        )
+                        methods_list = []
+                        if methods_resp.status_code == 200 and isinstance(methods_resp.json(), list):
+                            for m in methods_resp.json():
+                                if not isinstance(m, dict) or not m.get("enabled"):
+                                    continue
+                                settings = m.get("settings") or {}
+                                cost = (settings.get("cost") or {}).get("value") if isinstance(settings.get("cost"), dict) else None
+                                min_amount = (settings.get("min_amount") or {}).get("value") if isinstance(settings.get("min_amount"), dict) else None
+                                methods_list.append({
+                                    "title": m.get("title") or m.get("method_title"),
+                                    "method_id": m.get("method_id"),
+                                    "cost": cost,
+                                    "min_amount_for_free_shipping": min_amount,
+                                })
+                        zones_out.append({
+                            "zone_id": zid,
+                            "zone_name": z.get("name"),
+                            "methods": methods_list,
+                        })
+                    return {"found": True, "info_type": "shipping", "zones": zones_out}
+            except Exception as exc:
+                logger.warning("WooCommerce shipping lookup failed (%s)", type(exc).__name__)
+            return {"found": False, "info_type": "shipping", "error": "Unable to fetch live shipping zones right now."}
+
+    return {"found": False, "error": f"Unsupported info_type: {clean_type}"}
 
 
 async def auto_register_webhooks(
@@ -1388,7 +2025,7 @@ async def auto_register_webhooks(
                 "reason": None,
             }
     except Exception as exc:
-        logger.warning("WooCommerce auto_register_webhooks failed: %s", exc)
+        logger.warning("WooCommerce auto_register_webhooks failed (%s)", type(exc).__name__)
         return {
             "auto_configured": False,
             "registered_topics": registered_topics,
