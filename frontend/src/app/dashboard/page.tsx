@@ -5679,6 +5679,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           {activeTab === "orders" && botId && (
             <OrdersTab
               botId={botId}
+              fetchWithFallback={fetchWithFallback}
+              authToken={authToken}
               onOpenConversation={(_sessionId) => {
                 setActiveTab("inbox");
               }}

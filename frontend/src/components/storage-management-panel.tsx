@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchBackend } from "@/lib/backend-client";
+import { ModernSelect } from "@/components/ui/modern-select";
 
 export interface StorageFile {
   id: string;
@@ -513,17 +514,20 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
             </span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={cleanupDays}
-              onChange={(e) => setCleanupDays(Number(e.target.value))}
-              className="px-2.5 py-1 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 font-medium focus:outline-hidden"
-            >
-              <option value={14}>Older than 14 days</option>
-              <option value={30}>Older than 30 days</option>
-              <option value={60}>Older than 60 days</option>
-              <option value={90}>Older than 90 days</option>
-              <option value={180}>Older than 180 days</option>
-            </select>
+            <ModernSelect
+              value={String(cleanupDays)}
+              onChange={(val) => setCleanupDays(Number(val))}
+              size="sm"
+              className="w-auto min-w-[145px]"
+              popupWidth="min-w-[155px]"
+              options={[
+                { value: "14", label: "Older than 14 days" },
+                { value: "30", label: "Older than 30 days" },
+                { value: "60", label: "Older than 60 days" },
+                { value: "90", label: "Older than 90 days" },
+                { value: "180", label: "Older than 180 days" },
+              ]}
+            />
             <button
               onClick={handleRetentionCleanup}
               disabled={cleaningUp || loading}
@@ -561,18 +565,22 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
               <span className="text-[11px] font-semibold text-neutral-500 flex items-center gap-1">
                 <BotIcon className="size-3.5 text-sky-500" /> Bot:
               </span>
-              <select
+              <ModernSelect
                 value={selectedBotFilter}
-                onChange={(e) => setSelectedBotFilter(e.target.value)}
-                className="px-2.5 py-1 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white font-semibold focus:outline-hidden"
-              >
-                <option value="all">🌐 All Chatbots ({data.files_count})</option>
-                {data.bots.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedBotFilter(val)}
+                size="sm"
+                searchable={data.bots.length > 5}
+                className="w-auto min-w-[170px] max-w-[240px]"
+                popupWidth="min-w-[240px]"
+                options={[
+                  { value: "all", label: `🌐 All Chatbots (${data.files_count})` },
+                  ...data.bots.map((b) => ({
+                    value: b.id,
+                    label: b.name,
+                    icon: <BotIcon className="size-3.5 text-sky-500 shrink-0" />,
+                  })),
+                ]}
+              />
             </div>
           )}
 

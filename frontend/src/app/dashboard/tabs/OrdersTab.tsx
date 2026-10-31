@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { ModernSelect } from "@/components/ui/modern-select";
 import {
   ShoppingBag,
   CreditCard,
@@ -59,10 +60,12 @@ interface OrdersKPIs {
 
 interface OrdersTabProps {
   botId: string;
+  fetchWithFallback?: (url: string, init?: RequestInit) => Promise<Response>;
+  authToken?: string;
   onOpenConversation?: (sessionId: string) => void;
 }
 
-export function OrdersTab({ botId, onOpenConversation }: OrdersTabProps) {
+export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversation }: OrdersTabProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [kpis, setKpis] = useState<OrdersKPIs>({
     total_revenue_cents: 0,
@@ -97,7 +100,10 @@ export function OrdersTab({ botId, onOpenConversation }: OrdersTabProps) {
       if (attributionFilter !== "all") params.set("attributed_to", attributionFilter);
       if (search.trim()) params.set("search", search.trim());
 
-      const res = await fetch(`/api/bots/${botId}/orders?${params.toString()}`);
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/orders?${params.toString()}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
       if (!res.ok) {
         throw new Error("Failed to fetch transactions");
       }
@@ -111,7 +117,7 @@ export function OrdersTab({ botId, onOpenConversation }: OrdersTabProps) {
     } finally {
       setLoading(false);
     }
-  }, [botId, statusFilter, providerFilter, attributionFilter, search]);
+  }, [botId, statusFilter, providerFilter, attributionFilter, search, fetchWithFallback, authToken]);
 
   useEffect(() => {
     void fetchOrders();
@@ -127,9 +133,13 @@ export function OrdersTab({ botId, onOpenConversation }: OrdersTabProps) {
     if (!botId) return;
     setUpdatingStatus(true);
     try {
-      const res = await fetch(`/api/bots/${botId}/orders/${orderId}/status`, {
+      const fetcher = fetchWithFallback || fetch;
+      const res = await fetcher(`/api/bots/${botId}/orders/${orderId}/status`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({ status: newStatus }),
       });
       if (res.ok) {
@@ -233,29 +243,32 @@ export function OrdersTab({ botId, onOpenConversation }: OrdersTabProps) {
   return (
     <div className="max-w-7xl mx-auto w-full py-6 px-4 sm:px-6 flex flex-col gap-6">
       {/* Top Hero Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-xs">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <span className="inline-flex size-9 items-center justify-center rounded-xl bg-orange-500/10 text-[#f97316] border border-orange-500/20 shadow-xs shrink-0">
-              <ShoppingBag className="size-5" />
-            </span>
-            <h1 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-              Orders &amp; Sales Transactions
-              <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 border border-emerald-500/20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-xs">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className="size-10 sm:size-11 rounded-2xl bg-orange-500/10 dark:bg-orange-500/15 text-[#f97316] flex items-center justify-center border border-orange-500/20 shadow-xs shrink-0">
+            <ShoppingBag className="size-5" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-base sm:text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+                Orders &amp; Sales Transactions
+              </h1>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2.5 py-0.5 border border-emerald-500/20 whitespace-nowrap">
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Live Audited
               </span>
-            </h1>
+            </div>
+            <p className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-2xl">
+              Complete transaction ledger for in-chat sales, payment links, and paid booking appointments.
+            </p>
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-2xl leading-relaxed">
-            Complete transaction ledger for in-chat sales, payment links, and paid booking appointments across all connected payment gateways.
-          </p>
         </div>
 
         <button
           type="button"
           onClick={() => void fetchOrders()}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors cursor-pointer self-start sm:self-auto shrink-0"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors cursor-pointer self-end sm:self-auto shrink-0"
         >
           <RefreshCw className={`size-3.5 ${loading ? "animate-spin text-orange-500" : ""}`} />
           <span>Refresh</span>
@@ -263,63 +276,79 @@ export function OrdersTab({ botId, onOpenConversation }: OrdersTabProps) {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {/* Total Succeeded Revenue */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1 shadow-2xs">
-          <div className="flex items-center justify-between text-neutral-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Total Revenue</span>
-            <DollarSign className="size-4 text-emerald-500" />
+        <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-2xs">
+          <div className="flex items-center justify-between text-neutral-400 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Total Revenue</span>
+            <div className="size-6 sm:size-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <DollarSign className="size-3.5 sm:size-4" />
+            </div>
           </div>
-          <div className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-neutral-100">
-            {formatMoney(kpis.total_revenue_cents)}
+          <div>
+            <div className="text-lg sm:text-2xl font-extrabold font-mono text-neutral-900 dark:text-neutral-100">
+              {formatMoney(kpis.total_revenue_cents)}
+            </div>
+            <p className="text-[10px] text-neutral-400 truncate mt-0.5">
+              {kpis.succeeded_orders} successful {kpis.succeeded_orders === 1 ? "order" : "orders"}
+            </p>
           </div>
-          <p className="text-[10px] text-neutral-400">
-            {kpis.succeeded_orders} successful {kpis.succeeded_orders === 1 ? "order" : "orders"}
-          </p>
         </div>
 
         {/* AI Agent Closed Revenue */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-indigo-200/60 dark:border-indigo-900/40 space-y-1 shadow-2xs">
-          <div className="flex items-center justify-between text-indigo-500 dark:text-indigo-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">AI Autonomous</span>
-            <Sparkles className="size-4" />
+        <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-indigo-200/60 dark:border-indigo-900/40 flex flex-col justify-between shadow-2xs">
+          <div className="flex items-center justify-between text-indigo-500 dark:text-indigo-400 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">AI Autonomous</span>
+            <div className="size-6 sm:size-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+              <Sparkles className="size-3.5 sm:size-4" />
+            </div>
           </div>
-          <div className="text-xl sm:text-2xl font-extrabold text-indigo-950 dark:text-indigo-200">
-            {formatMoney(kpis.ai_revenue_cents)}
+          <div>
+            <div className="text-lg sm:text-2xl font-extrabold font-mono text-indigo-950 dark:text-indigo-200">
+              {formatMoney(kpis.ai_revenue_cents)}
+            </div>
+            <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70 truncate mt-0.5">
+              {kpis.total_revenue_cents > 0
+                ? `${Math.round((kpis.ai_revenue_cents / kpis.total_revenue_cents) * 100)}% of volume`
+                : "Zero autonomous sales"}
+            </p>
           </div>
-          <p className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">
-            {kpis.total_revenue_cents > 0
-              ? `${Math.round((kpis.ai_revenue_cents / kpis.total_revenue_cents) * 100)}% of total volume`
-              : "Zero autonomous sales"}
-          </p>
         </div>
 
         {/* Human Agent Closed */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-orange-200/60 dark:border-orange-900/40 space-y-1 shadow-2xs">
-          <div className="flex items-center justify-between text-orange-600 dark:text-orange-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Human Agent Sales</span>
-            <User className="size-4" />
+        <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-orange-200/60 dark:border-orange-900/40 flex flex-col justify-between shadow-2xs">
+          <div className="flex items-center justify-between text-orange-600 dark:text-orange-400 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Human Agent</span>
+            <div className="size-6 sm:size-7 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+              <User className="size-3.5 sm:size-4" />
+            </div>
           </div>
-          <div className="text-xl sm:text-2xl font-extrabold text-orange-950 dark:text-orange-200">
-            {formatMoney(kpis.human_revenue_cents)}
+          <div>
+            <div className="text-lg sm:text-2xl font-extrabold font-mono text-orange-950 dark:text-orange-200">
+              {formatMoney(kpis.human_revenue_cents)}
+            </div>
+            <p className="text-[10px] text-orange-600/70 dark:text-orange-400/70 truncate mt-0.5">
+              Dispatched via Live Inbox
+            </p>
           </div>
-          <p className="text-[10px] text-orange-600/70 dark:text-orange-400/70">
-            Dispatched via Live Inbox
-          </p>
         </div>
 
         {/* Pending Orders */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-1 shadow-2xs">
-          <div className="flex items-center justify-between text-neutral-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Pending Links</span>
-            <Clock className="size-4 text-amber-500" />
+        <div className="p-3.5 sm:p-4.5 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex flex-col justify-between shadow-2xs">
+          <div className="flex items-center justify-between text-neutral-400 mb-1">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate">Pending Links</span>
+            <div className="size-6 sm:size-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+              <Clock className="size-3.5 sm:size-4" />
+            </div>
           </div>
-          <div className="text-xl sm:text-2xl font-extrabold text-neutral-900 dark:text-neutral-100">
-            {formatMoney(kpis.pending_revenue_cents)}
+          <div>
+            <div className="text-lg sm:text-2xl font-extrabold font-mono text-neutral-900 dark:text-neutral-100">
+              {formatMoney(kpis.pending_revenue_cents)}
+            </div>
+            <p className="text-[10px] text-neutral-400 truncate mt-0.5">
+              Awaiting visitor completion
+            </p>
           </div>
-          <p className="text-[10px] text-neutral-400">
-            Awaiting visitor completion
-          </p>
         </div>
       </div>
 
@@ -338,43 +367,52 @@ export function OrdersTab({ botId, onOpenConversation }: OrdersTabProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Status Filter */}
-          <select
+          <ModernSelect
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-xs font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Statuses</option>
-            <option value="succeeded">Paid</option>
-            <option value="pending">Pending</option>
-            <option value="refunded">Refunded</option>
-            <option value="failed">Failed</option>
-          </select>
+            onChange={setStatusFilter}
+            size="sm"
+            className="w-auto min-w-[125px] flex-1 sm:flex-initial"
+            popupWidth="min-w-[150px]"
+            options={[
+              { value: "all", label: "All Statuses" },
+              { value: "succeeded", label: "Paid", icon: <CheckCircle2 className="size-3 text-emerald-500" /> },
+              { value: "pending", label: "Pending", icon: <Clock className="size-3 text-amber-500" /> },
+              { value: "refunded", label: "Refunded", icon: <RotateCcw className="size-3 text-purple-500" /> },
+              { value: "failed", label: "Failed", icon: <XCircle className="size-3 text-red-500" /> },
+            ]}
+          />
 
           {/* Provider Filter */}
-          <select
+          <ModernSelect
             value={providerFilter}
-            onChange={(e) => setProviderFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-xs font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Gateways</option>
-            <option value="stripe">Stripe</option>
-            <option value="paypal">PayPal</option>
-            <option value="lemonsqueezy">Lemon Squeezy</option>
-            <option value="polar">Polar.sh</option>
-          </select>
+            onChange={setProviderFilter}
+            size="sm"
+            className="w-auto min-w-[130px] flex-1 sm:flex-initial"
+            popupWidth="min-w-[160px]"
+            options={[
+              { value: "all", label: "All Gateways" },
+              { value: "stripe", label: "Stripe", icon: <CreditCard className="size-3 text-[#635bff]" /> },
+              { value: "paypal", label: "PayPal", icon: <CreditCard className="size-3 text-[#003087]" /> },
+              { value: "lemonsqueezy", label: "Lemon Squeezy", icon: <CreditCard className="size-3 text-amber-500" /> },
+              { value: "polar", label: "Polar.sh", icon: <CreditCard className="size-3 text-blue-500" /> },
+            ]}
+          />
 
           {/* Attribution Filter */}
-          <select
+          <ModernSelect
             value={attributionFilter}
-            onChange={(e) => setAttributionFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 text-xs font-semibold text-neutral-700 dark:text-neutral-300 focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Attributions</option>
-            <option value="ai_agent">🤖 AI Agent</option>
-            <option value="human_agent">👤 Human Agent</option>
-          </select>
+            onChange={setAttributionFilter}
+            size="sm"
+            className="w-auto min-w-[145px] flex-1 sm:flex-initial"
+            popupWidth="min-w-[170px]"
+            options={[
+              { value: "all", label: "All Attributions" },
+              { value: "ai_agent", label: "AI Autonomous", icon: <Sparkles className="size-3 text-indigo-500" /> },
+              { value: "human_agent", label: "Human Agent", icon: <User className="size-3 text-orange-500" /> },
+            ]}
+          />
         </div>
       </div>
 
