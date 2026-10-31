@@ -889,6 +889,21 @@ async def whatsapp_receive(request: Request):
             # transient Redis failure remains retryable by Meta.
             for msg in val.get("messages", []):
                 message_id = str(msg.get("id") or "")
+                # Enterprise Outbox: Idempotency & Deduplication
+                try:
+                    if message_id:
+                        from app.services.enterprise.event_log_service import EventLogService
+                        is_dup, _ = await EventLogService.record_event(
+                            channel="whatsapp",
+                            external_id=message_id,
+                            bot_id=bot["id"],
+                            payload={"phone_number_id": pnid, "from": msg.get("from"), "type": msg.get("type")},
+                        )
+                        if is_dup:
+                            logger.info("WhatsApp duplicate message %s suppressed by enterprise event log", message_id)
+                            continue
+                except Exception:
+                    logger.debug("Enterprise event log recording skipped for whatsapp webhook", exc_info=True)
                 if _whatsapp_job_queue:
                     if not message_id:
                         message_id = hashlib.sha256(json.dumps(msg, sort_keys=True).encode("utf-8")).hexdigest()

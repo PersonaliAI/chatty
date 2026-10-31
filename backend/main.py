@@ -614,6 +614,8 @@ from app.routers import cron as _router_cron  # noqa: E402
 from app.routers import documents as _router_documents  # noqa: E402
 from app.routers import flow_builder as _router_flow_builder  # noqa: E402
 from app.routers import integrations as _router_integrations  # noqa: E402
+from app.routers import waha as _router_waha  # noqa: E402
+from app.routers import enterprise as _router_enterprise  # noqa: E402
 from app.routers import mcp as _router_mcp  # noqa: E402
 from app.routers import oauth as _router_oauth  # noqa: E402
 from app.routers import onboarding as _router_onboarding  # noqa: E402
@@ -654,6 +656,8 @@ app.include_router(_router_crawl.router)
 app.include_router(_router_documents.router)
 app.include_router(_router_flow_builder.router, dependencies=[Depends(guard_widget_session)])
 app.include_router(_router_integrations.router)
+app.include_router(_router_waha.router)
+app.include_router(_router_enterprise.router)
 app.include_router(_router_onboarding.router)
 app.include_router(_router_cron.router)
 app.include_router(_router_public_api.router)

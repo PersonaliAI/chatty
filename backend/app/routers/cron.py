@@ -75,3 +75,12 @@ async def cron_trial_lifecycle(x_function_secret: Optional[str] = Header(default
     from app.services.billing_email_service import run_trial_lifecycle_scan
     return await run_trial_lifecycle_scan()
 
+@router.post("/cron/drain-event-log")
+async def cron_drain_event_log(x_function_secret: Optional[str] = Header(default=None)):
+    """Drains pending events from chatty_event_log outbox table.
+    Ensures at-least-once delivery, retry backoff, and dead-letter isolation.
+    Protected by FUNCTION_SECRET."""
+    verify_function_secret(x_function_secret, FUNCTION_SECRET)
+    from app.workers.event_log_worker import drain_event_log
+    return await drain_event_log(limit=50)
+

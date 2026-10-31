@@ -71,6 +71,30 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  event-log-worker:
+    build: ./backend
+    profiles: [automation]
+    env_file:
+      - ./backend/.env
+    environment:
+      DEPLOYMENT_PROFILE: managed_supabase
+      PORT: 8000
+    command: ["python", "-m", "app.workers.event_log_worker"]
+    restart: unless-stopped
+
+  waha:
+    image: devlikeappro/waha:latest
+    profiles: [waha]
+    restart: unless-stopped
+    ports:
+      - "${WAHA_PORT:-3001}:3000"
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      WAHA_ZIPPER: 1
+      WAHA_DASHBOARD_ENABLED: "True"
+    volumes:
+      - waha-data:/app/.sessions
+
   frontend:
     build:
       context: ./frontend
@@ -93,3 +117,4 @@ services:
 
 volumes:
   automation-redis-data:
+  waha-data:

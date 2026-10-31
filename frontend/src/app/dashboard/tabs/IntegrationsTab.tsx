@@ -1,6 +1,7 @@
 "use client";
 
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { WahaProviderSelector, WahaConnectionCard } from "@/components/waha";
 import { ModernSelect, type ModernSelectOption } from "@/components/ui/modern-select";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
@@ -480,6 +481,7 @@ export function IntegrationsTab({
   const [copiedVoiceSnippet, setCopiedVoiceSnippet] = useState<string | null>(null);
 
   // Test / Connect / Disconnect Progress Spinners
+  const [activeWaProvider, setActiveWaProvider] = useState<"official" | "waha">("official");
   const [connectingWhatsApp, setConnectingWhatsApp] = useState(false);
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [disconnectingWhatsApp, setDisconnectingWhatsApp] = useState(false);
@@ -3436,7 +3438,19 @@ export function IntegrationsTab({
                 )}
               </div>
 
-              {/* Meta Quick Connect Banner */}
+              {/* WhatsApp Provider Switcher: Meta Official vs Self-Hosted WAHA */}
+              <div className="pt-2">
+                <WahaProviderSelector
+                  provider={activeWaProvider}
+                  onChange={setActiveWaProvider}
+                />
+              </div>
+
+              {activeWaProvider === "waha" ? (
+                <WahaConnectionCard botId={botId || ""} fetchBackend={fetchWithFallback} />
+              ) : (
+                <>
+                  {/* Meta Quick Connect Banner */}
               <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/20 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">Connect with Meta in one step</p>
@@ -3705,6 +3719,8 @@ export function IntegrationsTab({
                   </div>
                 )}
               </div>
+                </>
+              )}
             </div>
           )}
 

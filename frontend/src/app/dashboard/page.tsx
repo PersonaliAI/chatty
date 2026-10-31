@@ -5226,6 +5226,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           {activeTab === "leads" && (
             <LeadsTab
               botId={botId}
+              fetchWithFallback={fetchWithFallback}
               leads={leads}
               filteredLeads={filteredLeads}
               leadsSearch={leadsSearch}

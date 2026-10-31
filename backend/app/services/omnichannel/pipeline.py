@@ -164,6 +164,22 @@ class OmnichannelPipeline:
         ch = message.channel
 
         if ch == ChannelType.WHATSAPP:
+            provider = str(bot.get("whatsapp_provider") or "").lower()
+            if not provider:
+                omni_cfg = bot.get("omnichannel_config") or {}
+                provider = str((omni_cfg.get("waha") or {}).get("provider") or "official").lower()
+
+            if provider == "waha":
+                try:
+                    from app.services.waha import get_waha_service_for_bot
+                    waha_service = get_waha_service_for_bot(bot)
+                    chat_id = f"{message.sender_id}@c.us" if "@" not in message.sender_id else message.sender_id
+                    res = await waha_service.dispatch_outbound(chat_id=chat_id, text=text, is_inbound_reply=True)
+                    return bool(res.get("delivered"))
+                except Exception as exc:
+                    logger.exception("Failed to dispatch outbound message via WAHA anti-ban service: %s", exc)
+                    return False
+
             return await send_outbound_whatsapp(
                 phone_number_id=message.recipient_id,
                 to=message.sender_id,
@@ -261,6 +277,25 @@ class OmnichannelPipeline:
         session_id = message.session_id
         bot_model = bot.get("selected_model")
         usage_units = usage_units_for_message(message.text, has_media=message.has_media, model=bot_model)
+
+        # 0. Enterprise Outbox & Idempotent Event Log
+        event_record_id = None
+        try:
+            import time
+            from app.services.enterprise.event_log_service import EventLogService
+            ext_id = str(message.message_id or f"{message.channel.value}:{session_id}:{int(time.time()*1000)}")
+            is_dup, ev = await EventLogService.record_event(
+                channel=message.channel.value,
+                external_id=ext_id,
+                bot_id=bot_id,
+                payload={"text": message.text[:200], "sender_id": message.sender_id, "session_id": session_id},
+            )
+            if is_dup:
+                logger.info("Dropping duplicate omnichannel event [%s:%s]", message.channel.value, ext_id)
+                return {"status": "duplicate_dropped", "delivered": False}
+            event_record_id = ev.get("id")
+        except Exception:
+            logger.debug("Enterprise event log recording skipped", exc_info=True)
 
         # 1. Channel Compliance (e.g., SMS TCPA STOP/START Opt-Out)
         if message.channel == ChannelType.SMS:
@@ -632,5 +667,34 @@ class OmnichannelPipeline:
             quick_replies=btn_list,
             booking_url=booking_url,
         )
+
+        # 14. Enterprise Cognitive Checkpoint & Automated CRM Deal Progression
+        try:
+            from app.services.enterprise import CheckpointService, PipelineService
+            checkpoint = await CheckpointService.extract_and_save_turn_checkpoint(
+                bot_id=bot_id,
+                session_id=session_id,
+                customer_message=message.text,
+                assistant_reply=reply,
+            )
+            intent = str(checkpoint.get("lead_intent") or "")
+            if intent in ("sales", "ready_to_buy"):
+                await PipelineService.auto_progress_deal_from_intent(
+                    bot_id=bot_id,
+                    session_id=session_id,
+                    intent=intent,
+                    contact_id=message.sender_id,
+                    deal_title=f"Deal: {getattr(message, 'sender_name', None) or message.sender_id} ({message.channel.value})",
+                )
+        except Exception:
+            logger.debug("Non-blocking enterprise checkpoint extraction failed", exc_info=True)
+
+        # 15. Mark enterprise outbox event completed
+        if event_record_id:
+            try:
+                from app.services.enterprise.event_log_service import EventLogService
+                await EventLogService.mark_completed(event_record_id)
+            except Exception:
+                pass
 
         return {"status": "delivered", "reply": reply}

@@ -1,6 +1,8 @@
 "use client";
 
+import React, { useState } from "react";
 import { RefreshCw, FileSpreadsheet, Loader2, Users, Pencil, Trash2, Check, X } from "lucide-react";
+import { KanbanBoard } from "@/components/crm";
 import type { Lead } from "../dashboard-types";
 
 interface LeadsTabProps {
@@ -23,6 +25,8 @@ interface LeadsTabProps {
   startEditLead: (l: Lead) => void;
   deleteLead: (l: Lead) => void;
   getLeadFieldValue: (l: Lead, f: string) => string;
+  botId?: string | null;
+  fetchWithFallback?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 export function LeadsTab({
@@ -45,9 +49,44 @@ export function LeadsTab({
   startEditLead,
   deleteLead,
   getLeadFieldValue,
+  botId,
+  fetchWithFallback,
 }: LeadsTabProps) {
+  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
   return (
-    <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-4">
+    <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-5">
+      {/* View Switcher: Kanban Pipeline vs Contacts Table */}
+      <div className="flex items-center justify-between pb-1">
+        <div className="inline-flex p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/80 dark:border-neutral-700/80 text-xs">
+          <button
+            type="button"
+            onClick={() => setViewMode("kanban")}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "kanban"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-2xs"
+                : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200"
+            }`}
+          >
+            📊 Sales Pipeline (Kanban)
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("table")}
+            className={`px-3.5 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+              viewMode === "table"
+                ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow-2xs"
+                : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200"
+            }`}
+          >
+            📋 Captured Contacts (${leads.length})
+          </button>
+        </div>
+      </div>
+
+      {viewMode === "kanban" ? (
+        <KanbanBoard botId={botId || ""} fetchBackend={fetchWithFallback} />
+      ) : (
+        <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">
@@ -209,6 +248,8 @@ export function LeadsTab({
               )}
             </tbody>
           </table>
+        </div>
+      )}
         </div>
       )}
     </div>
