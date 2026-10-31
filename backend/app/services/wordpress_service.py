@@ -307,7 +307,7 @@ async def verify_wordpress_site(
                     site_name = str(data.get("name") or base_url).strip()
                     rest_api_available = True
             except Exception as exc:
-                logger.info("WordPress /wp-json root probe warning: %s", exc)
+                logger.info("WordPress /wp-json root probe warning (%s)", type(exc).__name__)
 
             # 2. Probe posts count
             try:
@@ -327,7 +327,7 @@ async def verify_wordpress_site(
                         "error": f"WordPress rejected the Application Password (HTTP {posts_resp.status_code}). Check your username and Application Password.",
                     }
             except Exception as exc:
-                logger.info("WordPress posts probe warning: %s", exc)
+                logger.info("WordPress posts probe warning (%s)", type(exc).__name__)
 
             # 3. Probe pages count
             try:
@@ -342,7 +342,7 @@ async def verify_wordpress_site(
                     rest_api_available = True
                     pages_count = int(pages_resp.headers.get("x-wp-total") or len(pages_resp.json() or []))
             except Exception as exc:
-                logger.info("WordPress pages probe warning: %s", exc)
+                logger.info("WordPress pages probe warning (%s)", type(exc).__name__)
 
             if rest_api_available:
                 return {
@@ -381,7 +381,7 @@ async def verify_wordpress_site(
                 ),
             }
     except Exception as exc:
-        logger.warning("verify_wordpress_site failed for %s: %s", base_url, exc)
+        logger.warning("verify_wordpress_site failed (%s)", type(exc).__name__)
         return {"valid": False, "error": str(exc)}
 
 
@@ -569,7 +569,7 @@ async def sync_wordpress_content(
                         break
                     page_num += 1
                 except Exception as exc:
-                    logger.warning("WordPress sync error on %s page %s: %s", kind, page_num, exc)
+                    logger.warning("WordPress sync error on %s page %d (%s)", kind, page_num, type(exc).__name__)
                     errors.append(str(exc))
                     break
 

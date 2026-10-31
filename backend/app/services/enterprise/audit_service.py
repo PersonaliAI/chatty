@@ -56,7 +56,7 @@ class AuditService:
                 .insert(payload)
                 .execute()
             )
-            logger.debug("Logged audit event: %s %s:%s", action, entity_type, entity_id)
+            logger.debug("Logged enterprise audit event")
         except Exception as exc:
             # Audit logging is fire-and-forget; never raise or block user mutations
-            logger.warning("Failed to record enterprise audit log: %s", exc)
+            logger.warning("Failed to record enterprise audit log (%s)", type(exc).__name__)

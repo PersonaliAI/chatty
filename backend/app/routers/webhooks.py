@@ -900,7 +900,7 @@ async def whatsapp_receive(request: Request):
                             payload={"phone_number_id": pnid, "from": msg.get("from"), "type": msg.get("type")},
                         )
                         if is_dup:
-                            logger.info("WhatsApp duplicate message %s suppressed by enterprise event log", message_id)
+                            logger.info("WhatsApp duplicate message suppressed by enterprise event log")
                             continue
                 except Exception:
                     logger.debug("Enterprise event log recording skipped for whatsapp webhook", exc_info=True)

@@ -193,7 +193,7 @@ async def list_gateway_products(
                 )
                 all_products.extend(prods)
         except Exception as e:
-            logger.warning("Error fetching products from %s: %s", prov, e)
+            logger.warning("Error fetching products from payment gateway (%s)", type(e).__name__)
 
     return {
         "bot_id": bot_id,
@@ -251,7 +251,7 @@ async def connect_payment_gateway(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
-        logger.exception("Verification call failed for %s", prov)
+        logger.exception("Payment gateway verification call failed")
         raise HTTPException(status_code=400, detail=f"Failed to connect {prov}. Check your credentials and try again.")
 
     if not test_res.get("valid"):
@@ -598,10 +598,10 @@ async def inbox_send_checkout_link(
     except HTTPException:
         raise
     except (RuntimeError, ValueError) as e:
-        logger.warning("Checkout generation rejected for %s: %s", prov, type(e).__name__)
+        logger.warning("Checkout generation rejected (%s)", type(e).__name__)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
-        logger.exception("Failed to create checkout link for %s", prov)
+        logger.exception("Failed to create checkout link")
         raise HTTPException(status_code=500, detail="Checkout generation failed. Please try again.")
 
     checkout_url = checkout_res["checkout_url"]
@@ -702,7 +702,7 @@ async def inbox_send_checkout_link(
                     if tok and recipient_id:
                         await send_outbound_instagram(page_access_token=tok, recipient_id=recipient_id, text=channel_msg)
         except Exception:
-            logger.warning("Non-fatal: failed to dispatch checkout link to channel %s", channel, exc_info=True)
+            logger.warning("Non-fatal: failed to dispatch checkout link to omnichannel", exc_info=True)
 
     return {
         "status": "success",
@@ -804,7 +804,7 @@ async def _get_bot_email_context(bot_id: str) -> tuple[str, dict[str, Any], Opti
             if isinstance(ec.get("email_config"), dict):
                 email_config.update(ec["email_config"])
     except Exception:
-        logger.warning("Non-fatal: failed to load bot email context for %s", bot_id)
+        logger.warning("Non-fatal: failed to load bot email context")
     return bot_name, email_config, owner_email
 
 
@@ -1165,7 +1165,7 @@ async def receive_payment_gateway_webhook(
                 amount_cents=int(order_record.get("amount_cents") or amount_cents),
             )
         except Exception:
-            logger.exception("Failed to confirm meeting %s on payment webhook", meeting_id)
+            logger.exception("Failed to confirm meeting on payment webhook")
 
     # Post confirmation message in conversation thread if session_id is known
     eff_session_id = str(order_record.get("session_id") or session_id or "").strip()

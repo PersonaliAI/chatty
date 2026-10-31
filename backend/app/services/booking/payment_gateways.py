@@ -860,7 +860,7 @@ class PaymentGatewaysService:
                     return {"registered": False, "reason": f"PayPal returned HTTP {res.status_code}"}
 
         except Exception as exc:
-            logger.warning("Auto-register webhook for %s failed: %s", prov, exc)
+            logger.warning("Auto-register payment webhook failed (%s)", type(exc).__name__)
             return {"registered": False, "reason": str(exc)}
 
         return {"registered": False, "reason": "Unsupported provider"}

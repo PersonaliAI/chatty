@@ -51,13 +51,13 @@ class EventLogService:
                 .execute()
             )
             if res.data:
-                logger.debug("Enqueued new event %s [%s:%s]", res.data[0]["id"], channel, external_id)
+                logger.debug("Enqueued new event %s", res.data[0]["id"])
                 return False, res.data[0]
         except Exception as exc:
             # Check for PostgreSQL unique constraint violation 23505
             err_str = str(exc)
             if "23505" in err_str or "uq_event_log_channel_external_id" in err_str or "duplicate key" in err_str:
-                logger.info("Idempotent deduplication caught duplicate event [%s:%s]", channel, external_id)
+                logger.info("Idempotent deduplication caught duplicate event")
                 existing = await run_db(
                     lambda: supabase.table("chatty_event_log")
                     .select("*")
@@ -67,7 +67,7 @@ class EventLogService:
                     .execute()
                 )
                 return True, (existing.data[0] if existing.data else {"external_id": external_id, "status": "duplicate"})
-            logger.exception("Failed to insert event log record: %s", exc)
+            logger.exception("Failed to insert event log record (%s)", type(exc).__name__)
             raise
 
         return False, record

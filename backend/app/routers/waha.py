@@ -216,7 +216,7 @@ async def waha_inbound_webhook(
 
     # Anti-ban Opt-out / DNC shield check
     if service.is_opt_out_request(text):
-        logger.info("Opt-out keyword detected from %s; confirming DNC shield", sender_phone)
+        logger.info("Opt-out keyword detected; confirming DNC shield")
         try:
             await service.client.send_text(
                 session_name=service.config.waha_session_name,

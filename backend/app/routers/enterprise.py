@@ -216,6 +216,6 @@ async def get_deal_by_session(
         deal = res.data[0] if res.data else None
         return {"ok": True, "deal": deal}
     except Exception as exc:
-        logger.warning("Failed to fetch deal for session %s: %s", session_id, exc)
+        logger.warning("Failed to fetch deal for session (%s)", type(exc).__name__)
         return {"ok": True, "deal": None}
 
