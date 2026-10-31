@@ -175,6 +175,11 @@ class PaymentGatewaysService:
             "Content-Type": "application/vnd.api+json",
             "Authorization": f"Bearer {api_key.strip()}",
         }
+        clean_meta = {str(k): str(v) for k, v in (metadata or {}).items() if v is not None and str(v) != ""}
+        checkout_data: dict[str, Any] = {"custom": clean_meta}
+        if customer_email and "@" in customer_email:
+            checkout_data["email"] = customer_email.strip()
+
         payload = {
             "data": {
                 "type": "checkouts",
@@ -184,10 +189,7 @@ class PaymentGatewaysService:
                         "name": title,
                         "redirect_url": success_url,
                     },
-                    "checkout_data": {
-                        "email": customer_email or "",
-                        "custom": metadata or {},
-                    },
+                    "checkout_data": checkout_data,
                 },
                 "relationships": {
                     "store": {
@@ -296,29 +298,96 @@ class PaymentGatewaysService:
         customer_email: Optional[str],
         success_url: str,
         metadata: Optional[dict[str, Any]] = None,
+        product_id: Optional[str] = None,
     ) -> dict[str, Any]:
-        """Create a Polar.sh custom checkout session."""
+        """Create a Polar.sh checkout session (supports both catalog products and on-the-fly custom amounts)."""
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
             "Authorization": f"Bearer {access_token.strip()}",
         }
-        payload = {
-            "amount": amount_cents,
-            "currency": currency.lower(),
-            "product_name": title,
-            "success_url": success_url,
-            "customer_email": customer_email,
-            "metadata": metadata or {},
+        clean_title = (title or "Order Payment").strip()[:120]
+        clean_currency = (currency or "usd").strip().lower()
+        clean_meta = {
+            str(k): str(v)[:400]
+            for k, v in (metadata or {}).items()
+            if v is not None and str(v).strip() != ""
         }
-        if organization_id:
-            payload["organization_id"] = organization_id
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            # 1. Detect live vs sandbox base URL for this token
+            base_url = "https://api.polar.sh"
+            probe = await client.get(f"{base_url}/v1/organizations/", headers=headers)
+            if probe.status_code == 401:
+                sb_probe = await client.get("https://sandbox-api.polar.sh/v1/organizations/", headers=headers)
+                if sb_probe.status_code == 200:
+                    base_url = "https://sandbox-api.polar.sh"
+
+            # 2. Resolve or create a Polar product matching the requested title & amount
+            is_org_token = access_token.strip().startswith("polar_oat_")
+            resolved_product_id = product_id.strip() if (product_id and str(product_id).strip()) else None
+
+            if not resolved_product_id:
+                list_url = f"{base_url}/v1/products/?is_archived=false&limit=100"
+                if organization_id and not is_org_token:
+                    list_url += f"&organization_id={safe_gateway_id(organization_id, 'organization ID')}"
+                list_res = await client.get(list_url, headers=headers)
+                if list_res.status_code == 200:
+                    for prod in list_res.json().get("items", []):
+                        if str(prod.get("name") or "").strip().lower() == clean_title.lower() and not prod.get("is_recurring"):
+                            prices = prod.get("prices") or []
+                            if prices and prices[0].get("price_amount") == amount_cents and str(prices[0].get("price_currency") or "usd").lower() == clean_currency:
+                                resolved_product_id = prod.get("id")
+                                break
+
+            if not resolved_product_id:
+                prod_payload: dict[str, Any] = {
+                    "name": clean_title,
+                    "recurring_interval": None,
+                    "prices": [
+                        {
+                            "amount_type": "fixed",
+                            "price_amount": int(amount_cents),
+                            "price_currency": clean_currency,
+                        }
+                    ],
+                }
+                if organization_id and not is_org_token:
+                    prod_payload["organization_id"] = organization_id.strip()
+
+                prod_res = await client.post(
+                    f"{base_url}/v1/products/",
+                    headers=headers,
+                    json=prod_payload,
+                )
+                if prod_res.status_code == 422 and "organization_id" in prod_payload:
+                    prod_payload.pop("organization_id", None)
+                    prod_res = await client.post(
+                        f"{base_url}/v1/products/",
+                        headers=headers,
+                        json=prod_payload,
+                    )
+                if prod_res.status_code not in (200, 201):
+                    try:
+                        err_detail = prod_res.json().get("detail", prod_res.text)
+                    except Exception:
+                        err_detail = prod_res.text
+                    raise RuntimeError(f"Polar.sh product setup error: {err_detail}")
+                resolved_product_id = prod_res.json().get("id")
+
+            # 3. Create the hosted Polar checkout session via /v1/checkouts/
+            chk_payload: dict[str, Any] = {
+                "products": [resolved_product_id],
+                "success_url": success_url,
+                "metadata": clean_meta,
+            }
+            if customer_email and "@" in customer_email:
+                chk_payload["customer_email"] = customer_email.strip()
+
             res = await client.post(
-                "https://api.polar.sh/v1/checkouts/custom/",
+                f"{base_url}/v1/checkouts/",
                 headers=headers,
-                json=payload,
+                json=chk_payload,
             )
             if res.status_code in (200, 201):
                 data = res.json()
@@ -329,7 +398,10 @@ class PaymentGatewaysService:
                     "amount_cents": amount_cents,
                     "currency": currency,
                 }
-            err = res.json().get("detail", res.text)
+            try:
+                err = res.json().get("detail", res.text)
+            except Exception:
+                err = res.text
             raise RuntimeError(f"Polar.sh API error: {err}")
 
     # -------------------------------------------------------------------------
@@ -463,12 +535,15 @@ class PaymentGatewaysService:
             "Accept": "application/json",
             "Authorization": f"Bearer {access_token.strip()}",
         }
-        url = "https://api.polar.sh/v1/products/?is_archived=false&limit=100"
-        if organization_id:
-            url += f"&organization_id={safe_gateway_id(organization_id, 'organization ID')}"
+        is_org_token = access_token.strip().startswith("polar_oat_")
+        query_suffix = "/v1/products/?is_archived=false&limit=100"
+        if organization_id and not is_org_token:
+            query_suffix += f"&organization_id={safe_gateway_id(organization_id, 'organization ID')}"
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            res = await client.get(url, headers=headers)
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            res = await client.get(f"https://api.polar.sh{query_suffix}", headers=headers)
+            if res.status_code == 401:
+                res = await client.get(f"https://sandbox-api.polar.sh{query_suffix}", headers=headers)
             if res.status_code != 200:
                 logger.warning("Failed to fetch Polar.sh products: %s", res.text)
                 return []
@@ -631,7 +706,7 @@ class PaymentGatewaysService:
         import secrets as _secrets
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
                 if prov == "stripe":
                     headers = {"Authorization": f"Bearer {secret_key.strip()}"}
                     # Check existing endpoints first
@@ -664,12 +739,18 @@ class PaymentGatewaysService:
                     return {"registered": False, "reason": f"Stripe returned HTTP {res.status_code}"}
 
                 elif prov == "polar":
-                    base_url = "https://sandbox-api.polar.sh" if test_mode else "https://api.polar.sh"
                     headers = {
                         "Accept": "application/json",
                         "Content-Type": "application/json",
                         "Authorization": f"Bearer {secret_key.strip()}",
                     }
+                    base_url = "https://api.polar.sh"
+                    probe = await client.get(f"{base_url}/v1/organizations/", headers=headers)
+                    if probe.status_code == 401:
+                        sb_probe = await client.get("https://sandbox-api.polar.sh/v1/organizations/", headers=headers)
+                        if sb_probe.status_code == 200:
+                            base_url = "https://sandbox-api.polar.sh"
+
                     # Check existing Polar webhook endpoints
                     list_res = await client.get(f"{base_url}/v1/webhooks/endpoints", headers=headers)
                     if list_res.status_code == 200:
@@ -695,7 +776,7 @@ class PaymentGatewaysService:
                             "refund.created",
                         ],
                     }
-                    if extra.get("organization_id"):
+                    if extra.get("organization_id") and not secret_key.strip().startswith("polar_oat_"):
                         payload["organization_id"] = extra["organization_id"]
                     res = await client.post(f"{base_url}/v1/webhooks/endpoints", headers=headers, json=payload)
                     if res.status_code in (200, 201):

@@ -591,6 +591,7 @@ async def inbox_send_checkout_link(
                 customer_email=customer_email,
                 success_url=success_url,
                 metadata=metadata,
+                product_id=body.variant_id,
             )
         else:
             raise HTTPException(status_code=400, detail="Unsupported provider")
