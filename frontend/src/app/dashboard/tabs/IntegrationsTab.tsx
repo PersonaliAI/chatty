@@ -619,8 +619,15 @@ export function IntegrationsTab({
           extra_config: Object.keys(extra).length > 0 ? extra : undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Connection failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          data.detail ||
+            (res.status === 404
+              ? "Payment service endpoint not found (HTTP 404). Backend deployment is updating."
+              : `Connection failed (HTTP ${res.status})`)
+        );
+      }
       showToast?.(data.message || `${provider} connected successfully!`, "success");
       setPaySecretKey("");
       setPayPublishableKey("");
