@@ -123,6 +123,7 @@ import {
   Cpu,
   Shield,
   DollarSign,
+  ShoppingBag,
   Building2,
   type LucideIcon
 } from "lucide-react";
@@ -156,6 +157,7 @@ import { BillingTab, type BillingInfo } from "./tabs/BillingTab";
 import { AdminAffiliatesTab } from "./tabs/AdminAffiliatesTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { MeetingsTab } from "./tabs/MeetingsTab";
+import { OrdersTab } from "./tabs/OrdersTab";
 import { HomeTab } from "./tabs/HomeTab";
 import { WorkspaceTab } from "./tabs/WorkspaceTab";
 import { PlaygroundTab } from "./tabs/PlaygroundTab";
@@ -4622,6 +4624,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               { id: "map", label: "Map", icon: MapPin },
               { id: "meetings", label: t("meetings"), icon: Calendar },
               { id: "mailbox", label: "Mailbox", icon: Mail },
+              { id: "orders", label: "Orders & Sales", icon: ShoppingBag },
               { id: "notifications", label: t("notifications"), icon: Bell },
               { id: "audit_log", label: t("audit_log"), icon: FileText },
               { id: "analytics", label: t("analytics"), icon: BarChart3 },
@@ -4771,7 +4774,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
             <div className="min-w-0">
               <span className="block text-[10px] uppercase tracking-wider text-neutral-400 font-semibold whitespace-nowrap max-sm:truncate">Chatty Console</span>
               <div className="flex items-center gap-2 mt-0.5">
-                <h2 className="text-sm font-semibold capitalize whitespace-nowrap max-sm:truncate">{activeTab === "home" ? "Overview" : activeTab === "flow_builder" ? "My flows" : activeTab.replace("_", " ")}</h2>
+                <h2 className="text-sm font-semibold capitalize whitespace-nowrap max-sm:truncate">{activeTab === "home" ? "Overview" : activeTab === "flow_builder" ? "My flows" : activeTab === "orders" ? "Orders & Sales" : activeTab.replace("_", " ")}</h2>
               </div>
             </div>
           </div>
@@ -5222,6 +5225,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           {/* TAB 5: LEADS */}
           {activeTab === "leads" && (
             <LeadsTab
+              botId={botId}
               leads={leads}
               filteredLeads={filteredLeads}
               leadsSearch={leadsSearch}
@@ -5667,6 +5671,16 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               loadAdminData={loadAdminData}
               loadingAdminData={loadingAdminData}
               formatDateTime={formatDateTime}
+            />
+          )}
+
+          {/* TAB: ORDERS & SALES */}
+          {activeTab === "orders" && botId && (
+            <OrdersTab
+              botId={botId}
+              onOpenConversation={(_sessionId) => {
+                setActiveTab("inbox");
+              }}
             />
           )}
 

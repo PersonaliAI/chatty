@@ -138,3 +138,70 @@ async def test_multi_gateway_dispatch():
         )
         assert res.get("provider") == "lemonsqueezy"
         assert res.get("checkout_url") == "https://lemonsqueezy.com/buy/123"
+
+
+@pytest.mark.anyio
+async def test_order_recording_and_kpi_computation():
+    """Verify that orders are recorded with customer details, attribution, and KPIs calculated."""
+    from app.routers.payment_integrations import list_bot_orders, update_order_status
+
+    fake_orders = [
+        {
+            "id": "ord_1",
+            "bot_id": "bot_123",
+            "provider": "stripe",
+            "amount_cents": 10000,
+            "currency": "USD",
+            "status": "succeeded",
+            "attributed_to": "ai_agent",
+            "customer_email": "alex@example.com",
+            "title": "Pro Plan",
+        },
+        {
+            "id": "ord_2",
+            "bot_id": "bot_123",
+            "provider": "paypal",
+            "amount_cents": 5000,
+            "currency": "USD",
+            "status": "succeeded",
+            "attributed_to": "human_agent",
+            "agent_email": "agent@company.com",
+            "customer_email": "bob@example.com",
+            "title": "Consultation",
+        },
+        {
+            "id": "ord_3",
+            "bot_id": "bot_123",
+            "provider": "stripe",
+            "amount_cents": 7500,
+            "currency": "USD",
+            "status": "pending",
+            "attributed_to": "ai_agent",
+            "customer_email": "charlie@example.com",
+            "title": "Custom Deposit",
+        },
+    ]
+
+    class FakeOrdersTable:
+        def select(self, *args, **kwargs): return self
+        def eq(self, *args): return self
+        def ilike(self, *args): return self
+        def order(self, *args, **kwargs): return self
+        def range(self, *args): return self
+        def execute(self):
+            return MockDBResult(fake_orders)
+
+    with patch("app.routers.payment_integrations.supabase") as mock_sb, \
+         patch("app.routers.payment_integrations.verify_bot_permission") as mock_perm:
+        mock_sb.table.return_value = FakeOrdersTable()
+        mock_perm.return_value = None
+
+        res = await list_bot_orders(bot_id="bot_123", user={"id": "u1", "email": "admin@company.com"})
+        assert res["total_count"] == 3
+        kpis = res["kpis"]
+        assert kpis["total_revenue_cents"] == 15000  # ord_1 (10000) + ord_2 (5000)
+        assert kpis["pending_revenue_cents"] == 7500 # ord_3 (7500)
+        assert kpis["ai_revenue_cents"] == 10000     # ord_1
+        assert kpis["human_revenue_cents"] == 5000   # ord_2
+        assert kpis["succeeded_orders"] == 2
+

@@ -336,10 +336,63 @@ async def inbox_send_checkout_link(
 
     success_url = "https://app.chatty.com/payment/success"
     cancel_url = "https://app.chatty.com/payment/cancel"
+
+    # 1. Industrial Pre-Checkout Lead Hydration
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = body.customer_email
+    customer_phone: Optional[str] = None
+    customer_country: Optional[str] = None
+    channel: str = "web"
+
+    sid_str = str(body.session_id or "").strip()
+    if sid_str:
+        if sid_str.startswith("wa:"): channel = "whatsapp"
+        elif sid_str.startswith("tg:"): channel = "telegram"
+        elif sid_str.startswith("ig:"): channel = "instagram"
+        elif sid_str.startswith("fb:"): channel = "messenger"
+        elif sid_str.startswith("sms:"): channel = "sms"
+        elif sid_str.startswith("tt:"): channel = "tiktok"
+
+        try:
+            lead_res = await run_db(lambda: supabase.table("chatty_leads")
+                .select("name, email, phone, country")
+                .eq("bot_id", bot_id)
+                .eq("session_id", sid_str)
+                .limit(1)
+                .execute())
+            if lead_res and lead_res.data:
+                lead_row = lead_res.data[0]
+                customer_name = lead_row.get("name")
+                customer_email = customer_email or lead_row.get("email")
+                customer_phone = lead_row.get("phone")
+                customer_country = lead_row.get("country")
+        except Exception:
+            pass
+
+        try:
+            sess_res = await run_db(lambda: supabase.table("chatty_sessions")
+                .select("visitor_name, visitor_email, channel, country")
+                .eq("bot_id", bot_id)
+                .eq("session_id", sid_str)
+                .limit(1)
+                .execute())
+            if sess_res and sess_res.data:
+                sess_row = sess_res.data[0]
+                customer_name = customer_name or sess_row.get("visitor_name")
+                customer_email = customer_email or sess_row.get("visitor_email")
+                customer_country = customer_country or sess_row.get("country")
+                if sess_row.get("channel"):
+                    channel = sess_row.get("channel")
+        except Exception:
+            pass
+
     metadata = {
         "bot_id": bot_id,
         "session_id": body.session_id,
         "sent_by": user.get("email") or "human_agent",
+        "customer_name": customer_name or "",
+        "customer_phone": customer_phone or "",
+        "channel": channel,
     }
 
     try:
@@ -349,7 +402,7 @@ async def inbox_send_checkout_link(
                 amount_cents=body.amount_cents,
                 currency=body.currency,
                 title=body.title,
-                customer_email=body.customer_email,
+                customer_email=customer_email,
                 success_url=success_url,
                 cancel_url=cancel_url,
                 metadata=metadata,
@@ -362,7 +415,7 @@ async def inbox_send_checkout_link(
                 amount_cents=body.amount_cents,
                 currency=body.currency,
                 title=body.title,
-                customer_email=body.customer_email,
+                customer_email=customer_email,
                 success_url=success_url,
                 cancel_url=cancel_url,
                 metadata=metadata,
@@ -378,7 +431,7 @@ async def inbox_send_checkout_link(
                 amount_cents=body.amount_cents,
                 currency=body.currency,
                 title=body.title,
-                customer_email=body.customer_email,
+                customer_email=customer_email,
                 success_url=success_url,
                 metadata=metadata,
             )
@@ -389,7 +442,7 @@ async def inbox_send_checkout_link(
                 amount_cents=body.amount_cents,
                 currency=body.currency,
                 title=body.title,
-                customer_email=body.customer_email,
+                customer_email=customer_email,
                 success_url=success_url,
                 metadata=metadata,
             )
@@ -437,6 +490,77 @@ async def inbox_send_checkout_link(
 
     await run_db(_insert_msg)
 
+    # 2. Record Transaction in chatty_orders
+    order_record = {
+        "bot_id": bot_id,
+        "session_id": body.session_id,
+        "provider": prov,
+        "order_type": "product_checkout" if body.variant_id else "custom_checkout",
+        "attributed_to": "human_agent",
+        "agent_email": user.get("email") or "human_agent",
+        "channel": channel,
+        "title": body.title,
+        "amount_cents": body.amount_cents,
+        "currency": body.currency.upper(),
+        "customer_name": customer_name,
+        "customer_email": customer_email,
+        "customer_phone": customer_phone,
+        "customer_country": customer_country,
+        "checkout_url": checkout_url,
+        "gateway_order_id": checkout_res.get("session_id") or checkout_res.get("order_id") or "",
+        "status": "pending",
+        "metadata": metadata,
+    }
+    try:
+        await run_db(lambda: supabase.table("chatty_orders").insert(order_record).execute())
+    except Exception:
+        logger.exception("Non-fatal: failed to record order in chatty_orders")
+
+    # 3. Omnichannel Outbound Dispatch (WhatsApp, Telegram, Instagram, SMS)
+    if channel in ("whatsapp", "telegram", "messenger", "instagram", "sms", "tiktok") or sid_str.startswith(("wa:", "tg:", "ig:", "fb:", "sms:", "tt:")):
+        channel_msg = (
+            f"💳 *{body.title}* ({amount_formatted})\n\n"
+            f"Please complete your secure payment via {prov.capitalize()}:\n"
+            f"{checkout_url}"
+        )
+        try:
+            recipient_id = sid_str.split(":", 1)[1].strip() if ":" in sid_str else sid_str
+            if channel == "whatsapp" or sid_str.startswith("wa:"):
+                from app.services import whatsapp_service
+                to_phone = recipient_id or customer_phone or ""
+                bot_wa_res = await run_db(lambda: supabase.table("chatty_bots").select("whatsapp_phone_number_id, whatsapp_access_token").eq("id", bot_id).limit(1).execute())
+                b_wa = bot_wa_res.data[0] if (bot_wa_res and bot_wa_res.data) else {}
+                p_id = (b_wa.get("whatsapp_phone_number_id") or "").strip() or whatsapp_service.WHATSAPP_PHONE_NUMBER_ID
+                tok = decrypt_secret((b_wa.get("whatsapp_access_token") or "").strip()) or whatsapp_service.WHATSAPP_ACCESS_TOKEN
+                if p_id and tok and to_phone:
+                    await whatsapp_service.send_whatsapp_message(phone_number_id=p_id, to=to_phone, text=channel_msg, access_token=tok)
+            elif channel in ("messenger", "instagram", "telegram", "sms", "tiktok") or sid_str.startswith(("ig:", "fb:", "tg:", "sms:", "tt:")):
+                from app.services.omnichannel import (
+                    send_outbound_instagram,
+                    send_outbound_sms,
+                    send_outbound_telegram,
+                    send_outbound_tiktok,
+                    unpack_omnichannel_bot_row,
+                )
+                bot_omni_res = await run_db(lambda: supabase.table("chatty_bots").select("*").eq("id", bot_id).limit(1).execute())
+                bot_omni = unpack_omnichannel_bot_row(bot_omni_res.data[0]) if (bot_omni_res and bot_omni_res.data) else {}
+                if sid_str.startswith("tg:") or channel == "telegram":
+                    tok = decrypt_secret(str(bot_omni.get("telegram_bot_token") or ""))
+                    if tok and recipient_id:
+                        await send_outbound_telegram(bot_token=tok, chat_id=recipient_id, text=channel_msg)
+                elif sid_str.startswith("sms:") or channel == "sms":
+                    sid_tw = str(bot_omni.get("twilio_account_sid") or "")
+                    tok_tw = decrypt_secret(str(bot_omni.get("twilio_auth_token") or ""))
+                    from_tw = str(bot_omni.get("twilio_phone_number") or "")
+                    if sid_tw and tok_tw and from_tw and recipient_id:
+                        await send_outbound_sms(account_sid=sid_tw, auth_token=tok_tw, from_number=from_tw, to_number=recipient_id, text=channel_msg)
+                elif sid_str.startswith("ig:") or channel == "instagram":
+                    tok = decrypt_secret(str(bot_omni.get("instagram_access_token") or ""))
+                    if tok and recipient_id:
+                        await send_outbound_instagram(page_access_token=tok, recipient_id=recipient_id, text=channel_msg)
+        except Exception:
+            logger.warning("Non-fatal: failed to dispatch checkout link to channel %s", channel, exc_info=True)
+
     return {
         "status": "success",
         "provider": prov,
@@ -444,3 +568,95 @@ async def inbox_send_checkout_link(
         "amount_formatted": amount_formatted,
         "token_data": token_data,
     }
+
+
+# --- 6. ORDERS & SALES TRANSACTIONS MANAGEMENT ---
+@router.get("/api/bots/{bot_id}/orders")
+async def list_bot_orders(
+    bot_id: str,
+    status: Optional[str] = Query(None, description="succeeded, pending, refunded, failed"),
+    provider: Optional[str] = Query(None, description="stripe, paypal, lemonsqueezy, polar"),
+    attributed_to: Optional[str] = Query(None, description="ai_agent, human_agent"),
+    search: Optional[str] = Query(None, description="Search customer name, email, or title"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Retrieve full audit record of customer transactions, revenue KPIs, and attribution."""
+    await verify_bot_permission(user, bot_id, required_tab="conversations")
+
+    status_val = status if isinstance(status, str) else None
+    provider_val = provider if isinstance(provider, str) else None
+    attributed_val = attributed_to if isinstance(attributed_to, str) else None
+    search_val = search if isinstance(search, str) else None
+    limit_val = limit if isinstance(limit, int) else 50
+    offset_val = offset if isinstance(offset, int) else 0
+
+    def _query():
+        q = supabase.table("chatty_orders").select("*", count="exact").eq("bot_id", bot_id)
+        if status_val and status_val.lower() != "all":
+            q = q.eq("status", status_val.lower())
+        if provider_val and provider_val.lower() != "all":
+            q = q.eq("provider", provider_val.lower())
+        if attributed_val and attributed_val.lower() != "all":
+            q = q.eq("attributed_to", attributed_val.lower())
+        if search_val and search_val.strip():
+            s = search_val.strip()
+            q = q.ilike("title", f"%{s}%")
+        q = q.order("created_at", desc=True).range(offset_val, offset_val + limit_val - 1)
+        return q.execute()
+
+    res = await run_db(_query)
+    orders = res.data or []
+    total_count = res.count if hasattr(res, "count") and res.count is not None else len(orders)
+
+    def _kpis():
+        return supabase.table("chatty_orders").select("amount_cents, status, attributed_to, currency").eq("bot_id", bot_id).execute()
+
+    kpi_res = await run_db(_kpis)
+    all_records = kpi_res.data or []
+
+    total_revenue_cents = sum(r.get("amount_cents", 0) for r in all_records if r.get("status") == "succeeded")
+    pending_revenue_cents = sum(r.get("amount_cents", 0) for r in all_records if r.get("status") == "pending")
+    ai_revenue_cents = sum(r.get("amount_cents", 0) for r in all_records if r.get("status") == "succeeded" and r.get("attributed_to") == "ai_agent")
+    human_revenue_cents = sum(r.get("amount_cents", 0) for r in all_records if r.get("status") == "succeeded" and r.get("attributed_to") == "human_agent")
+    total_succeeded_count = sum(1 for r in all_records if r.get("status") == "succeeded")
+
+    return {
+        "orders": orders,
+        "total_count": total_count,
+        "kpis": {
+            "total_revenue_cents": total_revenue_cents,
+            "pending_revenue_cents": pending_revenue_cents,
+            "ai_revenue_cents": ai_revenue_cents,
+            "human_revenue_cents": human_revenue_cents,
+            "total_orders": len(all_records),
+            "succeeded_orders": total_succeeded_count,
+        },
+    }
+
+
+@router.post("/api/bots/{bot_id}/orders/{order_id}/status")
+async def update_order_status(
+    bot_id: str,
+    order_id: str,
+    body: dict[str, Any],
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Manually update or refund order status."""
+    await verify_bot_permission(user, bot_id, required_tab="conversations")
+    new_status = body.get("status", "").lower()
+    if new_status not in {"pending", "succeeded", "failed", "refunded", "cancelled"}:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    update_payload = {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}
+    if new_status == "succeeded":
+        update_payload["paid_at"] = datetime.now(timezone.utc).isoformat()
+
+    def _update():
+        return supabase.table("chatty_orders").update(update_payload).eq("bot_id", bot_id).eq("id", order_id).execute()
+
+    res = await run_db(_update)
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"status": "success", "order": res.data[0]}
