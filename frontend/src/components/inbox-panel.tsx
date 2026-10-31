@@ -55,8 +55,6 @@ import {
   ArrowLeft,
   PanelLeftClose,
   AtSign,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
 import { QuickEmojiPicker } from "@/components/quick-emoji-picker";
 import { AttachMenu } from "@/components/attach-menu";
@@ -539,25 +537,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [visitorDetailsOpen, setVisitorDetailsOpen] = useState(false);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [queueSort, setQueueSort] = useState("newest");
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [chatFocusMode, setChatFocusMode] = useState(false);
 
-  useEffect(() => {
-    if (!isMaximized && !chatFocusMode) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setIsMaximized(false);
-        setChatFocusMode(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isMaximized, chatFocusMode]);
   const presencePopupRef = useRef<HTMLDivElement | null>(null);
   const rosterPopupRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -1962,14 +1942,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   );
 
   return (
-    <div
-      className={`inbox-shell space-y-4 ${isMaximized ? "inbox-shell-maximized" : ""}`}
-      data-conversation-open={Boolean(selected)}
-      data-navigation-collapsed={navigationCollapsed}
-      data-details-open={visitorDetailsOpen && Boolean(selected)}
-      data-maximized={isMaximized}
-      data-chat-focused={chatFocusMode && Boolean(selected)}
-    >
+    <div className="inbox-shell space-y-4" data-conversation-open={Boolean(selected)} data-navigation-collapsed={navigationCollapsed} data-details-open={visitorDetailsOpen && Boolean(selected)}>
       {/* ── Omnichannel Routing, Agent Presence & Live Queue Bar ── */}
       <div data-inbox-routing className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
         {/* Left: Agent Presence Status & Capacity */}
@@ -2152,26 +2125,6 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
             <span>Auto-Assign</span>
           </button>
 
-          {/* Maximize / Fullscreen Workspace Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              if (selected) {
-                setChatFocusMode((prev) => !prev);
-              } else {
-                setIsMaximized((prev) => !prev);
-              }
-            }}
-            title={selected ? (chatFocusMode ? "Exit Fullscreen (Esc)" : "Maximize Chat to Whole Screen") : isMaximized ? "Restore inbox view (Esc)" : "Maximize inbox to full space"}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer border ${
-              isMaximized || chatFocusMode
-                ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 border-neutral-900 dark:border-white hover:opacity-90 active:scale-95"
-                : "bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-750"
-            }`}
-          >
-            {isMaximized || chatFocusMode ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
-            <span className="hidden sm:inline">{isMaximized || chatFocusMode ? "Restore" : "Maximize"}</span>
-          </button>
         </div>
       </div>
       <div className="inbox-workspace">
@@ -2469,7 +2422,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       </div>
 
       {/* ── Ticket Detail & Workspace Pane ── */}
-      <div className="inbox-conversation bg-white dark:bg-neutral-900 overflow-hidden flex flex-col relative" data-chat-fullscreen={chatFocusMode && Boolean(selected)}>
+      <div className="inbox-conversation bg-white dark:bg-neutral-900 overflow-hidden flex flex-col">
         {!selected ? (
           <div className="flex-1 flex flex-col items-center justify-center text-xs text-neutral-400 p-8 space-y-2">
             <InboxIcon className="size-10 text-neutral-300 stroke-1" />
@@ -2478,41 +2431,9 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
         ) : (
           <>
             {/* Ticket Header Bar */}
-            {/* Pure Chat Fullscreen Floating Exit Pill */}
-            {chatFocusMode && (
-              <div className="absolute top-3 right-4 z-50 flex items-center gap-2 pointer-events-auto">
-                <div className="bg-neutral-900/90 dark:bg-neutral-100/95 text-white dark:text-neutral-900 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-2xl border border-white/10 dark:border-black/10 flex items-center gap-2.5">
-                  <span className="font-bold flex items-center gap-1.5">
-                    <MessageSquare className="size-3.5 text-emerald-400 dark:text-emerald-600" />
-                    {current?.visitor_name || `Visitor ${selected.slice(-5)}`}
-                  </span>
-                  <span className="opacity-30">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setChatFocusMode(false)}
-                    className="flex items-center gap-1.5 text-white/95 dark:text-neutral-900 hover:text-amber-300 dark:hover:text-amber-600 transition cursor-pointer"
-                    title="Exit Fullscreen (Esc)"
-                  >
-                    <Minimize2 className="size-3.5" />
-                    <span>Exit Fullscreen</span>
-                    <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/20 dark:bg-black/10 text-white dark:text-neutral-700">Esc</kbd>
-                  </button>
-                </div>
-              </div>
-            )}
-            {/* Ticket Header Bar */}
             <div className="inbox-conversation-tools flex justify-end px-3 py-1.5 border-b border-neutral-100 dark:border-neutral-800">
               <button type="button" className="inbox-back" onClick={() => selectConversation(null)}><ArrowLeft className="size-4" />Conversations</button>
               <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
-              <button
-                type="button"
-                onClick={() => setChatFocusMode(true)}
-                className="text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
-                title="Maximize Chat Area to Whole Screen (No Top Buttons)"
-              >
-                <Maximize2 className="size-3.5 text-neutral-500" />
-                <span>Maximize Chat</span>
-              </button>
             </div>
             <div data-inbox-ticket-header className="p-3 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
