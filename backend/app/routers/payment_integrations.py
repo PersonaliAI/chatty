@@ -187,6 +187,13 @@ async def list_gateway_products(
                     secret, store_id=extra.get("store_id")
                 )
                 all_products.extend(prods)
+            elif prov == "paypal":
+                prods = await PaymentGatewaysService.fetch_paypal_products(
+                    client_id=row.get("publishable_key") or "",
+                    client_secret=secret,
+                    test_mode=bool(row.get("test_mode", True)),
+                )
+                all_products.extend(prods)
             elif prov == "polar":
                 prods = await PaymentGatewaysService.fetch_polar_products(
                     secret, organization_id=extra.get("organization_id")

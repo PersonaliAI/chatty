@@ -708,6 +708,86 @@ class PaymentGatewaysService:
             return {"captured": True, "data": res.json()}
         return {"captured": False, "status_code": res.status_code, "error": res.text[:300]}
 
+    @classmethod
+    async def fetch_paypal_products(
+        cls, client_id: str, client_secret: str, test_mode: bool = True
+    ) -> list[dict[str, Any]]:
+        """Fetch active products and billing plans from PayPal REST API."""
+        if not client_id or not client_secret:
+            return []
+        try:
+            token = await cls._paypal_token(client_id, client_secret, test_mode)
+            base = cls._paypal_base(test_mode)
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            items: list[dict[str, Any]] = []
+
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                # 1. Fetch Subscription Billing Plans
+                plans_res = await client.get(
+                    f"{base}/v1/billing/plans?page_size=20&total_required=true",
+                    headers=headers,
+                )
+                if plans_res.status_code == 200:
+                    for plan in plans_res.json().get("plans", []):
+                        if plan.get("status") not in (None, "ACTIVE"):
+                            continue
+                        cycles = plan.get("billing_cycles") or []
+                        pricing_scheme = cycles[0].get("pricing_scheme") if cycles else {}
+                        fixed_price = pricing_scheme.get("fixed_price") or {}
+                        try:
+                            val = float(fixed_price.get("value") or 0)
+                        except (ValueError, TypeError):
+                            val = 0.0
+                        amount_cents = int(round(val * 100))
+                        currency = (fixed_price.get("currency_code") or "USD").upper()
+                        frequency = cycles[0].get("frequency", {}) if cycles else {}
+                        interval = frequency.get("interval_unit", "").lower() or "month"
+                        formatted = f"${val:.2f} {currency} / {interval}"
+                        items.append({
+                            "id": plan.get("id"),
+                            "product_id": plan.get("product_id") or plan.get("id"),
+                            "variant_id": plan.get("id"),
+                            "price_id": plan.get("id"),
+                            "provider": "paypal",
+                            "name": plan.get("name") or "PayPal Plan",
+                            "description": plan.get("description"),
+                            "amount_cents": amount_cents,
+                            "currency": currency,
+                            "formatted_price": formatted,
+                            "recurring": interval,
+                            "image_url": None,
+                        })
+
+                # 2. Fetch Catalog Products
+                cat_res = await client.get(
+                    f"{base}/v1/catalogs/products?page_size=20&total_required=true",
+                    headers=headers,
+                )
+                if cat_res.status_code == 200:
+                    for prod in cat_res.json().get("products", []):
+                        pid = str(prod.get("id") or "")
+                        if any(it.get("product_id") == pid for it in items):
+                            continue
+                        items.append({
+                            "id": pid,
+                            "product_id": pid,
+                            "variant_id": pid,
+                            "price_id": pid,
+                            "provider": "paypal",
+                            "name": prod.get("name") or "PayPal Catalog Product",
+                            "description": prod.get("description"),
+                            "amount_cents": 0,
+                            "currency": "USD",
+                            "formatted_price": "Catalog Product",
+                            "recurring": None,
+                            "image_url": prod.get("image_url"),
+                        })
+
+            return items
+        except Exception as e:
+            logger.warning("Failed to fetch PayPal products: %s", e)
+            return []
+
     # -------------------------------------------------------------------------
     # 6. AUTOMATIC WEBHOOK REGISTRATION ACROSS ALL GATEWAYS
     # -------------------------------------------------------------------------
