@@ -2730,66 +2730,73 @@ export function IntegrationsTab({
   );
 
   const mobileSelected = embedMobilePlatform ? mobileInstructions[embedMobilePlatform] : null;
+  const selectedIntegration = integrationItems.find((i) => i.id === selectedIntegrationId);
 
   return (
     <div className="max-w-7xl mx-auto w-full py-6 px-4 sm:px-6 flex flex-col gap-6">
       {confirmationDialog}
 
-      {/* Global Executive Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 sm:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-xs">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <span className="inline-flex size-9 items-center justify-center rounded-xl bg-orange-500/10 text-[#f97316] border border-orange-500/20 shadow-xs shrink-0">
-              <Sparkles className="size-5" />
+      {/* Global Executive Header (Shown only when browsing catalog or in expanded view) */}
+      {(selectedIntegrationId === null || viewMode === "expanded") && (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-5 md:p-6 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl sm:rounded-3xl shadow-xs">
+          <div className="flex items-start sm:items-center gap-3">
+            <span className="inline-flex size-9 sm:size-10 items-center justify-center rounded-xl bg-orange-500/10 text-[#f97316] border border-orange-500/20 shadow-xs shrink-0 mt-0.5 sm:mt-0">
+              <Sparkles className="size-4.5 sm:size-5" />
             </span>
-            <h1 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2 flex-wrap">
-              Integrations &amp; Connections Hub
-              <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 border border-emerald-500/20">
-                {integrationItems.length} Built-in
-              </span>
-            </h1>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-lg md:text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+                  Integrations Hub
+                </h1>
+                <span className="rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold px-2 py-0.5 border border-emerald-500/20 whitespace-nowrap">
+                  {integrationItems.length} Built-in
+                </span>
+              </div>
+              <p className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 sm:mt-1 max-w-2xl leading-relaxed">
+                Connect your AI assistant across messaging channels, payment gateways, e-commerce stores, and developer protocols.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-2xl leading-relaxed">
-            Connect your AI assistant across global messaging channels, e-commerce stores, live WebRTC voice, and developer protocols. All channels route natively to your unified AI reasoning core.
-          </p>
-        </div>
 
-        {/* View Mode & Active Counter */}
-        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto shrink-0">
-          <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 py-1.5 px-3 flex items-center gap-2 text-xs">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold text-neutral-800 dark:text-neutral-200">{activeIntegrationsCount} of {integrationItems.length} Active</span>
-          </div>
-          <div className="flex items-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950 p-1">
-            <button
-              type="button"
-              onClick={() => { setViewMode("catalog"); setSelectedIntegrationId(null); }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                viewMode === "catalog"
-                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              }`}
-              title="Marketplace Grid view"
-            >
-              <Layers className="size-3.5" />
-              <span>Catalog</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("expanded")}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                viewMode === "expanded"
-                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
-                  : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
-              }`}
-              title="Expanded scrollable view"
-            >
-              <Sliders className="size-3.5" />
-              <span>All Expanded</span>
-            </button>
+          {/* View Mode & Active Counter */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 self-start md:self-auto shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-100 dark:border-neutral-800/60 w-full sm:w-auto justify-between sm:justify-end">
+            <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/80 dark:border-neutral-800 py-1 sm:py-1.5 px-2.5 sm:px-3 flex items-center gap-2 text-[11px] sm:text-xs">
+              <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200 whitespace-nowrap">
+                {activeIntegrationsCount} of {integrationItems.length} Active
+              </span>
+            </div>
+            <div className="flex items-center rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950 p-1">
+              <button
+                type="button"
+                onClick={() => { setViewMode("catalog"); setSelectedIntegrationId(null); }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === "catalog"
+                    ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                }`}
+                title="Marketplace Grid view"
+              >
+                <Layers className="size-3.5" />
+                <span>Catalog</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("expanded")}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === "expanded"
+                    ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                }`}
+                title="Expanded scrollable view"
+              >
+                <Sliders className="size-3.5" />
+                <span>All Expanded</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* CATALOG VIEW (DEFAULT MARKETPLACE GRID) */}
       {viewMode === "catalog" && selectedIntegrationId === null && (
@@ -2988,15 +2995,21 @@ export function IntegrationsTab({
 
       {/* FOCUSED VIEW BREADCRUMB (WHEN VIEWING SPECIFIC INTEGRATION) */}
       {viewMode === "catalog" && selectedIntegrationId !== null && (
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xs">
-          <button
-            type="button"
-            onClick={() => setSelectedIntegrationId(null)}
-            className="inline-flex items-center gap-2 text-xs font-bold text-neutral-700 dark:text-neutral-200 hover:text-orange-600 dark:hover:text-orange-400 px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="size-4" />
-            <span>Back to Integrations Catalog</span>
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setSelectedIntegrationId(null)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-200 hover:text-orange-600 dark:hover:text-orange-400 px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors cursor-pointer shrink-0"
+            >
+              <ArrowLeft className="size-3.5" />
+              <span>Back to Catalog</span>
+            </button>
+            <div className="h-4 w-px bg-neutral-200 dark:bg-neutral-800 shrink-0 hidden sm:block" />
+            <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+              Catalog &rsaquo; <span className="font-semibold text-neutral-900 dark:text-neutral-100">{selectedIntegration?.name || selectedIntegrationId}</span>
+            </div>
+          </div>
 
           {/* Quick Sibling Switcher for Messaging Channels */}
           {["whatsapp", "messenger", "instagram", "tiktok", "telegram", "sms", "email"].includes(selectedIntegrationId) && (
