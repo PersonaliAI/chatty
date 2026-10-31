@@ -34,7 +34,7 @@
 .inbox-queue-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: #64748b18; font-size: 11px; }
 .inbox-queue .dashboard-action-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
 .inbox-queue > div:last-child { border-radius: 0; scrollbar-width: thin; }
-.inbox-conversation-tools { display: none; }
+.inbox-conversation-tools { display: flex; align-items: center; justify-content: space-between; min-height: 36px; gap: 6px; flex-shrink: 0; overflow-x: auto; scrollbar-width: thin; padding: 4px 12px; border-bottom: 1px solid var(--inbox-line); }
 .inbox-back { display: none; align-items: center; gap: 4px; font-size: 11px; }
 .inbox-conversation > .flex-1 { min-height: 0; scrollbar-width: thin; }
 .inbox-message { margin-block: 6px; }
@@ -128,7 +128,7 @@
   .inbox-shell[data-conversation-open=true] .inbox-conversation { display: flex; }
   .inbox-shell[data-conversation-open=true] .inbox-queue { display: none; }
   .inbox-back { display: inline-flex; }
-  .inbox-conversation-tools { display: none; }
+  .inbox-conversation-tools { justify-content: flex-start; }
   .inbox-contact-pane { position: absolute; inset: 0 0 0 auto; width: min(330px,100%); z-index: 40; border-left: 1px solid var(--inbox-line); box-shadow: -12px 0 24px #0002; }
   .inbox-shell[data-details-open=true] .inbox-contact-pane { display: block; }
   .inbox-conversation-tools > button, .inbox-conversation-tools > div { flex-shrink: 0; }
@@ -191,7 +191,7 @@
   .inbox-shell .inbox-pane-title { min-height: 48px; padding: 10px; }
   .inbox-shell .inbox-pane-title h2 { font-size: 14px; }
   .inbox-shell .inbox-queue-sort { padding: 8px 10px; }
-  .inbox-shell .inbox-conversation-tools { display: none; }
+  .inbox-shell .inbox-conversation-tools { min-height: 36px; padding-inline: 8px; }
   .inbox-shell .inbox-message { max-width: 96%; }
   .inbox-shell .inbox-message-bubble { padding: 10px 12px; font-size: 13.5px; }
   .inbox-shell .inbox-queue > div:last-child > [role=button] { padding: 12px 10px; }

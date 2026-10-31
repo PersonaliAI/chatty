@@ -1262,9 +1262,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
     }
   }, [selected, loadMessages, loadNotes]);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // Auto-scrolling disabled per user preference to keep scrollbars static
 
   // Live polling every 5s for sessions, 15s for presence
   useEffect(() => {
@@ -2430,18 +2428,13 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
           </div>
         ) : (
           <>
-            {/* Unified Sleek Ticket Header */}
+            {/* Ticket Header Bar */}
+            <div className="inbox-conversation-tools flex justify-end px-3 py-1 border-b border-neutral-100 dark:border-neutral-800">
+              <button type="button" className="inbox-back" onClick={() => selectConversation(null)}><ArrowLeft className="size-4" />Conversations</button>
+              <button type="button" aria-expanded={visitorDetailsOpen} onClick={() => setVisitorDetailsOpen(value => !value)} className="text-xs font-medium flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"><User className="size-3.5 shrink-0" />Visitor details</button>
+            </div>
             <div data-inbox-ticket-header className="px-3.5 py-1.5 border-b border-neutral-100 dark:border-neutral-850 flex items-center justify-between flex-wrap gap-2 bg-neutral-50/40 dark:bg-neutral-950/20 relative z-20">
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  className="inbox-back inline-flex items-center gap-1 text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white mr-1 cursor-pointer"
-                  onClick={() => selectConversation(null)}
-                  aria-label="Back to conversations list"
-                >
-                  <ArrowLeft className="size-4" />
-                  <span className="hidden xs:inline">Conversations</span>
-                </button>
                 <span className="text-xs font-bold text-neutral-900 dark:text-neutral-100 truncate max-w-40 flex items-center gap-1.5">
                   {current?.visitor_name || `Visitor ${selected.slice(-5)}`}
                 </span>
@@ -2643,24 +2636,8 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
                 )}
               </div>
 
-              {/* Right Controls: Details, Quick Resolve, Tags, ViewMode, AI */}
-              <div data-inbox-ticket-actions className="flex items-center gap-1.5 flex-wrap">
-                {/* Visitor Details Toggle */}
-                <button
-                  type="button"
-                  aria-expanded={visitorDetailsOpen}
-                  onClick={() => setVisitorDetailsOpen((value) => !value)}
-                  className={`text-[10px] font-semibold border px-2 py-1 rounded-lg flex items-center gap-1 transition-colors cursor-pointer ${
-                    visitorDetailsOpen
-                      ? "bg-neutral-200 dark:bg-neutral-700 border-neutral-300 dark:border-neutral-600 text-neutral-900 dark:text-white"
-                      : "border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300"
-                  }`}
-                  title="Toggle Visitor Details and CRM Attributes"
-                >
-                  <User className="size-3 text-neutral-500 dark:text-neutral-400 shrink-0" />
-                  <span className="hidden sm:inline">Details</span>
-                </button>
-
+              {/* Right Controls: Quick Resolve, Tags, ViewMode, AI */}
+              <div data-inbox-ticket-actions className="flex items-center gap-1.5">
                 {/* 1-Click Resolve / Reopen Action */}
                 {(current?.status === "resolved" || current?.status === "closed") ? (
                   <button

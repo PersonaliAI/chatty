@@ -3973,7 +3973,13 @@ function IdentifiedEmbedClient({
                                 )}
                               </span>
                             )}
-                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${msg.role === "user" ? "user-bubble rounded-tr-none" : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"}`}>
+                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${
+                                msg.role === "user"
+                                  ? "user-bubble rounded-tr-none"
+                                  : hasCheckoutLinks
+                                  ? "bot-bubble rounded-tl-none text-white shadow-sm"
+                                  : "bot-bubble bg-neutral-100 dark:bg-neutral-800 rounded-tl-none"
+                              }`} style={msg.role === "assistant" && hasCheckoutLinks ? { backgroundColor: primaryColor, color: "#ffffff" } : undefined}>
                               {msg.fileUrl && msg.fileType?.startsWith("image/") && <img src={msg.fileUrl} alt="attachment" className="rounded-lg mb-1 max-h-40 object-cover" />}
                               {msg.fileUrl && msg.fileType?.startsWith("audio/") && <AudioBubble src={msg.fileUrl} />}
                               {msg.role === "assistant" && parsedRich ? (
@@ -4053,7 +4059,7 @@ function IdentifiedEmbedClient({
                                           </div>
                                         )}
                                         {checkoutLinks && checkoutLinks.length > 0 && (
-                                          <div className="flex flex-col gap-2 my-1 w-full">
+                                          <div className="flex flex-col gap-2 my-1 w-full text-neutral-900 dark:text-neutral-100">
                                             {checkoutLinks.map((chk, cIdx) => (
                                               <CheckoutCard key={chk.url || cIdx} data={chk} primaryColor={primaryColor} />
                                             ))}
