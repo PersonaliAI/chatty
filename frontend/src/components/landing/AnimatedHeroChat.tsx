@@ -65,7 +65,7 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
   },
   {
     id: "checkout",
-    tabLabel: "In-Chat Checkout",
+    tabLabel: "Checkout",
     businessName: "Nordic Atelier & Consulting",
     businessCategory: "Design & Consulting · Verified Business",
     businessAvatarBg: "bg-[#059669]",
@@ -79,7 +79,7 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
   },
   {
     id: "policy",
-    tabLabel: "Policy & Returns",
+    tabLabel: "Returns",
     businessName: "Aura Apparel & Footwear",
     businessCategory: "Fashion & Retail · Verified Business",
     businessAvatarBg: "bg-[#c67139]",
@@ -93,7 +93,7 @@ const BUSINESS_SITUATIONS: BusinessSituation[] = [
   },
   {
     id: "calendar",
-    tabLabel: "Meeting Booking",
+    tabLabel: "Booking",
     businessName: "Lumina Health & Aesthetics",
     businessCategory: "Medical & Wellness · Clinic Schedule",
     businessAvatarBg: "bg-[#0d9488]",
@@ -222,7 +222,7 @@ export function AnimatedHeroChat() {
   };
 
   return (
-    <div className="relative max-w-[700px] mx-auto rounded-[28px] overflow-hidden border border-black/12 bg-[#efeae2] shadow-[0_25px_70px_-15px_rgba(46,43,37,0.22)] text-left select-none transition-all">
+    <div className="relative max-w-[700px] sm:max-w-[740px] mx-auto rounded-[28px] overflow-hidden border border-black/12 bg-[#efeae2] shadow-[0_25px_70px_-15px_rgba(46,43,37,0.22)] text-left select-none transition-all">
       {/* 1. WhatsApp Story Segmented Auto-Slider Header */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2 bg-[#005c4b] text-white">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-1 mr-3">
@@ -668,7 +668,7 @@ export function AnimatedHeroChat() {
       </div>
 
       {/* 5. 5-Item Grid: Guaranteed 100% Single-Row Visibility with Lucide Icons */}
-      <div className="flex sm:grid sm:grid-cols-5 gap-1.5 sm:gap-2 p-2 sm:p-2.5 bg-[#e9edef] border-t border-black/8 overflow-x-auto no-scrollbar">
+      <div className="flex sm:grid sm:grid-cols-5 gap-1 sm:gap-1.5 p-2 sm:p-2.5 bg-[#e9edef] border-t border-black/8 overflow-x-auto no-scrollbar">
         {BUSINESS_SITUATIONS.map((sit, i) => {
           const isActive = i === currentIndex;
           return (
@@ -676,7 +676,7 @@ export function AnimatedHeroChat() {
               key={sit.id}
               type="button"
               onClick={() => selectSituation(i)}
-              className={`flex-1 sm:flex-initial min-w-[110px] sm:min-w-0 px-2 sm:px-2.5 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 border shrink-0 ${
+              className={`flex-1 sm:flex-initial min-w-[95px] sm:min-w-0 px-1.5 sm:px-2 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 border shrink-0 ${
                 isActive
                   ? "bg-[#008069] text-white border-[#008069] shadow-sm"
                   : "bg-white text-neutral-700 hover:text-neutral-900 border-black/8 hover:bg-neutral-50"
@@ -689,7 +689,7 @@ export function AnimatedHeroChat() {
               >
                 {renderBusinessIcon(sit.businessIcon, "size-3 sm:size-3.5 text-white")}
               </span>
-              <span className="truncate">{sit.tabLabel}</span>
+              <span className="whitespace-nowrap">{sit.tabLabel}</span>
             </button>
           );
         })}
