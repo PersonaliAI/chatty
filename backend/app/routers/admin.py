@@ -932,7 +932,7 @@ async def admin_inbox_delete(req: InboxDeleteRequest, user: dict[str, Any] = Dep
     """Delete a conversation (its messages + session row). Destructive, so
     (unlike reading/replying) it's owner/admin only - an 'agent' role can
     work the inbox but not erase history from it."""
-    role = await _verify_session_inbox_access(req.bot_id, req.session_id, user)
+    role = await _verify_inbox_access(req.bot_id, user)
     if role == "agent":
         raise HTTPException(status_code=403, detail="Only an owner or admin can delete conversations")
     await run_db(lambda: supabase.table("chatty_conversations").delete().eq(

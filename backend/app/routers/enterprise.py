@@ -202,16 +202,20 @@ async def get_deal_by_session(
     user: dict[str, Any] = Depends(require_user),
 ) -> dict[str, Any]:
     """Retrieve deal associated with a specific conversation session."""
-    await get_bot_role_and_permissions(bot_id, user)
-    res = await run_db(
-        lambda: supabase.table("chatty_deals")
-        .select("*, stage:chatty_pipeline_stages(id, name, color, position)")
-        .eq("bot_id", bot_id)
-        .eq("session_id", session_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    deal = res.data[0] if res.data else None
-    return {"ok": True, "deal": deal}
+    try:
+        await get_bot_role_and_permissions(bot_id, user)
+        res = await run_db(
+            lambda: supabase.table("chatty_deals")
+            .select("*, stage:chatty_pipeline_stages(id, name, color, position)")
+            .eq("bot_id", bot_id)
+            .eq("session_id", session_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        deal = res.data[0] if res.data else None
+        return {"ok": True, "deal": deal}
+    except Exception as exc:
+        logger.warning("Failed to fetch deal for session %s: %s", session_id, exc)
+        return {"ok": True, "deal": None}
 
