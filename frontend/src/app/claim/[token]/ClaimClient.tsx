@@ -23,7 +23,7 @@ import {
 
 import { createClient } from "@/lib/supabase/client";
 import { BACKEND_URL, backendUrl, fetchBackend } from "@/lib/backend-client";
-import { GoogleIcon } from "@/components/auth/auth-shell";
+import { GoogleIcon, GithubIcon } from "@/components/auth/auth-shell";
 
 interface ClaimBotDetails {
   status: "unclaimed" | "claimed" | "declined" | "expired";
@@ -205,8 +205,8 @@ export default function ClaimClient({ token }: { token: string }) {
     }
   };
 
-  // Google OAuth flow
-  const handleGoogleAuth = async () => {
+  // OAuth flow (Google / GitHub)
+  const handleOAuth = async (provider: "google" | "github") => {
     const supabase = createClient();
     if (!supabase) return;
 
@@ -223,7 +223,7 @@ export default function ClaimClient({ token }: { token: string }) {
     const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider,
       options: { redirectTo },
     });
 
@@ -637,18 +637,32 @@ export default function ClaimClient({ token }: { token: string }) {
               </div>
             )}
 
-            {/* Google OAuth Button */}
-            <button
-              type="button"
-              onClick={handleGoogleAuth}
-              disabled={isAuthBusy}
-              className="w-full h-10 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center justify-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              <span className="size-4 shrink-0 flex items-center justify-center">
-                <GoogleIcon />
-              </span>
-              <span>Continue with Google</span>
-            </button>
+            {/* OAuth Buttons */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => handleOAuth("google")}
+                disabled={isAuthBusy}
+                className="w-full h-10 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center justify-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <span className="size-4 shrink-0 flex items-center justify-center">
+                  <GoogleIcon />
+                </span>
+                <span>Continue with Google</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOAuth("github")}
+                disabled={isAuthBusy}
+                className="w-full h-10 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center justify-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <span className="size-4 shrink-0 flex items-center justify-center text-slate-900">
+                  <GithubIcon className="size-4" />
+                </span>
+                <span>Continue with GitHub</span>
+              </button>
+            </div>
 
             <div className="relative flex items-center justify-center">
               <div className="border-t border-slate-200 w-full" />
