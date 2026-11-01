@@ -371,7 +371,7 @@ export default function ClaimClient({ token }: { token: string }) {
             ) : bot.status === "claimed" ? (
               "Already Claimed"
             ) : (
-              "Claim This Bot"
+              "Claim & Index Full Site"
             )}
           </button>
         </div>
@@ -413,31 +413,50 @@ export default function ClaimClient({ token }: { token: string }) {
             <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-5 flex flex-col justify-between flex-1 min-h-0 overflow-y-auto space-y-3.5">
               {/* Badge & Title */}
               <div className="space-y-1.5 shrink-0">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                  <Sparkles className="size-3.5" />
-                  Pre-trained for {bot.demo_target_name}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                    <Sparkles className="size-3.5" />
+                    Pre-trained for {bot.demo_target_name}
+                  </div>
+                  <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
+                    ⚡ 60s Homepage Sample
+                  </div>
                 </div>
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-snug">
                   Your AI Customer Support Specialist is Ready
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  We pre-trained an autonomous agent directly on your website and documentation. Test how accurately it
-                  answers visitor questions about features, pricing, and integrations.
+                  We generated a fast 60-second sandbox preview by indexing your homepage. Test how accurately it
+                  answers questions, then claim this assistant to crawl your entire website, subpages, and documentation.
                 </p>
               </div>
 
               {/* Training Summary Box */}
               <div className="bg-slate-50 border border-slate-200/70 rounded-xl p-3 sm:p-3.5 space-y-2 shrink-0">
-                <div className="text-[11px] font-semibold text-slate-900 uppercase tracking-wider">
-                  Knowledge Base Status
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[11px] font-semibold text-slate-900 uppercase tracking-wider">
+                    Knowledge Base Status
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                    Homepage Preview Only
+                  </span>
                 </div>
                 <div className="space-y-1.5 text-xs text-slate-600">
                   <div className="flex items-start gap-2">
                     <CheckCircle2 className="size-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>
-                      <strong className="text-slate-800">{bot.sources_count || "Multiple"} pages</strong> indexed from{" "}
-                      <span className="font-mono text-slate-700">{targetDomain}</span>
-                    </span>
+                    <div className="leading-snug">
+                      <span>
+                        <strong className="text-slate-800">
+                          {bot.sources_count === 1
+                            ? "1 page indexed (Homepage only)"
+                            : `${bot.sources_count || 1} pages indexed`}
+                        </strong>{" "}
+                        from <span className="font-mono text-slate-700">{targetDomain}</span>
+                      </span>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Sampled in ~60s for this instant sandbox preview.
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-start gap-2">
                     <ShieldCheck className="size-3.5 text-blue-600 shrink-0 mt-0.5" />
@@ -446,6 +465,13 @@ export default function ClaimClient({ token }: { token: string }) {
                   <div className="flex items-start gap-2">
                     <Calendar className="size-3.5 text-indigo-600 shrink-0 mt-0.5" />
                     <span>Calendar booking (Google Meet / Teams / Zoom) ready to connect</span>
+                  </div>
+                </div>
+
+                <div className="mt-2 pt-2.5 border-t border-slate-200/80 flex items-start gap-2 bg-gradient-to-r from-emerald-50 to-teal-50 -mx-3 sm:-mx-3.5 -mb-3 sm:-mb-3.5 p-2.5 sm:p-3 rounded-b-xl">
+                  <Sparkles className="size-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-relaxed text-slate-700">
+                    <strong className="font-semibold text-emerald-900">Unlock Full Website Crawl:</strong> Claiming this assistant unlocks full automated indexing of all subpages, sitemaps, blogs, docs, and continuous catalog sync.
                   </div>
                 </div>
               </div>
@@ -494,14 +520,14 @@ export default function ClaimClient({ token }: { token: string }) {
                     "Already Claimed by You"
                   ) : (
                     <>
-                      <span>Claim This Assistant</span>
+                      <span>Claim Assistant &amp; Index Full Website</span>
                       <ArrowRight className="size-4" />
                     </>
                   )}
                 </button>
 
                 <p className="text-[11px] text-center text-slate-500 leading-normal">
-                  Free 14-day evaluation • Instant 1-line script embed • No credit card required
+                  Free 14-day evaluation • Unlocks full site-wide crawling • No credit card required
                 </p>
 
                 <div className="pt-0.5 text-center">
@@ -580,7 +606,7 @@ export default function ClaimClient({ token }: { token: string }) {
           disabled={isClaiming || bot.status === "claimed"}
           className="shrink-0 h-9 px-4 rounded-lg bg-slate-900 text-white text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-sm"
         >
-          {isClaiming ? <Loader2 className="size-3.5 animate-spin" /> : "Claim Bot"}
+          {isClaiming ? <Loader2 className="size-3.5 animate-spin" /> : "Claim & Index Full Site"}
         </button>
       </div>
 
@@ -600,7 +626,7 @@ export default function ClaimClient({ token }: { token: string }) {
                 Claim {bot.demo_target_name}&apos;s Assistant
               </h2>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Create your account or sign in to take full ownership and copy your 1-line website embed script.
+                Create your account or sign in to start full multi-page automated crawling and copy your 1-line website embed script.
               </p>
             </div>
 
@@ -665,9 +691,9 @@ export default function ClaimClient({ token }: { token: string }) {
                 {isAuthBusy ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : authMode === "signup" ? (
-                  "Create Account & Claim Bot"
+                  "Create Account & Unlock Full Crawl"
                 ) : (
-                  "Sign In & Claim Bot"
+                  "Sign In & Unlock Full Crawl"
                 )}
               </button>
             </form>
