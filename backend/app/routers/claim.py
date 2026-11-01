@@ -23,7 +23,7 @@ from pydantic import BaseModel, HttpUrl
 import asyncio
 from app.core.ssrf import assert_safe_url_async
 from app.core.clients import supabase
-from app.core.config import FRONTEND_URL, FUNCTION_SECRET
+from app.core.config import ADMIN_BYPASS_EMAILS, FRONTEND_URL, FUNCTION_SECRET
 from app.core.db import run_db
 from app.core.deps import require_user
 
@@ -111,6 +111,19 @@ async def generate_claimable_bot(
     user: dict[str, Any] = Depends(require_user),
 ) -> dict[str, Any]:
     """Creates a pre-configured demo bot ready for cold outreach claiming."""
+    email = (user.get("email") or "").strip().lower()
+    role = (user.get("role") or "").strip().lower()
+    is_admin = bool(
+        email in ADMIN_BYPASS_EMAILS
+        or role in ("admin", "superadmin", "super_admin")
+        or user.get("is_admin")
+    )
+    if not is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Only platform administrators can generate claimable outreach demo bots.",
+        )
+
     claim_token = f"clm_{secrets.token_urlsafe(16)}"
     expires_at = (datetime.now(timezone.utc) + timedelta(days=CLAIM_TOKEN_TTL_DAYS)).isoformat()
 

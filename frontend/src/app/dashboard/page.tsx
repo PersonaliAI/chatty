@@ -4619,22 +4619,24 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
                       );
                     })()}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBotDropdownOpen(false);
-                        setClaimModalOpen(true);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors text-left cursor-pointer border-t border-neutral-100 dark:border-neutral-850"
-                    >
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        <Share2 className="size-3.5 shrink-0" />
-                        <span className="truncate">Generate Outreach Bot</span>
-                      </span>
-                      <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 shrink-0">
-                        New
-                      </span>
-                    </button>
+                    {isPlatformAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBotDropdownOpen(false);
+                          setClaimModalOpen(true);
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 transition-colors text-left cursor-pointer border-t border-neutral-100 dark:border-neutral-850"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <Share2 className="size-3.5 shrink-0" />
+                          <span className="truncate">Generate Outreach Bot</span>
+                        </span>
+                        <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 shrink-0">
+                          Admin
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </>
               )}

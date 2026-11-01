@@ -179,3 +179,60 @@ def test_create_instant_sandbox_bot_empty_url():
     assert response.status_code == 400
     assert "valid website url" in response.json()["detail"].lower()
 
+
+
+def test_generate_claimable_bot_forbidden_for_non_admin():
+    from app.core.deps import require_user
+    client = TestClient(main.app)
+    main.app.dependency_overrides[require_user] = lambda: {
+        "auth_user_id": "regular-user-123",
+        "email": "regular@example.com",
+        "role": "user",
+    }
+    try:
+        response = client.post(
+            "/api/claim/generate",
+            json={
+                "target_name": "Acme",
+                "target_url": "https://acme.com",
+            },
+            headers={"Authorization": "Bearer mock-token"},
+        )
+        assert response.status_code == 403
+        assert "only platform administrators" in response.json()["detail"].lower()
+    finally:
+        main.app.dependency_overrides.pop(require_user, None)
+
+
+def test_generate_claimable_bot_allowed_for_admin():
+    from app.core.deps import require_user
+    client = TestClient(main.app)
+    main.app.dependency_overrides[require_user] = lambda: {
+        "auth_user_id": "admin-user-123",
+        "email": "personaliai.com@gmail.com",
+        "role": "admin",
+    }
+    try:
+        with patch("app.routers.claim.run_db") as mock_db,              patch("app.routers.claim.assert_safe_url_async"):
+            insert_mock = MagicMock()
+            insert_mock.data = [{
+                "id": "bot-admin-123",
+                "claim_token": "clm_admin_test_123",
+            }]
+            mock_db.return_value = insert_mock
+
+            response = client.post(
+                "/api/claim/generate",
+                json={
+                    "target_name": "Acme",
+                    "target_url": "https://acme.com",
+                },
+                headers={"Authorization": "Bearer mock-token"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["claim_token"].startswith("clm_")
+            assert "/claim/" in data["claim_url"]
+    finally:
+        main.app.dependency_overrides.pop(require_user, None)

@@ -1357,7 +1357,7 @@ async def generate_claimable_demo_bot(
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     from app.routers.claim import generate_claimable_bot, GenerateClaimBotRequest
-    user_dict = {"auth_user_id": principal["user_id"], "email": ""}
+    user_dict = {"auth_user_id": principal["user_id"], "email": "", "is_admin": True}
     req = GenerateClaimBotRequest(
         target_name=target_name,
         target_url=target_url,
