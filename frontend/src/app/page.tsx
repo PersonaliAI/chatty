@@ -323,6 +323,22 @@ export default function Home() {
   const [sandboxUrl, setSandboxUrl] = useState("");
   const [isSandboxLoading, setIsSandboxLoading] = useState(false);
   const [sandboxError, setSandboxError] = useState<string | null>(null);
+  const [sandboxPlaceholder, setSandboxPlaceholder] = useState("Enter your website URL (e.g. mystore.com)");
+
+  useEffect(() => {
+    const updatePlaceholder = () => {
+      if (window.innerWidth < 390) {
+        setSandboxPlaceholder("e.g. mystore.com");
+      } else if (window.innerWidth < 640) {
+        setSandboxPlaceholder("Enter website (e.g. mystore.com)");
+      } else {
+        setSandboxPlaceholder("Enter your website URL (e.g. mystore.com)");
+      }
+    };
+    updatePlaceholder();
+    window.addEventListener("resize", updatePlaceholder);
+    return () => window.removeEventListener("resize", updatePlaceholder);
+  }, []);
 
   async function handleInstantSandbox(e: React.FormEvent) {
     e.preventDefault();
@@ -595,8 +611,8 @@ export default function Home() {
                     setSandboxUrl(e.target.value);
                     if (sandboxError) setSandboxError(null);
                   }}
-                  placeholder="Enter your website URL (e.g. mystore.com)"
-                  className="w-full bg-transparent text-sm outline-hidden placeholder:text-zinc-400 text-zinc-900"
+                  placeholder={sandboxPlaceholder}
+                  className="w-full bg-transparent text-xs sm:text-sm outline-hidden placeholder:text-zinc-400 text-zinc-900 placeholder:truncate"
                   disabled={isSandboxLoading}
                 />
               </div>
