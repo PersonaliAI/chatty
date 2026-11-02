@@ -239,53 +239,66 @@ def format_telegram_html(text: str) -> str:
     if not text:
         return ""
 
-    # 1. Protect fenced code blocks first
+    # 1. Protect fenced code blocks first without polynomial regex backtracking
     code_blocks: list[str] = []
-    def _save_code_block(match: re.Match) -> str:
-        code = match.group(2)
-        safe_code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        idx = len(code_blocks)
-        code_blocks.append(f"<pre><code>{safe_code}</code></pre>")
-        return f"__TG_CODE_BLOCK_{idx}__"
+    parts = text.split("```")
+    if len(parts) >= 3:
+        new_parts: list[str] = []
+        for i, part in enumerate(parts):
+            if i % 2 == 1:
+                # Fenced code block: first line may contain language identifier
+                lines = part.split("\n", 1)
+                first_line = lines[0].strip()
+                if len(lines) > 1 and (first_line.isalnum() or "_" in first_line) and len(first_line) < 32:
+                    code = lines[1]
+                else:
+                    code = part
+                safe_code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                idx = len(code_blocks)
+                code_blocks.append(f"<pre><code>{safe_code}</code></pre>")
+                new_parts.append(f"@@TG_CODE_BLOCK_{idx}@@")
+            else:
+                new_parts.append(part)
+        content = "".join(new_parts)
+    else:
+        content = text
 
-    content = re.sub(r"```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```", _save_code_block, text)
-
-    # 2. Protect inline code
+    # 2. Protect inline code (bounded length, non-backtracking)
     inline_codes: list[str] = []
     def _save_inline_code(match: re.Match) -> str:
         code = match.group(1)
         safe_code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         idx = len(inline_codes)
         inline_codes.append(f"<code>{safe_code}</code>")
-        return f"__TG_INLINE_CODE_{idx}__"
+        return f"@@TG_INLINE_CODE_{idx}@@"
 
-    content = re.sub(r"`([^`\n]+)`", _save_inline_code, content)
+    content = re.sub(r"`([^`\r\n]{1,500})`", _save_inline_code, content)
 
     # 3. Escape HTML characters in remaining text
     content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-    # 4. Markdown links [text](url)
+    # 4. Markdown links [text](url) - non-polynomial, forbids nested brackets
     def _replace_link(match: re.Match) -> str:
         label = match.group(1)
         url = match.group(2).strip()
         return f'<a href="{url}">{label}</a>'
-    content = re.sub(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", _replace_link, content)
+    content = re.sub(r"\[([^\[\]\r\n]{1,300})\]\((https?://[^\s()]{1,2000})\)", _replace_link, content)
 
-    # 5. Headers (### Header -> <b>Header</b>)
-    content = re.sub(r"^(?:#{1,6})\s+(.+)$", r"<b>\1</b>", content, flags=re.MULTILINE)
+    # 5. Headers (### Header -> <b>Header</b>) - unambiguous whitespace / title boundary
+    content = re.sub(r"^#{1,6}[ \t]+(\S[^\r\n]*)$", r"<b>\1</b>", content, flags=re.MULTILINE)
 
     # 6. Bold (**bold** or __bold__)
     content = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", content)
     content = re.sub(r"__([^_]+)__", r"<b>\1</b>", content)
 
     # 7. Bullet lists (* item or - item at line start -> • item)
-    content = re.sub(r"^[\s]*[*-]\s+", "• ", content, flags=re.MULTILINE)
+    content = re.sub(r"^[ \t]*[*-][ \t]+", "• ", content, flags=re.MULTILINE)
 
     # 8. Restore inline code and code blocks
     for idx, snippet in enumerate(inline_codes):
-        content = content.replace(f"__TG_INLINE_CODE_{idx}__", snippet)
+        content = content.replace(f"@@TG_INLINE_CODE_{idx}@@", snippet)
     for idx, snippet in enumerate(code_blocks):
-        content = content.replace(f"__TG_CODE_BLOCK_{idx}__", snippet)
+        content = content.replace(f"@@TG_CODE_BLOCK_{idx}@@", snippet)
 
     return content
 
@@ -369,7 +382,7 @@ async def send_outbound_telegram(
                 # If HTML parsing fails due to unmatched tags, strip tags and retry as plain text
                 if res.status_code == 400 and ("parse entities" in res.text.lower() or "can't parse" in res.text.lower()):
                     payload.pop("parse_mode", None)
-                    payload["text"] = re.sub(r"<[^>]+>", "", chunk)
+                    payload["text"] = re.sub(r"<[^<>]+>", "", chunk)
                     async with httpx.AsyncClient(timeout=10) as client:
                         retry_res = await client.post(url, json=payload)
                     if retry_res.status_code < 400:

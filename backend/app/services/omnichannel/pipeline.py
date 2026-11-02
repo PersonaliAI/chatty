@@ -420,7 +420,8 @@ class OmnichannelPipeline:
                 )
                 if session_row:
                     session_row["ai_paused"] = False
-                logger.info("Session %s unpaused via channel control command: %s", session_id, clean_cmd)
+                cmd_type = "start" if clean_cmd.startswith("/start") else "ai" if clean_cmd.startswith("/ai") else "resume"
+                logger.info("Session %s unpaused via channel control command (%s)", session_id, cmd_type)
             except Exception:
                 logger.exception("Failed to unpause session via control command")
 
