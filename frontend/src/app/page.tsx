@@ -1155,7 +1155,7 @@ export default function Home() {
 
       {/* Chatty on Chatty support widget */}
       <Script
-        src="/widget.js?v=2026-10-23.v4"
+        src="/widget.js?v=2026-11-03.v1"
         data-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
         data-bot-id="ad32f373-7694-43f4-9465-f8d65ce291e3"
         strategy="afterInteractive"

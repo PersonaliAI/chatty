@@ -896,6 +896,18 @@ function IdentifiedChatWidget({
 
   const [inputValue, setInputValue] = useState("");
   const [isBotResponding, setIsBotResponding] = useState(false);
+  const [respondingStatusText, setRespondingStatusText] = useState("Checking details…");
+
+  useEffect(() => {
+    if (!isBotResponding) return;
+    const t = setTimeout(() => {
+      setRespondingStatusText((prev) => {
+        if (prev.includes("image") || prev.includes("catalog")) return "Matching products, almost there…";
+        return "Almost there, preparing response…";
+      });
+    }, 3200);
+    return () => clearTimeout(t);
+  }, [isBotResponding]);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachOpen, setAttachOpen] = useState(false);
 
@@ -2461,6 +2473,7 @@ const clearChat = async () => {
       };
     }
 
+    setRespondingStatusText("Checking details…");
     setIsBotResponding(true);
 
     let acc = "";
@@ -2574,6 +2587,7 @@ const clearChat = async () => {
     const isAudio = file.type.startsWith("audio/");
     const localUrl = URL.createObjectURL(file);
     setMessages((p) => [...p, { role: "user", content: caption || (isAudio ? VOICE_MESSAGE_PLACEHOLDER : `📎 ${filename}`), fileUrl: localUrl, fileType: file.type, created_at: new Date().toISOString() }]);
+    setRespondingStatusText(isImage ? "Checking image with catalog…" : isAudio ? "Transcribing audio note…" : "Checking file details…");
     setIsBotResponding(true);
     try {
       const fd = new FormData();
@@ -3953,7 +3967,13 @@ const clearChat = async () => {
                     );
                   })}
                   {(isBotResponding || agentTyping) && (
-                    <div className="flex gap-2 mr-auto">
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      transition={{ duration: 0.15 }}
+                      className="flex gap-2 mr-auto items-start message-row"
+                    >
                       {agentTyping ? (
                         <AgentAvatar
                           src={activeAgentAvatar}
@@ -3970,12 +3990,17 @@ const clearChat = async () => {
                           {avatarInner("size-3.5")}
                         </div>
                       )}
-                      <div className="p-3 bg-neutral-100 dark:bg-neutral-800 rounded-2xl rounded-tl-none flex items-center gap-1">
-                        <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce" />
-                        <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:150ms]" />
-                        <span className="size-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:300ms]" />
+                      <div className="bot-bubble px-3.5 py-2.5 rounded-2xl rounded-tl-none bg-neutral-100 dark:bg-neutral-800 flex items-center gap-2 shadow-2xs">
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce" />
+                          <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.2s]" />
+                          <span className="size-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 animate-bounce [animation-delay:0.4s]" />
+                        </div>
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium select-none animate-pulse">
+                          {agentTyping ? "Agent is typing…" : respondingStatusText}
+                        </span>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
                 </AnimatePresence>
                 {starters.length > 0 && !activeNodeId && !isBotResponding && messages.filter((m) => m.role === "user").length === 0 && (
