@@ -1053,7 +1053,7 @@ async def run_widget_assistant(
     language_line = (
         f"- Always reply in {_LANGUAGE_NAMES.get(response_language, response_language)}, regardless of what language the visitor writes in.\n"
         if response_language else
-        "- Mirror the visitor's language (reply in the language they write in).\n"
+        "- Mirror the visitor's language (reply in the language they write in). If the visitor writes in English, reply in English. If they write in Dutch, German, French, etc., reply in that language. If the visitor's question is in English but the retrieved knowledge base is in another language (e.g. Dutch, German, French), seamlessly translate the answers into English.\n"
         + browser_language_hint
     )
     # Put this guidance at the end of the assembled system prompt as well as
@@ -1070,10 +1070,10 @@ async def run_widget_assistant(
     else:
         language_continuity_block = (
             "LANGUAGE CONTINUITY (HIGHEST PRIORITY PROTOCOL FOR ALL VISIBLE REPLIES):\n"
-            "- STRICT LANGUAGE MIRRORING: You MUST reply in the EXACT SAME LANGUAGE the visitor is writing or speaking in.\n"
-            "- If the visitor writes in Sinhala (or Sinhala written using English script / Singlish, e.g. 'me bag eka ganna thiyenawad', 'kandayama samaga sambanda karanna'), you MUST respond fluently and completely in Sinhala (සිංහල භාෂාවෙන්).\n"
-            "- NEVER reply in English when the visitor is conversing in Sinhala or another non-English language. Even if product titles, knowledge articles, tool outputs, or internal labels are in English, seamlessly translate everything into the visitor's language!\n"
-            "- Keep the established conversation language across every single turn unless the visitor explicitly asks to switch to English.\n"
+            "- STRICT BIDIRECTIONAL LANGUAGE MIRRORING: You MUST reply in the EXACT SAME LANGUAGE the visitor is writing or speaking in.\n"
+            "- If the visitor writes in English, you MUST reply in ENGLISH. Even if the business knowledge base, website documents, or source citations are written in Dutch, German, French, Spanish, or another language, seamlessly translate all facts, products, services, and policies into ENGLISH. NEVER reply in Dutch or any other non-English language when the visitor asks in English!\n"
+            "- If the visitor writes in Dutch, French, German, Spanish, Sinhala (or Singlish), or any other language, you MUST respond fluently and completely in that exact language, seamlessly translating English product knowledge into their language.\n"
+            "- Keep the established conversation language across every single turn unless the visitor explicitly asks to switch.\n"
             "- Translate all product details, stock availability confirmations, pricing, handoff messages, and error explanations directly into the visitor's language.\n\n"
             + browser_language_hint
         )
