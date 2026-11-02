@@ -51,3 +51,7 @@ scratch_*
 *.tmp
 sync_doneas_bot.py
 format_articles_via_mcp.mjs
+
+# Private internal admin panel
+chatty-admin/
+
