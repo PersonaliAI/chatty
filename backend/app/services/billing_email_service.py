@@ -286,6 +286,257 @@ async def record_lifecycle_email_sent(user_id: str, email: str, event_type: str,
 # High-Level Email Dispatchers
 # ---------------------------------------------------------------------------
 
+async def send_trial_welcome_email(
+    *,
+    user_id: str,
+    email: str,
+    name: str = "",
+) -> dict[str, Any]:
+    """Welcomes a new trial user and provides the 3-step quick start guide."""
+    if await has_lifecycle_email_been_sent(user_id, "trial_welcome"):
+        logger.info("Skipping trial_welcome email for user %s: already sent", user_id)
+        return {"sent": False, "reason": "already_sent"}
+
+    display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
+    subject = "🚀 Welcome to Chatty! Here's how to build your AI agent in 2 minutes"
+
+    html = _render_base_email(
+        subject=subject,
+        badge_text="Trial Started · 14 Days Free",
+        badge_bg="#eff6ff",
+        badge_color="#2563eb",
+        title="Welcome to Chatty! Let's get your AI agent live",
+        body_paragraphs=[
+            f"{display_greeting}",
+            "Welcome aboard! You have full, unrestricted access to <strong>Chatty</strong> for the next 14 days. Your AI agent can crawl your entire website, ingest PDFs/docs, answer complex customer questions, and capture qualified leads 24/7.",
+            "Here are the 3 quick steps to launch your first assistant in under 2 minutes:",
+            "<strong>1. Add Knowledge:</strong> Point Chatty to your website URL or upload your product FAQs and manuals.",
+            "<strong>2. Brand & Customize:</strong> Pick your brand colors, widget style, and welcome message in the Customizer.",
+            "<strong>3. Embed Anywhere:</strong> Paste the 1-line script tag into your website HTML.",
+        ],
+        highlight_box={
+            "Plan": "14-Day Free Trial",
+            "Setup Time": "~2 minutes",
+            "Agent Availability": "Ready to Deploy",
+            "Support": "Live chat & docs available",
+        },
+        cta_text="Open Dashboard & Build Agent",
+        cta_url=DASHBOARD_URL,
+        secondary_text="Have questions? Simply reply directly to this email and our product team will assist you.",
+    )
+
+    result = await _send_raw_email(email, subject, html)
+    if result.get("sent"):
+        await record_lifecycle_email_sent(user_id, email, "trial_welcome")
+    return result
+
+
+async def send_trial_checkin_email(
+    *,
+    user_id: str,
+    email: str,
+    name: str = "",
+) -> dict[str, Any]:
+    """Day 3 check-in: Tips for optimizing the knowledge base and flow builder."""
+    if await has_lifecycle_email_been_sent(user_id, "trial_checkin"):
+        logger.info("Skipping trial_checkin email for user %s: already sent", user_id)
+        return {"sent": False, "reason": "already_sent"}
+
+    display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
+    subject = "💡 Have you trained your AI agent yet? Quick tips for best results"
+
+    html = _render_base_email(
+        subject=subject,
+        badge_text="Day 3 Check-in · 11 Days Left",
+        badge_bg="#f0fdf4",
+        badge_color="#16a34a",
+        title="Power up your Chatty AI agent with your documentation",
+        body_paragraphs=[
+            f"{display_greeting}",
+            "You are a few days into your Chatty trial! The secret to having an AI agent that visitors love is authoritative, up-to-date training data.",
+            "Here are the top three ways our users get high-accuracy answers:",
+            "• <strong>Auto-Train:</strong> Schedule daily or weekly website crawls so answers never go stale.",
+            "• <strong>Product Catalog / PDFs:</strong> Upload price lists, return policies, or user guides for instant citation.",
+            "• <strong>Playground Testing:</strong> Test difficult visitor scenarios directly in your dashboard playground.",
+        ],
+        highlight_box={
+            "Feature Tip": "Auto-Train Crawling",
+            "Accuracy": "Up to 98% with clean docs",
+            "Time Remaining": "11 Days Left on Trial",
+        },
+        cta_text="Train Your Knowledge Base",
+        cta_url=f"{DASHBOARD_URL}?tab=knowledge",
+        secondary_text="Need guidance structuring your content? Reply here and we will help you calibrate your assistant.",
+    )
+
+    result = await _send_raw_email(email, subject, html)
+    if result.get("sent"):
+        await record_lifecycle_email_sent(user_id, email, "trial_checkin")
+    return result
+
+
+async def send_trial_midpoint_email(
+    *,
+    user_id: str,
+    email: str,
+    name: str = "",
+) -> dict[str, Any]:
+    """Day 7 midpoint: Lead capture & calendar booking automation tips."""
+    if await has_lifecycle_email_been_sent(user_id, "trial_midpoint"):
+        logger.info("Skipping trial_midpoint email for user %s: already sent", user_id)
+        return {"sent": False, "reason": "already_sent"}
+
+    display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
+    subject = "📈 7 days in: Collect leads and automate meetings on autopilot"
+
+    html = _render_base_email(
+        subject=subject,
+        badge_text="Halfway Point · 7 Days Left",
+        badge_bg="#faf5ff",
+        badge_color="#9333ea",
+        title="Turn website visitors into booked meetings & paying leads",
+        body_paragraphs=[
+            f"{display_greeting}",
+            "You are halfway through your 14-day free trial! Did you know Chatty does much more than answer FAQs?",
+            "Two high-impact features top founders and agencies use every day:",
+            "<strong>1. Automated Lead Capture:</strong> Ask visitors for their name, email, or company mid-conversation, save leads to your dashboard, and sync via webhook or CRM.",
+            "<strong>2. Calendar Integration:</strong> Let visitors book discovery calls or demos right inside the chat window without leaving your website.",
+        ],
+        highlight_box={
+            "Midpoint Status": "7 Days Remaining",
+            "Growth Features": "Lead Capture + Calendar Booking",
+            "Omnichannel": "Deploy to WhatsApp & Telegram",
+        },
+        cta_text="Explore Growth & Leads",
+        cta_url=f"{DASHBOARD_URL}?tab=leads",
+        secondary_text="All leads collected during your trial are yours to keep and export anytime.",
+    )
+
+    result = await _send_raw_email(email, subject, html)
+    if result.get("sent"):
+        await record_lifecycle_email_sent(user_id, email, "trial_midpoint")
+    return result
+
+
+async def send_trial_final_notice_email(
+    *,
+    user_id: str,
+    email: str,
+    name: str = "",
+) -> dict[str, Any]:
+    """Day 13 (24h before trial ends): Final notice to avoid agent downtime."""
+    if await has_lifecycle_email_been_sent(user_id, "trial_final_notice"):
+        logger.info("Skipping trial_final_notice email for user %s: already sent", user_id)
+        return {"sent": False, "reason": "already_sent"}
+
+    display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
+    subject = "🚨 Final notice: Your Chatty trial expires tomorrow"
+
+    html = _render_base_email(
+        subject=subject,
+        badge_text="Expires Tomorrow · Final Notice",
+        badge_bg="#fee2e2",
+        badge_color="#dc2626",
+        title="Your trial ends tomorrow — Keep your AI agent online",
+        body_paragraphs=[
+            f"{display_greeting}",
+            "This is your final notice that your 14-day free trial of <strong>Chatty</strong> concludes tomorrow.",
+            "When your trial expires, your AI agent will automatically be switched to <strong>offline mode</strong>, and visitors to your website will see an offline contact form instead of instant AI answers.",
+            "<strong>To avoid any interruption for your customers, choose your plan now:</strong>",
+        ],
+        highlight_box={
+            "Trial Status": "Expires in < 24 Hours",
+            "Agent Availability": "Online (Will pause tomorrow)",
+            "Saved Settings": "All bots & knowledge bases preserved",
+        },
+        cta_text="Keep My Agent Online (Upgrade)",
+        cta_url=BILLING_URL,
+        secondary_text="Upgrading takes 30 seconds and ensures zero downtime for your website visitors.",
+    )
+
+    result = await _send_raw_email(email, subject, html)
+    if result.get("sent"):
+        await record_lifecycle_email_sent(user_id, email, "trial_final_notice")
+    return result
+
+
+async def send_trial_winback_email(
+    *,
+    user_id: str,
+    email: str,
+    name: str = "",
+) -> dict[str, Any]:
+    """Day 17 (3 days post-expiration): Win-back offer or trial extension."""
+    if await has_lifecycle_email_been_sent(user_id, "trial_winback"):
+        logger.info("Skipping trial_winback email for user %s: already sent", user_id)
+        return {"sent": False, "reason": "already_sent"}
+
+    display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
+    subject = "🎁 Need more time? Here is an exclusive offer to reactivate Chatty"
+
+    html = _render_base_email(
+        subject=subject,
+        badge_text="Exclusive Win-Back Offer",
+        badge_bg="#f3e8ff",
+        badge_color="#7e22ce",
+        title="We'd love to have you back — Need more time to evaluate?",
+        body_paragraphs=[
+            f"{display_greeting}",
+            "We noticed your 14-day free trial of <strong>Chatty</strong> recently expired. We understand timing isn't always right or you may have needed extra time to test with your team.",
+            "<strong>Good news:</strong> All your chatbots, custom styling, conversation logs, and knowledge base documents are securely saved in your account.",
+            "If you need a 7-day trial extension to finish your evaluation, simply reply to this email! Alternatively, you can reactivate your agent in 1 click anytime by picking a plan.",
+        ],
+        highlight_box={
+            "Account Status": "Trial Expired",
+            "Saved Knowledge": "100% Intact & Ready to Resume",
+            "Special Offer": "Reply for 7-day trial extension",
+        },
+        cta_text="Reactivate My AI Agent",
+        cta_url=BILLING_URL,
+        secondary_text="Your agent will immediately go live on your website the moment a plan is chosen.",
+    )
+
+    result = await _send_raw_email(email, subject, html)
+    if result.get("sent"):
+        await record_lifecycle_email_sent(user_id, email, "trial_winback")
+    return result
+
+
+async def send_custom_admin_email(
+    *,
+    email: str,
+    subject: str,
+    badge_text: str = "Chatty Announcement",
+    badge_bg: str = "#eff6ff",
+    badge_color: str = "#2563eb",
+    title: str,
+    body_paragraphs: list[str],
+    highlight_box: Optional[dict[str, str]] = None,
+    cta_text: str = "Open Dashboard",
+    cta_url: str = DASHBOARD_URL,
+    secondary_text: Optional[str] = None,
+    user_id: Optional[str] = None,
+    event_type: str = "admin_broadcast",
+) -> dict[str, Any]:
+    """Allows admin panel to dispatch branded transactional messages directly."""
+    html = _render_base_email(
+        subject=subject,
+        badge_text=badge_text,
+        badge_bg=badge_bg,
+        badge_color=badge_color,
+        title=title,
+        body_paragraphs=body_paragraphs,
+        highlight_box=highlight_box,
+        cta_text=cta_text,
+        cta_url=cta_url,
+        secondary_text=secondary_text,
+    )
+    result = await _send_raw_email(email, subject, html)
+    if result.get("sent") and user_id:
+        await record_lifecycle_email_sent(user_id, email, event_type, {"subject": subject})
+    return result
+
+
 async def send_trial_ending_soon_email(
     *,
     user_id: str,
@@ -636,8 +887,13 @@ async def run_trial_lifecycle_scan() -> dict[str, Any]:
     trial_days = 14
     stats = {
         "scanned": 0,
+        "welcome_sent": 0,
+        "checkin_sent": 0,
+        "midpoint_sent": 0,
         "ending_soon_sent": 0,
+        "final_notice_sent": 0,
         "expired_sent": 0,
+        "winback_sent": 0,
         "skipped_active_paid": 0,
         "skipped_already_sent": 0,
         "errors": 0,
@@ -685,34 +941,70 @@ async def run_trial_lifecycle_scan() -> dict[str, Any]:
 
                 trial_end = start_dt + timedelta(days=trial_days)
                 remaining_sec = (trial_end - now).total_seconds()
+                elapsed_sec = (now - start_dt).total_seconds()
+                elapsed_days = elapsed_sec / 86400.0
                 days_left = int(remaining_sec // 86400) + 1
 
-                # Case 1: Trial ending in <= 3 days (and not expired yet)
-                if 0 < remaining_sec <= (3 * 86400):
-                    already = await has_lifecycle_email_been_sent(user_id, "trial_ending_soon")
+                # 1. Day 0-1 Welcome (first 36 hours of trial)
+                if elapsed_days < 1.5:
+                    already = await has_lifecycle_email_been_sent(user_id, "trial_welcome")
                     if not already:
-                        send_res = await send_trial_ending_soon_email(
-                            user_id=user_id,
-                            email=email,
-                            name=name,
-                            days_left=max(1, days_left),
-                        )
-                        if send_res.get("sent"):
-                            stats["ending_soon_sent"] += 1
+                        res = await send_trial_welcome_email(user_id=user_id, email=email, name=name)
+                        if res.get("sent"): stats["welcome_sent"] += 1
                     else:
                         stats["skipped_already_sent"] += 1
 
-                # Case 2: Trial expired (remaining_sec <= 0)
-                elif remaining_sec <= 0:
+                # 2. Day 3 Check-in (between 2.5 and 5 days elapsed)
+                elif 2.5 <= elapsed_days < 5.0 and days_left > 7:
+                    already = await has_lifecycle_email_been_sent(user_id, "trial_checkin")
+                    if not already:
+                        res = await send_trial_checkin_email(user_id=user_id, email=email, name=name)
+                        if res.get("sent"): stats["checkin_sent"] += 1
+                    else:
+                        stats["skipped_already_sent"] += 1
+
+                # 3. Day 7 Midpoint (between 6.5 and 9.5 days elapsed)
+                elif 6.5 <= elapsed_days < 9.5 and days_left > 4:
+                    already = await has_lifecycle_email_been_sent(user_id, "trial_midpoint")
+                    if not already:
+                        res = await send_trial_midpoint_email(user_id=user_id, email=email, name=name)
+                        if res.get("sent"): stats["midpoint_sent"] += 1
+                    else:
+                        stats["skipped_already_sent"] += 1
+
+                # 4. Day 11 Notice (between 1.5 and 3.5 days left)
+                elif (1.5 * 86400) < remaining_sec <= (3.5 * 86400):
+                    already = await has_lifecycle_email_been_sent(user_id, "trial_ending_soon")
+                    if not already:
+                        res = await send_trial_ending_soon_email(user_id=user_id, email=email, name=name, days_left=max(1, days_left))
+                        if res.get("sent"): stats["ending_soon_sent"] += 1
+                    else:
+                        stats["skipped_already_sent"] += 1
+
+                # 5. Day 13 Final Notice (between 0 and 1.5 days left)
+                elif 0 < remaining_sec <= (1.5 * 86400):
+                    already = await has_lifecycle_email_been_sent(user_id, "trial_final_notice")
+                    if not already:
+                        res = await send_trial_final_notice_email(user_id=user_id, email=email, name=name)
+                        if res.get("sent"): stats["final_notice_sent"] += 1
+                    else:
+                        stats["skipped_already_sent"] += 1
+
+                # 6. Day 14-16 Trial Expired (just concluded)
+                elif remaining_sec <= 0 and elapsed_days <= 17.0:
                     already = await has_lifecycle_email_been_sent(user_id, "trial_expired")
                     if not already:
-                        send_res = await send_trial_expired_email(
-                            user_id=user_id,
-                            email=email,
-                            name=name,
-                        )
-                        if send_res.get("sent"):
-                            stats["expired_sent"] += 1
+                        res = await send_trial_expired_email(user_id=user_id, email=email, name=name)
+                        if res.get("sent"): stats["expired_sent"] += 1
+                    else:
+                        stats["skipped_already_sent"] += 1
+
+                # 7. Day 17-24 Win-back (3-10 days post-expiration)
+                elif elapsed_days > 17.0 and elapsed_days <= 24.0:
+                    already = await has_lifecycle_email_been_sent(user_id, "trial_winback")
+                    if not already:
+                        res = await send_trial_winback_email(user_id=user_id, email=email, name=name)
+                        if res.get("sent"): stats["winback_sent"] += 1
                     else:
                         stats["skipped_already_sent"] += 1
 
