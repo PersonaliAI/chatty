@@ -163,10 +163,8 @@ USE_VERTEX_AI = (
 GEMINI_FALLBACK_MODELS: list[str] = [
     m.strip() for m in os.environ.get(
         "KIN_FALLBACK_MODELS",
-        # The flash-lite models carry a 500 RPD quota vs 20 RPD on gemini-2.5-flash
-        # on Google AI Studio free tier. Prioritizing flash-lite prevents hitting
-        # the 20 RPD quota lockouts.
-        "gemini-3.8-flash,gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite",
+        # Prioritize flash-lite and flash models with valid Gemini endpoints
+        "gemini-2.5-flash-lite,gemini-2.5-flash,gemini-1.5-flash",
     ).split(",") if m.strip()
 ]
 # Back-compat: some call sites/log messages still refer to a single fallback name.

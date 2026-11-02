@@ -582,17 +582,28 @@ class OmnichannelPipeline:
                     logger.warning("Failed to dispatch interim progress notice")
 
             try:
-                result = await run_widget_assistant(
-                    bot_id=bot_id,
-                    owner_user=owner_user,
-                    bot=bot,
-                    session_id=session_id,
-                    text=message.text,
-                    visitor_timezone=visitor_tz,
-                    media_bytes=message.media_bytes,
-                    media_mime=message.media_mime,
+                result = await asyncio.wait_for(
+                    run_widget_assistant(
+                        bot_id=bot_id,
+                        owner_user=owner_user,
+                        bot=bot,
+                        session_id=session_id,
+                        text=message.text,
+                        visitor_timezone=visitor_tz,
+                        media_bytes=message.media_bytes,
+                        media_mime=message.media_mime,
+                    ),
+                    timeout=45.0,
                 )
                 reply = str(result.get("reply") or "").strip()
+            except asyncio.TimeoutError:
+                logger.error("Omnichannel assistant run timed out (>45s) for bot %s session %s", bot_id, session_id)
+                try:
+                    from plugins.widget_brain import _detect_conversation_language, _get_localized_fallback
+                    conv_lang = _detect_conversation_language(message.text, [])
+                    reply = _get_localized_fallback(conv_lang)
+                except Exception:
+                    reply = "I apologize for the delay. I am experiencing high network demand - please ask your question again in a moment."
             except Exception:
                 logger.exception("Omnichannel assistant run failed for bot %s", bot_id)
                 try:
@@ -603,7 +614,12 @@ class OmnichannelPipeline:
                     reply = "I apologize, but I encountered an error processing your request. Please try again in a moment."
 
         if not reply:
-            return {"status": "empty_reply", "delivered": False}
+            try:
+                from plugins.widget_brain import _detect_conversation_language, _get_localized_fallback
+                conv_lang = _detect_conversation_language(message.text, [])
+                reply = _get_localized_fallback(conv_lang)
+            except Exception:
+                reply = "I'm here to help! Could you please clarify your request?
 
         # 9. Conversational Booking Intent & CTA Injection
         calendar_enabled = bool(bot.get("calendar_scheduling_enabled"))

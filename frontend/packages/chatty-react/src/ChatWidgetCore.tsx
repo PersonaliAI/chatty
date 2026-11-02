@@ -3615,7 +3615,7 @@ const clearChat = async () => {
                         <motion.div
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={`flex gap-2 ${hasWideCard ? "w-full max-w-[96%] sm:max-w-[88%]" : "max-w-[88%]"} ${msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto"}`}
+                          className={`flex gap-2 ${hasWideCard ? "w-full max-w-[96%] sm:max-w-[92%]" : "max-w-[94%] w-full"} ${msg.role === "user" ? "ml-auto flex-row-reverse !w-auto" : "mr-auto"}`}
                         >
                           {msg.role !== "user" && (
                             msg.sender === "human" ? (
@@ -4453,7 +4453,7 @@ const clearChat = async () => {
               }}
               placeholder={transcribing ? "Transcribing…" : (!isAgentActive || agentStatus === "offline") ? "Leave a message…" : "Compose your message…"} disabled={isBotResponding || transcribing}
               rows={1}
-              className="w-full bg-transparent text-xs placeholder:text-xs focus:outline-none disabled:opacity-60 mb-1 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
+              className="w-full bg-transparent text-xs placeholder:text-[11px] placeholder:opacity-70 focus:outline-none disabled:opacity-60 mb-1 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>

@@ -380,6 +380,7 @@ async def chat(
                 attempt_kwargs.setdefault("api_key", os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY)
             elif model.startswith("gemini/") or model.startswith("vertex_ai/"):
                 attempt_kwargs.pop("api_key", None)
+            attempt_kwargs.setdefault("timeout", 30.0)
             resp = await litellm.acompletion(model=model, messages=messages, **attempt_kwargs)
             await _log_usage(
                 response=resp, litellm_model=model, call_type=call_type, bot_id=bot_id,
@@ -480,6 +481,7 @@ async def chat_stream(
             run_kwargs.setdefault("api_key", os.environ.get("OPENROUTER_API_KEY") or OPENROUTER_API_KEY)
         elif m.startswith("gemini/") or m.startswith("vertex_ai/"):
             run_kwargs.pop("api_key", None)
+        run_kwargs.setdefault("timeout", 35.0)
         stream = await litellm.acompletion(
             model=m, messages=messages, stream=True,
             stream_options={"include_usage": True}, **run_kwargs,

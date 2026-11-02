@@ -2994,7 +2994,7 @@ function IdentifiedEmbedClient({
   }
 
   const mdComponents: Components = {
-    p: ({ children }) => <p className="mb-1 last:mb-0 break-words [overflow-wrap:anywhere]">{children}</p>,
+    p: ({ children }) => <p className="mb-1 last:mb-0 break-words [overflow-wrap:anywhere] [word-break:break-word] max-w-full">{children}</p>,
     ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1 min-w-0">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1 min-w-0">{children}</ol>,
     a: ({ href, children }) => (
@@ -3937,7 +3937,7 @@ function IdentifiedEmbedClient({
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -6, scale: 0.95 }}
                           transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                          className={`flex gap-2 ${msg.role === "user" ? "ml-auto flex-row-reverse max-w-[85%]" : hasBooking ? "max-w-[95%] w-full" : "max-w-[85%]"}`}
+                          className={`flex gap-2 ${msg.role === "user" ? "ml-auto flex-row-reverse max-w-[85%]" : hasBooking ? "max-w-[96%] w-full" : "max-w-[94%] w-full"}`}
                         >
                           {msg.role === "assistant" && (
                             (msg.sender === "human" || (liveAgent && !msg.sender)) ? (
@@ -3986,7 +3986,7 @@ function IdentifiedEmbedClient({
                                 )}
                               </span>
                             )}
-                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] ${
+                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 max-w-full break-words [overflow-wrap:anywhere] [word-break:break-word] ${
                                 msg.role === "user"
                                   ? "user-bubble rounded-tr-none"
                                   : hasCheckoutLinks
@@ -4779,7 +4779,7 @@ function IdentifiedEmbedClient({
             )}
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }} onPaste={onPaste}
               placeholder={transcribing ? "Transcribing…" : (!isAgentActive || agentStatus === "offline") ? "Leave a message…" : "Compose your message…"} disabled={isBotResponding || transcribing}
-              className="w-full bg-transparent text-xs placeholder:text-xs focus:outline-none disabled:opacity-60 mb-1" />
+              className="w-full bg-transparent text-xs placeholder:text-[11px] placeholder:opacity-70 focus:outline-none disabled:opacity-60 mb-1" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>

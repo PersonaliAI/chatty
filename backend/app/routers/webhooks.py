@@ -1537,12 +1537,20 @@ async def telegram_receive(request: Request, path_bot_id: str | None = None):
         media_filename=media_filename,
     )
     if inbound:
-        await _omnichannel_pipeline.process_inbound(
-            message=inbound,
-            bot=bot,
-            owner_user=owner_user,
-            access_token=bot_token,
-        )
+        try:
+            await asyncio.wait_for(
+                _omnichannel_pipeline.process_inbound(
+                    message=inbound,
+                    bot=bot,
+                    owner_user=owner_user,
+                    access_token=bot_token,
+                ),
+                timeout=52.0,
+            )
+        except asyncio.TimeoutError:
+            logger.error("Telegram webhook inbound pipeline timed out for bot %s", bot.get("id"))
+        except Exception:
+            logger.exception("Error processing Telegram inbound message for bot %s", bot.get("id"))
 
     return {"ok": True}
 
