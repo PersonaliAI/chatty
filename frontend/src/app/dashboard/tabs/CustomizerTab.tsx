@@ -116,9 +116,9 @@ interface CustomizerTabProps {
 }
 
 const PREVIEW_DIMENSIONS: Record<string, { width: string; height: string }> = {
-  compact: { width: "350px", height: "530px" },
-  default: { width: "400px", height: "600px" },
-  large: { width: "440px", height: "660px" },
+  compact: { width: "350px", height: "490px" },
+  default: { width: "385px", height: "525px" },
+  large: { width: "415px", height: "555px" },
 };
 
 export function CustomizerTab({
@@ -1000,7 +1000,7 @@ export function CustomizerTab({
             botId ? (
               <div className="w-full flex flex-col items-center">
                 <div
-                  className="flex flex-col items-end transition-all"
+                  className="flex flex-col items-center transition-all"
                   style={{ width: (PREVIEW_DIMENSIONS[panelSize] || PREVIEW_DIMENSIONS.default).width, maxWidth: "100%" }}
                 >
                   <iframe
@@ -1013,23 +1013,6 @@ export function CustomizerTab({
                       borderRadius: PANEL_RADIUS[widgetStyle] || "18px",
                     }}
                   />
-                  {/* Floating Launcher Button under widget — mirroring landing page floating look */}
-                  <div className="mt-3 flex justify-end">
-                    <div
-                      style={{
-                        width: "56px",
-                        height: "56px",
-                        borderRadius: widgetStyle === "neubrutalism" ? "14px" : "50%",
-                        background: colorScheme?.launcher?.bg || primaryColor || LAUNCHER_STYLES[widgetStyle]?.bg || "#f97316",
-                        boxShadow: LAUNCHER_STYLES[widgetStyle]?.shadow || "0 6px 20px rgba(0,0,0,.25)",
-                        color: colorScheme?.launcher?.text || getOnColor(primaryColor),
-                      }}
-                      className="flex items-center justify-center cursor-pointer select-none transition-transform hover:scale-105"
-                      title="Floating Launcher Button"
-                    >
-                      <X className="size-6 stroke-[2.2]" />
-                    </div>
-                  </div>
                 </div>
                 <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-2 text-center">
                   Live preview · reflects your current settings in real time.
