@@ -115,6 +115,12 @@ interface CustomizerTabProps {
   fetchWithFallback?: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
+const PREVIEW_DIMENSIONS: Record<string, { width: string; height: string }> = {
+  compact: { width: "350px", height: "530px" },
+  default: { width: "400px", height: "600px" },
+  large: { width: "440px", height: "660px" },
+};
+
 export function CustomizerTab({
   widgetStyle,
   setWidgetStyle,
@@ -173,7 +179,7 @@ export function CustomizerTab({
   fetchWithFallback,
 }: CustomizerTabProps) {
   return (
-    <div className="max-w-4xl mx-auto w-full py-6 px-4">
+    <div className="max-w-[1260px] mx-auto w-full py-6 px-4 sm:px-6">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Customizer Panel */}
         <div className="lg:col-span-7 space-y-6">
@@ -968,7 +974,7 @@ export function CustomizerTab({
         </div>
 
         {/* Live visual mockup preview */}
-        <div className="lg:col-span-5 flex flex-col items-center">
+        <div className="lg:col-span-5 flex flex-col items-center sticky top-6 self-start">
           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 uppercase font-semibold mb-3">Live Assistant Preview</span>
           <div className="flex items-center gap-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-lg p-0.5 mb-3">
             {([
@@ -993,13 +999,38 @@ export function CustomizerTab({
           {previewView === "live" ? (
             botId ? (
               <div className="w-full flex flex-col items-center">
-                <iframe
-                  key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}-${fontFamily}-${fontSizePercent}`}
-                  src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}&font=${encodeURIComponent(fontFamily || "")}&font_size_percent=${fontSizePercent}`}
-                  title="Live widget preview"
-                  className="w-full max-w-[380px] h-[550px] border-0 shadow-lg bg-white dark:bg-neutral-900 transition-all"
-                  style={{ borderRadius: PANEL_RADIUS[widgetStyle] || "18px" }}
-                />
+                <div
+                  className="flex flex-col items-end transition-all"
+                  style={{ width: (PREVIEW_DIMENSIONS[panelSize] || PREVIEW_DIMENSIONS.default).width, maxWidth: "100%" }}
+                >
+                  <iframe
+                    key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}-${fontFamily}-${fontSizePercent}-${panelSize}`}
+                    src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}&font=${encodeURIComponent(fontFamily || "")}&font_size_percent=${fontSizePercent}&panel_size=${panelSize}`}
+                    title="Live widget preview"
+                    className="w-full border-0 shadow-2xl bg-white dark:bg-neutral-900 transition-all"
+                    style={{
+                      height: (PREVIEW_DIMENSIONS[panelSize] || PREVIEW_DIMENSIONS.default).height,
+                      borderRadius: PANEL_RADIUS[widgetStyle] || "18px",
+                    }}
+                  />
+                  {/* Floating Launcher Button under widget — mirroring landing page floating look */}
+                  <div className="mt-3 flex justify-end">
+                    <div
+                      style={{
+                        width: "56px",
+                        height: "56px",
+                        borderRadius: widgetStyle === "neubrutalism" ? "14px" : "50%",
+                        background: colorScheme?.launcher?.bg || primaryColor || LAUNCHER_STYLES[widgetStyle]?.bg || "#f97316",
+                        boxShadow: LAUNCHER_STYLES[widgetStyle]?.shadow || "0 6px 20px rgba(0,0,0,.25)",
+                        color: colorScheme?.launcher?.text || getOnColor(primaryColor),
+                      }}
+                      className="flex items-center justify-center cursor-pointer select-none transition-transform hover:scale-105"
+                      title="Floating Launcher Button"
+                    >
+                      <X className="size-6 stroke-[2.2]" />
+                    </div>
+                  </div>
+                </div>
                 <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-2 text-center">
                   Live preview · reflects your current settings in real time.
                 </p>

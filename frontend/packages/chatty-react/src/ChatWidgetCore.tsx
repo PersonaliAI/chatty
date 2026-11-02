@@ -3097,6 +3097,7 @@ const clearChat = async () => {
               )}
             </button>
             {tab === "messages" && (
+            <>
               <button
                 onClick={clearChat}
                 disabled={clearingChat}
@@ -3109,7 +3110,20 @@ const clearChat = async () => {
               >
                 <RefreshCw className={`size-3.5 sm:size-4 ${clearingChat ? "animate-spin" : ""}`} />
               </button>
-            )}
+              <button
+                onClick={eraseMyData}
+                disabled={clearingChat}
+                className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                style={{ opacity: 0.8 }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                aria-label="Erase my data (GDPR)"
+                title="Erase my chat data (GDPR Right to be Forgotten)"
+              >
+                <Trash2 className="size-3.5 sm:size-4" />
+              </button>
+            </>
+          )}
             <button onClick={handleCloseClick} className="p-1 sm:p-1.5 rounded-full hover:opacity-100 transition-colors shrink-0 cursor-pointer" style={{ opacity: 0.8 }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "color-mix(in srgb, currentColor 15%, transparent)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}

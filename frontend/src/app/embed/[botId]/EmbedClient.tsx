@@ -1024,6 +1024,12 @@ function IdentifiedEmbedClient({
 
   // When viewport height changes (e.g. keyboard opens or closes), maintain scroll position at latest message
   useEffect(() => {
+    if (rootRef.current && rootRef.current.scrollLeft !== 0) {
+      rootRef.current.scrollLeft = 0;
+    }
+  }, [messages, tab, fontSizePercent]);
+
+  useEffect(() => {
     if (viewportHeight && chatBodyRef.current) {
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
     }
@@ -3103,6 +3109,9 @@ function IdentifiedEmbedClient({
           -webkit-font-smoothing: auto !important;
           -moz-osx-font-smoothing: auto !important;
         }
+        html {
+          font-size: ${16 * (fontSizePercent / 100)}px !important;
+        }
         /* Mobile input auto-zoom prevention: iOS Safari / WKWebView auto-magnifies the page
            whenever an input has font-size < 16px. Enforcing 16px on mobile viewports (<640px)
            prevents unwanted layout shifting and zoom disruptions. */
@@ -3157,11 +3166,6 @@ function IdentifiedEmbedClient({
           above), not authored as a fixed percentage. */}
       <div
         className="w-full h-full flex flex-col overflow-hidden"
-        style={fontSizePercent !== 100 && containerSize ? {
-          zoom: `${fontSizePercent}%`,
-          width: `${containerSize.width / (fontSizePercent / 100)}px`,
-          height: `${containerSize.height / (fontSizePercent / 100)}px`,
-        } : undefined}
       >
       {/* Header */}
       {!voiceModeActive && (
