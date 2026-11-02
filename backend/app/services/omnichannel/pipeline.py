@@ -619,7 +619,7 @@ class OmnichannelPipeline:
                 conv_lang = _detect_conversation_language(message.text, [])
                 reply = _get_localized_fallback(conv_lang)
             except Exception:
-                reply = "I'm here to help! Could you please clarify your request?
+                reply = "I'm here to help! Could you please clarify your request?"
 
         # 9. Conversational Booking Intent & CTA Injection
         calendar_enabled = bool(bot.get("calendar_scheduling_enabled"))
