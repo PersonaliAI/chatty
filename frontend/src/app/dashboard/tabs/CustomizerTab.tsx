@@ -42,6 +42,7 @@ import {
 } from "@/lib/color-contrast";
 import {
   LAUNCHER_STYLES,
+  PANEL_RADIUS,
   PRESET_SIGNATURES,
   getPresetSignature,
   generatePresetColorScheme,
@@ -996,7 +997,8 @@ export function CustomizerTab({
                   key={`${botId}-${primaryColor}-${widgetStyle}-${avatarIcon}-${logoUrl}-${logoBgColor}-${botName}-${showSenderTag}-${csatEnabled}-${JSON.stringify(colorScheme)}-${fontFamily}-${fontSizePercent}`}
                   src={`/embed/${botId}?preview=true&color=${encodeURIComponent(primaryColor)}&style=${widgetStyle}&name=${encodeURIComponent(botName)}&welcome=${encodeURIComponent(welcomeMsg)}&avatar_icon=${avatarIcon}&avatar_url=${encodeURIComponent(avatarUrl || "")}&logo_url=${encodeURIComponent(logoUrl || "")}&logo_bg_color=${encodeURIComponent(logoBgColor || "")}&show_sender_tag=${showSenderTag}&csat_enabled=${csatEnabled}&color_scheme=${encodeURIComponent(colorScheme ? JSON.stringify(colorScheme) : "")}&font=${encodeURIComponent(fontFamily || "")}&font_size_percent=${fontSizePercent}`}
                   title="Live widget preview"
-                  className="w-full max-w-[380px] h-[550px] rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-lg bg-white dark:bg-neutral-900"
+                  className="w-full max-w-[380px] h-[550px] border-0 shadow-lg bg-white dark:bg-neutral-900 transition-all"
+                  style={{ borderRadius: PANEL_RADIUS[widgetStyle] || "18px" }}
                 />
                 <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-2 text-center">
                   Live preview · reflects your current settings in real time.

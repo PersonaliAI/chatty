@@ -343,7 +343,7 @@ function CodeBlock({ lang, text }: { lang: string; text: string }) {
           <span>{copied ? "Copied!" : "Copy"}</span>
         </button>
       </div>
-      <pre className="p-3 overflow-x-auto bg-neutral-50 dark:bg-neutral-900 font-mono leading-relaxed whitespace-pre">
+      <pre className="p-3 overflow-x-auto bg-neutral-50 dark:bg-neutral-900 font-mono leading-relaxed whitespace-pre max-w-full">
         <code>{text}</code>
       </pre>
     </div>
@@ -866,6 +866,7 @@ function IdentifiedEmbedClient({
   const [isFullscreen, setIsFullscreen] = useState(() => {
     if (typeof window === "undefined") return false;
     const sp = new URLSearchParams(window.location.search);
+    if (sp.get("preview") === "true") return false;
     if (
       sp.get("fullscreen") === "true" ||
       sp.get("fullscreen") === "1" ||
@@ -877,10 +878,8 @@ function IdentifiedEmbedClient({
     ) {
       return true;
     }
-    // Standalone top-level window (not embedded inside an iframe)
-    if (window.self === window.top) return true;
-    // Mobile viewports default to full-screen
-    if (window.innerWidth <= 640) return true;
+    // Standalone top-level window (not embedded inside an iframe) on mobile
+    if (window.self === window.top && window.innerWidth <= 640) return true;
     return false;
   });
 
@@ -944,7 +943,12 @@ function IdentifiedEmbedClient({
       } else {
         setViewportHeight(window.innerHeight);
       }
-      if (window.self === window.top || window.innerWidth <= 640) {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get("preview") === "true") {
+        setIsFullscreen(false);
+        return;
+      }
+      if (window.self === window.top && window.innerWidth <= 640) {
         setIsFullscreen(true);
       }
     };
@@ -2984,9 +2988,9 @@ function IdentifiedEmbedClient({
   }
 
   const mdComponents: Components = {
-    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-    ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
-    ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+    p: ({ children }) => <p className="mb-1 last:mb-0 break-words [overflow-wrap:anywhere]">{children}</p>,
+    ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1 min-w-0">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1 min-w-0">{children}</ol>,
     a: ({ href, children }) => (
       <SafeMarkdownLink href={href} className="underline break-all" style={{ color: primaryColor }}>
         {children}
@@ -3029,7 +3033,7 @@ function IdentifiedEmbedClient({
     hr: () => <hr className="my-3 border-neutral-200 dark:border-neutral-800" />,
     code: ({ className, children, ...rest }) => {
       const isBlock = className?.startsWith("language-");
-      if (!isBlock) return <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono" {...rest}>{children}</code>;
+      if (!isBlock) return <code className="bg-neutral-200 dark:bg-neutral-800 px-1 py-0.5 rounded text-[10px] font-mono break-all [overflow-wrap:anywhere]" {...rest}>{children}</code>;
       const lang = (className ?? "").replace("language-", "") || "code";
       const text = String(children).replace(/\n$/, "");
       return <CodeBlock lang={lang} text={text} />;
@@ -3058,11 +3062,13 @@ function IdentifiedEmbedClient({
     <div
       ref={rootRef}
       id="chatty-root"
-      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? (isDirectDesktop ? "max-w-[500px] w-full mx-auto my-auto h-[calc(100dvh-48px)] max-h-[800px] rounded-2xl shadow-2xl border border-neutral-200/80 dark:border-neutral-800" : "rounded-none") : "rounded-2xl"}`}
+      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? (isDirectDesktop ? "max-w-[500px] w-full mx-auto my-auto h-[calc(100dvh-48px)] max-h-[800px] shadow-2xl border border-neutral-200/80 dark:border-neutral-800" : "rounded-none") : ""}`}
       style={{
         touchAction: "manipulation",
         height: isDirectDesktop ? "calc(100dvh - 48px)" : (viewportHeight ? `${viewportHeight}px` : "100%"),
         maxHeight: isDirectDesktop ? "800px" : (viewportHeight ? `${viewportHeight}px` : "100dvh"),
+        borderRadius: isFullscreen && !isDirectDesktop ? "0px" : (PANEL_RADIUS[widgetStyle] || "18px"),
+        boxSizing: "border-box",
         ...primaryColorCssVars(primaryColor),
       } as React.CSSProperties}
     >
@@ -3129,6 +3135,9 @@ function IdentifiedEmbedClient({
         .style-neubrutalism,
         .style-luxury-editorial {
           box-shadow: none !important;
+        }
+        #chatty-root, #chatty-root * {
+          box-sizing: border-box !important;
         }
         ${colorSchemeCss}
         ${fontFamilyCss}
@@ -3951,7 +3960,7 @@ function IdentifiedEmbedClient({
                               </div>
                             )
                           )}
-                          <div className={`space-y-1 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col ${hasBooking ? "w-full min-w-0" : ""}`}>
+                          <div className={`space-y-1 ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col min-w-0 flex-1 ${hasBooking ? "w-full" : ""}`}>
                             {msg.role === "assistant" && showSenderTag && (
                               <span className="text-[10px] font-medium px-1 flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
                                 {(msg.sender === "human" || (liveAgent && !msg.sender)) ? (
@@ -3973,7 +3982,7 @@ function IdentifiedEmbedClient({
                                 )}
                               </span>
                             )}
-                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 break-words [overflow-wrap:anywhere] ${
+                            <div className={`${hasBooking ? "p-1.5 sm:p-2.5 w-full" : "p-2.5"} rounded-2xl leading-relaxed min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] ${
                                 msg.role === "user"
                                   ? "user-bubble rounded-tr-none"
                                   : hasCheckoutLinks
@@ -4766,7 +4775,7 @@ function IdentifiedEmbedClient({
             )}
             <input value={inputValue} onChange={(e) => setInputValue(e.target.value)} onFocus={() => { setEmojiOpen(false); setAttachOpen(false); }} onPaste={onPaste}
               placeholder={transcribing ? "Transcribing…" : (!isAgentActive || agentStatus === "offline") ? "Leave a message…" : "Compose your message…"} disabled={isBotResponding || transcribing}
-              className="w-full bg-transparent text-[16px] sm:text-xs focus:outline-none disabled:opacity-60 mb-1" />
+              className="w-full bg-transparent text-xs placeholder:text-xs focus:outline-none disabled:opacity-60 mb-1" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button ref={emojiButtonRef} type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>

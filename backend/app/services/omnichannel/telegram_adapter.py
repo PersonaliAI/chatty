@@ -103,6 +103,18 @@ def extract_telegram_media(update: dict[str, Any]) -> Optional[dict[str, Any]]:
                 "file_name": "video.mp4",
             }
 
+    # 6. Video note (round camera video message)
+    video_note = message.get("video_note")
+    if video_note and isinstance(video_note, dict):
+        file_id = video_note.get("file_id")
+        if file_id:
+            return {
+                "file_id": str(file_id),
+                "media_type": "video",
+                "mime_type": "video/mp4",
+                "file_name": "video_note.mp4",
+            }
+
     return None
 
 
@@ -197,8 +209,8 @@ def normalize_telegram_update(
         if not text and message.get("location"):
             loc = message["location"]
             text = f"📍 Location: https://maps.google.com/?q={loc.get('latitude')},{loc.get('longitude')}"
-        elif not text and not media_bytes and (message.get("photo") or message.get("document") or message.get("voice")):
-            media_type = "voice" if message.get("voice") else "photo" if message.get("photo") else "document"
+        elif not text and not media_bytes and (message.get("photo") or message.get("document") or message.get("voice") or message.get("video") or message.get("video_note")):
+            media_type = "voice" if message.get("voice") else "video" if (message.get("video") or message.get("video_note")) else "photo" if message.get("photo") else "document"
             text = f"[{media_type} attachment]"
 
     if not chat_id:
@@ -222,14 +234,65 @@ def normalize_telegram_update(
     )
 
 
-def format_telegram_markdown(text: str) -> str:
-    """Escapes underscores in URLs so Telegram Markdown v1 parser doesn't
-    treat them as italic tags (which corrupts 'session_id=' into 'sessionid=')."""
+def format_telegram_html(text: str) -> str:
+    """Converts standard Markdown into clean, well-formed HTML supported by Telegram Bot API."""
     if not text:
         return ""
-    def _escape_url(match):
-        return match.group(0).replace("_", r"\_")
-    return re.sub(r"https?://[^\s)]+", _escape_url, text)
+
+    # 1. Protect fenced code blocks first
+    code_blocks: list[str] = []
+    def _save_code_block(match: re.Match) -> str:
+        code = match.group(2)
+        safe_code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        idx = len(code_blocks)
+        code_blocks.append(f"<pre><code>{safe_code}</code></pre>")
+        return f"__TG_CODE_BLOCK_{idx}__"
+
+    content = re.sub(r"```([a-zA-Z0-9_-]*)\n?([\s\S]*?)```", _save_code_block, text)
+
+    # 2. Protect inline code
+    inline_codes: list[str] = []
+    def _save_inline_code(match: re.Match) -> str:
+        code = match.group(1)
+        safe_code = code.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        idx = len(inline_codes)
+        inline_codes.append(f"<code>{safe_code}</code>")
+        return f"__TG_INLINE_CODE_{idx}__"
+
+    content = re.sub(r"`([^`\n]+)`", _save_inline_code, content)
+
+    # 3. Escape HTML characters in remaining text
+    content = content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # 4. Markdown links [text](url)
+    def _replace_link(match: re.Match) -> str:
+        label = match.group(1)
+        url = match.group(2).strip()
+        return f'<a href="{url}">{label}</a>'
+    content = re.sub(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", _replace_link, content)
+
+    # 5. Headers (### Header -> <b>Header</b>)
+    content = re.sub(r"^(?:#{1,6})\s+(.+)$", r"<b>\1</b>", content, flags=re.MULTILINE)
+
+    # 6. Bold (**bold** or __bold__)
+    content = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", content)
+    content = re.sub(r"__([^_]+)__", r"<b>\1</b>", content)
+
+    # 7. Bullet lists (* item or - item at line start -> • item)
+    content = re.sub(r"^[\s]*[*-]\s+", "• ", content, flags=re.MULTILINE)
+
+    # 8. Restore inline code and code blocks
+    for idx, snippet in enumerate(inline_codes):
+        content = content.replace(f"__TG_INLINE_CODE_{idx}__", snippet)
+    for idx, snippet in enumerate(code_blocks):
+        content = content.replace(f"__TG_CODE_BLOCK_{idx}__", snippet)
+
+    return content
+
+
+def format_telegram_markdown(text: str) -> str:
+    """Legacy helper maintained for backwards compatibility."""
+    return format_telegram_html(text)
 
 
 async def send_telegram_chat_action(
@@ -257,20 +320,19 @@ async def send_outbound_telegram(
     inline_buttons: Optional[list[dict[str, str]]] = None,
     quick_replies: Optional[list[str]] = None,
 ) -> bool:
-    """Deliver a text message or inline interactive buttons via Telegram Bot API."""
+    """Deliver a text message or inline interactive buttons via Telegram Bot API with HTML formatting."""
     if not (bot_token and chat_id and text):
         logger.warning("Missing credentials or chat_id for Telegram outbound dispatch")
         return False
 
     url = f"{TELEGRAM_API_BASE}/bot{bot_token}/sendMessage"
 
-    formatted_text = format_telegram_markdown(text)
+    formatted_text = format_telegram_html(text)
     # Telegram caps messages at 4096 UTF-8 characters
     chunks = [formatted_text[i:i + 4000] for i in range(0, len(formatted_text), 4000)] or [formatted_text]
 
     reply_markup: dict[str, Any] = {}
     if inline_buttons:
-        # Array of button rows: [[{"text": "...", "url": "..."}]]
         buttons = []
         for btn in inline_buttons:
             if btn.get("url"):
@@ -290,7 +352,7 @@ async def send_outbound_telegram(
         payload: dict[str, Any] = {
             "chat_id": chat_id,
             "text": chunk,
-            "parse_mode": "Markdown",
+            "parse_mode": "HTML",
             "disable_web_page_preview": False,
         }
         if is_last and reply_markup:
@@ -304,9 +366,10 @@ async def send_outbound_telegram(
                 if res.status_code < 400:
                     delivered = True
                     break
-                # If markdown parsing fails due to unmatched syntax, retry without parse_mode
-                if res.status_code == 400 and "parse entities" in res.text.lower():
+                # If HTML parsing fails due to unmatched tags, strip tags and retry as plain text
+                if res.status_code == 400 and ("parse entities" in res.text.lower() or "can't parse" in res.text.lower()):
                     payload.pop("parse_mode", None)
+                    payload["text"] = re.sub(r"<[^>]+>", "", chunk)
                     async with httpx.AsyncClient(timeout=10) as client:
                         retry_res = await client.post(url, json=payload)
                     if retry_res.status_code < 400:

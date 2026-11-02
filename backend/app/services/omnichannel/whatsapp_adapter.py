@@ -94,10 +94,20 @@ def normalize_meta_message(
 
 
 def format_whatsapp_reply(reply: str) -> str:
-    """Format rich structured tokens (order cards, product cards) into WhatsApp format."""
+    """Format rich structured tokens (order cards, product cards) and markdown into WhatsApp format."""
     rendered = render_whatsapp_order_cards(reply)
-    # Also render any product card tokens
     rendered = _render_whatsapp_product_cards(rendered)
+
+    # Convert Markdown to WhatsApp-friendly syntax
+    # 1. Headers (### Header -> *Header*)
+    rendered = re.sub(r"^(?:#{1,6})\s+(.+)$", r"*\1*", rendered, flags=re.MULTILINE)
+    # 2. Bold (**text** -> *text*)
+    rendered = re.sub(r"\*\*([^*]+)\*\*", r"*\1*", rendered)
+    # 3. Links [text](url) -> text (url)
+    rendered = re.sub(r"\[([^\]]+)\]\((https?://[^\s)]+)\)", r"\1 (\2)", rendered)
+    # 4. Bullet lists (* item or - item -> • item)
+    rendered = re.sub(r"^[\s]*[*-]\s+", "• ", rendered, flags=re.MULTILINE)
+
     return rendered.strip()
 
 

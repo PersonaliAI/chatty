@@ -400,51 +400,80 @@ class OmnichannelPipeline:
             logger.exception("Failed to query session ai_paused status")
             session_row = None
 
-        if is_session_ai_paused(session_row):
-            clean_cmd = message.text.strip().lower()
-            is_resume_intent = (
-                clean_cmd in ("/start", "/ai", "/resume", "start", "resume", "ai", "bot", "resume ai", "ai assistant")
-                or message.has_media
-                or "/start" in clean_cmd
-                or "/ai" in clean_cmd
-            )
-            if is_resume_intent:
-                try:
-                    await run_db(
-                        lambda: supabase.table("chatty_sessions")
-                        .update({"ai_paused": False, "escalation_reason": None})
-                        .eq("bot_id", bot_id)
-                        .eq("session_id", session_id)
-                        .execute()
-                    )
-                    if session_row:
-                        session_row["ai_paused"] = False
-                    logger.info("Session %s automatically resumed for inbound query/media", session_id)
-                except Exception:
-                    logger.exception("Failed to unpause session")
-            else:
-                logger.info(
-                    "Human takeover active on session %s for bot %s; suppressing automated AI response",
-                    session_id,
-                    bot_id,
+        # 6. Check for resume / channel control commands (/start, /ai, /resume)
+        clean_cmd = message.text.strip().lower()
+        is_control_cmd = (
+            clean_cmd in ("/start", "/ai", "/resume", "start", "resume", "ai", "bot", "resume ai", "ai assistant")
+            or clean_cmd.startswith("/start")
+            or clean_cmd == "/ai"
+            or clean_cmd.startswith("/ai ")
+        )
+
+        if is_control_cmd:
+            try:
+                await run_db(
+                    lambda: supabase.table("chatty_sessions")
+                    .update({"ai_paused": False, "escalation_reason": None})
+                    .eq("bot_id", bot_id)
+                    .eq("session_id", session_id)
+                    .execute()
                 )
-                # Inform visitor once of active human takeover queue status
-                try:
-                    from plugins.widget_brain import _detect_conversation_language
-                    conv_lang = _detect_conversation_language(message.text, [])
-                    if conv_lang == "si":
-                        queue_notice = "ඔබගේ පණිවිඩය අපගේ කණ්ඩායමට යොමු කර ඇත. නියෝජිතයෙකු ඉක්මනින් ඔබට සම්බන්ධ වනු ඇත. (නැවත AI සහායක සමඟ කතා කිරීමට /ai හෝ /start යොමු කරන්න)."
-                    else:
-                        queue_notice = "Your message has been routed to our support team. A representative will reply shortly. (Reply /ai or /start to resume chatting with the AI assistant)."
-                    await self._dispatch_to_channel(
-                        message=message,
-                        text=queue_notice,
-                        bot=bot,
-                        access_token=access_token,
-                    )
-                except Exception:
-                    pass
-                return {"status": "ai_paused", "handled_by": "human_agent"}
+                if session_row:
+                    session_row["ai_paused"] = False
+                logger.info("Session %s unpaused via channel control command: %s", session_id, clean_cmd)
+            except Exception:
+                logger.exception("Failed to unpause session via control command")
+
+            resume_ack = "✨ AI Assistant is active and ready to help! What can I assist you with today?"
+            try:
+                from plugins.widget_brain import _detect_conversation_language
+                conv_lang = _detect_conversation_language(message.text, [])
+                if conv_lang == "si":
+                    resume_ack = "✨ AI සහායක නැවත සක්‍රියයි! අද මම ඔබට කෙසේද උදවු කළ හැක්කේ?"
+
+                await run_db(
+                    lambda: supabase.table("chatty_conversations").insert({
+                        "bot_id": bot_id,
+                        "session_id": session_id,
+                        "role": "assistant",
+                        "content": resume_ack,
+                        "sender": "ai",
+                    }).execute()
+                )
+                await self._dispatch_to_channel(
+                    message=message,
+                    text=resume_ack,
+                    bot=bot,
+                    access_token=access_token,
+                )
+            except Exception:
+                logger.exception("Failed to dispatch resume acknowledgment")
+
+            return {"status": "resumed", "reply": resume_ack}
+
+        if is_session_ai_paused(session_row):
+            logger.info(
+                "Human takeover active on session %s for bot %s; suppressing automated AI response",
+                session_id,
+                bot_id,
+            )
+            # Inform visitor once of active human takeover queue status
+            try:
+                from plugins.widget_brain import _detect_conversation_language
+                conv_lang = _detect_conversation_language(message.text, [])
+                if conv_lang == "si":
+                    queue_notice = "ඔබගේ පණිවිඩය අපගේ කණ්ඩායමට යොමු කර ඇත. නියෝජිතයෙකු ඉක්මනින් ඔබට සම්බන්ධ වනු ඇත. (නැවත AI සහායක සමඟ කතා කිරීමට /ai හෝ /start යොමු කරන්න)."
+                else:
+                    queue_notice = "Your message has been routed to our support team. A representative will reply shortly. (Reply /ai or /start to resume chatting with the AI assistant)."
+                await self._dispatch_to_channel(
+                    message=message,
+                    text=queue_notice,
+                    bot=bot,
+                    access_token=access_token,
+                )
+            except Exception:
+                pass
+            return {"status": "ai_paused", "handled_by": "human_agent"}
 
         # 7. Check for human handoff request / escalation
         is_escalation, reason, priority = detect_human_handoff_request(message.text)
@@ -628,7 +657,7 @@ class OmnichannelPipeline:
                 owner_user=owner_user,
             )
 
-        if message.channel in (ChannelType.WHATSAPP, ChannelType.TELEGRAM, ChannelType.INSTAGRAM, ChannelType.MESSENGER, ChannelType.TIKTOK):
+        if message.channel in (ChannelType.WHATSAPP, ChannelType.INSTAGRAM, ChannelType.MESSENGER, ChannelType.TIKTOK):
             reply = format_whatsapp_reply(reply)
 
         # 11. Record outbound AI message in chat history

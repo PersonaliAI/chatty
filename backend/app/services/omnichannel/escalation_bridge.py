@@ -113,6 +113,10 @@ def is_team_handoff_promised(reply: str) -> bool:
     """Check if assistant reply confirms that human team has been notified."""
     if not reply:
         return False
+    clean = reply.strip().lower()
+    # If the assistant is merely offering or proposing human contact with a question, it is not a committed notification
+    if any(q in clean for q in ("would you like", "should i", "do you want me to", "if you'd like", "if you would like", "may i start with your name", "කැමතිද")):
+        return False
     return bool(TEAM_NOTIFIED_PATTERNS.search(reply))
 
 

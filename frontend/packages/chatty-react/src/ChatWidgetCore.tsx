@@ -1592,7 +1592,29 @@ function IdentifiedChatWidget({
   const [clearingChat, setClearingChat] = useState(false);
 
   // Clear conversation or start a fresh one without unmounting or reloading widget
-  const clearChat = async () => {
+    // GDPR Art. 17: Right to Erasure (RTBF) - self-service data erasure for website visitors
+  const eraseMyData = async () => {
+    if (clearingChat) return;
+    if (typeof window !== "undefined" && !window.confirm("Permanently erase your chat history and visitor data from this device and the server? This cannot be undone.")) {
+      return;
+    }
+    setClearingChat(true);
+
+    try {
+      await identity.logout();
+      setMessages([]);
+      setInputValue("");
+      setPendingFiles([]);
+      setLiveAgent(false);
+      showToast("Your conversation and session data have been erased", "success");
+    } catch {
+      showToast("Data erased locally", "success");
+    } finally {
+      setClearingChat(false);
+    }
+  };
+
+const clearChat = async () => {
     if (clearingChat) return;
     setClearingChat(true);
     setMessages([{ role: "assistant", content: welcomeMsg, sender: "ai", created_at: new Date().toISOString() }]);
@@ -2786,7 +2808,7 @@ function IdentifiedChatWidget({
   }
 
   const mdComponents: Components = {
-    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+    p: ({ children }) => <p className="mb-1 last:mb-0 break-words [overflow-wrap:anywhere]">{children}</p>,
     ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
     ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
     a: ({ href, children }) => (
@@ -4417,7 +4439,7 @@ function IdentifiedChatWidget({
               }}
               placeholder={transcribing ? "Transcribing…" : (!isAgentActive || agentStatus === "offline") ? "Leave a message…" : "Compose your message…"} disabled={isBotResponding || transcribing}
               rows={1}
-              className="w-full bg-transparent text-[16px] sm:text-xs focus:outline-none disabled:opacity-60 mb-1 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
+              className="w-full bg-transparent text-xs placeholder:text-xs focus:outline-none disabled:opacity-60 mb-1 resize-none max-h-[108px] overflow-y-auto leading-relaxed" />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-0.5">
                 <motion.button type="button" whileTap={{ scale: 0.85 }} onClick={() => { setEmojiOpen((o) => !o); setAttachOpen(false); }} className="chat-input-bar-icon p-1 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 rounded-full" aria-label="Emoji"><Smile className="size-4" /></motion.button>
