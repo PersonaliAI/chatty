@@ -551,7 +551,7 @@ export default function Home() {
         )}
       </nav>
 
-      <div className="max-w-[1200px] mx-auto px-5 sm:px-9">
+      <div className="max-w-[1200px] mx-auto px-3.5 sm:px-8 md:px-9">
         {/* Hero */}
         <section className="relative pt-8 sm:pt-14 pb-16 sm:pb-22 text-center overflow-visible">
           {/* Serene Ambient Glow */}
@@ -712,7 +712,7 @@ export default function Home() {
             {plans.map((plan) => (
               <div
                 key={plan.key}
-                className="flex flex-col p-6 sm:p-7 rounded-[28px]"
+                className="flex flex-col p-5 sm:p-7 rounded-[22px] sm:rounded-[28px]"
                 style={
                   plan.popular
                     ? { background: "var(--color-surface)", boxShadow: "var(--shadow-lg)", border: "2px solid var(--color-accent)" }
@@ -761,7 +761,7 @@ export default function Home() {
 
           {/* Self-Hosted Open Source — Only Free Option */}
           <div
-            className="mt-6 p-6 sm:p-7 rounded-[28px] flex flex-col md:flex-row md:items-center justify-between gap-6 border"
+            className="mt-6 p-5 sm:p-7 rounded-[22px] sm:rounded-[28px] flex flex-col md:flex-row md:items-center justify-between gap-6 border"
             style={{ background: "var(--color-surface)", borderColor: "var(--color-divider)", boxShadow: "var(--shadow-sm)" }}
           >
             <div className="space-y-2 max-w-[66ch]">
@@ -830,7 +830,7 @@ export default function Home() {
 
         {/* MCP */}
         <section id="mcp" className="py-8 sm:py-10 pb-16 sm:pb-20">
-          <div className="rounded-[28px] sm:rounded-[40px] p-7 sm:p-14" style={{ background: "var(--color-accent-2-100)" }}>
+          <div className="rounded-[24px] sm:rounded-[40px] px-3.5 py-6 sm:px-8 sm:py-10 md:p-14" style={{ background: "var(--color-accent-2-100)" }}>
             <span className="block text-[13px] tracking-wide uppercase font-semibold mb-5" style={{ color: "var(--color-accent-2-800)" }}>[ 03 / Agent Control ]</span>
             <McpHub defaultAgent="chatgpt" showCatalog={true} />
           </div>
@@ -927,7 +927,7 @@ export default function Home() {
 
         {/* Final CTA */}
         <section className="py-8 pb-16 sm:pb-20">
-          <div className="rounded-[28px] sm:rounded-[44px] py-12 sm:py-16 px-7 sm:px-16 text-center relative overflow-hidden" style={{ background: "var(--color-accent)" }}>
+          <div className="rounded-[24px] sm:rounded-[44px] py-10 sm:py-16 px-4 sm:px-16 text-center relative overflow-hidden" style={{ background: "var(--color-accent)" }}>
             <div className="absolute -left-24 -bottom-28 w-56 h-56 sm:w-[300px] sm:h-[300px] rounded-full opacity-50 pointer-events-none" style={{ background: "var(--color-accent-600)" }} />
             <h2 className="mx-auto max-w-[20ch] text-[26px] sm:text-[clamp(28px,3.4vw,40px)]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400, color: "var(--color-bg)" }}>
               Ready to convert more visitors?
