@@ -192,11 +192,25 @@ function LiveKitTranscript({ messages, state }: { messages: ReceivedMessage[]; s
   );
 }
 
-function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: ReturnType<typeof useAgent>['state']; audioTrack?: TrackReferenceOrPlaceholder; visualizer: VoiceAgentPanelProps['visualizer']; widgetMode?: boolean }) {
+function VoiceOrb({
+  state,
+  audioTrack,
+  visualizer,
+  widgetMode,
+  latestMessage,
+}: {
+  state: ReturnType<typeof useAgent>['state'];
+  audioTrack?: TrackReferenceOrPlaceholder;
+  visualizer: VoiceAgentPanelProps['visualizer'];
+  widgetMode?: boolean;
+  latestMessage?: ReceivedMessage;
+}) {
   const speaking = state === 'speaking';
   const listening = state === 'listening';
   const label = speaking ? 'Speaking…' : listening ? 'Listening…' : 'Ready when you are';
   const selectedVisualizer = visualizer ?? 'wave';
+  const hasLiveSubtitle = Boolean(latestMessage?.message?.trim());
+
   if (!widgetMode) {
     return (
       <div className="flex flex-col items-center justify-center flex-1 my-auto py-4" aria-live="polite">
@@ -210,10 +224,20 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
             </div>
           )}
         </div>
-        <div className="mt-8 mb-6 text-center space-y-2 px-4">
+        <div className="mt-8 mb-4 text-center space-y-2 px-4">
           <p className="text-base font-semibold text-neutral-800 dark:text-neutral-100">{label}</p>
           <p className="text-xs text-neutral-400 dark:text-neutral-500 max-w-[280px] mx-auto leading-relaxed">{speaking ? 'You can interrupt at any time' : listening ? 'Ask anything about this business' : 'Your microphone is off'}</p>
         </div>
+        {hasLiveSubtitle && (
+          <div className="mx-auto max-w-[380px] px-4 w-full">
+            <div className="rounded-xl border border-black/8 bg-neutral-50 dark:bg-neutral-900/70 p-3 text-xs text-neutral-700 dark:text-neutral-300 shadow-2xs text-left animate-in fade-in duration-200">
+              <span className="font-bold text-neutral-900 dark:text-neutral-100 mr-1.5 block sm:inline">
+                {latestMessage?.type === 'userTranscript' ? 'You:' : 'Chatty:'}
+              </span>
+              <span>{latestMessage?.message?.trim()}</span>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -227,7 +251,16 @@ function VoiceOrb({ state, audioTrack, visualizer, widgetMode }: { state: Return
         <strong className="block text-sm font-semibold text-neutral-800 dark:text-neutral-200">{label === 'Ready when you are' ? 'Ready to talk' : label}</strong>
         <span className="block text-xs text-neutral-400 dark:text-neutral-500">{speaking ? 'You can interrupt at any time' : listening ? 'Listening for your question' : 'Microphone is off'}</span>
       </div>
-      <p className="text-[11px] text-neutral-400">Say hello to start.</p>
+      {hasLiveSubtitle ? (
+        <div className="mx-auto mt-2 max-w-[280px] rounded-lg border border-black/8 bg-neutral-50 dark:bg-neutral-900/70 p-2 text-[11.5px] text-neutral-700 dark:text-neutral-300 text-left line-clamp-3 shadow-2xs">
+          <span className="font-bold text-neutral-900 dark:text-neutral-100 mr-1">
+            {latestMessage?.type === 'userTranscript' ? 'You:' : 'Chatty:'}
+          </span>
+          <span>{latestMessage?.message?.trim()}</span>
+        </div>
+      ) : (
+        <p className="text-[11px] text-neutral-400">Say hello to start.</p>
+      )}
     </div>
   );
 }
@@ -541,7 +574,7 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
             setError('Connected to LiveKit, but the voice agent did not join. Check the voice worker and try reconnecting.');
             setCanRetry(true);
           }
-        }, 15000);
+        }, 25000);
       })
       .catch((cause) => {
         console.error('LiveKit voice session failed to start', cause);
@@ -733,7 +766,13 @@ function ConnectedVoiceAgent({ botId, sessionId, backendUrl, language, languageO
           </div>
         ) : (
           <div className="chatty-voice-stage-wrap">
-            <VoiceOrb state={state} audioTrack={audioTrack} visualizer={visualizer} widgetMode={widgetMode} />
+            <VoiceOrb
+              state={state}
+              audioTrack={audioTrack}
+              visualizer={visualizer}
+              widgetMode={widgetMode}
+              latestMessage={orderedMessages[orderedMessages.length - 1]}
+            />
           </div>
         )}
 

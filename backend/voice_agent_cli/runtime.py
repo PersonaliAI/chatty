@@ -62,7 +62,7 @@ server = AgentServer(
     # Chatty's Supabase/plugin warm-up happens before a process accepts a
     # room. Allow that one-time import cost without reporting a false startup
     # timeout or registering before the idle pool is ready.
-    initialize_process_timeout=60,
+    initialize_process_timeout=90,
 )
 
 
@@ -186,7 +186,7 @@ async def entrypoint(ctx: JobContext) -> None:
                     "min_words": 2,
                     "resume_false_interruption": False,
                 },
-                preemptive_generation={"enabled": False},
+                preemptive_generation={"enabled": True},
             ),
             tts_text_transforms=["filter_emoji", "filter_markdown"],
         )
