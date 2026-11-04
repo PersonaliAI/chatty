@@ -140,6 +140,16 @@ export function AnimatedHeroChat() {
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chipRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Smooth auto-scroll active chip into view on mobile
+  useEffect(() => {
+    chipRefs.current[currentIndex]?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [currentIndex]);
 
   // Modern auto-scroll: smoothly scroll to the newest message or interactive card as animation stages progress
   useEffect(() => {
@@ -674,9 +684,12 @@ export function AnimatedHeroChat() {
           return (
             <button
               key={sit.id}
+              ref={(el) => {
+                chipRefs.current[i] = el;
+              }}
               type="button"
               onClick={() => selectSituation(i)}
-              className={`flex-1 sm:flex-initial min-w-[100px] sm:min-w-0 px-2.5 sm:px-2 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-1.5 border shrink-0 ${
+              className={`shrink-0 w-auto sm:flex-1 sm:w-auto px-3.5 sm:px-2 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all cursor-pointer flex items-center justify-start gap-1.5 border ${
                 isActive
                   ? "bg-[#008069] text-white border-[#008069] shadow-sm"
                   : "bg-white text-neutral-700 hover:text-neutral-900 border-black/8 hover:bg-neutral-50"
