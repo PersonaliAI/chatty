@@ -467,9 +467,9 @@ export function McpHub({
   return (
     <div className="w-full space-y-7">
       {/* Top Pill Navigation - Styled with Warm Editorial Colors */}
-      <div className="flex items-center justify-start sm:justify-center overflow-x-auto max-w-full py-1 [-webkit-overflow-scrolling:touch]">
+      <div className="flex items-center justify-center w-full">
         <div
-          className="inline-flex items-center sm:flex-wrap sm:justify-center gap-1.5 p-1.5 rounded-2xl sm:rounded-full border shadow-sm shrink-0"
+          className="flex flex-wrap items-center justify-center gap-1.5 p-1.5 rounded-2xl sm:rounded-full border shadow-sm max-w-full"
           style={{
             background: "color-mix(in srgb, #f5ead8 85%, white 15%)",
             borderColor: BRAND_DIVIDER,
@@ -482,7 +482,7 @@ export function McpHub({
                 key={agent.id}
                 type="button"
                 onClick={() => setActiveTab(agent.id)}
-                className={`flex items-center gap-2 px-3 py-1.5 sm:px-3.5 rounded-full text-xs transition-all duration-150 cursor-pointer shrink-0 ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 rounded-full text-xs transition-all duration-150 cursor-pointer ${
                   isSelected
                     ? "font-bold shadow-sm"
                     : "hover:bg-black/5"
