@@ -668,7 +668,7 @@ export function AnimatedHeroChat() {
       </div>
 
       {/* 5. 5-Item Grid: Guaranteed 100% Single-Row Visibility with Lucide Icons */}
-      <div className="flex sm:grid sm:grid-cols-5 gap-1 sm:gap-1.5 p-2 sm:p-2.5 bg-[#e9edef] border-t border-black/8 overflow-x-auto no-scrollbar">
+      <div className="flex sm:grid sm:grid-cols-5 gap-1.5 sm:gap-1.5 px-3.5 py-2 sm:p-2.5 bg-[#e9edef] border-t border-black/8 overflow-x-auto scrollbar-none no-scrollbar">
         {BUSINESS_SITUATIONS.map((sit, i) => {
           const isActive = i === currentIndex;
           return (
@@ -676,7 +676,7 @@ export function AnimatedHeroChat() {
               key={sit.id}
               type="button"
               onClick={() => selectSituation(i)}
-              className={`flex-1 sm:flex-initial min-w-[95px] sm:min-w-0 px-1.5 sm:px-2 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 border shrink-0 ${
+              className={`flex-1 sm:flex-initial min-w-[100px] sm:min-w-0 px-2.5 sm:px-2 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold transition-all cursor-pointer flex items-center justify-center sm:justify-start gap-1.5 border shrink-0 ${
                 isActive
                   ? "bg-[#008069] text-white border-[#008069] shadow-sm"
                   : "bg-white text-neutral-700 hover:text-neutral-900 border-black/8 hover:bg-neutral-50"

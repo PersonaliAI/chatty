@@ -467,9 +467,9 @@ export function McpHub({
   return (
     <div className="w-full space-y-7">
       {/* Top Pill Navigation - Styled with Warm Editorial Colors */}
-      <div className="flex items-center justify-center w-full">
+      <div className="w-full overflow-x-auto sm:overflow-visible scrollbar-none no-scrollbar py-1 flex items-center justify-start sm:justify-center [-webkit-overflow-scrolling:touch]">
         <div
-          className="flex flex-wrap items-center justify-center gap-1.5 p-1.5 rounded-2xl sm:rounded-full border shadow-sm max-w-full"
+          className="inline-flex sm:flex sm:flex-wrap items-center justify-start sm:justify-center gap-1.5 p-1.5 rounded-full border shadow-sm shrink-0 sm:shrink max-w-none sm:max-w-full"
           style={{
             background: "color-mix(in srgb, #f5ead8 85%, white 15%)",
             borderColor: BRAND_DIVIDER,
@@ -481,8 +481,11 @@ export function McpHub({
               <button
                 key={agent.id}
                 type="button"
-                onClick={() => setActiveTab(agent.id)}
-                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 rounded-full text-xs transition-all duration-150 cursor-pointer ${
+                onClick={(e) => {
+                  setActiveTab(agent.id);
+                  e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                }}
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-3.5 rounded-full text-xs transition-all duration-150 cursor-pointer shrink-0 whitespace-nowrap ${
                   isSelected
                     ? "font-bold shadow-sm"
                     : "hover:bg-black/5"
@@ -514,7 +517,7 @@ export function McpHub({
 
       {/* Main Showcase Hero - Color Matched Warm Sand / Editorial Palette */}
       <div
-        className="rounded-[20px] sm:rounded-[32px] px-3.5 py-6 sm:px-8 sm:py-10 border text-center shadow-sm relative overflow-hidden"
+        className="rounded-[20px] sm:rounded-[32px] px-3 sm:px-8 py-5 sm:py-10 border text-center shadow-sm relative overflow-hidden"
         style={{
           background: "color-mix(in srgb, #f5ead8 70%, white 30%)",
           borderColor: BRAND_DIVIDER,
@@ -522,19 +525,19 @@ export function McpHub({
       >
         <div className="relative z-10 max-w-3xl mx-auto space-y-5">
           <div
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold border shadow-xs"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full text-[10.5px] sm:text-[11px] font-semibold border shadow-xs max-w-full"
             style={{
               background: "#ffffff",
               borderColor: BRAND_DIVIDER,
               color: BRAND_ACCENT_DARK,
             }}
           >
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            Model Context Protocol · 81 Live Production Tools · OAuth 2.0 PKCE
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="truncate">Model Context Protocol · 81 Live Production Tools · OAuth 2.0 PKCE</span>
           </div>
 
           <h2
-            className="text-[26px] sm:text-[34px] tracking-tight leading-tight"
+            className="text-[23px] sm:text-[34px] tracking-tight leading-tight"
             style={{ fontFamily: "var(--font-heading)", color: BRAND_TEXT, fontWeight: 400 }}
           >
             Deploy & Manage Chatbots in{" "}
@@ -629,14 +632,14 @@ export function McpHub({
 
       {/* Integration Walkthrough Box */}
       <div
-        className="rounded-[20px] sm:rounded-[28px] px-3.5 py-5 sm:p-8 border shadow-xs space-y-6"
+        className="rounded-[20px] sm:rounded-[28px] px-3 sm:p-8 py-4 sm:py-8 border shadow-xs space-y-6"
         style={{
           background: "color-mix(in srgb, #f5ead8 80%, white 20%)",
           borderColor: BRAND_DIVIDER,
         }}
       >
         <div
-          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4 sm:pb-5"
           style={{ borderColor: BRAND_DIVIDER }}
         >
           <div className="flex items-center gap-3">
@@ -727,9 +730,9 @@ export function McpHub({
 
         {/* Code Snippet Box - High Contrast Dark Espresso */}
         <div>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-1.5 mb-2">
             <span
-              className="text-xs font-semibold uppercase tracking-wider"
+              className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider"
               style={{ color: BRAND_TEXT_MUTED }}
             >
               {activeAgent.configFilename ? `Configuration (${activeAgent.configFilename})` : "Connection Command / Snippet"}
@@ -737,7 +740,7 @@ export function McpHub({
             <button
               type="button"
               onClick={() => copyText(activeAgent.codeSnippet, "code")}
-              className="flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer"
+              className="flex items-center gap-1.5 text-xs font-semibold transition cursor-pointer shrink-0 ml-auto"
               style={{ color: BRAND_ACCENT }}
             >
               {copiedCode ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
@@ -745,7 +748,7 @@ export function McpHub({
             </button>
           </div>
           <pre
-            className="p-3 sm:p-5 rounded-[14px] sm:rounded-[18px] text-[11px] sm:text-[13px] font-mono overflow-x-auto leading-relaxed shadow-sm"
+            className="p-3 sm:p-5 rounded-[14px] sm:rounded-[18px] text-[11px] sm:text-[13px] font-mono overflow-x-auto scrollbar-none no-scrollbar leading-relaxed shadow-sm"
             style={{
               background: "#1c1917",
               color: "#f9f4ed",
