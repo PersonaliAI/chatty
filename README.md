@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/chatty-icon.png" alt="Chatty" width="88" /> <img src="https://raw.githubusercontent.com/PersonaliAI/chatty/main/backend/assets/readme-icon.png" alt="Chatty" width="88" />
 
@@ -596,7 +596,7 @@ If a migration fails partway through, the script stops and prints which file fai
 
 ### Step 3 - Get your LLM key (Gemini, free tier)
 
-Chatty defaults to Google's Gemini (generous free tier, no credit card required to start):
+Chatty defaults to Google's Gemini (generous free tier via Google AI Studio):
 
 1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 2. Sign in with a Google account and click **Create API key**.

@@ -1531,7 +1531,7 @@ export default function LandingClient() {
               className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs font-medium text-zinc-500"
             >
               <span className="flex items-center gap-1.5">
-                <Check className="size-4 text-emerald-600" /> No credit card required
+                <Check className="size-4 text-emerald-600" /> $0.00 charged today
               </span>
               <span className="flex items-center gap-1.5">
                 <Check className="size-4 text-emerald-600" /> 14-day free trial on all plans
@@ -2195,7 +2195,7 @@ export default function LandingClient() {
                 Predictable plans. 14-day free trial on every tier.
               </h2>
               <p className="mt-3 text-sm sm:text-base text-zinc-600">
-                Every cloud plan includes a full-featured 14-day free trial with no credit card required. The only free
+                Every cloud plan includes a full-featured 14-day free trial with $0.00 charged today. The only free
                 forever option is self-hosting our open-source stack on your own infrastructure.
               </p>
 

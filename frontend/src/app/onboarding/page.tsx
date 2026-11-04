@@ -249,7 +249,9 @@ function OnboardingPageInner() {
       });
 
       // Seamless redirect to dashboard
-      window.location.href = next;
+      // Seamless redirect to LemonSqueezy checkout to authorize card for 14-day trial ($0.00 charged today)
+      const planKey = selectedPlan.replace("chatty_", "");
+      window.location.href = `/checkout?plan=${encodeURIComponent(planKey)}`;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
       setError(msg);
@@ -284,7 +286,7 @@ function OnboardingPageInner() {
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
             14-Day Free Trial
           </span>
-          <span className="hidden sm:inline">• No credit card required</span>
+          <span className="hidden sm:inline">• $0.00 Today · Cancel Anytime</span>
         </div>
       </header>
 
@@ -329,7 +331,7 @@ function OnboardingPageInner() {
                   Choose your 14-day free trial plan
                 </h1>
                 <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed">
-                  Every plan comes with full industrial capabilities for 14 days. Zero billing or credit card required to start.
+                  Every plan includes full capabilities for 14 days. $0.00 charged today — cancel anytime before trial ends.
                 </p>
               </div>
 
@@ -610,7 +612,7 @@ function OnboardingPageInner() {
                     </>
                   ) : (
                     <>
-                      <span>Start 14-Day Free Trial</span>
+                      <span>Start 14-Day Free Trial ($0.00 Today)</span>
                       <ArrowRight className="size-4" />
                     </>
                   )}

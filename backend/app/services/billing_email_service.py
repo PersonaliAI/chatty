@@ -308,17 +308,19 @@ async def send_trial_welcome_email(
         title="Welcome to Chatty! Let's get your AI agent live",
         body_paragraphs=[
             f"{display_greeting}",
-            "Welcome aboard! You have full, unrestricted access to <strong>Chatty</strong> for the next 14 days. Your AI agent can crawl your entire website, ingest PDFs/docs, answer complex customer questions, and capture qualified leads 24/7.",
+            "Welcome aboard! You have full, unrestricted access to <strong>Chatty</strong> for the next 14 days. Your card was authorized for $0.00 today via our billing partner Lemon Squeezy, and your trial is officially active.",
+            "Your AI agent can crawl your entire website, ingest PDFs/docs, answer complex customer questions, and capture qualified leads 24/7.",
             "Here are the 3 quick steps to launch your first assistant in under 2 minutes:",
             "<strong>1. Add Knowledge:</strong> Point Chatty to your website URL or upload your product FAQs and manuals.",
             "<strong>2. Brand & Customize:</strong> Pick your brand colors, widget style, and welcome message in the Customizer.",
             "<strong>3. Embed Anywhere:</strong> Paste the 1-line script tag into your website HTML.",
+            "<em>Billing Transparency:</em> You will not be charged anything until your 14-day trial concludes. You can change plans or cancel anytime with 1 click in your Billing settings before your trial ends.",
         ],
         highlight_box={
             "Plan": "14-Day Free Trial",
-            "Setup Time": "~2 minutes",
-            "Agent Availability": "Ready to Deploy",
-            "Support": "Live chat & docs available",
+            "Billed Today": "$0.00",
+            "Trial Duration": "14 Days Full Access",
+            "Cancellation": "1-click cancel anytime",
         },
         cta_text="Open Dashboard & Build Agent",
         cta_url=DASHBOARD_URL,
@@ -430,28 +432,29 @@ async def send_trial_final_notice_email(
         return {"sent": False, "reason": "already_sent"}
 
     display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
-    subject = "🚨 Final notice: Your Chatty trial expires tomorrow"
+    subject = "🚨 24 Hours Left: Your Chatty free trial concludes tomorrow"
 
     html = _render_base_email(
         subject=subject,
-        badge_text="Expires Tomorrow · Final Notice",
+        badge_text="Renews Tomorrow · 24h Notice",
         badge_bg="#fee2e2",
         badge_color="#dc2626",
-        title="Your trial ends tomorrow — Keep your AI agent online",
+        title="Your 14-day trial concludes tomorrow — Automatic Renewal Notice",
         body_paragraphs=[
             f"{display_greeting}",
-            "This is your final notice that your 14-day free trial of <strong>Chatty</strong> concludes tomorrow.",
-            "When your trial expires, your AI agent will automatically be switched to <strong>offline mode</strong>, and visitors to your website will see an offline contact form instead of instant AI answers.",
-            "<strong>To avoid any interruption for your customers, choose your plan now:</strong>",
+            "This is a quick 24-hour reminder that your 14-day free trial of <strong>Chatty</strong> concludes tomorrow.",
+            "To prevent any disruption to your website visitors, your subscription will seamlessly activate tomorrow using the payment method securely authorized at signup.",
+            "<strong>Want to keep your assistant active?</strong> You're all set! No action is needed on your part.",
+            "<strong>Need to make changes?</strong> You can switch plans or cancel anytime in your Billing settings before tomorrow with zero penalty.",
         ],
         highlight_box={
-            "Trial Status": "Expires in < 24 Hours",
-            "Agent Availability": "Online (Will pause tomorrow)",
-            "Saved Settings": "All bots & knowledge bases preserved",
+            "Trial Status": "Concludes in < 24 Hours",
+            "Agent Availability": "Continuous 24/7 Coverage",
+            "Billing Action": "Auto-renews tomorrow (Cancel anytime)",
         },
-        cta_text="Keep My Agent Online (Upgrade)",
+        cta_text="Manage Billing & Subscription",
         cta_url=BILLING_URL,
-        secondary_text="Upgrading takes 30 seconds and ensures zero downtime for your website visitors.",
+        secondary_text="You can manage or cancel your subscription at any time directly through the billing portal.",
     )
 
     result = await _send_raw_email(email, subject, html)
@@ -550,29 +553,30 @@ async def send_trial_ending_soon_email(
         return {"sent": False, "reason": "already_sent"}
 
     display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
-    subject = f"⚡ Action Required: Your Chatty free trial ends in {days_left} days"
+    subject = f"⚡ Reminder: Your Chatty free trial renews in {days_left} days"
 
     html = _render_base_email(
         subject=subject,
         badge_text=f"{days_left} Days Remaining",
         badge_bg="#fef3c7",
         badge_color="#d97706",
-        title="Your free trial is ending soon — Keep your AI agent online",
+        title="Your free trial concludes in 3 days — Continuous AI Coverage",
         body_paragraphs=[
             f"{display_greeting}",
             f"Your 14-day free trial of <strong>Chatty</strong> will conclude in <strong>{days_left} days</strong>. During your trial, your AI agent has been actively interacting with your visitors, answering inquiries, and capturing leads 24/7.",
-            "Once your trial ends, your AI agent will automatically be switched to <strong>offline mode</strong>, and your live website widget will pause automated conversation handling.",
-            "To ensure uninterrupted service and keep your agent online for your visitors, choose a plan today.",
+            "Because your card is already safely on file with our payment gateway, <strong>your subscription will seamlessly renew on Day 14</strong> so your AI agent remains online with zero downtime.",
+            "If you're loving Chatty, no action is needed — your assistant will continue working uninterrupted.",
+            "If you need to switch tiers or cancel before your trial renews, you can manage your subscription with 1 click in your billing settings anytime.",
         ],
         highlight_box={
             "Current Status": "Free Trial Active",
             "Time Remaining": f"{days_left} Days",
-            "Agent Status": "Online (Will pause after trial)",
-            "Saved Data": "All bots & documents preserved",
+            "Renewal": "Automatic (Zero Downtime)",
+            "Manage Subscription": "1-click cancel or change tier",
         },
-        cta_text="Upgrade Now & Keep Agent Online",
+        cta_text="Manage Billing & Subscription",
         cta_url=BILLING_URL,
-        secondary_text="Selecting a plan takes under 60 seconds and ensures zero downtime for your website visitors.",
+        secondary_text="Need an invoice adjustment or custom plan? Simply reply to this email.",
     )
 
     result = await _send_raw_email(email, subject, html)
@@ -593,28 +597,28 @@ async def send_trial_expired_email(
         return {"sent": False, "reason": "already_sent"}
 
     display_greeting = f"Hi {name}," if name and name.strip() else "Hi there,"
-    subject = "⚠️ Your Chatty free trial has ended — Your AI agent is now offline"
+    subject = "⚠️ Your Chatty trial has concluded — AI agent offline"
 
     html = _render_base_email(
         subject=subject,
         badge_text="Trial Concluded",
         badge_bg="#fee2e2",
         badge_color="#dc2626",
-        title="Your free trial has ended — AI agent is offline",
+        title="Your trial has concluded — AI agent is offline",
         body_paragraphs=[
             f"{display_greeting}",
-            "Your 14-day free trial of <strong>Chatty</strong> has concluded. To protect your account, your AI agent has been switched to <strong>offline mode</strong>.",
+            "Your 14-day trial of <strong>Chatty</strong> has concluded and your subscription was cancelled. Your AI assistant has been temporarily switched to <strong>offline mode</strong>.",
             "While offline, visitors on your website will see your fallback contact form instead of instant AI answers, and automated appointment booking is paused.",
-            "<strong>Don't worry — all your hard work is safe!</strong> Your trained knowledge base, files, bot customisations, and conversation history are securely saved. You can reactivate your AI agent anytime with an active subscription.",
+            "<strong>All your training data and settings are safely preserved!</strong> Your trained knowledge base, files, bot customisations, and conversation history remain saved. You can reactivate your AI agent in under 60 seconds anytime by renewing your subscription.",
         ],
         highlight_box={
-            "Account Status": "Trial Expired",
+            "Account Status": "Subscription Inactive",
             "Agent Status": "Offline (Visitor contact form active)",
             "Knowledge Base": "Saved & ready to resume",
         },
         cta_text="Reactivate My AI Agent",
         cta_url=BILLING_URL,
-        secondary_text="Your agent will immediately come back online as soon as an active plan is selected.",
+        secondary_text="Your agent will immediately come back online as soon as an active plan is reactivated.",
     )
 
     result = await _send_raw_email(email, subject, html)

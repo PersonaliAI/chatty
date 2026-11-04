@@ -257,7 +257,7 @@ function SignupPageInner() {
             Start Free Trial
           </Button>
           <p className="text-[11px] text-muted-foreground text-center pt-1">
-            No credit card required for 14-day free trial.
+            14-day free trial • $0.00 today • Cancel anytime.
           </p>
         </form>
 

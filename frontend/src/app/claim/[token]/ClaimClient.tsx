@@ -527,7 +527,7 @@ export default function ClaimClient({ token }: { token: string }) {
                 </button>
 
                 <p className="text-[11px] text-center text-slate-500 leading-normal">
-                  Free 14-day evaluation • Unlocks full site-wide crawling • No credit card required
+                  Free 14-day evaluation • Unlocks full site-wide crawling • Cancel anytime
                 </p>
 
                 <div className="pt-0.5 text-center">

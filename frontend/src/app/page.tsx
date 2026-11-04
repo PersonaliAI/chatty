@@ -122,7 +122,7 @@ const featuresList: Feature[] = [
 
 const faqs = [
   { question: "How do I train my AI agent?", answer: "Point Chatty at your website, upload files (PDF, DOCX, CSV), or paste in text - it crawls and indexes everything automatically. Auto Train keeps it in sync on a daily, weekly, or monthly schedule so answers never go stale." },
-  { question: "Is there a free plan or can I self-host?", answer: "All 3 cloud plans (Hobby, Standard, and Business) include a full-featured 14-day free trial with no credit card required. The only 100% free forever option is self-hosting the open-source Chatty stack on your own infrastructure via Docker and bringing your own LLM API keys." },
+  { question: "Is there a free plan or can I self-host?", answer: "All 3 cloud plans (Hobby, Standard, and Business) include a full-featured 14-day free trial with $0.00 charged today and cancel-anytime flexibility. The only 100% free forever option is self-hosting the open-source Chatty stack on your own infrastructure via Docker and bringing your own LLM API keys." },
   { question: "How do message credits map to real conversations?", answer: "One credit covers one full AI question-and-answer cycle with vector knowledge retrieval. A typical customer inquiry takes 1–2 turns, meaning 1,000 credits handles about ~800 full visitor conversations. Standard includes ~8,000 conversations, and Business covers ~35,000 conversations per month. Need unlimited? Self-host our open-source codebase for $0 with your own LLM API key." },
   { question: "How does lead collection work?", answer: "Chatty can ask for a visitor's name, email, and phone number mid-conversation, save it automatically to your dashboard, and push it to your CRM or inbox via webhook or API." },
   { question: "Can I embed the AI agent on multiple sites?", answer: "Yes - each AI agent can be embedded anywhere, and the Allow List lets you restrict it to run only on domains you control." },
@@ -596,7 +596,7 @@ export default function Home() {
             </button>
           </div>
           <p className="mt-3 text-xs" style={{ color: "color-mix(in srgb, var(--color-text) 62%, transparent)" }}>
-            14-day trial · No credit card required · Cancel anytime
+            14-day free trial · $0.00 today · Cancel anytime
           </p>
 
           {/* Sleek Minimal Instant Sandbox */}
@@ -644,7 +644,7 @@ export default function Home() {
               <span>·</span>
               <span>Zero signup required</span>
               <span>·</span>
-              <span>No credit card</span>
+              <span>Live preview</span>
             </div>
           </form>
 
@@ -677,7 +677,7 @@ export default function Home() {
           <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4" style={{ color: "var(--color-accent-700)" }}>[ 01 / Transparent Fees ]</span>
           <h2 className="text-[28px] sm:text-[32px]" style={{ fontFamily: "var(--font-heading)", fontWeight: 400 }}>Pricing plans</h2>
           <p className="text-[15px] sm:text-[15.5px] leading-relaxed max-w-[60ch] mt-3.5" style={{ color: "color-mix(in srgb, var(--color-text) 78%, transparent)" }}>
-            Every cloud plan includes a full-featured <strong>14-day free trial</strong> with no credit card required. The only free forever option is self-hosting our open-source stack on your own infrastructure.
+            Every cloud plan includes a full-featured <strong>14-day free trial</strong> with $0.00 charged today and cancel-anytime flexibility. The only free forever option is self-hosting our open-source stack on your own infrastructure.
           </p>
 
           {/* Founding 50 Guarantee Banner */}

@@ -1000,7 +1000,7 @@ async def webhook_lemonsqueezy(request: Request):
             if variant_id:
                 user_updates["subscription_variant_id"] = variant_id
                 user_updates["plan"] = f"chatty_{plan_name}"
-            renews = attributes.get("renews_at") or attributes.get("ends_at")
+            renews = attributes.get("renews_at") or attributes.get("trial_ends_at") or attributes.get("ends_at")
             if renews:
                 user_updates["subscription_renews_at"] = renews
             cust_id = str(attributes.get("customer_id") or "")

@@ -25,7 +25,7 @@
 - **Chatty Cloud Hobby**: $19/month (1,000 AI credits, ~800 conversations, 10M characters, 500 MB storage).
 - **Chatty Cloud Standard**: $99/month (10,000 AI credits, ~8,000 conversations, 20M characters, 2 GB storage, white-label).
 - **Chatty Cloud Business**: $399/month (40,000 AI credits, ~35,000 conversations, 50M characters, BYOK, Admin Management API).
-- **Free Trial**: 14-day fully-featured trial on all cloud plans with zero credit card required.
+- **Free Trial**: 14-day fully-featured trial on all cloud plans with $0.00 charged today and cancel-anytime flexibility.
 
 ## Key Features & Differentiators
 1. **Zero AI Model Training**: Customer and conversation data is strictly isolated; no proprietary data is used to train foundation models.
