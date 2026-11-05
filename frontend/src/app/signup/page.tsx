@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle2 } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle2, Info, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, GithubIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
@@ -39,7 +39,25 @@ function SignupPageInner() {
   const [showPwd, setShowPwd] = useState(false);
   const [busy, setBusy] = useState<BusyKey>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [existingUserEmail, setExistingUserEmail] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // If already signed in, immediately redirect to dashboard
+  useEffect(() => {
+    if (SELF_HOST_MODE) {
+      setCheckingSession(false);
+      return;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        window.location.href = dest;
+        return;
+      }
+      setCheckingSession(false);
+    });
+  }, [supabase, dest]);
 
   useEffect(() => {
     captureAffiliateReferral(searchParams);
@@ -79,10 +97,26 @@ function SignupPageInner() {
       },
     });
     setBusy(null);
+
+    // Detect if this email is already registered in Supabase:
+    // 1. Explicit error mentioning already registered
+    // 2. Supabase anti-enumeration behavior: error is null, but data.user has empty identities []
+    const isAlreadyRegistered = Boolean(
+      (error && (error.message.toLowerCase().includes("already registered") || error.message.toLowerCase().includes("already been registered"))) ||
+      (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0)
+    );
+
+    if (isAlreadyRegistered) {
+      setExistingUserEmail(email.trim());
+      setError(null);
+      return;
+    }
+
     if (error) {
       setError(humanizeAuthError(error.message));
       return;
     }
+
     // If email confirmation is disabled in Supabase, route directly to onboarding
     if (data.session) {
       window.location.href = `/onboarding?plan=${selectedPlan}&next=${encodeURIComponent(dest)}`;
@@ -114,6 +148,14 @@ function SignupPageInner() {
       setError(error.message);
       setBusy(null);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="size-6 text-muted-foreground animate-spin" />
+      </div>
+    );
   }
 
   if (SELF_HOST_MODE) {
@@ -295,6 +337,47 @@ function SignupPageInner() {
           </div>
         </form>
 
+        {/* Existing Account Notice - Friendly Blue Info Card, NOT Red Error */}
+        {existingUserEmail && (
+          <div className="p-4 rounded-xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-950 dark:text-blue-100 space-y-2.5 animate-in fade-in duration-200">
+            <div className="flex items-start gap-2.5">
+              <Info className="size-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+              <div className="text-xs leading-relaxed">
+                <p className="font-semibold text-blue-900 dark:text-blue-200">
+                  Account already exists
+                </p>
+                <p className="text-blue-700 dark:text-blue-300 mt-0.5">
+                  An account with <strong>{existingUserEmail}</strong> is already registered. Please sign in to continue.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Link
+                href={`/login?email=${encodeURIComponent(existingUserEmail)}&next=${encodeURIComponent(dest)}`}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+              >
+                <span>Sign In with This Account</span>
+                <ArrowRight className="size-3" />
+              </Link>
+              <Link
+                href={`/forgot-password?email=${encodeURIComponent(existingUserEmail)}`}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Informational Notice */}
+        {notice && (
+          <div className="flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-800">
+            <Info className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <span>{notice}</span>
+          </div>
+        )}
+
+        {/* Actual Failure / Error */}
         {error && (
           <div className="flex items-start gap-2 text-xs text-destructive bg-destructive/10 p-3 rounded-xl border border-destructive/20">
             <AlertCircle className="size-4 mt-0.5 shrink-0" />

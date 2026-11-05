@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth/auth-shell";
@@ -9,8 +10,18 @@ import { createClient } from "@/lib/supabase/client";
 import { SELF_HOST_MODE } from "@/lib/deployment";
 
 export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ForgotPasswordInner />
+    </Suspense>
+  );
+}
+
+function ForgotPasswordInner() {
   const supabase = createClient();
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const initialEmail = searchParams.get("email") || "";
+  const [email, setEmail] = useState(initialEmail);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);

@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, GithubIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
@@ -24,15 +24,41 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
   const dest = next && next.startsWith("/") ? next : "/dashboard";
-  const [email, setEmail] = useState("");
+  const initialEmail = searchParams.get("email") || "";
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [busy, setBusy] = useState<BusyKey>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // If already signed in, immediately redirect to dashboard
+  useEffect(() => {
+    if (SELF_HOST_MODE || !supabase) {
+      setCheckingSession(false);
+      return;
+    }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        window.location.href = dest;
+        return;
+      }
+      setCheckingSession(false);
+    });
+  }, [supabase, dest]);
 
   function redirect(): string {
     const origin = process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== "undefined" ? window.location.origin : "https://chatty.personaliai.com");
     return `${origin}/auth/callback?next=${encodeURIComponent(dest)}`;
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="size-6 text-muted-foreground animate-spin" />
+      </div>
+    );
   }
 
   if (SELF_HOST_MODE) {
@@ -77,6 +103,13 @@ function LoginPageInner() {
     });
     if (error) {
       setBusy(null);
+      const msg = error.message.toLowerCase();
+      if (msg.includes("email not confirmed")) {
+        setError(null);
+        setNotice("Please verify your email address first. Check your inbox for the confirmation link.");
+        return;
+      }
+      setNotice(null);
       setError(humanizeAuthError(error.message));
       return;
     }
@@ -219,8 +252,15 @@ function LoginPageInner() {
         </Button>
       </div>
 
+      {notice && (
+        <div className="mt-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 flex items-start gap-2.5 text-xs leading-relaxed animate-in fade-in duration-200">
+          <Info className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <span>{notice}</span>
+        </div>
+      )}
+
       {error && (
-        <div className="mt-4 flex items-start gap-2 text-xs text-destructive">
+        <div className="mt-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-start gap-2 text-xs">
           <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
