@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle2, Info, ArrowRight } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle2, Info, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthShell, GoogleIcon, GithubIcon } from "@/components/auth/auth-shell";
 import { createClient } from "@/lib/supabase/client";
@@ -260,13 +260,49 @@ function SignupPageInner() {
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (existingUserEmail) setExistingUserEmail(null);
+                if (error) setError(null);
+              }}
               placeholder="name@company.com"
               required
               disabled={busy !== null}
               className="w-full h-11 px-3.5 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-foreground/20 disabled:opacity-60"
             />
           </div>
+
+          {/* Existing Account Notice - Directly below the email field so it is 100% visible above the fold */}
+          {existingUserEmail && (
+            <div className="p-3.5 rounded-xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-950 dark:text-blue-100 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-start gap-2.5">
+                <Info className="size-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                <div className="text-xs leading-relaxed">
+                  <p className="font-semibold text-blue-950 dark:text-blue-100">
+                    Account already exists
+                  </p>
+                  <p className="text-blue-700 dark:text-blue-300 mt-0.5">
+                    An account with <strong>{existingUserEmail}</strong> is already registered. Please sign in to continue.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 pt-0.5">
+                <Link
+                  href={`/login?email=${encodeURIComponent(existingUserEmail)}&next=${encodeURIComponent(dest)}`}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <span>Sign In with This Account</span>
+                  <ArrowRight className="size-3" />
+                </Link>
+                <Link
+                  href={`/forgot-password?email=${encodeURIComponent(existingUserEmail)}`}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <label htmlFor="password" className="text-xs font-medium text-foreground/80">
               Password
@@ -295,16 +331,23 @@ function SignupPageInner() {
             </div>
           </div>
 
-          {/* GDPR Affirmative Un-ticked Marketing Opt-in Checkbox */}
-          <div className="pt-1.5 pb-0.5">
+          {/* GDPR Affirmative Un-ticked Marketing Opt-in Checkbox with Crisp White Checkmark */}
+          <div className="pt-1 pb-0.5">
             <label className="flex items-start gap-2.5 cursor-pointer text-xs text-muted-foreground select-none leading-relaxed">
-              <input
-                type="checkbox"
-                checked={marketingConsent}
-                onChange={(e) => setMarketingConsent(e.target.checked)}
-                className="mt-0.5 size-4 rounded border-border text-[#f97316] focus:ring-[#f97316] accent-[#f97316] cursor-pointer shrink-0"
-              />
-              <span>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={marketingConsent}
+                onClick={() => setMarketingConsent(!marketingConsent)}
+                className={`mt-0.5 size-4 rounded-md border flex items-center justify-center transition-colors shrink-0 cursor-pointer ${
+                  marketingConsent
+                    ? "bg-[#f97316] border-[#f97316] text-white"
+                    : "bg-background border-border hover:border-neutral-400 dark:hover:border-neutral-600"
+                }`}
+              >
+                {marketingConsent && <Check className="size-3 text-white stroke-[3]" />}
+              </button>
+              <span onClick={() => setMarketingConsent(!marketingConsent)}>
                 Keep me updated with Chatty product releases, AI features, and engineering tips via email (optional).
               </span>
             </label>
@@ -336,38 +379,6 @@ function SignupPageInner() {
             </p>
           </div>
         </form>
-
-        {/* Existing Account Notice - Friendly Blue Info Card, NOT Red Error */}
-        {existingUserEmail && (
-          <div className="p-4 rounded-xl bg-blue-50/90 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-950 dark:text-blue-100 space-y-2.5 animate-in fade-in duration-200">
-            <div className="flex items-start gap-2.5">
-              <Info className="size-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-              <div className="text-xs leading-relaxed">
-                <p className="font-semibold text-blue-900 dark:text-blue-200">
-                  Account already exists
-                </p>
-                <p className="text-blue-700 dark:text-blue-300 mt-0.5">
-                  An account with <strong>{existingUserEmail}</strong> is already registered. Please sign in to continue.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 pt-1">
-              <Link
-                href={`/login?email=${encodeURIComponent(existingUserEmail)}&next=${encodeURIComponent(dest)}`}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                <span>Sign In with This Account</span>
-                <ArrowRight className="size-3" />
-              </Link>
-              <Link
-                href={`/forgot-password?email=${encodeURIComponent(existingUserEmail)}`}
-                className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"
-              >
-                Forgot password?
-              </Link>
-            </div>
-          </div>
-        )}
 
         {/* Informational Notice */}
         {notice && (

@@ -13,7 +13,7 @@ export function AuthShell({
   footer?: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-background relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center py-6 px-4 bg-background relative overflow-hidden">
       <div
         className="absolute inset-0 z-0 pointer-events-none opacity-50"
         style={{
@@ -22,8 +22,8 @@ export function AuthShell({
         }}
       />
       <div className="w-full max-w-sm z-10">
-        <div className="flex flex-col items-center text-center mb-8">
-          <Link href="/" className="mb-6">
+        <div className="flex flex-col items-center text-center mb-5">
+          <Link href="/" className="mb-3.5 inline-block">
             <Image
               src="/logo.png"
               alt="PersonaliAI"
@@ -36,15 +36,15 @@ export function AuthShell({
           <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-8">{children}</div>
+        <div className="bg-card border border-border rounded-2xl p-5 sm:p-6 shadow-xs">{children}</div>
 
         {footer && (
-          <div className="mt-6 text-center text-sm text-muted-foreground">
+          <div className="mt-4 text-center text-xs sm:text-sm text-muted-foreground">
             {footer}
           </div>
         )}
 
-        <p className="mt-8 text-center text-xs text-muted-foreground leading-relaxed">
+        <p className="mt-5 text-center text-[11px] text-muted-foreground leading-relaxed">
           By continuing, you agree to PersonaliAI&apos;s <br />
           <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">
             Terms of Service
