@@ -1208,7 +1208,6 @@ async def save_user_onboarding(
             "website_url": website_url,
             "referral_source": referral_source,
             "terms_accepted_at": now_iso,
-            "trial_started_at": now_iso,
         }
         await run_db(lambda: supabase.auth.admin.update_user_by_id(user_id, {"user_metadata": meta}))
     except Exception as e:
@@ -1220,7 +1219,6 @@ async def save_user_onboarding(
         "company_name": company_name,
         "referral_source": referral_source,
         "onboarding_completed": True,
-        "trial_started_at": now_iso,
     }
 
 

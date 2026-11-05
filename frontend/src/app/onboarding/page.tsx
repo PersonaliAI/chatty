@@ -244,7 +244,6 @@ function OnboardingPageInner() {
           company_role: companyRole,
           website_url: websiteUrl.trim(),
           referral_source: referralSource,
-          trial_started_at: new Date().toISOString(),
         },
       });
 

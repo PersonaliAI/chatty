@@ -997,6 +997,8 @@ async def webhook_lemonsqueezy(request: Request):
             }
             if status_attr:
                 user_updates["subscription_status"] = status_attr
+                if status_attr == "on_trial":
+                    user_updates["trial_started_at"] = datetime.now(timezone.utc).isoformat()
             if variant_id:
                 user_updates["subscription_variant_id"] = variant_id
                 user_updates["plan"] = f"chatty_{plan_name}"

@@ -83,7 +83,7 @@ export interface TrialExpiredModalProps {
   userEmail?: string | null;
   isSharedBot?: boolean;
   canDismiss?: boolean;
-  reason?: "trial_ended" | "subscription_canceled" | "payment_failed" | "inactive";
+  reason?: "trial_ended" | "subscription_canceled" | "payment_failed" | "inactive" | "checkout_required";
   onSignOut?: () => void;
   sharedBots?: { id: string; name: string }[];
   onSwitchToBot?: (botId: string) => void;
@@ -147,6 +147,14 @@ export function TrialExpiredModal({
 
   const getHeaderContent = () => {
     switch (reason) {
+      case "checkout_required":
+        return {
+          badge: "14-Day Free Trial · Card Authorization Required",
+          badgeIcon: ShieldCheck,
+          title: "Activate Your 14-Day Free Trial",
+          subtitle:
+            "Please authorize your card ($0.00 charged today) to access the dashboard and launch your assistants. Cancel anytime with 1 click before Day 14.",
+        };
       case "subscription_canceled":
         return {
           badge: "Subscription Canceled",
@@ -430,7 +438,7 @@ export function TrialExpiredModal({
                         : "bg-neutral-900 hover:bg-neutral-800 text-white dark:bg-white dark:hover:bg-neutral-100 dark:text-neutral-950 active:scale-95"
                     }`}
                   >
-                    <span>Activate {card.label}</span>
+                    <span>{reason === "checkout_required" ? "Start 14-Day Free Trial" : `Activate ${card.label}`}</span>
                     <ArrowRight className="size-3.5" />
                   </Link>
                 </div>

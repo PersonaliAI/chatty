@@ -331,23 +331,35 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
     if (user?.email && ADMIN_BYPASS_EMAILS.has(user.email.toLowerCase())) return false;
     if (isCurrentBotShared) return false;
     if (loadingSession || !user || !botId || billingInfo === null) return false;
-    if (billingInfo?.status === "active" || billingInfo?.status === "on_trial") return false;
+    if (billingInfo?.status === "active") return false;
 
-    const subStatus = (billingInfo?.status || "").toLowerCase();
-    if (["cancelled", "canceled", "expired", "past_due", "unpaid", "paused", "inactive"].includes(subStatus)) {
-      return true;
+    if (billingInfo?.status === "on_trial" || billingInfo?.status === "trial") {
+      if (billingInfo?.renewsAt) {
+        return Date.now() > new Date(billingInfo.renewsAt).getTime();
+      }
+      const startDate = new Date(
+        ((user?.user_metadata as Record<string, unknown>)?.trial_started_at as string) ||
+        Date.now()
+      );
+      const trialDurationDays = 14;
+      const trialDurationMs = trialDurationDays * 24 * 60 * 60 * 1000;
+      const endDate = new Date(startDate.getTime() + trialDurationMs);
+      return Date.now() > endDate.getTime();
     }
 
-    const startDate = new Date(
-      ((user?.user_metadata as Record<string, unknown>)?.trial_started_at as string) ||
-      user?.created_at ||
-      Date.now()
-    );
-    const trialDurationDays = 14;
-    const trialDurationMs = trialDurationDays * 24 * 60 * 60 * 1000;
-    const endDate = new Date(startDate.getTime() + trialDurationMs);
-    return Date.now() > endDate.getTime();
+    return true;
   }, [isCurrentBotShared, loadingSession, user, botId, billingInfo]);
+
+  const modalReason = useMemo((): "checkout_required" | "subscription_canceled" | "payment_failed" | "inactive" | "trial_ended" => {
+    if (!billingInfo?.status || billingInfo.status === "checkout_required" || billingInfo.status === "free") {
+      return "checkout_required";
+    }
+    const s = billingInfo.status.toLowerCase();
+    if (s === "cancelled" || s === "canceled") return "subscription_canceled";
+    if (s === "past_due" || s === "unpaid") return "payment_failed";
+    if (s === "paused" || s === "inactive") return "inactive";
+    return "trial_ended";
+  }, [billingInfo?.status]);
 
   const [showTrialExpiredModal, setShowTrialExpiredModal] = useState(false);
 
@@ -4901,13 +4913,21 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           </div>
         </header>
 
-        {/* Trial Expired Dashboard Lock Banner */}
+        {/* Trial Expired / Card Required Dashboard Lock Banner */}
         {isTrialExpired && (
           <div className="w-full bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 text-white px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm shrink-0 z-20">
             <div className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold">
               <Lock className="size-4 shrink-0 text-amber-200" />
               <span>
-                <strong>Your 14-day free trial has expired.</strong> Assistant crawling, webhooks, and playground chatting are frozen in Read-Only mode.
+                {modalReason === "checkout_required" ? (
+                  <>
+                    <strong>Card authorization required.</strong> Complete $0.00 card authorization to activate your 14-day free trial.
+                  </>
+                ) : (
+                  <>
+                    <strong>Your 14-day free trial has expired.</strong> Assistant crawling, webhooks, and playground chatting are frozen in Read-Only mode.
+                  </>
+                )}
               </span>
             </div>
             <button
@@ -4915,7 +4935,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               onClick={() => setShowTrialExpiredModal(true)}
               className="px-3.5 py-1.5 rounded-xl bg-white text-orange-700 hover:bg-orange-50 font-bold text-xs shadow-sm transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
             >
-              <span>Choose a Plan to Reactivate</span>
+              <span>{modalReason === "checkout_required" ? "Start 14-Day Free Trial" : "Choose a Plan to Reactivate"}</span>
               <ArrowRight className="size-3" />
             </button>
           </div>
@@ -6136,7 +6156,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
 
       <TrialExpiredModal
         open={showTrialExpiredModal}
-        canDismiss={true}
+        canDismiss={false}
         onClose={() => {
           setShowTrialExpiredModal(false);
         }}
@@ -6150,15 +6170,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           switchActiveBot(targetId);
           setShowTrialExpiredModal(false);
         }}
-        reason={
-          billingInfo?.status === "cancelled" || billingInfo?.status === "canceled"
-            ? "subscription_canceled"
-            : billingInfo?.status === "past_due" || billingInfo?.status === "unpaid"
-            ? "payment_failed"
-            : billingInfo?.status === "paused" || billingInfo?.status === "inactive"
-            ? "inactive"
-            : "trial_ended"
-        }
+        reason={modalReason}
         onSignOut={async () => {
           await supabase.auth.signOut();
           window.location.href = "/login";

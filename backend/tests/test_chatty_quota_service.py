@@ -28,12 +28,12 @@ def test_media_request_has_a_fixed_multimodal_surcharge():
 
 @pytest.mark.anyio
 async def test_trial_expired_shows_offline():
-    # User created 20 days ago, no active subscription
+    # User started trial via gateway 20 days ago
     past_date = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()
     user = {
         "email": "store@example.com",
-        "plan": "free",
-        "subscription_status": None,
+        "plan": "chatty_standard",
+        "subscription_status": "on_trial",
         "created_at": past_date,
         "trial_started_at": past_date,
     }
@@ -45,18 +45,32 @@ async def test_trial_expired_shows_offline():
 
 @pytest.mark.anyio
 async def test_active_trial_shows_online():
-    # User created 3 days ago, no active subscription
+    # User authorized trial via gateway 3 days ago
     recent_date = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
     user = {
         "email": "newuser@example.com",
-        "plan": "free",
-        "subscription_status": None,
+        "plan": "chatty_standard",
+        "subscription_status": "on_trial",
         "created_at": recent_date,
         "trial_started_at": recent_date,
     }
     result = await check_bot_owner_subscription(user, "user-uuid-2")
     assert result["is_active"] is True
     assert result["status"] == "on_trial"
+
+
+@pytest.mark.anyio
+async def test_unauthorized_user_requires_checkout():
+    # User registered but never completed payment gateway trial checkout
+    user = {
+        "email": "abandoned@example.com",
+        "plan": "chatty_standard",
+        "subscription_status": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = await check_bot_owner_subscription(user, "user-uuid-99")
+    assert result["is_active"] is False
+    assert result["status"] == "checkout_required"
 
 
 @pytest.mark.anyio
@@ -107,8 +121,8 @@ async def test_require_active_user_rejects_expired_trial_with_402():
 
     user = {
         "email": "hacker@example.com",
-        "plan": "free",
-        "subscription_status": None,
+        "plan": "chatty_standard",
+        "subscription_status": "on_trial",
         "created_at": "2020-01-01T00:00:00Z",
         "trial_started_at": "2020-01-01T00:00:00Z",
         "auth_user_id": "hacker-123",
