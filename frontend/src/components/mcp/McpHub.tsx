@@ -467,9 +467,9 @@ export function McpHub({
   return (
     <div className="w-full space-y-7">
       {/* Top Pill Navigation - Styled with Warm Editorial Colors */}
-      <div className="w-full overflow-x-auto sm:overflow-visible scrollbar-none no-scrollbar py-1 flex items-center justify-start sm:justify-center [-webkit-overflow-scrolling:touch]">
+      <div className="w-full overflow-x-auto scrollbar-none no-scrollbar py-1.5 flex items-center justify-start md:justify-center [-webkit-overflow-scrolling:touch] px-2 sm:px-0">
         <div
-          className="inline-flex sm:flex sm:flex-wrap items-center justify-start sm:justify-center gap-1.5 p-1.5 rounded-full border shadow-sm shrink-0 sm:shrink max-w-none sm:max-w-full"
+          className="inline-flex items-center gap-1.5 p-1.5 rounded-full border shadow-sm shrink-0"
           style={{
             background: "color-mix(in srgb, #f5ead8 85%, white 15%)",
             borderColor: BRAND_DIVIDER,
@@ -517,7 +517,7 @@ export function McpHub({
 
       {/* Main Showcase Hero - Color Matched Warm Sand / Editorial Palette */}
       <div
-        className="rounded-[20px] sm:rounded-[32px] px-3 sm:px-8 py-5 sm:py-10 border text-center shadow-sm relative overflow-hidden"
+        className="rounded-[18px] sm:rounded-[32px] px-2.5 sm:px-8 py-5 sm:py-10 border text-center shadow-sm relative overflow-hidden"
         style={{
           background: "color-mix(in srgb, #f5ead8 70%, white 30%)",
           borderColor: BRAND_DIVIDER,
@@ -632,7 +632,7 @@ export function McpHub({
 
       {/* Integration Walkthrough Box */}
       <div
-        className="rounded-[20px] sm:rounded-[28px] px-3 sm:p-8 py-4 sm:py-8 border shadow-xs space-y-6"
+        className="rounded-[18px] sm:rounded-[28px] px-2.5 sm:p-8 py-4 sm:py-8 border shadow-xs space-y-6"
         style={{
           background: "color-mix(in srgb, #f5ead8 80%, white 20%)",
           borderColor: BRAND_DIVIDER,
@@ -748,7 +748,7 @@ export function McpHub({
             </button>
           </div>
           <pre
-            className="p-3 sm:p-5 rounded-[14px] sm:rounded-[18px] text-[11px] sm:text-[13px] font-mono overflow-x-auto scrollbar-none no-scrollbar leading-relaxed shadow-sm"
+            className="p-3 sm:p-5 rounded-[14px] sm:rounded-[18px] text-[11px] sm:text-[13px] font-mono overflow-x-auto scrollbar-none no-scrollbar leading-relaxed shadow-sm break-all sm:break-normal select-all"
             style={{
               background: "#1c1917",
               color: "#f9f4ed",

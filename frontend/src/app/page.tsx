@@ -830,7 +830,7 @@ export default function Home() {
 
         {/* MCP */}
         <section id="mcp" className="py-8 sm:py-10 pb-16 sm:pb-20">
-          <div className="rounded-[24px] sm:rounded-[40px] px-2.5 sm:px-8 py-5 sm:py-10 md:p-14" style={{ background: "var(--color-accent-2-100)" }}>
+          <div className="rounded-[20px] sm:rounded-[40px] px-2 sm:px-8 py-5 sm:py-10 md:p-14" style={{ background: "var(--color-accent-2-100)" }}>
             <span className="block text-[13px] tracking-wide uppercase font-semibold mb-4 sm:mb-5 px-1 sm:px-0" style={{ color: "var(--color-accent-2-800)" }}>[ 03 / Agent Control ]</span>
             <McpHub defaultAgent="chatgpt" showCatalog={true} />
           </div>

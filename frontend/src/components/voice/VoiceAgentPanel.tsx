@@ -192,6 +192,68 @@ function LiveKitTranscript({ messages, state }: { messages: ReceivedMessage[]; s
   );
 }
 
+function LiveSubtitleScroller({
+  message,
+  type,
+  widgetMode = false,
+}: {
+  message: string;
+  type?: string;
+  widgetMode?: boolean;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const userScrolledUpRef = useRef(false);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 32;
+    userScrolledUpRef.current = !isAtBottom;
+  };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || userScrolledUpRef.current) return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [message]);
+
+  const isUser = type === 'userTranscript';
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      className={`chatty-custom-scrollbar overflow-y-auto rounded-xl sm:rounded-2xl border border-black/8 bg-neutral-50/95 dark:bg-neutral-900/85 p-2.5 sm:p-3 text-left shadow-2xs transition-all ${
+        widgetMode
+          ? 'max-h-[85px] sm:max-h-[96px] text-[11px] sm:text-[11.5px]'
+          : 'max-h-[135px] sm:max-h-[165px] text-xs sm:text-[12.5px] w-full'
+      }`}
+      style={{
+        scrollbarWidth: 'thin',
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
+      <div className="flex items-start gap-1.5 leading-relaxed text-neutral-700 dark:text-neutral-300">
+        <span
+          className={`shrink-0 font-bold px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider ${
+            isUser
+              ? 'bg-neutral-200 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200'
+              : 'bg-orange-100 text-orange-900 dark:bg-orange-950/80 dark:text-orange-200'
+          }`}
+        >
+          {isUser ? 'You' : 'Chatty'}
+        </span>
+        <span className="whitespace-pre-wrap flex-1 break-words select-text">
+          {message}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function VoiceOrb({
   state,
   audioTrack,
@@ -213,50 +275,83 @@ function VoiceOrb({
 
   if (!widgetMode) {
     return (
-      <div className="flex flex-col items-center justify-center flex-1 my-auto py-4" aria-live="polite">
-        <div className={`chatty-livekit-visualizer relative flex size-[min(54vw,15rem)] max-w-[240px] items-center justify-center ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`}>
-          <LiveKitAgentVisualizer visualizer={selectedVisualizer} state={state ?? 'disconnected'} audioTrack={audioTrack} color={voiceVisualizerColors[selectedVisualizer]} className="h-full w-full" />
+      <div className="flex flex-col items-center justify-center flex-1 min-h-0 w-full my-auto py-1 sm:py-2" aria-live="polite">
+        <div
+          className={`chatty-livekit-visualizer relative flex items-center justify-center transition-all duration-300 ${
+            hasLiveSubtitle
+              ? 'size-[clamp(90px,22vw,135px)]'
+              : 'size-[min(54vw,14rem)] max-w-[220px]'
+          } ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`}
+        >
+          <LiveKitAgentVisualizer
+            visualizer={selectedVisualizer}
+            state={state ?? 'disconnected'}
+            audioTrack={audioTrack}
+            color={voiceVisualizerColors[selectedVisualizer]}
+            className="h-full w-full"
+          />
           {!speaking && !listening && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex size-14 items-center justify-center rounded-full bg-white/90 shadow-lg ring-1 ring-black/5">
-                <Phone className="size-6 text-neutral-950" aria-hidden="true" />
+              <div className="flex size-12 sm:size-14 items-center justify-center rounded-full bg-white/90 shadow-lg ring-1 ring-black/5">
+                <Phone className="size-5 sm:size-6 text-neutral-950" aria-hidden="true" />
               </div>
             </div>
           )}
         </div>
-        <div className="mt-8 mb-4 text-center space-y-2 px-4">
-          <p className="text-base font-semibold text-neutral-800 dark:text-neutral-100">{label}</p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500 max-w-[280px] mx-auto leading-relaxed">{speaking ? 'You can interrupt at any time' : listening ? 'Ask anything about this business' : 'Your microphone is off'}</p>
+        <div className={`${hasLiveSubtitle ? 'mt-2 mb-1.5' : 'mt-6 mb-3'} text-center space-y-1 px-4 transition-all duration-300`}>
+          <p className="text-sm sm:text-base font-semibold text-neutral-800 dark:text-neutral-100">{label}</p>
+          <p className="text-[11px] sm:text-xs text-neutral-400 dark:text-neutral-500 max-w-[280px] mx-auto leading-relaxed">
+            {speaking ? 'You can interrupt at any time' : listening ? 'Ask anything about this business' : 'Your microphone is off'}
+          </p>
         </div>
         {hasLiveSubtitle && (
-          <div className="mx-auto max-w-[380px] px-4 w-full">
-            <div className="rounded-xl border border-black/8 bg-neutral-50 dark:bg-neutral-900/70 p-3 text-xs text-neutral-700 dark:text-neutral-300 shadow-2xs text-left animate-in fade-in duration-200">
-              <span className="font-bold text-neutral-900 dark:text-neutral-100 mr-1.5 block sm:inline">
-                {latestMessage?.type === 'userTranscript' ? 'You:' : 'Chatty:'}
-              </span>
-              <span>{latestMessage?.message?.trim()}</span>
-            </div>
+          <div className="w-full max-w-[420px] px-3 sm:px-4 flex-shrink min-h-0 animate-in fade-in duration-200">
+            <LiveSubtitleScroller
+              message={latestMessage?.message?.trim() || ''}
+              type={latestMessage?.type}
+              widgetMode={false}
+            />
           </div>
         )}
       </div>
     );
   }
   return (
-    <div className="chatty-voice-stage" aria-live="polite">
-      <div className={`chatty-widget-livekit-visualizer is-${selectedVisualizer} ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`} data-visualizer={selectedVisualizer}>
-        <LiveKitAgentVisualizer visualizer={selectedVisualizer} state={state ?? 'disconnected'} audioTrack={audioTrack} color={voiceVisualizerColors[selectedVisualizer]} className="h-full w-full" />
-        {!speaking && !listening && <div className="chatty-widget-visualizer-mark" aria-hidden="true"><Mic className="size-5" /></div>}
+    <div className="chatty-voice-stage min-h-0 flex-1 w-full" aria-live="polite">
+      <div
+        className={`chatty-widget-livekit-visualizer is-${selectedVisualizer} ${
+          hasLiveSubtitle ? 'size-[105px]' : ''
+        } ${speaking ? 'is-speaking' : ''} ${listening ? 'is-listening' : ''}`}
+        data-visualizer={selectedVisualizer}
+      >
+        <LiveKitAgentVisualizer
+          visualizer={selectedVisualizer}
+          state={state ?? 'disconnected'}
+          audioTrack={audioTrack}
+          color={voiceVisualizerColors[selectedVisualizer]}
+          className="h-full w-full"
+        />
+        {!speaking && !listening && (
+          <div className="chatty-widget-visualizer-mark" aria-hidden="true">
+            <Mic className="size-5" />
+          </div>
+        )}
       </div>
-      <div className="mt-3 mb-1 text-center space-y-1">
-        <strong className="block text-sm font-semibold text-neutral-800 dark:text-neutral-200">{label === 'Ready when you are' ? 'Ready to talk' : label}</strong>
-        <span className="block text-xs text-neutral-400 dark:text-neutral-500">{speaking ? 'You can interrupt at any time' : listening ? 'Listening for your question' : 'Microphone is off'}</span>
+      <div className="mt-2 mb-1 text-center space-y-0.5">
+        <strong className="block text-sm font-semibold text-neutral-800 dark:text-neutral-200">
+          {label === 'Ready when you are' ? 'Ready to talk' : label}
+        </strong>
+        <span className="block text-[11px] text-neutral-400 dark:text-neutral-500">
+          {speaking ? 'You can interrupt at any time' : listening ? 'Listening for your question' : 'Microphone is off'}
+        </span>
       </div>
       {hasLiveSubtitle ? (
-        <div className="mx-auto mt-2 max-w-[280px] rounded-lg border border-black/8 bg-neutral-50 dark:bg-neutral-900/70 p-2 text-[11.5px] text-neutral-700 dark:text-neutral-300 text-left line-clamp-3 shadow-2xs">
-          <span className="font-bold text-neutral-900 dark:text-neutral-100 mr-1">
-            {latestMessage?.type === 'userTranscript' ? 'You:' : 'Chatty:'}
-          </span>
-          <span>{latestMessage?.message?.trim()}</span>
+        <div className="w-full max-w-[300px] px-2 flex-shrink min-h-0 animate-in fade-in duration-200">
+          <LiveSubtitleScroller
+            message={latestMessage?.message?.trim() || ''}
+            type={latestMessage?.type}
+            widgetMode={true}
+          />
         </div>
       ) : (
         <p className="text-[11px] text-neutral-400">Say hello to start.</p>
@@ -1045,9 +1140,9 @@ export const VOICE_AGENT_PANEL_CSS = `
   .chatty-voice-panel-standalone .chatty-voice-header-button { width: 36px; height: 36px; border-radius: 9999px; background: #f5f5f5; }
   .chatty-voice-panel-standalone .chatty-voice-header-button:hover { background: #e5e5e5; }
   .chatty-voice-panel-standalone .chatty-voice-secure { display: none; }
-  .chatty-voice-panel-standalone .chatty-voice-content { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; justify-content: space-between; gap: 16px; padding: 0 28px 32px; }
-  .chatty-voice-panel-standalone .chatty-voice-stage-wrap { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0 16px; }
-  .chatty-voice-panel-standalone .chatty-voice-controls { display: flex; flex: none; flex-direction: column; align-items: center; max-width: 380px; width: 100%; margin: 0 auto; gap: 18px; padding-bottom: 8px; }
+  .chatty-voice-panel-standalone .chatty-voice-content { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; justify-content: space-between; gap: 12px; padding: 0 24px 20px; overflow: hidden; }
+  .chatty-voice-panel-standalone .chatty-voice-stage-wrap { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; align-items: center; justify-content: center; padding: 6px 0; overflow: hidden; width: 100%; }
+  .chatty-voice-panel-standalone .chatty-voice-controls { display: flex; flex: none; flex-direction: column; align-items: center; max-width: 380px; width: 100%; margin: 0 auto; gap: 12px; padding-bottom: 4px; }
   .chatty-voice-panel-standalone .chatty-voice-start { width: 56px; height: 56px; border-radius: 9999px; box-shadow: 0 12px 24px rgba(0,0,0,.15); }
   .chatty-voice-panel-standalone .chatty-voice-footer-actions { font-size: 11px; }
   .chatty-voice-panel-standalone .chatty-voice-interrupt { font-size: 10px; }
@@ -1081,8 +1176,8 @@ export const VOICE_AGENT_PANEL_CSS = `
   .chatty-voice-error button:last-child svg { width: 15px; height: 15px; }
   .chatty-voice-content { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 12px; overflow-y: auto; padding: 12px; scrollbar-width: thin !important; scrollbar-color: #cbd3d7 transparent !important; }
   .chatty-voice-content.is-transcript { overflow: hidden; }
-  .chatty-voice-stage-wrap { display: flex; flex: 1 1 auto; min-height: 190px; flex-direction: column; }
-  .chatty-voice-stage { display: flex; flex: 1 1 auto; min-height: 180px; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--voice-border); border-radius: 12px; padding: 16px 12px; background: var(--voice-soft); text-align: center; }
+  .chatty-voice-stage-wrap { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; width: 100%; overflow: hidden; }
+  .chatty-voice-stage { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--voice-border); border-radius: 12px; padding: 12px 10px; background: var(--voice-soft); text-align: center; }
   .chatty-voice-stage strong { margin: 0; color: var(--voice-ink); font-size: 14px; font-weight: 650; }
   .chatty-voice-stage > span { color: var(--voice-muted); font-size: 11px; }
   .chatty-voice-stage p { margin: 3px 0 0; color: var(--voice-muted); font-size: 11px; }
