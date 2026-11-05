@@ -33,6 +33,10 @@ from app.core import ssrf
 from app.core.db import run_db
 from app.core.ssrf import UnsafeURLError
 from app.adapters.redis_jobs import RedisJobQueue
+from app.services.email_templates_common import (
+    render_email_head,
+    render_gdpr_footer_html,
+)
 from app.ports.jobs import JobQueue
 from plugins import google_integrations as g
 
@@ -81,53 +85,71 @@ _BRAND = "#f97316"
 def _email_shell(*, title: str, intro: str, rows: list[tuple[str, str]],
                  cta_label: Optional[str] = None, cta_url: Optional[str] = None,
                  footer: str = "") -> str:
-    """Responsive, inline-styled email body (email clients ignore <style> blocks)."""
+    """Fully responsive, bulletproof and GDPR-compliant notification email shell."""
     rows_html = "".join(
         f"""
-        <tr>
-          <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#8a8a8a;
+        <tr class="email-table-row">
+          <td class="email-summary-label" style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#8a8a8a;
               font-size:12px;text-transform:uppercase;letter-spacing:.04em;width:38%;
-              vertical-align:top;font-family:Arial,Helvetica,sans-serif;">{label}</td>
-          <td style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#1c1c1c;
-              font-size:14px;font-weight:600;font-family:Arial,Helvetica,sans-serif;">{value}</td>
+              vertical-align:top;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{label}</td>
+          <td class="email-summary-value" style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#1c1c1c;
+              font-size:14px;font-weight:600;word-break:break-word;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{value}</td>
         </tr>"""
         for label, value in rows
     )
     cta_html = ""
     if cta_label and cta_url:
         cta_html = f"""
-        <tr><td style="padding:28px 0 4px;">
-          <a href="{cta_url}" style="background:{_BRAND};color:#ffffff;text-decoration:none;
+        <tr><td colspan="2" style="padding:28px 0 4px;">
+          <a href="{cta_url}" class="email-btn" style="background:{_BRAND};color:#ffffff;text-decoration:none;
              display:inline-block;padding:13px 26px;border-radius:10px;font-weight:700;
-             font-size:14px;font-family:Arial,Helvetica,sans-serif;">{cta_label}</a>
+             font-size:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{cta_label}</a>
         </td></tr>"""
 
+    extra_note_html = ""
+    if footer:
+        extra_note_html = f"""
+        <tr><td colspan="2" class="email-pad-body" style="padding:16px 0 0;">
+          <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{footer}</p>
+        </td></tr>"""
+
+    head_html = render_email_head(title)
+    footer_html = render_gdpr_footer_html(
+        reason_text="You received this scheduling service notification because a booking was confirmed or modified with Chatty Bookings. Legal basis: GDPR Art. 6(1)(b) - Performance of a Contract.",
+        preferences_url=None,
+        support_email="support@personaliai.com",
+        brand_color=_BRAND,
+        dark_mode=False,
+        is_marketing=False,
+    )
+
     return f"""<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:#f5f5f5;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-         style="background:#f5f5f5;padding:32px 12px;">
+<html lang="en">
+{head_html}
+<body style="margin:0;padding:0;background:#f5f5f5;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-wrapper"
+         style="background:#f5f5f5;padding:32px 12px;width:100% !important;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-             style="max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-container email-card"
+             style="max-width:560px;width:100%;background:#ffffff;border-radius:18px;overflow:hidden;
              box-shadow:0 4px 24px rgba(0,0,0,.06);">
-        <tr><td style="background:{_BRAND};padding:22px 32px;">
+        <tr><td class="email-pad-header" style="background:{_BRAND};padding:22px 32px;">
           <span style="color:#fff;font-size:18px;font-weight:800;letter-spacing:-.02em;
-                font-family:Arial,Helvetica,sans-serif;">✦ Personali AI</span>
+                font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">✦ Personali AI</span>
         </td></tr>
-        <tr><td style="padding:32px 32px 8px;">
-          <h1 style="margin:0 0 8px;font-size:20px;color:#111;font-weight:800;
-              font-family:Arial,Helvetica,sans-serif;">{title}</h1>
-          <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:#555;
-             font-family:Arial,Helvetica,sans-serif;">{intro}</p>
+        <tr><td class="email-pad-body" style="padding:32px 32px 16px;">
+          <h1 class="email-headline" style="margin:0 0 8px;font-size:20px;color:#111;font-weight:800;
+              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{title}</h1>
+          <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:#555;word-break:break-word;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{intro}</p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             {rows_html}
             {cta_html}
+            {extra_note_html}
           </table>
         </td></tr>
-        <tr><td style="padding:20px 32px 28px;">
-          <p style="margin:0;font-size:11px;line-height:1.6;color:#aaa;
-             font-family:Arial,Helvetica,sans-serif;">{footer or 'Sent automatically by your Personali AI assistant.'}</p>
-        </td></tr>
+        {footer_html}
       </table>
     </td></tr>
   </table>

@@ -12,6 +12,11 @@ from typing import Any, Optional
 
 import httpx
 
+from app.services.email_templates_common import (
+    render_email_head,
+    render_gdpr_footer_html,
+)
+
 logger = logging.getLogger("chatty.email_service")
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
@@ -70,33 +75,38 @@ def render_ticket_email_html(
     session_id: str,
     ticket_subject: str,
 ) -> str:
-    """Renders a modern, responsive HTML support reply email."""
+    """Renders a modern, responsive HTML support reply email with GDPR footer."""
     escaped_body = _html.escape(body_text).replace("\n", "<br/>")
     escaped_subject = _html.escape(ticket_subject)
     escaped_agent = _html.escape(agent_name or "Support Team")
     escaped_bot = _html.escape(bot_name or "Chatty")
+    head_html = render_email_head(escaped_subject)
+    footer_html = render_gdpr_footer_html(
+        reason_text=f"You received this customer service email in response to your support inquiry regarding Ticket #{session_id[:8]} with {escaped_bot}.",
+        preferences_url=None,
+        support_email=RESEND_EMAIL_FROM,
+        brand_color="#6366f1",
+        dark_mode=False,
+        is_marketing=False,
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{escaped_subject}</title>
-</head>
+{head_html}
 <body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-wrapper" style="background-color:#f8fafc;padding:32px 16px;width:100% !important;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background-color:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-container email-card" style="max-width:580px;width:100%;background-color:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.03);">
           <!-- Header -->
           <tr>
-            <td style="background-color:#0f172a;padding:20px 28px;">
+            <td class="email-pad-header" style="background-color:#0f172a;padding:20px 28px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td>
+                  <td class="email-stack-col">
                     <span style="color:#ffffff;font-size:16px;font-weight:700;letter-spacing:-0.02em;">{escaped_bot} Support</span>
                   </td>
-                  <td align="right">
+                  <td align="right" class="email-stack-col-right">
                     <span style="display:inline-block;background-color:#1e293b;color:#94a3b8;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;font-family:monospace;">Ticket #{session_id[:8]}</span>
                   </td>
                 </tr>
@@ -106,11 +116,11 @@ def render_ticket_email_html(
 
           <!-- Body Content -->
           <tr>
-            <td style="padding:28px 28px 12px;">
+            <td class="email-pad-body" style="padding:28px 28px 12px;">
               <div style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">
                 Update from {escaped_agent}
               </div>
-              <div style="font-size:14px;line-height:1.7;color:#1e293b;background-color:#f8fafc;padding:18px;border-radius:12px;border:1px solid #e2e8f0;">
+              <div style="font-size:14px;line-height:1.7;color:#1e293b;background-color:#f8fafc;padding:18px;border-radius:12px;border:1px solid #e2e8f0;word-break:break-word;">
                 {escaped_body}
               </div>
             </td>
@@ -118,21 +128,15 @@ def render_ticket_email_html(
 
           <!-- Reply notice -->
           <tr>
-            <td style="padding:12px 28px 28px;">
-              <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
-                💬 <strong>Need more help?</strong> Simply reply directly to this email and our team will be notified immediately.
+            <td class="email-pad-body" style="padding:12px 28px 24px;">
+              <p style="margin:0;font-size:13px;color:#64748b;line-height:1.5;">
+                💬 <strong>Need more help?</strong> Simply reply directly to this email and our support team will be notified immediately.
               </p>
             </td>
           </tr>
 
-          <!-- Footer -->
-          <tr>
-            <td style="background-color:#f1f5f9;padding:16px 28px;border-top:1px solid #e2e8f0;">
-              <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.4;">
-                This message was sent by {escaped_bot} Customer Support in response to your inquiry. Reference Ticket ID: #{session_id}.
-              </p>
-            </td>
-          </tr>
+          <!-- GDPR & Legal Footer -->
+          {footer_html}
         </table>
       </td>
     </tr>
@@ -142,23 +146,50 @@ def render_ticket_email_html(
 
 
 def render_campaign_email_html(bot_name: str, body_text: str, unsubscribe_url: str = "") -> str:
-    """Render a small, safe transactional campaign email.
-
-    Campaigns must not reuse ticket wording or ticket identifiers.  Keep the
-    output intentionally plain: content comes from an operator-authored,
-    consent-gated campaign and is HTML-escaped before provider delivery.
-    """
+    """Render a fully mobile-responsive and GDPR-compliant campaign email."""
     escaped_body = _html.escape(body_text).replace("\n", "<br/>")
     escaped_bot = _html.escape(bot_name or "Chatty")
-    unsubscribe = f'<p style="margin:22px 0 0;font-size:11px;color:#64748b"><a href="{_html.escape(unsubscribe_url, quote=True)}" style="color:#64748b">Unsubscribe from marketing emails</a></p>' if unsubscribe_url else ""
-    return f"""<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>
-<body style=\"margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1e293b\">
-  <main style=\"max-width:600px;margin:auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;line-height:1.6\">
-    <p style=\"margin:0 0 18px;font-weight:700\">{escaped_bot}</p>
-    <div>{escaped_body}</div>
-    {unsubscribe}
-  </main>
-</body></html>"""
+    head_html = render_email_head(f"Update from {escaped_bot}")
+    footer_html = render_gdpr_footer_html(
+        reason_text=f"You received this marketing update because you opted in to receive announcements from {escaped_bot} on Chatty.",
+        unsubscribe_url=unsubscribe_url,
+        is_marketing=True,
+        brand_color="#6366f1",
+        dark_mode=False,
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+{head_html}
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-wrapper" style="background-color:#f8fafc;padding:32px 16px;width:100% !important;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-container email-card" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:16px;border:1px solid #e2e8f0;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+          <!-- Brand Header -->
+          <tr>
+            <td class="email-pad-header" style="background-color:#0f172a;padding:20px 28px;">
+              <span style="color:#ffffff;font-size:16px;font-weight:700;letter-spacing:-0.02em;">{escaped_bot}</span>
+            </td>
+          </tr>
+
+          <!-- Message Body -->
+          <tr>
+            <td class="email-pad-body" style="padding:28px 28px 24px;">
+              <div style="font-size:15px;line-height:1.7;color:#1e293b;word-break:break-word;">
+                {escaped_body}
+              </div>
+            </td>
+          </tr>
+
+          <!-- GDPR & Legal Footer -->
+          {footer_html}
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
 
 
 async def send_campaign_email(*, to_email: str, subject: str, body_text: str, bot_name: str = "Chatty", unsubscribe_url: str = "") -> dict[str, Any]:

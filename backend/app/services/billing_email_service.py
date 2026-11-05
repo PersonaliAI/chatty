@@ -22,6 +22,11 @@ from typing import Any, Optional
 
 import httpx
 
+from app.services.email_templates_common import (
+    render_email_head,
+    render_gdpr_footer_html,
+)
+
 logger = logging.getLogger("chatty.billing_emails")
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
@@ -56,22 +61,24 @@ def _render_base_email(
     cta_url: str,
     secondary_text: Optional[str] = None,
 ) -> str:
-    """Renders a responsive, bulletproof transactional email matching modern SaaS standards."""
+    """Renders a fully responsive, bulletproof transactional email matching modern SaaS and GDPR standards."""
     escaped_title = _html.escape(title)
     escaped_badge = _html.escape(badge_text)
     escaped_cta = _html.escape(cta_text)
     escaped_cta_url = _html.escape(cta_url, quote=True)
 
     paragraphs_html = "".join(
-        f'<p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#334155;">{p}</p>'
+        f'<p style="margin:0 0 16px;font-size:15px;line-height:24px;color:#334155;word-break:break-word;">{p}</p>'
         for p in body_paragraphs
     )
 
     box_html = ""
     if highlight_box:
         box_rows = "".join(
-            f'<tr><td style="padding:6px 0;font-size:13px;color:#64748b;font-weight:500;">{_html.escape(k)}</td>'
-            f'<td align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(v)}</td></tr>'
+            f'<tr class="email-table-row">'
+            f'<td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;font-weight:500;">{_html.escape(k)}</td>'
+            f'<td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(v)}</td>'
+            f'</tr>'
             for k, v in highlight_box.items()
         )
         box_html = f"""
@@ -84,32 +91,38 @@ def _render_base_email(
     if secondary_text:
         secondary_html = f'<p style="margin:16px 0 0;font-size:13px;line-height:20px;color:#64748b;">{secondary_text}</p>'
 
+    head_html = render_email_head(subject)
+    footer_html = render_gdpr_footer_html(
+        reason_text="You received this essential transactional email regarding your Chatty account and subscription billing status. Legal basis: GDPR Art. 6(1)(b) - Performance of a Contract.",
+        preferences_url=BILLING_URL,
+        support_email="support@personaliai.com",
+        brand_color="#6366f1",
+        dark_mode=False,
+        is_marketing=False,
+    )
+
     return f"""<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{_html.escape(subject)}</title>
-</head>
+{head_html}
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:40px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-wrapper" style="background-color:#0f172a;padding:40px 16px;width:100% !important;">
     <tr>
       <td align="center">
         <!-- Main Card Container -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3),0 8px 10px -6px rgba(0,0,0,0.3);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-container email-card" style="max-width:580px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.3),0 8px 10px -6px rgba(0,0,0,0.3);">
           
           <!-- Top Brand Header -->
           <tr>
-            <td style="background-color:#090d16;padding:24px 32px;border-bottom:1px solid #1e293b;">
+            <td class="email-pad-header" style="background-color:#090d16;padding:24px 32px;border-bottom:1px solid #1e293b;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td>
+                  <td class="email-stack-col">
                     <span style="display:inline-block;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.03em;">
                       <span style="color:#6366f1;">●</span> Chatty
                     </span>
                     <span style="color:#64748b;font-size:13px;margin-left:8px;font-weight:400;">by PersonaliAI</span>
                   </td>
-                  <td align="right">
+                  <td align="right" class="email-stack-col-right">
                     <span style="display:inline-block;background-color:{badge_bg};color:{badge_color};font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:0.04em;text-transform:uppercase;">
                       {escaped_badge}
                     </span>
@@ -121,8 +134,8 @@ def _render_base_email(
 
           <!-- Content Body -->
           <tr>
-            <td style="padding:36px 32px 28px;">
-              <h1 style="margin:0 0 20px;font-size:22px;font-weight:700;line-height:28px;color:#0f172a;letter-spacing:-0.02em;">
+            <td class="email-pad-body" style="padding:36px 32px 28px;">
+              <h1 class="email-headline" style="margin:0 0 20px;font-size:22px;font-weight:700;line-height:28px;color:#0f172a;letter-spacing:-0.02em;">
                 {escaped_title}
               </h1>
 
@@ -134,7 +147,7 @@ def _render_base_email(
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 16px;">
                 <tr>
                   <td align="center">
-                    <a href="{escaped_cta_url}" target="_blank" style="display:inline-block;background-color:#4f46e5;background-image:linear-gradient(135deg,#6366f1,#4f46e5);color:#ffffff;font-size:15px;font-weight:600;line-height:48px;height:48px;padding:0 32px;border-radius:10px;text-decoration:none;box-shadow:0 4px 14px rgba(79,70,229,0.35);">
+                    <a href="{escaped_cta_url}" target="_blank" class="email-btn" style="display:inline-block;background-color:#4f46e5;background-image:linear-gradient(135deg,#6366f1,#4f46e5);color:#ffffff;font-size:15px;font-weight:600;line-height:48px;height:48px;padding:0 32px;border-radius:10px;text-decoration:none;box-shadow:0 4px 14px rgba(79,70,229,0.35);">
                       {escaped_cta} &rarr;
                     </a>
                   </td>
@@ -145,20 +158,8 @@ def _render_base_email(
             </td>
           </tr>
 
-          <!-- Footer -->
-          <tr>
-            <td style="background-color:#f8fafc;padding:24px 32px;border-top:1px solid #e2e8f0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="font-size:12px;color:#94a3b8;line-height:18px;">
-                    Questions or need help? Contact us anytime at <a href="mailto:support@personaliai.com" style="color:#6366f1;text-decoration:none;font-weight:500;">support@personaliai.com</a>.
-                    <br/><br/>
-                    &copy; {datetime.now(timezone.utc).year} PersonaliAI Inc. &bull; All rights reserved.
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          <!-- GDPR & Legal Footer -->
+          {footer_html}
 
         </table>
       </td>

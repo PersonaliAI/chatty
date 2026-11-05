@@ -16,6 +16,10 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from app.services.billing_email_service import _send_raw_email
+from app.services.email_templates_common import (
+    render_email_head,
+    render_gdpr_footer_html,
+)
 
 logger = logging.getLogger("chatty.order_emails")
 
@@ -135,29 +139,41 @@ def render_order_status_email(
         </div>
         """
 
+    escaped_bot = _html.escape(bot_name)
+    escaped_brand_color = _html.escape(brand_color)
+    escaped_cta_url = _html.escape(cta_url, quote=True)
+    escaped_cta_text = _html.escape(cta_text)
+    escaped_support_email = _html.escape(support_email, quote=True)
+
+    head_html = render_email_head(subject)
+    footer_html = render_gdpr_footer_html(
+        reason_text=f"You received this transaction and payment record in connection with your purchase from {escaped_bot} via Chatty. Legal basis: GDPR Art. 6(1)(b) - Performance of a Contract.",
+        preferences_url=None,
+        support_email=support_email,
+        brand_color=brand_color,
+        dark_mode=False,
+        is_marketing=False,
+    )
+
     html_body = f"""<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>{_html.escape(subject)}</title>
-</head>
+{head_html}
 <body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0f172a;padding:36px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-wrapper" style="background-color:#0f172a;padding:36px 16px;width:100% !important;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.35);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="email-container email-card" style="max-width:580px;width:100%;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 20px 25px -5px rgba(0,0,0,0.35);">
           <!-- Header -->
           <tr>
-            <td style="background-color:#090d16;padding:24px 32px;border-bottom:1px solid #1e293b;">
+            <td class="email-pad-header" style="background-color:#090d16;padding:24px 32px;border-bottom:1px solid #1e293b;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td>
+                  <td class="email-stack-col">
                     <span style="display:inline-block;color:#ffffff;font-size:18px;font-weight:700;letter-spacing:-0.02em;">
-                      <span style="color:{_html.escape(brand_color)};">●</span> {_html.escape(bot_name)}
+                      <span style="color:{escaped_brand_color};">●</span> {escaped_bot}
                     </span>
                   </td>
-                  <td align="right">
+                  <td align="right" class="email-stack-col-right">
                     <span style="display:inline-block;background-color:{badge_bg};color:{badge_color};font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:0.04em;text-transform:uppercase;">
                       {_html.escape(badge_text)}
                     </span>
@@ -169,43 +185,43 @@ def render_order_status_email(
 
           <!-- Main Content -->
           <tr>
-            <td style="padding:32px;">
-              <h1 style="margin:0 0 14px;font-size:21px;font-weight:700;line-height:28px;color:#0f172a;">
+            <td class="email-pad-body" style="padding:32px;">
+              <h1 class="email-headline" style="margin:0 0 14px;font-size:21px;font-weight:700;line-height:28px;color:#0f172a;">
                 {_html.escape(headline)}
               </h1>
-              <p style="margin:0 0 20px;font-size:15px;line-height:24px;color:#334155;">
+              <p style="margin:0 0 20px;font-size:15px;line-height:24px;color:#334155;word-break:break-word;">
                 {intro_html}
               </p>
 
               <!-- Order Summary Box -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;">
-                <tr>
-                  <td style="padding:6px 0;font-size:13px;color:#64748b;">Item / Service</td>
-                  <td align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:700;">{_html.escape(title)}</td>
+                <tr class="email-table-row">
+                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Item / Service</td>
+                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:700;">{_html.escape(title)}</td>
                 </tr>
-                <tr>
-                  <td style="padding:6px 0;font-size:13px;color:#64748b;">Total Amount</td>
-                  <td align="right" style="padding:6px 0;font-size:15px;color:#0f172a;font-weight:800;font-family:monospace;">{_html.escape(amount_str)}</td>
+                <tr class="email-table-row">
+                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Total Amount</td>
+                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:15px;color:#0f172a;font-weight:800;font-family:monospace;">{_html.escape(amount_str)}</td>
                 </tr>
-                <tr>
-                  <td style="padding:6px 0;font-size:13px;color:#64748b;">Payment Status</td>
-                  <td align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(status_label)}</td>
+                <tr class="email-table-row">
+                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Payment Status</td>
+                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(status_label)}</td>
                 </tr>
-                <tr>
-                  <td style="padding:6px 0;font-size:13px;color:#64748b;">Payment Gateway</td>
-                  <td align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(provider_label)}</td>
+                <tr class="email-table-row">
+                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Payment Gateway</td>
+                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(provider_label)}</td>
                 </tr>
-                <tr>
-                  <td style="padding:6px 0;font-size:13px;color:#64748b;">Customer</td>
-                  <td align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:500;">{_html.escape(customer_name)} ({_html.escape(customer_email or 'N/A')})</td>
+                <tr class="email-table-row">
+                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Customer</td>
+                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:500;word-break:break-word;">{_html.escape(customer_name)} ({_html.escape(customer_email or 'N/A')})</td>
                 </tr>
-                <tr>
-                  <td style="padding:6px 0;font-size:13px;color:#64748b;">Reference ID</td>
-                  <td align="right" style="padding:6px 0;font-size:12px;color:#475569;font-family:monospace;">{_html.escape(ref_id)}</td>
+                <tr class="email-table-row">
+                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Reference ID</td>
+                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:12px;color:#475569;font-family:monospace;word-break:break-all;">{_html.escape(ref_id)}</td>
                 </tr>
-                <tr>
-                  <td style="padding:6px 0;font-size:13px;color:#64748b;">Date</td>
-                  <td align="right" style="padding:6px 0;font-size:12px;color:#64748b;">{_html.escape(now_str)}</td>
+                <tr class="email-table-row">
+                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Date</td>
+                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:12px;color:#64748b;">{_html.escape(now_str)}</td>
                 </tr>
               </table>
 
@@ -215,8 +231,8 @@ def render_order_status_email(
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;">
                 <tr>
                   <td align="center">
-                    <a href="{_html.escape(cta_url, quote=True)}" target="_blank" style="display:inline-block;background-color:{_html.escape(brand_color)};color:#ffffff;font-size:14px;font-weight:700;line-height:44px;height:44px;padding:0 28px;border-radius:10px;text-decoration:none;">
-                      {_html.escape(cta_text)} &rarr;
+                    <a href="{escaped_cta_url}" target="_blank" class="email-btn" style="display:inline-block;background-color:{escaped_brand_color};color:#ffffff;font-size:14px;font-weight:700;line-height:44px;height:44px;padding:0 28px;border-radius:10px;text-decoration:none;">
+                      {escaped_cta_text} &rarr;
                     </a>
                   </td>
                 </tr>
@@ -224,14 +240,8 @@ def render_order_status_email(
             </td>
           </tr>
 
-          <!-- Footer -->
-          <tr>
-            <td style="background-color:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;font-size:12px;color:#64748b;line-height:18px;">
-              Need assistance with this order? Reply to <a href="mailto:{_html.escape(support_email, quote=True)}" style="color:{_html.escape(brand_color)};text-decoration:none;font-weight:600;">{_html.escape(support_email)}</a>.
-              <br/>
-              Powered by ChattyConversational Commerce &bull; Secured PCI-DSS Checkout
-            </td>
-          </tr>
+          <!-- GDPR & Legal Footer -->
+          {footer_html}
         </table>
       </td>
     </tr>

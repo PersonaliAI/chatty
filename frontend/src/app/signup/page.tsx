@@ -35,6 +35,7 @@ function SignupPageInner() {
   const [selectedPlan] = useState<"chatty_hobby" | "chatty_standard" | "chatty_business">(initialPlan);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [busy, setBusy] = useState<BusyKey>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +71,9 @@ function SignupPageInner() {
         emailRedirectTo: redirect(),
         data: {
           plan_preference: selectedPlan,
+          marketing_opt_in: marketingConsent,
+          marketing_opt_in_at: marketingConsent ? new Date().toISOString() : null,
+          marketing_opt_in_version: "v1.0",
           ...(signupReferral ? { chatty_ref: signupReferral.ref, chatty_referral: signupReferral } : {}),
         },
       },
@@ -248,17 +252,47 @@ function SignupPageInner() {
               </button>
             </div>
           </div>
+
+          {/* GDPR Affirmative Un-ticked Marketing Opt-in Checkbox */}
+          <div className="pt-1.5 pb-0.5">
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-muted-foreground select-none leading-relaxed">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={(e) => setMarketingConsent(e.target.checked)}
+                className="mt-0.5 size-4 rounded border-border text-[#f97316] focus:ring-[#f97316] accent-[#f97316] cursor-pointer shrink-0"
+              />
+              <span>
+                Keep me updated with Chatty product releases, AI features, and engineering tips via email (optional).
+              </span>
+            </label>
+          </div>
+
           <Button
             type="submit"
-            className="w-full h-11 font-bold cursor-pointer mt-4 rounded-xl text-sm"
+            className="w-full h-11 font-bold cursor-pointer mt-3 rounded-xl text-sm"
             disabled={!email.trim() || password.length < 8 || busy !== null}
           >
             {busy === "password" && <Loader2 className="size-4 animate-spin" />}
             Start Free Trial
           </Button>
-          <p className="text-[11px] text-muted-foreground text-center pt-1">
-            14-day free trial • $0.00 today • Cancel anytime.
-          </p>
+
+          {/* GDPR Legal Basis & Agreement Transparency */}
+          <div className="space-y-1.5 pt-2 text-center">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              By creating an account, you agree to our{" "}
+              <Link href="/terms" target="_blank" className="text-foreground hover:underline underline-offset-2 font-medium">
+                Terms of Use
+              </Link>{" "}
+              and acknowledge our{" "}
+              <Link href="/privacy" target="_blank" className="text-foreground hover:underline underline-offset-2 font-medium">
+                Privacy Policy
+              </Link>.
+            </p>
+            <p className="text-[10px] text-muted-foreground/80">
+              14-day free trial &bull; $0.00 today &bull; 1-click cancel anytime.
+            </p>
+          </div>
         </form>
 
         {error && (

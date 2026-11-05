@@ -44,6 +44,12 @@ def test_render_base_email():
     assert "https://chatty.personaliai.com/dashboard/billing" in html
     assert "Need help? Contact support." in html
     assert "support@personaliai.com" in html
+    assert "Privacy Policy" in html
+    assert "Terms of Service" in html
+    assert "GDPR Art. 6(1)(b)" in html
+    assert "PersonaliAI, Inc." in html
+    assert "email-container" in html
+    assert "email-btn" in html
 
 
 @pytest.mark.anyio

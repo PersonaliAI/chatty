@@ -1324,6 +1324,10 @@ async def handle_payment_return_redirect(
       <a href="{_html.escape(retry_url)}" style="display:inline-block;padding:12px 22px;background:{_html.escape(brand_color)};color:#ffffff;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;">Retry Checkout</a>
       <button onclick="window.close()" style="padding:12px 22px;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">Close Window</button>
     </div>
+    <p style="margin:24px 0 0;font-size:11px;color:#94a3b8;">
+      <a href="https://chatty.personaliai.com/privacy" target="_blank" rel="noopener noreferrer" style="color:#64748b;text-decoration:underline;">Privacy Policy</a> &bull;
+      <a href="https://chatty.personaliai.com/terms" target="_blank" rel="noopener noreferrer" style="color:#64748b;text-decoration:underline;">Terms of Service</a>
+    </p>
   </div>
 </body>
 </html>"""
