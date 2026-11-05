@@ -25,7 +25,7 @@ class KnowledgeService:
             self.organization.owner_user,
             self.organization.bot,
             query,
-            translate_query=True,
+            translate_query=False,
         )
         return {
             "context": context,

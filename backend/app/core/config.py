@@ -46,7 +46,7 @@ SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "").strip()
 MODEL_NAME = (
     os.environ.get("KIN_MODEL")
     or os.environ.get("GEMMA_MODEL")
-    or "gemma-4-31b-it"
+    or "gemini-2.5-flash"
 )
 
 FUNCTION_SECRET = os.environ.get("FUNCTION_SECRET", "")

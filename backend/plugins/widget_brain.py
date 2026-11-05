@@ -109,6 +109,8 @@ _COMMON_ENGLISH_WORDS = frozenset({
     "support", "contact", "chat", "bot", "ai", "call", "tell", "show",
     "where", "why", "who", "much", "many", "does", "is", "are", "am",
     "please", "thanks", "thank", "yes", "need", "services", "product",
+    "huh", "um", "uh", "yeah", "yep", "nope", "ok", "okay", "whatsapp",
+    "integrate", "integration", "hear", "talk", "listen", "chatty",
 })
 
 
@@ -148,6 +150,8 @@ async def _translate_to_english_for_rag(text: str) -> str:
             }],
             temperature=0.0,
             max_tokens=100,
+            timeout=3.0,
+            max_attempts=1,
             call_type="rag_translate",
         )
         translated = (response.choices[0].message.content or "").strip()

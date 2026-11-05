@@ -186,7 +186,7 @@ async def entrypoint(ctx: JobContext) -> None:
                     "min_words": 2,
                     "resume_false_interruption": False,
                 },
-                preemptive_generation={"enabled": True},
+                preemptive_generation={"enabled": False},
             ),
             tts_text_transforms=["filter_emoji", "filter_markdown"],
         )
