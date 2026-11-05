@@ -282,24 +282,26 @@ function SignupPageInner() {
                     Account already exists
                   </p>
                   <p className="text-blue-700 dark:text-blue-300 mt-0.5">
-                    An account with <strong>{existingUserEmail}</strong> is already registered. Please sign in to continue.
+                    An account with <strong className="break-all">{existingUserEmail}</strong> is already registered. Please sign in to continue.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 pt-0.5">
+              <div className="space-y-1.5 pt-0.5">
                 <Link
                   href={`/login?email=${encodeURIComponent(existingUserEmail)}&next=${encodeURIComponent(dest)}`}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                  className="w-full h-9 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white text-xs font-bold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
                   <span>Sign In with This Account</span>
-                  <ArrowRight className="size-3" />
+                  <ArrowRight className="size-3.5" />
                 </Link>
-                <Link
-                  href={`/forgot-password?email=${encodeURIComponent(existingUserEmail)}`}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"
-                >
-                  Forgot password?
-                </Link>
+                <div className="text-center">
+                  <Link
+                    href={`/forgot-password?email=${encodeURIComponent(existingUserEmail)}`}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Forgot your password? Reset it here
+                  </Link>
+                </div>
               </div>
             </div>
           )}
