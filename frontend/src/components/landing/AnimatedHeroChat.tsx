@@ -140,15 +140,31 @@ export function AnimatedHeroChat() {
 
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chipsContainerRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  // Smooth auto-scroll active chip into view on mobile
+  // Smooth auto-scroll active chip horizontally inside the chips container ONLY (never scrolls window)
   useEffect(() => {
-    chipRefs.current[currentIndex]?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-      inline: "center",
-    });
+    const container = chipsContainerRef.current;
+    const chip = chipRefs.current[currentIndex];
+    if (!container || !chip) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const chipRect = chip.getBoundingClientRect();
+    const leftDiff = chipRect.left - containerRect.left;
+    const rightDiff = chipRect.right - containerRect.right;
+
+    if (leftDiff < 0) {
+      container.scrollTo({
+        left: container.scrollLeft + leftDiff - 16,
+        behavior: "smooth",
+      });
+    } else if (rightDiff > 0) {
+      container.scrollTo({
+        left: container.scrollLeft + rightDiff + 16,
+        behavior: "smooth",
+      });
+    }
   }, [currentIndex]);
 
   // Modern auto-scroll: smoothly scroll to the newest message or interactive card as animation stages progress
@@ -678,7 +694,7 @@ export function AnimatedHeroChat() {
       </div>
 
       {/* 5. 5-Item Grid: Guaranteed 100% Single-Row Visibility with Lucide Icons */}
-      <div className="flex sm:grid sm:grid-cols-5 gap-1.5 sm:gap-1.5 px-3.5 py-2 sm:p-2.5 bg-[#e9edef] border-t border-black/8 overflow-x-auto scrollbar-none no-scrollbar">
+      <div ref={chipsContainerRef} className="flex sm:grid sm:grid-cols-5 gap-1.5 sm:gap-1.5 px-3.5 py-2 sm:p-2.5 bg-[#e9edef] border-t border-black/8 overflow-x-auto scrollbar-none no-scrollbar">
         {BUSINESS_SITUATIONS.map((sit, i) => {
           const isActive = i === currentIndex;
           return (
