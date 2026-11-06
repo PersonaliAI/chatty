@@ -239,7 +239,7 @@ async def test_offline_ticket_stores_contact_fields_and_skips_ai(monkeypatch):
 
     run_db_results = [
         MagicMock(data=[{"id": "bot-1", "user_id": "owner-1", "name": "Chatty"}]),
-        MagicMock(data=[{"auth_user_id": "owner-1", "email": "owner@example.com"}]),
+        MagicMock(data=[{"auth_user_id": "owner-1", "email": "owner@example.com", "subscription_status": "active"}]),
         MagicMock(data=[{"ok": True}]),  # mark offline ticket session
         MagicMock(data=[{"id": "msg-1"}]),  # persist user message
         MagicMock(data=[{"id": "msg-2"}]),  # persist assistant confirmation
