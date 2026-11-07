@@ -23,6 +23,8 @@ import {
   Crown,
   Layers,
   HardDrive,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -526,6 +528,9 @@ export function BillingTab({
   const supabase = createClient();
   const [summaryData, setSummaryData] = useState<any>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelSuccessMsg, setCancelSuccessMsg] = useState<string | null>(null);
 
   const userEmail = (user?.email || "").toLowerCase().trim();
   const isAdmin = useMemo(() => {
@@ -608,7 +613,29 @@ export function BillingTab({
   const liveStorageUsed = summaryData?.usage?.storage_mb?.used ?? 0;
   const liveStorageLimit = isAdmin ? null : (summaryData?.usage?.storage_mb?.limit ?? activeTierConfig.mediaStorageMb);
 
-  const portalUrl = process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
+  const portalUrl = summaryData?.portal_url || process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
+  const isCancelled = Boolean(billingInfo?.status === "cancelled" || billingInfo?.status === "canceled" || summaryData?.status === "cancelled");
+  const canCancel = Boolean(!isAdmin && !isCancelled && (isPaidActive || (billingInfo?.status && ["active", "on_trial", "trial"].includes(billingInfo.status)) || summaryData?.has_active_subscription));
+
+  const handleDirectCancel = async () => {
+    try {
+      setCancelling(true);
+      const res = await fetchBackend(supabase, "/api/billing/cancel-subscription", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setCancelSuccessMsg(data.message || "Subscription cancelled successfully.");
+        setCancelModalOpen(false);
+        const refRes = await fetchBackend(supabase, "/api/billing/summary");
+        if (refRes.ok) setSummaryData(await refRes.json());
+      } else {
+        alert(data.detail || "Failed to cancel subscription. Please contact support.");
+      }
+    } catch (e) {
+      alert("An unexpected error occurred while cancelling. Please try again.");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto w-full py-6 px-4 space-y-6">
@@ -630,17 +657,28 @@ export function BillingTab({
           </p>
         </div>
 
-        {isPaidActive && portalUrl && (
-          <a
-            href={portalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-semibold text-neutral-700 dark:text-neutral-300 transition-colors shadow-xs shrink-0"
-          >
-            <span>Manage Invoices &amp; Cards</span>
-            <ExternalLink className="size-3.5" />
-          </a>
-        )}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {portalUrl && (
+            <a
+              href={portalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-850 text-xs font-semibold text-neutral-700 dark:text-neutral-300 transition-colors shadow-xs"
+            >
+              <span>Manage Invoices &amp; Cards</span>
+              <ExternalLink className="size-3.5" />
+            </a>
+          )}
+          {canCancel && (
+            <button
+              type="button"
+              onClick={() => setCancelModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100/60 dark:hover:bg-rose-950/40 text-xs font-semibold text-rose-700 dark:text-rose-400 transition-colors shadow-xs cursor-pointer"
+            >
+              <span>Cancel Subscription</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ========================================================
@@ -715,13 +753,24 @@ export function BillingTab({
               </p>
             </div>
 
-            <Link
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Link
               href={`/checkout?plan=${activePlanKey.replace("chatty_", "")}&interval=${billingInterval}`}
               className="px-5 py-2.5 rounded-xl bg-[#f97316] hover:bg-[#ea580c] text-white text-xs font-bold transition-all shadow-sm shrink-0 text-center flex items-center justify-center gap-2 cursor-pointer"
             >
               <Zap className="size-3.5 fill-white" />
               <span>Activate Full Subscription</span>
             </Link>
+              {canCancel && (
+                <button
+                  type="button"
+                  onClick={() => setCancelModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-semibold transition cursor-pointer"
+                >
+                  Cancel Trial
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 14-Day Trial Timeline Bar */}
@@ -767,6 +816,15 @@ export function BillingTab({
             <span className="px-3 py-1.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 text-xs font-semibold">
               Billed {billingInterval === "yearly" ? "Annually (Save 20%)" : "Monthly"}
             </span>
+            {canCancel && (
+              <button
+                type="button"
+                onClick={() => setCancelModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 text-xs font-medium transition cursor-pointer"
+              >
+                Cancel Subscription
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1217,6 +1275,76 @@ export function BillingTab({
 
       {/* User Account Affiliate & Referral Details */}
       <UserAffiliateSection user={user} />
+
+      {/* Cancellation confirmation modal */}
+      {cancelModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900/40">
+                <AlertTriangle className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-white">
+                  Cancel Subscription?
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Are you sure you want to cancel your Chatty subscription?
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-850/60 border border-neutral-200/80 dark:border-neutral-800 text-xs text-neutral-600 dark:text-neutral-300 space-y-2">
+              <p>
+                • Your AI agents will remain <strong>fully active</strong> until the end of your current cycle ({billingInfo?.renewsAt ? new Date(billingInfo.renewsAt).toLocaleDateString() : "end of trial/billing period"}).
+              </p>
+              <p>
+                • After that date, live visitor responses will switch to <strong>offline lead collection</strong>.
+              </p>
+              <p>
+                • All your chatbots, training sources, and conversation history will remain securely saved.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={() => setCancelModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+              >
+                Keep Subscription
+              </button>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={handleDirectCancel}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-sm"
+              >
+                {cancelling ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>Confirm Cancellation</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Success Notification */}
+      {cancelSuccessMsg && (
+        <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200 text-xs flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+            <span>{cancelSuccessMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCancelSuccessMsg(null)}
+            className="text-xs font-semibold underline hover:opacity-80 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 }

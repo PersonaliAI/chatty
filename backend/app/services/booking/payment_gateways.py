@@ -952,3 +952,54 @@ class PaymentGatewaysService:
             return {"registered": False, "reason": str(exc)}
 
         return {"registered": False, "reason": "Unsupported provider"}
+
+    @staticmethod
+    async def cancel_lemonsqueezy_subscription(api_key: str, subscription_id: str) -> dict[str, Any]:
+        """Cancel a subscription via Lemon Squeezy API."""
+        clean_key = api_key.strip()
+        sub_id = safe_gateway_id(subscription_id, "subscription ID")
+        headers = {
+            "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
+            "Authorization": f"Bearer {clean_key}",
+        }
+        url = f"https://api.lemonsqueezy.com/v1/subscriptions/{sub_id}"
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.delete(url, headers=headers)
+            if res.status_code in (200, 204):
+                data = res.json() if res.content else {}
+                attrs = (data.get("data") or {}).get("attributes") or {}
+                return {
+                    "success": True,
+                    "status": attrs.get("status", "cancelled"),
+                    "ends_at": attrs.get("ends_at"),
+                }
+            err_detail = f"HTTP {res.status_code}"
+            try:
+                err_detail = res.json().get("errors", [{}])[0].get("detail", err_detail)
+            except Exception:
+                pass
+            return {"success": False, "error": err_detail}
+
+    @staticmethod
+    async def get_lemonsqueezy_customer_portal(api_key: str, customer_id: str) -> Optional[str]:
+        """Fetch signed 24h customer billing portal URL for customer."""
+        clean_key = api_key.strip()
+        cust_id = safe_gateway_id(customer_id, "customer ID")
+        headers = {
+            "Accept": "application/vnd.api+json",
+            "Content-Type": "application/vnd.api+json",
+            "Authorization": f"Bearer {clean_key}",
+        }
+        url = f"https://api.lemonsqueezy.com/v1/customers/{cust_id}"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(url, headers=headers)
+                if res.status_code == 200:
+                    data = res.json()
+                    attrs = (data.get("data") or {}).get("attributes") or {}
+                    return (attrs.get("urls") or {}).get("customer_portal")
+        except Exception as exc:
+            logger.warning("Failed to fetch Lemon customer portal URL: %s", exc)
+        return None
+

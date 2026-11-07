@@ -1642,11 +1642,21 @@ async def get_billing_summary(user: dict[str, Any] = Depends(require_user)) -> d
     storage_limit_mb = None if (is_admin or resolved_plan == "chatty_enterprise") else (500 if resolved_plan == "chatty_hobby" else 2048 if resolved_plan == "chatty_standard" else 10240)
     team_limit = None if (is_admin or resolved_plan != "chatty_hobby") else 1
 
+    portal_url = None
+    if not is_admin:
+        lemon_cust_id = user.get("lemon_customer_id")
+        from app.core.config import LEMON_API_KEY
+        if LEMON_API_KEY and lemon_cust_id:
+            from app.services.booking.payment_gateways import PaymentGatewaysService
+            portal_url = await PaymentGatewaysService.get_lemonsqueezy_customer_portal(LEMON_API_KEY, lemon_cust_id)
+
     return {
         "is_admin": is_admin,
         "plan": resolved_plan,
         "status": sub_status,
         "renews_at": None if is_admin else user.get("subscription_renews_at"),
+        "portal_url": portal_url,
+        "has_active_subscription": bool(user.get("lemon_subscription_id") or sub_status in ("active", "paid", "on_trial", "trial")),
         "trial": {
             "is_trial": is_trial,
             "is_expired": is_expired,
@@ -1691,3 +1701,68 @@ async def get_billing_summary(user: dict[str, Any] = Depends(require_user)) -> d
             "unlimited_teams": is_admin or resolved_plan != "chatty_hobby",
         },
     }
+
+
+@router.post("/api/billing/cancel-subscription")
+async def cancel_user_subscription(
+    user: dict[str, Any] = Depends(require_user)
+) -> dict[str, Any]:
+    """1-Click direct cancellation of active subscription / trial."""
+    from app.core.config import ADMIN_BYPASS_EMAILS, LEMON_API_KEY
+    from app.services.booking.payment_gateways import PaymentGatewaysService
+    from app.services import billing_email_service
+
+    email = (user.get("email") or "").strip().lower()
+    if email in ADMIN_BYPASS_EMAILS or user.get("role") in ("admin", "superadmin"):
+        raise HTTPException(status_code=400, detail="Operator account cannot be cancelled.")
+
+    auth_id = user.get("auth_user_id") or user.get("id")
+    sub_id = user.get("lemon_subscription_id")
+
+    cancelled_in_gateway = False
+    ends_at: str | None = None
+
+    if LEMON_API_KEY and sub_id:
+        res = await PaymentGatewaysService.cancel_lemonsqueezy_subscription(LEMON_API_KEY, sub_id)
+        if res.get("success"):
+            cancelled_in_gateway = True
+            ends_at = res.get("ends_at")
+        else:
+            logger.warning("Lemon Squeezy cancel API call returned error: %s", res.get("error"))
+
+    # Update database status to cancelled
+    now_iso = datetime.now(timezone.utc).isoformat()
+    updates: dict[str, Any] = {
+        "subscription_status": "cancelled",
+        "updated_at": now_iso,
+    }
+    if ends_at:
+        updates["subscription_renews_at"] = ends_at
+
+    await run_db(lambda: supabase.table("users").update(updates).eq("auth_user_id", auth_id).execute())
+
+    # Send confirmation email
+    plan_name = user.get("plan") or "Standard"
+    display_name = user.get("display_name") or ""
+    if email:
+        try:
+            asyncio.create_task(
+                billing_email_service.send_subscription_cancelled_email(
+                    user_id=auth_id,
+                    email=email,
+                    name=display_name,
+                    plan_name=plan_name,
+                    ends_at=ends_at or now_iso,
+                )
+            )
+        except Exception as e:
+            logger.warning("Failed to queue cancellation email: %s", e)
+
+    return {
+        "success": True,
+        "status": "cancelled",
+        "gateway_synced": cancelled_in_gateway,
+        "ends_at": ends_at,
+        "message": "Subscription cancelled successfully. You will retain access until the end of the billing period.",
+    }
+
