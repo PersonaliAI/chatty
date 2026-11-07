@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   HardDrive,
   Trash2,
@@ -20,6 +20,7 @@ import {
   Clock,
   Sparkles,
   Bot as BotIcon,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchBackend } from "@/lib/backend-client";
@@ -91,6 +92,8 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [selectedBotFilter, setSelectedBotFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 
   // Action states
@@ -557,67 +560,125 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Bot Filter Dropdown */}
-          {data?.bots && data.bots.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-neutral-500 flex items-center gap-1">
-                <BotIcon className="size-3.5 text-sky-500" /> Bot:
-              </span>
-              <ModernSelect
-                value={selectedBotFilter}
-                onChange={(val) => setSelectedBotFilter(val)}
-                size="sm"
-                searchable={data.bots.length > 5}
-                className="w-auto min-w-[170px] max-w-[240px]"
-                popupWidth="min-w-[240px]"
-                options={[
-                  { value: "all", label: `🌐 All Chatbots (${data.files_count})` },
-                  ...data.bots.map((b) => ({
-                    value: b.id,
-                    label: b.name,
-                    icon: <BotIcon className="size-3.5 text-sky-500 shrink-0" />,
-                  })),
-                ]}
-              />
-            </div>
-          )}
+      <div className="space-y-2.5 pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+            {/* Bot Filter Dropdown */}
+            {data?.bots && data.bots.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-neutral-500 flex items-center gap-1 whitespace-nowrap">
+                  <BotIcon className="size-3.5 text-sky-500 shrink-0" /> Bot:
+                </span>
+                <ModernSelect
+                  value={selectedBotFilter}
+                  onChange={(val) => setSelectedBotFilter(val)}
+                  size="sm"
+                  searchable={data.bots.length > 5}
+                  className="w-auto min-w-[160px] max-w-[240px]"
+                  popupWidth="min-w-[240px]"
+                  options={[
+                    { value: "all", label: `🌐 All Chatbots (${data.files_count})` },
+                    ...data.bots.map((b) => ({
+                      value: b.id,
+                      label: b.name,
+                      icon: <BotIcon className="size-3.5 text-sky-500 shrink-0" />,
+                    })),
+                  ]}
+                />
+              </div>
+            )}
 
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-            {[
-              { id: "all", label: "All Files" },
-              { id: "visitor_uploads", label: "Visitor Uploads" },
-              { id: "catalog_media", label: "Catalog Media" },
-              { id: "knowledge_sources", label: "Knowledge" },
-              { id: "branding_assets", label: "Branding" },
-            ].map((cat) => (
+            {/* Category Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+              {[
+                { id: "all", label: "All Files" },
+                { id: "visitor_uploads", label: "Visitor Uploads" },
+                { id: "catalog_media", label: "Catalog Media" },
+                { id: "knowledge_sources", label: "Knowledge" },
+                { id: "branding_assets", label: "Branding" },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
+                    activeCategory === cat.id
+                      ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Search: Icon toggle on small/medium screens (<xl), full input on xl+ */}
+          <div className="flex items-center shrink-0">
+            {/* Compact screen search icon button */}
+            {!searchExpanded && !searchQuery && (
               <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
-                className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                  activeCategory === cat.id
-                    ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-xs"
-                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
-                }`}
+                type="button"
+                onClick={() => {
+                  setSearchExpanded(true);
+                  setTimeout(() => searchInputRef.current?.focus(), 50);
+                }}
+                title="Search by name, bot, session..."
+                className="xl:hidden p-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer"
               >
-                {cat.label}
+                <Search className="size-3.5" />
               </button>
-            ))}
+            )}
+
+            {/* Full search input on xl+ screens */}
+            <div className="hidden xl:block relative w-64">
+              <Search className="absolute left-2.5 top-2.5 size-3.5 text-neutral-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name, bot, session..."
+                className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="relative w-full sm:w-56">
-          <Search className="absolute left-2.5 top-2.5 size-3.5 text-neutral-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, bot, session..."
-            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
-          />
-        </div>
+        {/* Expanded search bar for <xl screens when icon is clicked or query is active */}
+        {(searchExpanded || Boolean(searchQuery)) && (
+          <div className="xl:hidden relative w-full flex items-center gap-2 animate-in fade-in duration-150">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 size-3.5 text-neutral-400 pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by file name, chatbot, or session..."
+                className="w-full pl-8 pr-8 py-1.5 text-xs rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white placeholder:text-neutral-400 focus:outline-hidden focus:ring-1 focus:ring-sky-500"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSearchExpanded(false);
+                }}
+                title="Close search"
+                className="absolute right-2.5 top-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Files Table */}
@@ -638,12 +699,12 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                     )}
                   </button>
                 </th>
-                <th className="py-2.5 px-3">File / Asset Name</th>
-                <th className="py-2.5 px-3">Chatbot</th>
-                <th className="py-2.5 px-3">Category</th>
-                <th className="py-2.5 px-3">Size</th>
-                <th className="py-2.5 px-3">Uploaded / Indexed</th>
-                <th className="py-2.5 px-3 text-right">Actions</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">File / Asset Name</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Chatbot</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Category</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Size</th>
+                <th className="py-2.5 px-3 whitespace-nowrap">Uploaded / Indexed</th>
+                <th className="py-2.5 px-3 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/60 font-mono">
@@ -691,7 +752,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                       </td>
 
                       <td className="py-2.5 px-3 font-sans">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap shrink-0 bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
                           <BotIcon className="size-3 text-sky-500" />
                           {f.bot_name || "Bot"}
                         </span>
@@ -699,7 +760,7 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
 
                       <td className="py-2.5 px-3 font-sans">
                         <span
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          className={`inline-flex items-center text-[10px] font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap shrink-0 ${
                             f.category === "visitor_uploads"
                               ? "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300"
                               : f.category === "catalog_media"
@@ -713,11 +774,11 @@ export function StorageManagementPanel({ botId, onStorageUpdated }: StorageManag
                         </span>
                       </td>
 
-                      <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 font-mono text-[11px]">
+                      <td className="py-2.5 px-3 text-neutral-700 dark:text-neutral-300 font-mono text-[11px] whitespace-nowrap">
                         {f.size_formatted}
                       </td>
 
-                      <td className="py-2.5 px-3 text-neutral-500 font-sans text-[11px]">
+                      <td className="py-2.5 px-3 text-neutral-500 font-sans text-[11px] whitespace-nowrap">
                         {f.created_at ? new Date(f.created_at).toLocaleString() : "—"}
                       </td>
 
