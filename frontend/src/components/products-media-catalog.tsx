@@ -139,6 +139,12 @@ export function ProductsMediaCatalog({
   const [filterType, setFilterType] = useState<"all" | "product" | "video">("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState<boolean>(false);
+  const [disconnectingWc, setDisconnectingWc] = useState<boolean>(false);
+  const fetchRef = useRef(fetchWithFallback);
+  useEffect(() => {
+    fetchRef.current = fetchWithFallback;
+  }, [fetchWithFallback]);
 
   // Manual Product Form State
   const [prodTitle, setProdTitle] = useState<string>("");
@@ -218,29 +224,38 @@ export function ProductsMediaCatalog({
   }, [vidDesc, resizeDescription]);
 
   // Fetch WooCommerce Status
-  const loadWcStatus = useCallback(async () => {
-    if (!botId) return;
+  const loadWcStatus = useCallback(async (silent = false) => {
+    if (!botId) {
+      setLoadingWc(false);
+      return;
+    }
     try {
-      setLoadingWc(true);
-      const res = await fetchWithFallback(`/api/bots/${botId}/integrations/woocommerce`);
+      if (!silent) setLoadingWc(true);
+      const res = await fetchRef.current(`/api/bots/${botId}/integrations/woocommerce`);
       if (res.ok) {
         const data: WooCommerceStatus = await res.json();
         setWcStatus(data);
         setSyncingWc(data.sync_status === "syncing");
+      } else {
+        setWcStatus({ connected: false });
       }
     } catch (err) {
       console.error("Failed to load WooCommerce status", err);
+      setWcStatus((prev) => prev ?? { connected: false });
     } finally {
       setLoadingWc(false);
     }
-  }, [botId, fetchWithFallback]);
+  }, [botId]);
 
   // Fetch Catalog Items
-  const loadCatalogItems = useCallback(async () => {
-    if (!botId) return;
+  const loadCatalogItems = useCallback(async (silent = false) => {
+    if (!botId) {
+      setLoadingItems(false);
+      return;
+    }
     try {
-      setLoadingItems(true);
-      const res = await fetchWithFallback(`/api/bots/${botId}/media-items?limit=100`);
+      if (!silent) setLoadingItems(true);
+      const res = await fetchRef.current(`/api/bots/${botId}/media-items?limit=100`);
       if (res.ok) {
         const data = await res.json();
         setItems(data.items || []);
@@ -250,13 +265,16 @@ export function ProductsMediaCatalog({
     } finally {
       setLoadingItems(false);
     }
-  }, [botId, fetchWithFallback]);
+  }, [botId]);
 
   const loadCatalogWebhook = useCallback(async () => {
-    if (!botId) return;
+    if (!botId) {
+      setLoadingCatalogWebhook(false);
+      return;
+    }
     try {
       setLoadingCatalogWebhook(true);
-      const res = await fetchWithFallback(`/api/bots/${botId}/media-webhook`);
+      const res = await fetchRef.current(`/api/bots/${botId}/media-webhook`);
       if (res.ok) {
         setCatalogWebhook(await res.json());
         setCatalogWebhookError(null);
@@ -269,7 +287,7 @@ export function ProductsMediaCatalog({
     } finally {
       setLoadingCatalogWebhook(false);
     }
-  }, [botId, fetchWithFallback]);
+  }, [botId]);
 
   useEffect(() => {
     loadWcStatus();
@@ -457,17 +475,79 @@ export function ProductsMediaCatalog({
   };
 
   // Handle Disconnect WooCommerce
-  const handleDisconnectWc = async () => {
-    if (!await confirm("Are you sure you want to disconnect your WooCommerce store?")) return;
+  const handleDisconnectWc = async (deleteSynced = false) => {
+    const promptText = deleteSynced
+      ? "Disconnect your WooCommerce store AND remove all synced WooCommerce products from Chatty? (Your actual WooCommerce store products will NOT be touched.)"
+      : "Are you sure you want to disconnect your WooCommerce store? (Already synced products will stay in Chatty unless you delete them.)";
+    if (!await confirm(promptText)) return;
+    setDisconnectingWc(true);
+    setWcError(null);
     try {
-      const res = await fetchWithFallback(`/api/bots/${botId}/integrations/woocommerce`, {
+      const url = `/api/bots/${botId}/integrations/woocommerce${deleteSynced ? "?delete_synced_items=true" : ""}`;
+      const res = await fetchRef.current(url, {
         method: "DELETE",
       });
       if (res.ok) {
-        await loadWcStatus();
+        setSyncingWc(false);
+        setWcStatus({ connected: false, product_count: deleteSynced ? 0 : wcStatus?.product_count });
+        setWcSuccessMsg(
+          deleteSynced
+            ? "WooCommerce store disconnected and synced products removed from Chatty."
+            : "WooCommerce store disconnected."
+        );
+        if (deleteSynced) {
+          setItems((prev) => prev.filter((it) => (it.metadata?.source || "manual") !== "woocommerce"));
+        }
+        await loadWcStatus(true);
+        if (deleteSynced) await loadCatalogItems(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setWcError(err.detail || "Failed to disconnect store.");
       }
     } catch (err) {
       console.error("Disconnect failed", err);
+      setWcError("Failed to disconnect store.");
+    } finally {
+      setDisconnectingWc(false);
+    }
+  };
+
+  // Handle Delete Synced WooCommerce Products from Chatty Only
+  const handleClearWcItemsFromChatty = async () => {
+    if (!await confirm("Delete all synced WooCommerce products from Chatty's AI catalog? This ONLY removes them from Chatty and will NEVER delete or modify anything in your WooCommerce store.")) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetchRef.current(`/api/bots/${botId}/media-items?source=woocommerce`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setItems((prev) => prev.filter((it) => (it.metadata?.source || "manual") !== "woocommerce"));
+        setWcStatus((prev) => (prev ? { ...prev, product_count: 0, synced_products: 0 } : prev));
+        setWcSuccessMsg("All synced WooCommerce products have been removed from Chatty (your WooCommerce store is untouched).");
+      }
+    } catch (err) {
+      console.error("Failed to clear WooCommerce products from Chatty", err);
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  // Handle Delete All Catalog Items from Chatty Only
+  const handleClearAllCatalogItems = async () => {
+    if (!await confirm(`Delete all ${items.length} indexed catalog items from Chatty? This only clears Chatty's AI catalog and never affects your external store.`)) return;
+    setBulkDeleting(true);
+    try {
+      const res = await fetchRef.current(`/api/bots/${botId}/media-items`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setItems([]);
+        setWcStatus((prev) => (prev ? { ...prev, product_count: 0, synced_products: 0 } : prev));
+      }
+    } catch (err) {
+      console.error("Failed to clear catalog items", err);
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -596,6 +676,8 @@ export function ProductsMediaCatalog({
     setCopiedField(fieldName);
     setTimeout(() => setCopiedField(null), 2000);
   };
+
+  const wcItemsCount = items.filter((it) => (it.metadata?.source || "manual") === "woocommerce").length;
 
   // Filter items
   const filteredItems = items.filter((item) => {
@@ -789,6 +871,24 @@ export function ProductsMediaCatalog({
                 <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 flex items-start gap-2.5 text-red-600 dark:text-red-400 text-xs">
                   <AlertCircle className="size-4 shrink-0 mt-0.5" />
                   <span>{wcError}</span>
+                </div>
+              )}
+
+              {wcItemsCount > 0 && (
+                <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="text-amber-900 dark:text-amber-200">
+                    <span className="font-semibold">{wcItemsCount} previously synced WooCommerce {wcItemsCount === 1 ? "product is" : "products are"} still in Chatty.</span>{" "}
+                    <span className="text-amber-700 dark:text-amber-300/90">You can remove them from Chatty without affecting your WooCommerce store.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleClearWcItemsFromChatty}
+                    disabled={bulkDeleting}
+                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto cursor-pointer transition-colors disabled:opacity-50"
+                  >
+                    {bulkDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    <span>Delete Synced Products (Chatty Only)</span>
+                  </button>
                 </div>
               )}
 
@@ -998,12 +1098,26 @@ export function ProductsMediaCatalog({
                       <span>{syncingWc ? "Syncing..." : "Import All Products"}</span>
                     </button>
 
+                    {wcItemsCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearWcItemsFromChatty}
+                        disabled={bulkDeleting || disconnectingWc}
+                        title="Removes synced products from Chatty's AI catalog only. Never deletes from your WooCommerce store."
+                        className="px-3 py-2 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {bulkDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                        <span>Clear Synced (Chatty Only)</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
-                      onClick={handleDisconnectWc}
-                      className="px-3 py-2 border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-red-500 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      onClick={() => handleDisconnectWc(false)}
+                      disabled={disconnectingWc}
+                      className="px-3 py-2 border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-red-500 rounded-xl text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      Disconnect
+                      {disconnectingWc ? "Disconnecting..." : "Disconnect"}
                     </button>
                   </div>
                 </div>
@@ -1580,13 +1694,39 @@ export function ProductsMediaCatalog({
 
             <button
               type="button"
-              onClick={loadCatalogItems}
+              onClick={() => loadCatalogItems(false)}
               disabled={loadingItems}
               className="p-2 border border-neutral-200 dark:border-neutral-800 rounded-lg text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
               title="Refresh Catalog"
             >
               <RefreshCw className={`size-3.5 ${loadingItems ? "animate-spin" : ""}`} />
             </button>
+
+            {wcItemsCount > 0 && (
+              <button
+                type="button"
+                onClick={handleClearWcItemsFromChatty}
+                disabled={bulkDeleting}
+                title="Delete all synced WooCommerce products from Chatty only (does not affect your WooCommerce store)"
+                className="px-2.5 py-1.5 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100/70 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {bulkDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                <span>Delete WooCommerce Syncs ({wcItemsCount})</span>
+              </button>
+            )}
+
+            {items.length > 0 && wcItemsCount === 0 && (
+              <button
+                type="button"
+                onClick={handleClearAllCatalogItems}
+                disabled={bulkDeleting}
+                title="Delete all items from Chatty's catalog"
+                className="px-2.5 py-1.5 border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 hover:bg-rose-100/70 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {bulkDeleting ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                <span>Clear Catalog ({items.length})</span>
+              </button>
+            )}
           </div>
           </div>
         </div>

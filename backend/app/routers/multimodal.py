@@ -292,6 +292,34 @@ async def create_media_item(
         raise HTTPException(status_code=500, detail=f"Failed to ingest item: {exc}") from exc
 
 
+@router.delete("/api/bots/{bot_id}/media-items")
+async def bulk_delete_media_items(
+    bot_id: str,
+    source: Optional[str] = Query(None, description="Optional metadata.source filter, e.g. woocommerce or manual"),
+    media_type: Optional[str] = Query(None, description="Optional media_type filter, e.g. product or video"),
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Bulk delete catalog items from Chatty only (never deletes from the external store)."""
+    await verify_bot_permission(bot_id, user, "sources")
+
+    def _run_delete():
+        q = supabase.table("chatty_media_items").delete().eq("bot_id", bot_id)
+        if source:
+            q = q.contains("metadata", {"source": source})
+        if media_type:
+            q = q.eq("media_type", media_type)
+        return q.execute()
+
+    res = await run_db(_run_delete)
+    deleted_count = len(res.data or [])
+    return {
+        "deleted": True,
+        "deleted_count": deleted_count,
+        "source": source,
+        "media_type": media_type,
+    }
+
+
 @router.delete("/api/bots/{bot_id}/media-items/{item_id}")
 async def delete_media_item(
     bot_id: str,
