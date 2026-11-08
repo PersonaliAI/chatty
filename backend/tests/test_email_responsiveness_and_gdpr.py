@@ -13,6 +13,8 @@ from plugins.notifications import (
     build_admin_email_html,
     build_team_invite_email_html,
     build_booking_otp_email_html,
+    build_cancel_email_html,
+    build_meeting_reply_email_html,
 )
 from app.services.email_templates_common import (
     COMPANY_LEGAL_NAME,
@@ -29,6 +31,7 @@ def _assert_mobile_responsive(html: str) -> None:
     assert "@media only screen and (max-width: 600px)" in html
     assert "email-container" in html
     assert "email-wrapper" in html
+    assert "height: auto !important" in html
     assert "width:100%" in html.replace(" ", "") or "width: 100%" in html
 
 
@@ -36,6 +39,7 @@ def _assert_gdpr_compliant(html: str, *, expect_unsubscribe: bool = False) -> No
     """Assert GDPR compliance elements."""
     assert COMPANY_LEGAL_NAME in html
     assert "San Francisco" in html
+    assert f"{COMPANY_LEGAL_NAME} &bull; {COMPANY_LEGAL_NAME}" not in html
     assert PRIVACY_POLICY_URL in html
     assert TERMS_OF_SERVICE_URL in html
     assert DPO_EMAIL in html
@@ -158,3 +162,23 @@ def test_booking_notifications_email_responsive_and_gdpr():
     _assert_gdpr_compliant(otp_html, expect_unsubscribe=False)
     assert "839201" in otp_html
     assert "Verify your email to confirm booking" in otp_html
+
+    # 4. Meeting cancellation & thread reply
+    cancel_html = build_cancel_email_html(
+        visitor_name="John Smith",
+        summary="Product Architecture Discovery",
+        start="November 12, 2026 at 10:00 AM",
+        timezone_label="EST",
+    )
+    _assert_mobile_responsive(cancel_html)
+    _assert_gdpr_compliant(cancel_html, expect_unsubscribe=False)
+    assert "Meeting cancelled" in cancel_html
+    assert "Product Architecture Discovery" in cancel_html
+
+    reply_html = build_meeting_reply_email_html(
+        title="Re: Product Architecture Discovery",
+        reply_text="Sure, 3pm works great!",
+    )
+    _assert_mobile_responsive(reply_html)
+    _assert_gdpr_compliant(reply_html, expect_unsubscribe=False)
+    assert "Sure, 3pm works great!" in reply_html

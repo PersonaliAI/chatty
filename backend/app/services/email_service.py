@@ -84,7 +84,7 @@ def render_ticket_email_html(
     footer_html = render_gdpr_footer_html(
         reason_text=f"You received this customer service email in response to your support inquiry regarding Ticket #{session_id[:8]} with {escaped_bot}.",
         preferences_url=None,
-        support_email=RESEND_EMAIL_FROM,
+        support_email=extract_email(RESEND_EMAIL_FROM) or "support@personaliai.com",
         brand_color="#6366f1",
         dark_mode=False,
         is_marketing=False,
@@ -107,7 +107,7 @@ def render_ticket_email_html(
                     <span style="color:#ffffff;font-size:16px;font-weight:700;letter-spacing:-0.02em;">{escaped_bot} Support</span>
                   </td>
                   <td align="right" class="email-stack-col-right">
-                    <span style="display:inline-block;background-color:#1e293b;color:#94a3b8;font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;font-family:monospace;">Ticket #{session_id[:8]}</span>
+                    <span class="email-badge" style="display:inline-block;background-color:#1e293b;color:#94a3b8;font-size:11px;font-weight:600;line-height:1.4;padding:6px 12px;border-radius:999px;font-family:monospace;">Ticket #{session_id[:8]}</span>
                   </td>
                 </tr>
               </table>

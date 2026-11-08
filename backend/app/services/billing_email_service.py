@@ -74,17 +74,25 @@ def _render_base_email(
 
     box_html = ""
     if highlight_box:
-        box_rows = "".join(
-            f'<tr class="email-table-row">'
-            f'<td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;font-weight:500;">{_html.escape(k)}</td>'
-            f'<td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(v)}</td>'
-            f'</tr>'
-            for k, v in highlight_box.items()
-        )
+        items = list(highlight_box.items())
+        box_rows_list = []
+        for idx, (k, v) in enumerate(items):
+            is_last = idx == len(items) - 1
+            row_cls = "email-table-row email-table-row-last" if is_last else "email-table-row"
+            border_css = "" if is_last else "border-bottom:1px solid #e2e8f0;"
+            box_rows_list.append(
+                f'<tr class="{row_cls}">'
+                f'<td class="email-summary-label" style="padding:8px 12px 8px 0;{border_css}font-size:13px;line-height:20px;color:#64748b;font-weight:500;">{_html.escape(k)}</td>'
+                f'<td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;{border_css}font-size:13px;line-height:20px;color:#0f172a;font-weight:600;word-break:break-word;">{_html.escape(v)}</td>'
+                f'</tr>'
+            )
+        box_rows = "".join(box_rows_list)
         box_html = f"""
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;">
-          {box_rows}
-        </table>
+        <div class="email-summary-box" style="margin:20px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            {box_rows}
+          </table>
+        </div>
         """
 
     secondary_html = ""
@@ -123,7 +131,7 @@ def _render_base_email(
                     <span style="color:#64748b;font-size:13px;margin-left:8px;font-weight:400;">by PersonaliAI</span>
                   </td>
                   <td align="right" class="email-stack-col-right">
-                    <span style="display:inline-block;background-color:{badge_bg};color:{badge_color};font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:0.04em;text-transform:uppercase;">
+                    <span class="email-badge" style="display:inline-block;background-color:{badge_bg};color:{badge_color};font-size:11px;font-weight:700;line-height:1.4;padding:6px 14px;border-radius:999px;letter-spacing:0.04em;text-transform:uppercase;">
                       {escaped_badge}
                     </span>
                   </td>
@@ -147,7 +155,7 @@ def _render_base_email(
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 16px;">
                 <tr>
                   <td align="center">
-                    <a href="{escaped_cta_url}" target="_blank" class="email-btn" style="display:inline-block;background-color:#4f46e5;background-image:linear-gradient(135deg,#6366f1,#4f46e5);color:#ffffff;font-size:15px;font-weight:600;line-height:48px;height:48px;padding:0 32px;border-radius:10px;text-decoration:none;box-shadow:0 4px 14px rgba(79,70,229,0.35);">
+                    <a href="{escaped_cta_url}" target="_blank" class="email-btn" style="display:inline-block;background-color:#4f46e5;background-image:linear-gradient(135deg,#6366f1,#4f46e5);color:#ffffff;font-size:15px;font-weight:600;line-height:1.4;height:auto;padding:14px 28px;border-radius:10px;text-decoration:none;text-align:center;box-shadow:0 4px 14px rgba(79,70,229,0.35);">
                       {escaped_cta} &rarr;
                     </a>
                   </td>

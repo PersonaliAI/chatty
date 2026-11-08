@@ -1442,13 +1442,16 @@ async def handle_payment_return_redirect(
         email_config=email_cfg,
     )
     top_bar = (
-        '<div style="background:#0f172a;color:#ffffff;padding:12px 20px;text-align:center;'
+        '<div style="background:#0f172a;color:#ffffff;padding:12px 16px;text-align:center;'
         'font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:13px;display:flex;'
-        'align-items:center;justify-content:center;gap:16px;">'
+        'flex-wrap:wrap;align-items:center;justify-content:center;gap:12px;">'
         '<span>✅ Payment verified &amp; confirmed. You may now return to the chat conversation.</span>'
         '<button onclick="window.close()" style="background:#10b981;color:#ffffff;border:none;'
-        'padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">'
+        'padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">'
         'Close Tab &amp; Return to Chat</button></div>'
     )
-    full_page = receipt_html.replace("<body>", f"<body>{top_bar}", 1) if "<body>" in receipt_html else (top_bar + receipt_html)
+    if "<body" in receipt_html:
+        full_page = re.sub(r"(<body[^>]*>)", r"\1" + top_bar, receipt_html, count=1)
+    else:
+        full_page = top_bar + receipt_html
     return HTMLResponse(content=full_page, status_code=200)

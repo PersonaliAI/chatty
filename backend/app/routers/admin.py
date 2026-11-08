@@ -2534,28 +2534,28 @@ async def admin_create_affiliate_payout(
     payout_email = aff_res.data[0].get("payout_email")
     referral_code = aff_res.data[0].get("referral_code") or "Partner"
     if payout_email:
+        import html as _html
         formatted_amount = f"${body.amount_cents / 100:.2f}"
-        tx_line = f"<p style='margin: 0; color: #525252;'><strong>PayPal Transaction ID:</strong> <code>{body.external_payout_id}</code></p>" if body.external_payout_id else ""
-        email_html = f"""
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e5e5e5; border-radius: 16px;">
-            <div style="margin-bottom: 16px;">
-                <span style="background: #ffedd5; color: #ea580c; font-weight: 700; font-size: 11px; padding: 4px 8px; border-radius: 9999px; text-transform: uppercase;">Affiliate Payout</span>
-            </div>
-            <h2 style="color: #171717; margin: 0 0 12px 0;">Payment Disbursed to Your PayPal!</h2>
-            <p style="color: #525252; line-height: 1.5; margin: 0 0 16px 0;">Hi {referral_code},</p>
-            <p style="color: #525252; line-height: 1.5; margin: 0 0 16px 0;">We have disbursed your Chatty affiliate commission payment of <strong>{formatted_amount} USD</strong> to your PayPal account.</p>
-            <div style="background: #f5f5f5; padding: 16px; border-radius: 12px; margin: 16px 0;">
-                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Amount:</strong> {formatted_amount} USD</p>
-                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Payment Method:</strong> PayPal ({payout_email})</p>
-                <p style="margin: 0 0 8px 0; color: #525252;"><strong>Date:</strong> {datetime.now(timezone.utc).strftime('%B %d, %Y')}</p>
-                {tx_line}
-            </div>
-            <p style="color: #525252; line-height: 1.5; margin: 0 0 20px 0;">Your dashboard balance has been updated. Keep sharing your link to continue earning recurring monthly revenue!</p>
-            <div>
-                <a href="https://chatty.personaliai.com/dashboard" style="display: inline-block; background: #171717; color: #ffffff; padding: 10px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; font-size: 13px;">View Dashboard</a>
-            </div>
-        </div>
-        """
+        safe_ref = _html.escape(str(referral_code))
+        safe_payout_email = _html.escape(str(payout_email))
+        payout_rows = [
+            ("Amount", f"{formatted_amount} USD"),
+            ("Payment Method", f"PayPal ({safe_payout_email})"),
+            ("Date", datetime.now(timezone.utc).strftime("%B %d, %Y")),
+        ]
+        if body.external_payout_id:
+            payout_rows.append(("PayPal Transaction ID", f"<code>{_html.escape(str(body.external_payout_id))}</code>"))
+        email_html = notify._email_shell(
+            title="Payment Disbursed to Your PayPal!",
+            intro=(
+                f"Hi {safe_ref}, we have disbursed your Chatty affiliate commission payment of "
+                f"<strong>{formatted_amount} USD</strong> to your PayPal account."
+            ),
+            rows=payout_rows,
+            cta_label="View Dashboard",
+            cta_url="https://chatty.personaliai.com/dashboard",
+            footer="Your dashboard balance has been updated. Keep sharing your link to continue earning recurring monthly revenue!",
+        )
         try:
             for _, sender in notify._email_channels():
                 if await sender(to=payout_email, subject=f"Payment Sent: {formatted_amount} USD Chatty Affiliate Commission", html=email_html):

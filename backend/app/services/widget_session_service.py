@@ -96,10 +96,13 @@ async def notify_new_conversation(
 
         for to in recipients:
             try:
+                import html as _html
+                safe_bot_name = _html.escape(str(bot_name))
+                safe_first_msg = _html.escape((first_message or "")[:200] or "(attachment)")
                 html = notify._email_shell(
                     title="New conversation started",
-                    intro=f"A visitor just started chatting with <strong>{bot_name}</strong> on your website.",
-                    rows=[("First message", (first_message or "")[:200] or "(attachment)")],
+                    intro=f"A visitor just started chatting with <strong>{safe_bot_name}</strong> on your website.",
+                    rows=[("First message", safe_first_msg)],
                     cta_label="Open your inbox",
                     cta_url="https://chatty.personaliai.com/dashboard",
                     footer="Reply from the Inbox tab in your Chatty dashboard.",

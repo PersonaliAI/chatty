@@ -1169,13 +1169,11 @@ async def cancel_meeting_core(
     name = html.escape(meeting.get("attendee_name") or "there")
     meeting_id = meeting.get("id")
     reply_to = _meeting_reply_to(meeting_id) if meeting_id else None
-    cancel_html = (
-        "<div style='font-family:sans-serif;max-width:520px;line-height:1.6'>"
-        "<h2 style='color:#dc2626;margin:0 0 8px'>Meeting cancelled</h2>"
-        f"<p>Hi {name},</p>"
-        f"<p>Your meeting <b>{title}</b> scheduled for <b>{start} ({tz_label})</b> has been cancelled.</p>"
-        "<p>If this was unexpected or you'd like to rebook, just start a new chat with us.</p>"
-        "</div>"
+    cancel_html = notify.build_cancel_email_html(
+        visitor_name=meeting.get("attendee_name") or "there",
+        summary=meeting.get("title") or "your meeting",
+        start=meeting.get("start_time") or "",
+        timezone_label=bot.get("bot_timezone") or "UTC",
     )
     try:
         client_subject = f"Meeting cancelled: {title}"
@@ -1392,8 +1390,10 @@ async def handle_meeting_email_reply(supabase, meeting: dict, inbound_from_email
 
         reply_to = _meeting_reply_to(meeting_id)
         subject = f"Re: {meeting.get('title') or 'Meeting'}"
-        html_body = "<div style='font-family:sans-serif;font-size:14px;line-height:1.6;color:#222'>" + \
-            reply_text.strip().replace("\n", "<br>") + "</div>"
+        html_body = notify.build_meeting_reply_email_html(
+            title=subject,
+            reply_text=reply_text.strip(),
+        )
         to_email = meeting.get("attendee_email") or inbound_from_email
         await notify.deliver_email(
             supabase=supabase, owner_user=host_user, to=to_email,

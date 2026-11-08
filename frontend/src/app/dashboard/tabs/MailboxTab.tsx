@@ -34,12 +34,13 @@ export function MailboxTab({
   const statusBadge = (s: string) => {
     const map: Record<string, string> = {
       sent: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
+      sent_resend: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
       sent_gmail: "bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400",
       logged: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400",
     };
-    const label = s === "sent_gmail" ? "sent (gmail)" : s === "logged" ? "logged only" : s;
+    const label = s === "sent_gmail" ? "sent (gmail)" : s === "sent_resend" ? "sent (resend)" : s === "logged" ? "logged only" : s;
     return (
-      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full capitalize ${map[s] || "bg-neutral-100 text-neutral-500"}`}>
+      <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full capitalize shrink-0 ${map[s] || "bg-neutral-100 text-neutral-500"}`}>
         {label}
       </span>
     );
@@ -110,7 +111,7 @@ export function MailboxTab({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                      className={`text-[9px] font-bold uppercase px-2.5 py-1 rounded-full ${
                         m.type === "admin"
                           ? "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400"
                           : "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400"
@@ -139,7 +140,7 @@ export function MailboxTab({
                     <h5 className="text-sm font-bold text-neutral-800 dark:text-neutral-200">{selected.subject}</h5>
                     {statusBadge(selected.status || "")}
                   </div>
-                  <div className="flex items-center gap-3 mt-1.5 text-[10px] text-neutral-400">
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[10px] text-neutral-400">
                     <span>
                       To: <span className="text-neutral-600 dark:text-neutral-300 font-medium">{selected.recipient}</span>
                     </span>

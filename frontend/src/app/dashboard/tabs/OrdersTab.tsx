@@ -902,11 +902,11 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
               </div>
 
               <div className="lg:col-span-7 space-y-3">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
                     Live Email Preview
                   </span>
-                  <div className="flex items-center gap-1 rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1">
+                  <div className="flex items-center gap-1 flex-wrap rounded-xl bg-neutral-100 dark:bg-neutral-800 p-1">
                     {[
                       { id: "succeeded", label: "Paid Receipt" },
                       { id: "refunded", label: "Refund Issued" },
@@ -916,7 +916,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         key={t.id}
                         type="button"
                         onClick={() => setEmailPreviewTab(t.id as "succeeded" | "refunded" | "pending")}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${
+                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer whitespace-nowrap ${
                           emailPreviewTab === t.id
                             ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-2xs"
                             : "text-neutral-500"
@@ -930,7 +930,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
 
                 <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 overflow-hidden shadow-xs">
                   <div
-                    className="px-5 py-4 text-white flex items-center justify-between"
+                    className="px-4 sm:px-5 py-4 text-white flex items-center justify-between gap-3 flex-wrap"
                     style={{
                       backgroundColor:
                         emailPreviewTab === "succeeded"
@@ -940,7 +940,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                           : "#d97706",
                     }}
                   >
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-[10px] font-bold uppercase tracking-widest opacity-85">
                         {emailPreviewTab === "succeeded"
                           ? "Payment Confirmed"
@@ -948,7 +948,7 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                           ? "Refund Processed"
                           : "Awaiting Payment"}
                       </div>
-                      <div className="text-sm font-extrabold mt-0.5">
+                      <div className="text-sm font-extrabold mt-0.5 leading-snug">
                         {emailPreviewTab === "succeeded"
                           ? "Thank you for your purchase!"
                           : emailPreviewTab === "refunded"
@@ -956,12 +956,12 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                           : "Complete your secure checkout"}
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-white/20">
+                    <span className="shrink-0 whitespace-nowrap px-3 py-1 rounded-full text-[10px] font-bold leading-snug bg-white/20">
                       Official Receipt
                     </span>
                   </div>
 
-                  <div className="p-5 space-y-3 text-xs">
+                  <div className="p-4 sm:p-5 space-y-3.5 text-xs">
                     <p className="text-neutral-600 dark:text-neutral-300 leading-relaxed">
                       Hi <b>Customer</b>,{" "}
                       {emailPreviewTab === "succeeded"
@@ -970,26 +970,48 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                         ? "your refund has been processed back to your original payment method."
                         : "your secure checkout link is ready below:"}
                     </p>
-                    <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Order Item</span>
+                    <div className="px-4 py-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-200/70 dark:divide-neutral-800">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-3 py-2 first:pt-0">
+                        <span className="text-neutral-500 font-medium">Order Item</span>
                         <span className="font-bold text-neutral-900 dark:text-white">AI Growth Package</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Total Amount</span>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-0.5 sm:gap-3 py-2">
+                        <span className="text-neutral-500 font-medium">Total Amount</span>
                         <span className="font-mono font-extrabold text-sm text-neutral-900 dark:text-white">$199.00 USD</span>
+                      </div>
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3 py-2 last:pb-0">
+                        <span className="text-neutral-500 font-medium">Payment Status</span>
+                        <span className="font-semibold text-neutral-900 dark:text-white">
+                          {emailPreviewTab === "succeeded"
+                            ? "Paid & Confirmed"
+                            : emailPreviewTab === "refunded"
+                            ? "Refunded"
+                            : "Pending Payment"}
+                        </span>
                       </div>
                     </div>
                     {receiptCustomMessage && (
                       <div
-                        className="p-3 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border-l-4 text-[11px] text-neutral-700 dark:text-neutral-300"
+                        className="p-3.5 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border-l-4 text-[11px] text-neutral-700 dark:text-neutral-300 leading-relaxed"
                         style={{ borderLeftColor: receiptBrandColor || "#ea580c" }}
                       >
                         {receiptCustomMessage}
                       </div>
                     )}
+                    <div className="pt-1 text-center">
+                      <span
+                        className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-xs leading-snug text-center"
+                        style={{ backgroundColor: receiptBrandColor || "#ea580c" }}
+                      >
+                        {emailPreviewTab === "succeeded"
+                          ? "View Order Confirmation →"
+                          : emailPreviewTab === "refunded"
+                          ? "Contact Support →"
+                          : "Pay $199.00 USD Now →"}
+                      </span>
+                    </div>
                     {receiptSupportEmail && (
-                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400">
+                      <div className="pt-2.5 border-t border-neutral-100 dark:border-neutral-800 text-[11px] text-neutral-400 break-words">
                         Questions? Contact <span className="font-semibold text-neutral-700 dark:text-neutral-300">{receiptSupportEmail}</span>
                       </div>
                     )}

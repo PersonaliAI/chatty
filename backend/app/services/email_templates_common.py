@@ -21,12 +21,22 @@ from typing import Optional
 
 COMPANY_LEGAL_NAME = "PersonaliAI, Inc."
 COMPANY_BRAND = "Chatty by PersonaliAI"
-COMPANY_ADDRESS = "PersonaliAI, Inc. • 548 Market St, Suite 34220, San Francisco, CA 94104, USA"
+COMPANY_ADDRESS = "548 Market St, Suite 34220, San Francisco, CA 94104, USA"
 PRIVACY_POLICY_URL = "https://chatty.personaliai.com/privacy"
 TERMS_OF_SERVICE_URL = "https://chatty.personaliai.com/terms"
 PREFERENCES_URL = "https://chatty.personaliai.com/dashboard/settings"
 SUPPORT_EMAIL = "support@personaliai.com"
 DPO_EMAIL = "privacy@personaliai.com"
+
+
+def _clean_email_address(addr: str) -> str:
+    """Extract raw email address from 'Display Name <user@domain.com>' if present."""
+    raw = (addr or "").strip()
+    start = raw.find("<")
+    end = raw.find(">", start + 1) if start >= 0 else -1
+    if start >= 0 and end > start + 1:
+        return raw[start + 1 : end].strip()
+    return raw or SUPPORT_EMAIL
 
 
 def render_email_head(title: str, *, custom_css: str = "") -> str:
@@ -52,7 +62,14 @@ def render_email_head(title: str, *, custom_css: str = "") -> str:
     table, td {{
       mso-table-lspace: 0pt;
       mso-table-rspace: 0pt;
-      border-collapse: collapse !important;
+    }}
+    table {{
+      border-spacing: 0 !important;
+      border-collapse: collapse;
+    }}
+    .email-card {{
+      border-collapse: separate !important;
+      border-spacing: 0 !important;
     }}
     img {{
       border: 0;
@@ -69,11 +86,45 @@ def render_email_head(title: str, *, custom_css: str = "") -> str:
     * {{
       box-sizing: border-box;
     }}
+    .email-badge {{
+      display: inline-block;
+      padding: 6px 14px;
+      line-height: 1.4;
+      border-radius: 999px;
+      white-space: nowrap;
+    }}
+    .email-btn {{
+      display: inline-block;
+      height: auto !important;
+      min-height: 44px;
+      line-height: 1.4 !important;
+      padding: 14px 28px;
+      border-radius: 10px;
+      text-align: center;
+      white-space: normal !important;
+      word-break: break-word !important;
+      box-sizing: border-box !important;
+    }}
+    .email-summary-box {{
+      margin: 20px 0;
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px 20px;
+    }}
+    .email-summary-label {{
+      padding: 8px 12px 8px 0;
+      vertical-align: top;
+    }}
+    .email-summary-value {{
+      padding: 8px 0 8px 12px;
+      vertical-align: top;
+    }}
 
     /* Mobile Responsive Overrides (max-width: 600px) */
     @media only screen and (max-width: 600px) {{
       .email-wrapper {{
-        padding: 12px 6px !important;
+        padding: 12px 8px !important;
       }}
       .email-container {{
         width: 100% !important;
@@ -94,15 +145,23 @@ def render_email_head(title: str, *, custom_css: str = "") -> str:
       }}
       .email-headline {{
         font-size: 19px !important;
-        line-height: 25px !important;
+        line-height: 26px !important;
+      }}
+      .email-badge {{
+        white-space: normal !important;
+        padding: 5px 12px !important;
       }}
       .email-btn {{
         display: block !important;
         width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
         min-height: 48px !important;
-        line-height: 48px !important;
-        padding: 0 16px !important;
+        line-height: 1.4 !important;
+        padding: 14px 18px !important;
         text-align: center !important;
+        white-space: normal !important;
+        word-break: break-word !important;
         box-sizing: border-box !important;
       }}
       .email-stack-col {{
@@ -116,23 +175,34 @@ def render_email_head(title: str, *, custom_css: str = "") -> str:
         width: 100% !important;
         max-width: 100% !important;
         text-align: left !important;
-        margin-top: 8px !important;
+        margin-top: 10px !important;
         box-sizing: border-box !important;
+      }}
+      .email-summary-box {{
+        padding: 14px 16px !important;
       }}
       .email-table-row {{
         display: block !important;
         width: 100% !important;
+        padding: 8px 0 !important;
+        border-bottom: 1px solid #e2e8f0 !important;
+      }}
+      .email-table-row-last {{
+        border-bottom: none !important;
       }}
       .email-summary-label {{
         display: block !important;
         width: 100% !important;
-        padding-bottom: 2px !important;
+        padding: 0 0 4px 0 !important;
+        border-bottom: none !important;
+        text-align: left !important;
       }}
       .email-summary-value {{
         display: block !important;
         width: 100% !important;
         text-align: left !important;
-        padding-bottom: 10px !important;
+        padding: 0 !important;
+        border-bottom: none !important;
       }}
     }}
     {custom_css}
@@ -161,7 +231,8 @@ def render_gdpr_footer_html(
     """
     year = datetime.now(timezone.utc).year
     escaped_reason = _html.escape(reason_text)
-    escaped_support = _html.escape(support_email)
+    clean_support = _clean_email_address(support_email)
+    escaped_support = _html.escape(clean_support)
     escaped_brand_color = _html.escape(brand_color)
 
     bg_color = "#090d16" if dark_mode else "#f8fafc"

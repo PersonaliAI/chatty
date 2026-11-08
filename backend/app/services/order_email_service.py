@@ -174,7 +174,7 @@ def render_order_status_email(
                     </span>
                   </td>
                   <td align="right" class="email-stack-col-right">
-                    <span style="display:inline-block;background-color:{badge_bg};color:{badge_color};font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:0.04em;text-transform:uppercase;">
+                    <span class="email-badge" style="display:inline-block;background-color:{badge_bg};color:{badge_color};font-size:11px;font-weight:700;line-height:1.4;padding:6px 14px;border-radius:999px;letter-spacing:0.04em;text-transform:uppercase;">
                       {_html.escape(badge_text)}
                     </span>
                   </td>
@@ -194,36 +194,38 @@ def render_order_status_email(
               </p>
 
               <!-- Order Summary Box -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;">
-                <tr class="email-table-row">
-                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Item / Service</td>
-                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:700;">{_html.escape(title)}</td>
-                </tr>
-                <tr class="email-table-row">
-                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Total Amount</td>
-                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:15px;color:#0f172a;font-weight:800;font-family:monospace;">{_html.escape(amount_str)}</td>
-                </tr>
-                <tr class="email-table-row">
-                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Payment Status</td>
-                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(status_label)}</td>
-                </tr>
-                <tr class="email-table-row">
-                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Payment Gateway</td>
-                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:600;">{_html.escape(provider_label)}</td>
-                </tr>
-                <tr class="email-table-row">
-                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Customer</td>
-                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:500;word-break:break-word;">{_html.escape(customer_name)} ({_html.escape(customer_email or 'N/A')})</td>
-                </tr>
-                <tr class="email-table-row">
-                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Reference ID</td>
-                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:12px;color:#475569;font-family:monospace;word-break:break-all;">{_html.escape(ref_id)}</td>
-                </tr>
-                <tr class="email-table-row">
-                  <td class="email-summary-label" style="padding:6px 0;font-size:13px;color:#64748b;">Date</td>
-                  <td class="email-summary-value" align="right" style="padding:6px 0;font-size:12px;color:#64748b;">{_html.escape(now_str)}</td>
-                </tr>
-              </table>
+              <div class="email-summary-box" style="margin:20px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                  <tr class="email-table-row">
+                    <td class="email-summary-label" style="padding:8px 12px 8px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;font-weight:500;">Item / Service</td>
+                    <td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#0f172a;font-weight:700;word-break:break-word;">{_html.escape(title)}</td>
+                  </tr>
+                  <tr class="email-table-row">
+                    <td class="email-summary-label" style="padding:8px 12px 8px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;font-weight:500;">Total Amount</td>
+                    <td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;border-bottom:1px solid #e2e8f0;font-size:15px;line-height:20px;color:#0f172a;font-weight:800;font-family:monospace;">{_html.escape(amount_str)}</td>
+                  </tr>
+                  <tr class="email-table-row">
+                    <td class="email-summary-label" style="padding:8px 12px 8px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;font-weight:500;">Payment Status</td>
+                    <td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#0f172a;font-weight:600;">{_html.escape(status_label)}</td>
+                  </tr>
+                  <tr class="email-table-row">
+                    <td class="email-summary-label" style="padding:8px 12px 8px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;font-weight:500;">Payment Gateway</td>
+                    <td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#0f172a;font-weight:600;">{_html.escape(provider_label)}</td>
+                  </tr>
+                  <tr class="email-table-row">
+                    <td class="email-summary-label" style="padding:8px 12px 8px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;font-weight:500;">Customer</td>
+                    <td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#0f172a;font-weight:500;word-break:break-word;">{_html.escape(customer_name)} ({_html.escape(customer_email or 'N/A')})</td>
+                  </tr>
+                  <tr class="email-table-row">
+                    <td class="email-summary-label" style="padding:8px 12px 8px 0;border-bottom:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;font-weight:500;">Reference ID</td>
+                    <td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;border-bottom:1px solid #e2e8f0;font-size:12px;line-height:20px;color:#475569;font-family:monospace;word-break:break-all;">{_html.escape(ref_id)}</td>
+                  </tr>
+                  <tr class="email-table-row email-table-row-last">
+                    <td class="email-summary-label" style="padding:8px 12px 8px 0;font-size:13px;line-height:20px;color:#64748b;font-weight:500;">Date</td>
+                    <td class="email-summary-value" align="right" style="padding:8px 0 8px 12px;font-size:12px;line-height:20px;color:#64748b;">{_html.escape(now_str)}</td>
+                  </tr>
+                </table>
+              </div>
 
               {custom_note_html}
 
@@ -231,7 +233,7 @@ def render_order_status_email(
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;">
                 <tr>
                   <td align="center">
-                    <a href="{escaped_cta_url}" target="_blank" class="email-btn" style="display:inline-block;background-color:{escaped_brand_color};color:#ffffff;font-size:14px;font-weight:700;line-height:44px;height:44px;padding:0 28px;border-radius:10px;text-decoration:none;">
+                    <a href="{escaped_cta_url}" target="_blank" class="email-btn" style="display:inline-block;background-color:{escaped_brand_color};color:#ffffff;font-size:14px;font-weight:700;line-height:1.4;height:auto;padding:14px 28px;border-radius:10px;text-decoration:none;text-align:center;">
                       {escaped_cta_text} &rarr;
                     </a>
                   </td>

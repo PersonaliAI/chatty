@@ -86,33 +86,50 @@ def _email_shell(*, title: str, intro: str, rows: list[tuple[str, str]],
                  cta_label: Optional[str] = None, cta_url: Optional[str] = None,
                  footer: str = "") -> str:
     """Fully responsive, bulletproof and GDPR-compliant notification email shell."""
-    rows_html = "".join(
-        f"""
-        <tr class="email-table-row">
-          <td class="email-summary-label" style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#8a8a8a;
-              font-size:12px;text-transform:uppercase;letter-spacing:.04em;width:38%;
-              vertical-align:top;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{label}</td>
-          <td class="email-summary-value" style="padding:10px 0;border-bottom:1px solid #f0f0f0;color:#1c1c1c;
-              font-size:14px;font-weight:600;word-break:break-word;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{value}</td>
-        </tr>"""
-        for label, value in rows
-    )
+    summary_box_html = ""
+    if rows:
+        rows_list = []
+        for idx, (label, value) in enumerate(rows):
+            is_last = idx == len(rows) - 1
+            row_cls = "email-table-row email-table-row-last" if is_last else "email-table-row"
+            border_css = "" if is_last else "border-bottom:1px solid #e2e8f0;"
+            rows_list.append(
+                f"""
+            <tr class="{row_cls}">
+              <td class="email-summary-label" style="padding:9px 12px 9px 0;{border_css}color:#64748b;
+                  font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;width:38%;
+                  vertical-align:top;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{label}</td>
+              <td class="email-summary-value" align="right" style="padding:9px 0 9px 12px;{border_css}color:#0f172a;
+                  font-size:14px;font-weight:600;word-break:break-word;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{value}</td>
+            </tr>"""
+            )
+        rows_html = "".join(rows_list)
+        summary_box_html = f"""
+          <div class="email-summary-box" style="margin:18px 0;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              {rows_html}
+            </table>
+          </div>"""
+
     cta_html = ""
     if cta_label and cta_url:
+        cta_display = cta_label if ("→" in cta_label or "&rarr;" in cta_label) else f"{cta_label} &rarr;"
         cta_html = f"""
-        <tr><td colspan="2" style="padding:28px 0 4px;">
-          <a href="{cta_url}" class="email-btn" style="background:{_BRAND};color:#ffffff;text-decoration:none;
-             display:inline-block;padding:13px 26px;border-radius:10px;font-weight:700;
-             font-size:14px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{cta_label}</a>
-        </td></tr>"""
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 8px;">
+            <tr>
+              <td align="center">
+                <a href="{cta_url}" class="email-btn" style="background:{_BRAND};color:#ffffff;text-decoration:none;
+                   display:inline-block;padding:14px 28px;line-height:1.4;height:auto;border-radius:10px;font-weight:700;
+                   font-size:14px;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{cta_display}</a>
+              </td>
+            </tr>
+          </table>"""
 
     extra_note_html = ""
     if footer:
         extra_note_html = f"""
-        <tr><td colspan="2" class="email-pad-body" style="padding:16px 0 0;">
-          <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;
-             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{footer}</p>
-        </td></tr>"""
+          <p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:#64748b;
+             font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{footer}</p>"""
 
     head_html = render_email_head(title)
     footer_html = render_gdpr_footer_html(
@@ -138,16 +155,14 @@ def _email_shell(*, title: str, intro: str, rows: list[tuple[str, str]],
           <span style="color:#fff;font-size:18px;font-weight:800;letter-spacing:-.02em;
                 font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">✦ Personali AI</span>
         </td></tr>
-        <tr><td class="email-pad-body" style="padding:32px 32px 16px;">
-          <h1 class="email-headline" style="margin:0 0 8px;font-size:20px;color:#111;font-weight:800;
+        <tr><td class="email-pad-body" style="padding:32px 32px 24px;">
+          <h1 class="email-headline" style="margin:0 0 10px;font-size:20px;line-height:28px;color:#111;font-weight:800;
               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{title}</h1>
           <p style="margin:0 0 18px;font-size:14px;line-height:1.6;color:#555;word-break:break-word;
              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">{intro}</p>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-            {rows_html}
-            {cta_html}
-            {extra_note_html}
-          </table>
+          {summary_box_html}
+          {cta_html}
+          {extra_note_html}
         </td></tr>
         {footer_html}
       </table>
@@ -247,6 +262,34 @@ def build_booking_otp_email_html(*, bot_name: str, code: str) -> str:
             ("Expires In", "10 minutes"),
         ],
         footer="If you did not request this appointment, you can safely ignore this email.",
+    )
+
+
+def build_cancel_email_html(*, visitor_name: str, summary: str, start: str, timezone_label: str) -> str:
+    visitor_name_e = _html.escape(visitor_name or "there")
+    summary_e = _html.escape(summary or "your meeting")
+    start_e = _html.escape(start or "")
+    tz_e = _html.escape(timezone_label or "UTC")
+    return _email_shell(
+        title="Meeting cancelled",
+        intro=f"Hi {visitor_name_e}, your meeting <strong>{summary_e}</strong> scheduled for <strong>{start_e} ({tz_e})</strong> has been cancelled.",
+        rows=[
+            ("Meeting", summary_e),
+            ("Original Time", f"{start_e} ({tz_e})"),
+            ("Status", "Cancelled"),
+        ],
+        footer="If this was unexpected or you'd like to rebook, just start a new chat with us or reply to this email.",
+    )
+
+
+def build_meeting_reply_email_html(*, title: str, reply_text: str) -> str:
+    title_e = _html.escape(title or "Meeting Update")
+    reply_html = _html.escape(reply_text or "").replace("\n", "<br/>")
+    return _email_shell(
+        title=title_e,
+        intro=reply_html,
+        rows=[],
+        footer="Need further changes? Simply reply directly to this email.",
     )
 
 
