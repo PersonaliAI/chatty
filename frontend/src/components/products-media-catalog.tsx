@@ -516,17 +516,52 @@ export function ProductsMediaCatalog({
   const handleClearWcItemsFromChatty = async () => {
     if (!await confirm("Delete all synced WooCommerce products from Chatty's AI catalog? This ONLY removes them from Chatty and will NEVER delete or modify anything in your WooCommerce store.")) return;
     setBulkDeleting(true);
+    setWcError(null);
     try {
-      const res = await fetchRef.current(`/api/bots/${botId}/media-items?source=woocommerce`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
+      const wcItems = items.filter((it) => (it.metadata?.source || "manual") === "woocommerce");
+
+      // If store is already disconnected, the existing woocommerce DELETE endpoint with ?delete_synced_items=true
+      // deletes all source=woocommerce items in 1 database query on every backend version without touching connection!
+      let deletedSucceeded = false;
+      if (!wcStatus?.connected) {
+        const wcRes = await fetchRef.current(`/api/bots/${botId}/integrations/woocommerce?delete_synced_items=true`, {
+          method: "DELETE",
+        });
+        if (wcRes.ok) {
+          deletedSucceeded = true;
+        }
+      }
+
+      if (!deletedSucceeded) {
+        // Try bulk media-items endpoint
+        const res = await fetchRef.current(`/api/bots/${botId}/media-items?source=woocommerce`, {
+          method: "DELETE",
+        });
+        if (res.ok) {
+          deletedSucceeded = true;
+        } else if (res.status === 404 || res.status === 405) {
+          // Fallback: delete each WooCommerce item via the per-item DELETE endpoint
+          await Promise.all(
+            wcItems.map((it) =>
+              fetchRef.current(`/api/bots/${botId}/media-items/${it.id}`, {
+                method: "DELETE",
+              })
+            )
+          );
+          deletedSucceeded = true;
+        }
+      }
+
+      if (deletedSucceeded) {
         setItems((prev) => prev.filter((it) => (it.metadata?.source || "manual") !== "woocommerce"));
         setWcStatus((prev) => (prev ? { ...prev, product_count: 0, synced_products: 0 } : prev));
         setWcSuccessMsg("All synced WooCommerce products have been removed from Chatty (your WooCommerce store is untouched).");
+      } else {
+        setWcError("Could not delete synced products. Please refresh and try again.");
       }
     } catch (err) {
       console.error("Failed to clear WooCommerce products from Chatty", err);
+      setWcError("Failed to delete synced products.");
     } finally {
       setBulkDeleting(false);
     }
@@ -541,6 +576,17 @@ export function ProductsMediaCatalog({
         method: "DELETE",
       });
       if (res.ok) {
+        setItems([]);
+        setWcStatus((prev) => (prev ? { ...prev, product_count: 0, synced_products: 0 } : prev));
+      } else if (res.status === 404 || res.status === 405) {
+        // Fallback: delete each item individually
+        await Promise.all(
+          items.map((it) =>
+            fetchRef.current(`/api/bots/${botId}/media-items/${it.id}`, {
+              method: "DELETE",
+            })
+          )
+        );
         setItems([]);
         setWcStatus((prev) => (prev ? { ...prev, product_count: 0, synced_products: 0 } : prev));
       }
