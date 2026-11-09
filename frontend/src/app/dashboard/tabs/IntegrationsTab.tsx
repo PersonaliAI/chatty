@@ -560,7 +560,13 @@ export function IntegrationsTab({
 
   // Slack Escalation Local State
   const [slackUrlDraft, setSlackUrlDraft] = useState(slackWebhookUrl || "");
+  const [savingSlack, setSavingSlack] = useState(false);
   const [testingSlack, setTestingSlack] = useState(false);
+  const [disconnectingSlack, setDisconnectingSlack] = useState(false);
+
+  useEffect(() => {
+    setSlackUrlDraft(slackWebhookUrl || "");
+  }, [slackWebhookUrl]);
 
   // Payment Gateways State (Stripe, Lemon Squeezy, Polar.sh)
   const [paymentProviders, setPaymentProviders] = useState<Record<string, any>>({});
@@ -3749,66 +3755,225 @@ export function IntegrationsTab({
     );
   };
 
-  const renderSlackSection = () => (
-    <div
-      id="integration-slack"
-      className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
-    >
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
-        <div className="flex items-start gap-3.5">
-          <div className="size-12 rounded-2xl bg-[#4A154B]/10 text-[#4A154B] dark:text-[#E01E5A] flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
-            <PlatformIcon domain="slack.com" label="Slack" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-              Slack Live Agent Escalation
-              {slackUrlDraft ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Alert Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
-                  Ready to Configure
-                </span>
-              )}
-            </h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
-              Receive instant alerts in your team&apos;s Slack channel (#support or #leads) whenever a customer triggers human handoff or expresses negative sentiment.
-            </p>
-          </div>
-        </div>
-      </div>
+  const handleSaveSlackWebhook = async () => {
+    const cleanUrl = slackUrlDraft.trim();
+    if (!cleanUrl) return;
+    if (!cleanUrl.startsWith("https://hooks.slack.com/services/")) {
+      showToast?.("Slack Webhook URL must start with https://hooks.slack.com/services/", "error");
+      return;
+    }
+    setSavingSlack(true);
+    try {
+      if (fetchWithFallback && botId) {
+        const res = await fetchWithFallback(`/api/bots/${botId}/integrations/slack`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ webhook_url: cleanUrl }),
+        });
+        if (!res.ok) {
+          const fallbackRes = await fetchWithFallback(`/api/admin/email/settings`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bot_id: botId, slack_escalation_webhook_url: cleanUrl }),
+          });
+          if (!fallbackRes.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || "Failed to save Slack Webhook URL");
+          }
+        }
+      }
+      if (setSlackWebhookUrl) setSlackWebhookUrl(cleanUrl);
+      showToast?.("Slack Webhook URL saved", "success");
+    } catch (err: any) {
+      showToast?.(err?.message || "Failed to save Slack Webhook URL", "error");
+    } finally {
+      setSavingSlack(false);
+    }
+  };
 
-      <div className="space-y-3">
-        <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-          Slack Incoming Webhook URL
-        </label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="url"
-            value={slackUrlDraft}
-            onChange={(e) => setSlackUrlDraft(e.target.value)}
-            placeholder="https://hooks.slack.com/services/T000/B000/XXXXX"
-            className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-orange-500"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (setSlackWebhookUrl) setSlackWebhookUrl(slackUrlDraft);
-              showToast?.("Slack Webhook URL saved", "success");
-            }}
-            disabled={!slackUrlDraft.trim()}
-            className="px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl text-xs font-bold hover:bg-neutral-800 cursor-pointer disabled:opacity-50 shrink-0"
-          >
-            Save Webhook
-          </button>
+  const handleTestSlackWebhook = async () => {
+    const cleanUrl = (slackUrlDraft || slackWebhookUrl || "").trim();
+    if (!cleanUrl || !fetchWithFallback || !botId) return;
+    setTestingSlack(true);
+    try {
+      const res = await fetchWithFallback(`/api/bots/${botId}/integrations/slack/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhook_url: cleanUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.sent) {
+        showToast?.("Test alert sent to your Slack channel!", "success");
+      } else {
+        showToast?.(data.detail || data.error || "Could not send test alert to Slack.", "error");
+      }
+    } catch {
+      showToast?.("Network error while sending test Slack alert.", "error");
+    } finally {
+      setTestingSlack(false);
+    }
+  };
+
+  const handleDisconnectSlackWebhook = async () => {
+    setDisconnectingSlack(true);
+    try {
+      if (fetchWithFallback && botId) {
+        const res = await fetchWithFallback(`/api/bots/${botId}/integrations/slack`, {
+          method: "DELETE",
+        });
+        if (!res.ok) {
+          await fetchWithFallback(`/api/admin/email/settings`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bot_id: botId, slack_escalation_webhook_url: "" }),
+          });
+        }
+      }
+      setSlackUrlDraft("");
+      if (setSlackWebhookUrl) setSlackWebhookUrl("");
+      showToast?.("Slack integration disconnected", "info");
+    } catch {
+      showToast?.("Failed to disconnect Slack webhook", "error");
+    } finally {
+      setDisconnectingSlack(false);
+    }
+  };
+
+  const renderSlackSection = () => {
+    const backendOrigin = (process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.chatty.personaliai.com").replace(/\/$/, "");
+    const slackEventsUrl = botId ? `${backendOrigin}/api/webhooks/slack/${botId}/events` : "";
+    const slackInteractionsUrl = botId ? `${backendOrigin}/api/webhooks/slack/${botId}/interactions` : "";
+    const isConnected = Boolean((slackWebhookUrl || slackUrlDraft).trim());
+
+    return (
+      <div
+        id="integration-slack"
+        className="scroll-mt-24 p-5 sm:p-7 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl space-y-6 shadow-sm"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-neutral-100 dark:border-neutral-800">
+          <div className="flex items-start gap-3.5">
+            <div className="size-12 rounded-2xl bg-[#4A154B]/10 text-[#4A154B] dark:text-[#E01E5A] flex items-center justify-center p-2.5 shrink-0 shadow-2xs">
+              <PlatformIcon domain="slack.com" label="Slack" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 flex items-center gap-2 flex-wrap">
+                Slack Live Agent Escalation &amp; Interactive Helpdesk
+                {isConnected ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" /> Alert Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                    Ready to Configure
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-xl leading-relaxed">
+                Receive instant Block Kit alerts in your team&apos;s Slack channel (#support or #leads) whenever a customer triggers human handoff or negative sentiment, with 1-click Take Over and Resolve actions.
+              </p>
+            </div>
+          </div>
+          {isConnected && (
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleTestSlackWebhook}
+                disabled={testingSlack}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer disabled:opacity-50"
+              >
+                {testingSlack ? "Sending..." : "Send Test Alert"}
+              </button>
+              <button
+                type="button"
+                onClick={handleDisconnectSlackWebhook}
+                disabled={disconnectingSlack}
+                className="px-3 py-1.5 rounded-xl text-xs font-semibold border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer disabled:opacity-50"
+              >
+                {disconnectingSlack ? "Removing..." : "Disconnect"}
+              </button>
+            </div>
+          )}
         </div>
-        <p className="text-[10px] text-neutral-400">
-          Create an Incoming Webhook in your Slack Workspace settings and paste the URL here.
-        </p>
+
+        <div className="space-y-3">
+          <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+            Slack Incoming Webhook URL
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="url"
+              value={slackUrlDraft}
+              onChange={(e) => setSlackUrlDraft(e.target.value)}
+              placeholder="https://hooks.slack.com/services/T000/B000/XXXXX"
+              className="flex-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-orange-500"
+            />
+            <button
+              type="button"
+              onClick={handleSaveSlackWebhook}
+              disabled={!slackUrlDraft.trim() || savingSlack}
+              className="px-4 py-2 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 rounded-xl text-xs font-bold hover:bg-neutral-800 cursor-pointer disabled:opacity-50 shrink-0"
+            >
+              {savingSlack ? "Saving..." : "Save Webhook"}
+            </button>
+          </div>
+          <p className="text-[10px] text-neutral-400">
+            Create an Incoming Webhook in your Slack Workspace settings (Apps &rarr; Incoming WebHooks) and paste the URL here.
+          </p>
+        </div>
+
+        {botId && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800/80">
+            <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-200/70 dark:border-neutral-800/80 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">
+                  Interactive Buttons Request URL
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(slackInteractionsUrl);
+                    showToast?.("Copied Slack Interactivity URL", "success");
+                  }}
+                  className="text-[10px] font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                >
+                  Copy URL
+                </button>
+              </div>
+              <p className="text-[10px] font-mono text-neutral-500 truncate" title={slackInteractionsUrl}>
+                {slackInteractionsUrl}
+              </p>
+              <p className="text-[10px] text-neutral-400">
+                Paste in Slack App &rarr; Interactivity &amp; Shortcuts to enable 1-click Take Over &amp; Resolve buttons inside Slack.
+              </p>
+            </div>
+            <div className="p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-950/60 border border-neutral-200/70 dark:border-neutral-800/80 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">
+                  Slack Events Subscriptions URL
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(slackEventsUrl);
+                    showToast?.("Copied Slack Events URL", "success");
+                  }}
+                  className="text-[10px] font-semibold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                >
+                  Copy URL
+                </button>
+              </div>
+              <p className="text-[10px] font-mono text-neutral-500 truncate" title={slackEventsUrl}>
+                {slackEventsUrl}
+              </p>
+              <p className="text-[10px] text-neutral-400">
+                Paste in Slack App &rarr; Event Subscriptions to stream channel mentions &amp; messages into Chatty Inbox.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderMcpSection = () => (
     <div

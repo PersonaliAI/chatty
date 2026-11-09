@@ -596,6 +596,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
   const [emailWebhookSecret, setEmailWebhookSecret] = useState("");
   const [emailAutoReplyMode, setEmailAutoReplyMode] = useState<"instant_ai" | "draft_copilot">("instant_ai");
   const [emailConfigured, setEmailConfigured] = useState(false);
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState("");
 
   // Google Drive indexing settings
   const [driveFolderUrl, setDriveFolderUrl] = useState("");
@@ -1645,6 +1646,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
         setEmailWebhookSecret(String(botAny.email_webhook_secret || ""));
         setEmailAutoReplyMode((botAny.email_auto_reply_mode as "instant_ai" | "draft_copilot") || "instant_ai");
         setEmailConfigured(Boolean(botAny.email_configured));
+        setSlackWebhookUrl(String(botAny.slack_escalation_webhook_url || ""));
 
         // When active bot belongs to another workspace owner (shared bot),
         // resolve and manage the workspace owner's billing, quotas, and subscription tier
@@ -1901,6 +1903,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
       setEmailWebhookSecret(String(selAny.email_webhook_secret || ""));
       setEmailAutoReplyMode((selAny.email_auto_reply_mode as "instant_ai" | "draft_copilot") || "instant_ai");
       setEmailConfigured(Boolean(selAny.email_configured));
+      setSlackWebhookUrl(String(selAny.slack_escalation_webhook_url || ""));
       setOnboardingStep(selected.onboarding_step || 0);
       setOnboardingCompleted(selected.onboarding_completed || false);
       setLeadFields(selected.lead_fields || ["name", "email", "phone"]);
@@ -3127,6 +3130,7 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
           email_support_address: emailSupportAddress.trim() || null,
           email_webhook_secret: emailWebhookSecret.trim() || null,
           email_auto_reply_mode: emailAutoReplyMode,
+          slack_escalation_webhook_url: slackWebhookUrl.trim() || null,
           updated_at: new Date().toISOString()
       };
 
@@ -5481,6 +5485,8 @@ const [previewView, setPreviewView] = useState<"live" | "chat">("live");
               setEmailAutoReplyMode={setEmailAutoReplyMode}
               emailConfigured={emailConfigured}
               setEmailConfigured={setEmailConfigured}
+              slackWebhookUrl={slackWebhookUrl}
+              setSlackWebhookUrl={setSlackWebhookUrl}
               showToast={showToast}
               authToken={authToken}
               fetchWithFallback={fetchWithFallback}

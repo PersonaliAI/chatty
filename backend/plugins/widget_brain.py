@@ -265,6 +265,7 @@ def scheduling_tool_names(
             names.extend(["get_available_slots", "check_calendar_availability", "create_calendar_event", "reschedule_meeting", "cancel_meeting"])
     names.append("create_lead")
     names.append("lookup_woocommerce_order")
+    names.append("lookup_woocommerce_customer")
     names.append("search_woocommerce_products")
     names.append("get_woocommerce_store_info")
     names.append("update_visitor_timezone")

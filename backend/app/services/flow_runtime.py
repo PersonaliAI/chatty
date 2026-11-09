@@ -593,8 +593,23 @@ async def _execute_graph(
                         trace_step["to"] = recipient
                 elif node_type == "action.slack":
                     channel = str(config.get("channel") or "#alerts").strip()
+                    slack_msg = _render_widget_reply(str(config.get("message") or title or ""), runtime_inputs)
                     status = "completed"
                     trace_step["channel"] = channel
+                    if slack_msg:
+                        trace_step["message"] = slack_msg
+                    bot_id_for_slack = str(inputs.get("bot_id") or "").strip()
+                    if bot_id_for_slack and slack_msg:
+                        try:
+                            from app.services.slack_escalation import send_slack_flow_message
+                            await send_slack_flow_message(
+                                bot_id_for_slack,
+                                channel=channel,
+                                text=slack_msg,
+                                session_id=str(inputs.get("session_id") or ""),
+                            )
+                        except Exception:
+                            logger.debug("Non-fatal: flow action.slack delivery skipped for bot %s", bot_id_for_slack)
             elif not url:
                 status = "failed"
                 failed = f"{title} has no adapter endpoint configured"

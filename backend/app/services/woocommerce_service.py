@@ -429,6 +429,7 @@ def _map_wc_product(product: dict[str, Any], currency: str = "USD") -> dict[str,
         "regular_price": regular_price,
         "sale_price": sale_price,
         "on_sale": bool(product.get("on_sale")) or sale_price is not None,
+        "featured": bool(product.get("featured")),
         "variations": variations,
         "has_variants": bool(variations),
         "attributes": product.get("attributes") or [],
@@ -1298,7 +1299,7 @@ async def lookup_order(
         }
 
     mapped = _map_wc_order(matched_order)
-    extra_order_details = await _fetch_order_customer_notes_and_refunds(store_url, auth, matched_order.get("id"))
+    extra_order_details = await _fetch_order_customer_notes_and_refunds(store_url, auth, matched_order.get("id"), matched_order)
     mapped.update(extra_order_details)
     return {
         "found": True,
@@ -1318,15 +1319,18 @@ async def _fetch_order_customer_notes_and_refunds(
     store_url: str,
     auth: tuple[str, str],
     order_id: Any,
+    order_obj: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
-    """Fetch strictly customer-visible order notes (`/orders/{id}/notes?type=customer`)
-    and detailed refund records (`/orders/{id}/refunds`) for a verified order (Read-Only)."""
+    """Fetch strictly customer-visible order notes (`/orders/{id}/notes?type=customer`),
+    detailed refund records (`/orders/{id}/refunds`), and shipping details (`/orders/{id}/shipping`)
+    for a verified order (Read-Only)."""
     clean_oid = re.sub(r"[^0-9]", "", str(order_id or "").strip())
     if not clean_oid:
-        return {"customer_notes": [], "detailed_refunds": []}
+        return {"customer_notes": [], "detailed_refunds": [], "shipping_details": {}}
 
     customer_notes: list[dict[str, Any]] = []
     detailed_refunds: list[dict[str, Any]] = []
+    extension_shipping: list[dict[str, Any]] = []
     timeout = httpx.Timeout(6.0, connect=3.0)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
@@ -1367,10 +1371,51 @@ async def _fetch_order_customer_notes_and_refunds(
         except Exception:
             pass
 
-    return {
+        try:
+            ship_resp = await ssrf.request_async(
+                client,
+                "GET",
+                f"{store_url}/wp-json/wc/v3/orders/{clean_oid}/shipping",
+                auth=auth,
+            )
+            if ship_resp.status_code == 200:
+                raw_ship_json = ship_resp.json()
+                if isinstance(raw_ship_json, list):
+                    extension_shipping = [s for s in raw_ship_json[:5] if isinstance(s, dict)]
+                elif isinstance(raw_ship_json, dict):
+                    extension_shipping = [raw_ship_json]
+        except Exception:
+            pass
+
+    shipping_addr = (order_obj or {}).get("shipping") if isinstance((order_obj or {}).get("shipping"), dict) else {}
+    shipping_lines = [
+        {
+            "method_title": sl.get("method_title"),
+            "method_id": sl.get("method_id"),
+            "total": sl.get("total"),
+        }
+        for sl in ((order_obj or {}).get("shipping_lines") or [])
+        if isinstance(sl, dict)
+    ]
+    shipping_details = {
+        "destination": {
+            "city": shipping_addr.get("city") or None,
+            "state": shipping_addr.get("state") or None,
+            "postcode": shipping_addr.get("postcode") or None,
+            "country": shipping_addr.get("country") or None,
+        },
+        "methods": shipping_lines,
+        "extension_shipments": extension_shipping,
+    }
+
+    out_extra: dict[str, Any] = {
         "customer_notes": customer_notes,
         "detailed_refunds": detailed_refunds,
+        "shipping_details": shipping_details,
     }
+    if detailed_refunds:
+        out_extra["refunds"] = detailed_refunds
+    return out_extra
 
 
 async def _lookup_order_by_email_and_phone(
@@ -1433,7 +1478,7 @@ async def _lookup_order_by_email_and_phone(
 
     latest_order = matched_orders[0]
     mapped = _map_wc_order(latest_order)
-    extra_details = await _fetch_order_customer_notes_and_refunds(store_url, auth, latest_order.get("id"))
+    extra_details = await _fetch_order_customer_notes_and_refunds(store_url, auth, latest_order.get("id"), latest_order)
     mapped.update(extra_details)
     recent_summaries = [
         {
@@ -1459,6 +1504,185 @@ async def _lookup_order_by_email_and_phone(
     }
 
 
+def _verify_customer_profile_ownership(
+    customer: dict[str, Any],
+    *,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+) -> bool:
+    """Verify caller identity against a WooCommerce customer record (email or billing phone)."""
+    if not isinstance(customer, dict):
+        return False
+    billing = customer.get("billing") if isinstance(customer.get("billing"), dict) else {}
+
+    caller_email = str(email or "").strip().lower()
+    cust_email = str(customer.get("email") or "").strip().lower()
+    bill_email = str(billing.get("email") or "").strip().lower()
+    email_matched = bool(
+        caller_email
+        and (
+            (cust_email and hmac.compare_digest(cust_email, caller_email))
+            or (bill_email and hmac.compare_digest(bill_email, caller_email))
+        )
+    )
+    if email_matched:
+        return True
+
+    caller_phone = re.sub(r"[^\d]", "", str(phone or ""))
+    bill_phone = re.sub(r"[^\d]", "", str(billing.get("phone") or ""))
+    if len(caller_phone) >= 4 and len(bill_phone) >= 4 and bill_phone[-6:] == caller_phone[-6:]:
+        return True
+
+    return False
+
+
+async def lookup_customer_profile(
+    bot_id: str,
+    *,
+    customer_id: Optional[str] = None,
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+) -> dict[str, Any]:
+    """Read-Only WooCommerce Customer Profile Lookup (`GET /wp-json/wc/v3/customers/{id}` or `?email=...`).
+
+    STRICT SECURITY: Never allow customers to access arbitrary customer IDs.
+    Server-side ownership verification requires matching billing/account email or phone.
+    """
+    clean_cid = re.sub(r"[^0-9]", "", str(customer_id or "").strip()) or None
+    clean_email = (email or "").strip().lower() or None
+    clean_phone = (phone or "").strip() or None
+
+    if not clean_cid and not clean_email:
+        return {
+            "found": False,
+            "verification_required": True,
+            "message": "Please provide your customer ID along with your email/phone, or both your email address and phone number.",
+        }
+
+    if clean_cid and not (clean_email or clean_phone):
+        return {
+            "found": False,
+            "verified": False,
+            "verification_required": True,
+            "customer_id": clean_cid,
+            "message": (
+                f"Customer #{clean_cid} requires identity verification before profile details can be disclosed. "
+                "Please ask the customer to confirm their account email address or billing phone number."
+            ),
+        }
+
+    if not clean_cid and not (clean_email and clean_phone):
+        return {
+            "found": False,
+            "verification_required": True,
+            "message": (
+                "When looking up a customer profile without a customer ID, please ask for BOTH their "
+                "account email address and billing phone number to verify ownership."
+            ),
+        }
+
+    integration = await get_integration(bot_id)
+    if not integration:
+        return {"found": False, "error": "WooCommerce store integration is not connected for this assistant."}
+
+    store_url = _normalize_store_url(str(integration.get("store_url") or ""))
+    consumer_key = str(integration.get("consumer_key") or "").strip()
+    consumer_secret = str(integration.get("consumer_secret") or "").strip()
+    parsed_store = httpx.URL(store_url) if store_url else None
+    if not parsed_store or parsed_store.scheme != "https" or not parsed_store.host or not consumer_key or not consumer_secret:
+        return {"found": False, "error": "WooCommerce store credentials are incomplete."}
+
+    auth = (consumer_key, consumer_secret)
+    timeout = httpx.Timeout(8.0, connect=4.0)
+    matched_customer: Optional[dict[str, Any]] = None
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        if clean_cid:
+            try:
+                resp = await ssrf.request_async(
+                    client, "GET", f"{store_url}/wp-json/wc/v3/customers/{clean_cid}", auth=auth
+                )
+                if resp.status_code == 200 and isinstance(resp.json(), dict):
+                    matched_customer = resp.json()
+            except Exception as exc:
+                logger.warning("WooCommerce customer lookup by id failed (%s)", type(exc).__name__)
+        elif clean_email:
+            try:
+                resp = await ssrf.request_async(
+                    client,
+                    "GET",
+                    f"{store_url}/wp-json/wc/v3/customers",
+                    auth=auth,
+                    params={"email": clean_email, "per_page": 5},
+                )
+                if resp.status_code == 200 and isinstance(resp.json(), list) and resp.json():
+                    for cand in resp.json():
+                        if isinstance(cand, dict):
+                            matched_customer = cand
+                            break
+            except Exception as exc:
+                logger.warning("WooCommerce customer lookup by email failed (%s)", type(exc).__name__)
+
+    if not matched_customer:
+        return {
+            "found": False,
+            "message": "No matching customer profile was found in the store.",
+        }
+
+    # Enforce strict server-side ownership verification
+    if clean_cid:
+        verified = _verify_customer_profile_ownership(matched_customer, email=clean_email, phone=clean_phone)
+    else:
+        verified = (
+            _verify_customer_profile_ownership(matched_customer, email=clean_email)
+            and _verify_customer_profile_ownership(matched_customer, phone=clean_phone)
+        )
+
+    if not verified:
+        return {
+            "found": False,
+            "verified": False,
+            "verification_failed": True,
+            "verification_required": True,
+            "customer_id": str(matched_customer.get("id") or clean_cid or ""),
+            "message": "Customer verification failed. The provided email or phone number did not match the account record.",
+        }
+
+    billing = matched_customer.get("billing") if isinstance(matched_customer.get("billing"), dict) else {}
+    shipping = matched_customer.get("shipping") if isinstance(matched_customer.get("shipping"), dict) else {}
+    safe_profile = {
+        "id": matched_customer.get("id"),
+        "email": matched_customer.get("email") or billing.get("email"),
+        "first_name": matched_customer.get("first_name") or billing.get("first_name"),
+        "last_name": matched_customer.get("last_name") or billing.get("last_name"),
+        "username": matched_customer.get("username"),
+        "date_created": matched_customer.get("date_created"),
+        "orders_count": matched_customer.get("orders_count"),
+        "total_spent": matched_customer.get("total_spent"),
+        "is_paying_customer": bool(matched_customer.get("is_paying_customer")),
+        "avatar_url": matched_customer.get("avatar_url"),
+        "billing_summary": {
+            "city": billing.get("city") or None,
+            "state": billing.get("state") or None,
+            "postcode": billing.get("postcode") or None,
+            "country": billing.get("country") or None,
+        },
+        "shipping_summary": {
+            "city": shipping.get("city") or None,
+            "state": shipping.get("state") or None,
+            "postcode": shipping.get("postcode") or None,
+            "country": shipping.get("country") or None,
+        },
+    }
+    return {
+        "found": True,
+        "verified": True,
+        "verification_required": False,
+        "customer": safe_profile,
+        **safe_profile,
+    }
+
+
 def _item_matches_structured_filters(
     item: dict[str, Any],
     *,
@@ -1469,6 +1693,7 @@ def _item_matches_structured_filters(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     on_sale: Optional[bool] = None,
+    featured: Optional[bool] = None,
     in_stock_only: bool = True,
     attribute_filter: Optional[str] = None,
 ) -> bool:
@@ -1501,6 +1726,9 @@ def _item_matches_structured_filters(
         if not is_sale:
             return False
 
+    if featured is True and not bool(meta.get("featured")):
+        return False
+
     if sku:
         sku_q = sku.strip().lower()
         item_sku = str(item.get("sku") or "").strip().lower()
@@ -1519,8 +1747,8 @@ def _item_matches_structured_filters(
             return False
 
     if tag:
-        tag_q = tag.strip().lower()
-        tags = [str(t).strip().lower() for t in (meta.get("tags") or []) if t]
+        tag_q = tag.strip().lower().replace("-", " ")
+        tags = [str(t).strip().lower().replace("-", " ") for t in (meta.get("tags") or []) if t]
         if not any(tag_q in t or t in tag_q for t in tags):
             return False
 
@@ -1659,7 +1887,7 @@ async def search_products_live(
                         elif clean_sort == "rating":
                             params["orderby"] = "rating"
                             params["order"] = "desc"
-                        elif clean_sort == "newest":
+                        elif clean_sort in ("newest", "date", "latest"):
                             params["orderby"] = "date"
                             params["order"] = "desc"
 
@@ -1679,6 +1907,25 @@ async def search_products_live(
                                         best_cat = cat_resp.json()[0]
                                         if isinstance(best_cat, dict) and best_cat.get("id"):
                                             params["category"] = str(best_cat["id"])
+                                except Exception:
+                                    pass
+
+                        if clean_tag:
+                            if clean_tag.isdigit():
+                                params["tag"] = clean_tag
+                            else:
+                                try:
+                                    tag_resp = await ssrf.request_async(
+                                        client,
+                                        "GET",
+                                        f"{products_api}/tags",
+                                        auth=auth,
+                                        params={"search": clean_tag, "per_page": 10},
+                                    )
+                                    if tag_resp.status_code == 200 and isinstance(tag_resp.json(), list) and tag_resp.json():
+                                        best_tag = tag_resp.json()[0]
+                                        if isinstance(best_tag, dict) and best_tag.get("id"):
+                                            params["tag"] = str(best_tag["id"])
                                 except Exception:
                                     pass
 
@@ -1731,6 +1978,7 @@ async def search_products_live(
                             min_price=min_price,
                             max_price=max_price,
                             on_sale=on_sale,
+                            featured=featured,
                             in_stock_only=in_stock_only,
                             attribute_filter=clean_attr,
                         ):
@@ -1859,6 +2107,7 @@ async def search_products_live(
             "regular_price": meta.get("regular_price"),
             "sale_price": meta.get("sale_price"),
             "on_sale": bool(meta.get("on_sale")),
+            "featured": bool(meta.get("featured")),
             "currency": item.get("currency") or currency,
             "in_stock": card_in_stock,
             "stock_status": meta.get("stock_status", "instock"),
@@ -1935,26 +2184,20 @@ async def search_products_live(
     }
 
 
-async def get_store_info_live(
+async def get_product_variations_live(
     bot_id: str,
+    product_id: str,
     *,
-    info_type: str = "categories",
-    coupon_code: Optional[str] = None,
-    product_id: Optional[str] = None,
-    product_name: Optional[str] = None,
+    variation_id: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Read-Only Live WooCommerce Store Metadata Inspector covering all buyer-useful endpoints.
+    """Read-Only WooCommerce Product Variations Inspector (`GET /products/{id}/variations`
+    and `GET /products/{id}/variations/{variation_id}`).
+    Useful for displaying sizes, colours, prices, and stock availability."""
+    clean_pid = re.sub(r"[^0-9]", "", str(product_id or "").strip())
+    clean_vid = re.sub(r"[^0-9]", "", str(variation_id or "").strip()) or None
+    if not clean_pid:
+        return {"found": False, "error": "A valid numeric WooCommerce product_id is required."}
 
-    Supports:
-    - `info_type='categories'`: `GET /wp-json/wc/v3/products/categories`
-    - `info_type='tags'`: `GET /wp-json/wc/v3/products/tags`
-    - `info_type='attributes'`: `GET /wp-json/wc/v3/products/attributes` + `/terms` (global sizes, colors, brands)
-    - `info_type='coupon'`: `GET /wp-json/wc/v3/coupons?code={coupon_code}` (discount, expiry, min spend, exclusions)
-    - `info_type='reviews'`: `GET /wp-json/wc/v3/products/reviews` (supports `product_id` or `product_name`)
-    - `info_type='shipping'`: `GET /wp-json/wc/v3/shipping/zones` + `/locations` + `/methods` + `/products/shipping_classes`
-    - `info_type='payment_methods'`: `GET /wp-json/wc/v3/payment_gateways` (enabled checkout payment methods)
-    - `info_type='taxes_and_policies'`: `GET /wp-json/wc/v3/settings/general` + `/settings/products` + `/taxes`
-    """
     integration = await get_integration(bot_id)
     if not integration:
         return {"found": False, "error": "WooCommerce store integration is not connected for this assistant."}
@@ -1968,11 +2211,159 @@ async def get_store_info_live(
 
     auth = (consumer_key, consumer_secret)
     timeout = httpx.Timeout(8.0, connect=4.0)
+
+    def _normalize_variation(v: dict[str, Any]) -> dict[str, Any]:
+        img_obj = v.get("image") if isinstance(v.get("image"), dict) else {}
+        raw_p = v.get("price")
+        try:
+            norm_p = float(raw_p) if raw_p not in (None, "") else None
+        except (TypeError, ValueError):
+            norm_p = raw_p
+        return {
+            "id": v.get("id"),
+            "sku": v.get("sku") or None,
+            "price": norm_p,
+            "regular_price": v.get("regular_price"),
+            "sale_price": v.get("sale_price") or None,
+            "on_sale": bool(v.get("on_sale")),
+            "stock_status": v.get("stock_status", "instock"),
+            "in_stock": v.get("stock_status", "instock") == "instock",
+            "stock_quantity": v.get("stock_quantity"),
+            "attributes": [
+                {"id": a.get("id"), "name": a.get("name"), "option": a.get("option")}
+                for a in (v.get("attributes") or [])
+                if isinstance(a, dict)
+            ],
+            "description": _clean_html(v.get("description"))[:300],
+            "weight": v.get("weight") or None,
+            "dimensions": v.get("dimensions") or None,
+            "image_url": img_obj.get("src") or None,
+            "url": v.get("permalink") or None,
+        }
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            if clean_vid:
+                resp = await ssrf.request_async(
+                    client,
+                    "GET",
+                    f"{store_url}/wp-json/wc/v3/products/{clean_pid}/variations/{clean_vid}",
+                    auth=auth,
+                )
+                if resp.status_code == 200 and isinstance(resp.json(), dict):
+                    norm = _normalize_variation(resp.json())
+                    return {
+                        "found": True,
+                        "info_type": "variations",
+                        "product_id": int(clean_pid) if clean_pid.isdigit() else clean_pid,
+                        "variation_id": int(clean_vid) if clean_vid.isdigit() else clean_vid,
+                        "variation": norm,
+                        "variations": [norm],
+                        "count": 1,
+                    }
+                return {"found": False, "product_id": clean_pid, "variation_id": clean_vid, "error": "Variation not found."}
+
+            resp = await ssrf.request_async(
+                client,
+                "GET",
+                f"{store_url}/wp-json/wc/v3/products/{clean_pid}/variations",
+                auth=auth,
+                params={"per_page": 100, "status": "publish"},
+            )
+            if resp.status_code == 200 and isinstance(resp.json(), list):
+                vars_list = [_normalize_variation(v) for v in resp.json() if isinstance(v, dict)]
+                return {
+                    "found": len(vars_list) > 0,
+                    "info_type": "variations",
+                    "product_id": clean_pid,
+                    "count": len(vars_list),
+                    "variations": vars_list,
+                }
+        except Exception as exc:
+            logger.warning("WooCommerce variations lookup failed (%s)", type(exc).__name__)
+
+    return {"found": False, "product_id": clean_pid, "error": "Unable to fetch product variations right now."}
+
+
+async def get_store_info_live(
+    bot_id: str,
+    *,
+    info_type: str = "categories",
+    coupon_code: Optional[str] = None,
+    coupon_id: Optional[str] = None,
+    product_id: Optional[str] = None,
+    product_name: Optional[str] = None,
+    variation_id: Optional[str] = None,
+    category_id: Optional[str] = None,
+    tag_id: Optional[str] = None,
+    attribute_id: Optional[str] = None,
+    term_id: Optional[str] = None,
+    review_id: Optional[str] = None,
+    zone_id: Optional[str] = None,
+    gateway_id: Optional[str] = None,
+    allow_admin_lookup: bool = False,
+) -> dict[str, Any]:
+    """Read-Only Live WooCommerce Store Metadata Inspector covering all buyer-useful endpoints.
+
+    Supports:
+    - `info_type='categories'`: `GET /products/categories` and `GET /products/categories/{id}`
+    - `info_type='tags'`: `GET /products/tags` and `GET /products/tags/{id}`
+    - `info_type='attributes'`: `GET /products/attributes`, `GET /products/attributes/{id}`, `/terms`, and `/terms/{term_id}`
+    - `info_type='variations'`: `GET /products/{id}/variations` and `GET /products/{id}/variations/{variation_id}`
+    - `info_type='coupon'`: `GET /coupons?code={coupon_code}` and `GET /coupons/{id}` (never lists all coupons to unauthenticated callers)
+    - `info_type='reviews'`: `GET /products/reviews`, `GET /products/reviews/{id}`, and `GET /products/{id}` rating summary
+    - `info_type='shipping'`: `GET /shipping/zones`, `GET /shipping/zones/{id}`, `/locations`, `/methods`, and `/products/shipping_classes`
+    - `info_type='payment_methods'`: `GET /payment_gateways` and `GET /payment_gateways/{id}` (sanitized customer-safe response)
+    - `info_type='taxes_and_policies'`: `GET /settings/general` + `/settings/products` + `/taxes`
+    """
     clean_type = (info_type or "categories").strip().lower()
+    if clean_type == "variations":
+        return await get_product_variations_live(bot_id, str(product_id or ""), variation_id=variation_id)
+
+    integration = await get_integration(bot_id)
+    if not integration:
+        return {"found": False, "error": "WooCommerce store integration is not connected for this assistant."}
+
+    store_url = _normalize_store_url(str(integration.get("store_url") or ""))
+    consumer_key = str(integration.get("consumer_key") or "").strip()
+    consumer_secret = str(integration.get("consumer_secret") or "").strip()
+    parsed_store = httpx.URL(store_url) if store_url else None
+    if not parsed_store or parsed_store.scheme != "https" or not parsed_store.host or not consumer_key or not consumer_secret:
+        return {"found": False, "error": "WooCommerce store credentials are incomplete."}
+
+    auth = (consumer_key, consumer_secret)
+    timeout = httpx.Timeout(8.0, connect=4.0)
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         if clean_type == "categories":
+            clean_cid = re.sub(r"[^0-9]", "", str(category_id or "").strip())
             try:
+                if clean_cid:
+                    resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/products/categories/{clean_cid}",
+                        auth=auth,
+                    )
+                    if resp.status_code == 200 and isinstance(resp.json(), dict):
+                        c = resp.json()
+                        cat_obj = {
+                            "id": c.get("id"),
+                            "name": _clean_html(c.get("name")),
+                            "slug": c.get("slug"),
+                            "parent": c.get("parent"),
+                            "count": c.get("count", 0),
+                            "description": _clean_html(c.get("description"))[:240],
+                        }
+                        return {
+                            "found": True,
+                            "info_type": "categories",
+                            "count": 1,
+                            "category": cat_obj,
+                            "categories": [cat_obj],
+                        }
+                    return {"found": False, "info_type": "categories", "error": f"Category #{clean_cid} not found."}
+
                 resp = await ssrf.request_async(
                     client,
                     "GET",
@@ -1999,7 +2390,33 @@ async def get_store_info_live(
             return {"found": False, "info_type": "categories", "error": "Unable to fetch store categories right now."}
 
         if clean_type == "tags":
+            clean_tid = re.sub(r"[^0-9]", "", str(tag_id or "").strip())
             try:
+                if clean_tid:
+                    resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/products/tags/{clean_tid}",
+                        auth=auth,
+                    )
+                    if resp.status_code == 200 and isinstance(resp.json(), dict):
+                        t = resp.json()
+                        tag_obj = {
+                            "id": t.get("id"),
+                            "name": _clean_html(t.get("name")),
+                            "slug": t.get("slug"),
+                            "count": t.get("count", 0),
+                            "description": _clean_html(t.get("description"))[:200],
+                        }
+                        return {
+                            "found": True,
+                            "info_type": "tags",
+                            "count": 1,
+                            "tag": tag_obj,
+                            "tags": [tag_obj],
+                        }
+                    return {"found": False, "info_type": "tags", "error": f"Tag #{clean_tid} not found."}
+
                 resp = await ssrf.request_async(
                     client,
                     "GET",
@@ -2025,7 +2442,80 @@ async def get_store_info_live(
             return {"found": False, "info_type": "tags", "error": "Unable to fetch product tags right now."}
 
         if clean_type == "attributes":
+            clean_aid = re.sub(r"[^0-9]", "", str(attribute_id or "").strip())
+            clean_term_id = re.sub(r"[^0-9]", "", str(term_id or "").strip())
             try:
+                if clean_aid:
+                    attr_resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/products/attributes/{clean_aid}",
+                        auth=auth,
+                    )
+                    if attr_resp.status_code != 200 or not isinstance(attr_resp.json(), dict):
+                        return {"found": False, "info_type": "attributes", "error": f"Attribute #{clean_aid} not found."}
+                    attr = attr_resp.json()
+                    if clean_term_id:
+                        term_resp = await ssrf.request_async(
+                            client,
+                            "GET",
+                            f"{store_url}/wp-json/wc/v3/products/attributes/{clean_aid}/terms/{clean_term_id}",
+                            auth=auth,
+                        )
+                        if term_resp.status_code == 200 and isinstance(term_resp.json(), dict):
+                            trm = term_resp.json()
+                            term_obj = {
+                                "id": trm.get("id"),
+                                "name": _clean_html(trm.get("name")),
+                                "slug": trm.get("slug"),
+                                "description": _clean_html(trm.get("description"))[:200],
+                                "count": trm.get("count", 0),
+                            }
+                            attr_obj = {
+                                "id": attr.get("id"),
+                                "name": _clean_html(attr.get("name")),
+                                "slug": attr.get("slug"),
+                                "terms": [term_obj],
+                            }
+                            return {
+                                "found": True,
+                                "info_type": "attributes",
+                                "count": 1,
+                                "attribute": attr_obj,
+                                "term": term_obj,
+                                "attributes": [attr_obj],
+                            }
+                        return {"found": False, "info_type": "attributes", "error": f"Term #{clean_term_id} not found."}
+
+                    t_resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/products/attributes/{clean_aid}/terms",
+                        auth=auth,
+                        params={"per_page": 40, "hide_empty": "true"},
+                    )
+                    terms_list = []
+                    if t_resp.status_code == 200 and isinstance(t_resp.json(), list):
+                        terms_list = [
+                            {"id": term.get("id"), "name": _clean_html(term.get("name")), "slug": term.get("slug"), "count": term.get("count", 0)}
+                            for term in t_resp.json()
+                            if isinstance(term, dict) and term.get("name")
+                        ]
+                    attr_obj = {
+                        "id": attr.get("id"),
+                        "name": _clean_html(attr.get("name")),
+                        "slug": attr.get("slug"),
+                        "terms": terms_list,
+                    }
+                    return {
+                        "found": True,
+                        "info_type": "attributes",
+                        "count": 1,
+                        "attribute": attr_obj,
+                        "terms": terms_list,
+                        "attributes": [attr_obj],
+                    }
+
                 resp = await ssrf.request_async(
                     client,
                     "GET",
@@ -2068,75 +2558,151 @@ async def get_store_info_live(
 
         if clean_type == "coupon":
             code_clean = (coupon_code or "").strip()
-            if not code_clean:
+            clean_cpn_id = re.sub(r"[^0-9]", "", str(coupon_id or "").strip())
+            if not code_clean and not clean_cpn_id:
                 return {
                     "found": False,
                     "info_type": "coupon",
-                    "error": "Please ask the customer for the specific coupon or promo code they want to check.",
+                    "error": "Please ask the visitor for the exact coupon code they want to check.",
+                    "message": "To protect store promotions, please ask the visitor for the exact coupon code they want to verify.",
                 }
             try:
-                resp = await ssrf.request_async(
-                    client,
-                    "GET",
-                    f"{store_url}/wp-json/wc/v3/coupons",
-                    auth=auth,
-                    params={"code": code_clean},
-                )
-                if resp.status_code == 200 and isinstance(resp.json(), list) and resp.json():
-                    c = resp.json()[0]
-                    if isinstance(c, dict):
-                        expires = c.get("date_expires_gmt") or c.get("date_expires")
-                        is_expired = False
-                        if expires:
-                            try:
-                                exp_dt = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
-                                if exp_dt.tzinfo is None:
-                                    exp_dt = exp_dt.replace(tzinfo=timezone.utc)
-                                is_expired = exp_dt < datetime.now(timezone.utc)
-                            except ValueError:
-                                pass
-                        usage_limit = c.get("usage_limit")
-                        usage_count = int(c.get("usage_count") or 0)
-                        limit_reached = bool(usage_limit is not None and usage_count >= int(usage_limit))
-                        is_valid = not is_expired and not limit_reached
-                        return {
-                            "found": True,
-                            "info_type": "coupon",
-                            "code": c.get("code"),
-                            "valid": is_valid,
-                            "is_expired": is_expired,
-                            "usage_limit_reached": limit_reached,
-                            "discount_type": c.get("discount_type"),
-                            "amount": c.get("amount"),
-                            "description": _clean_html(c.get("description")),
-                            "minimum_amount": c.get("minimum_amount"),
-                            "maximum_amount": c.get("maximum_amount"),
-                            "free_shipping": bool(c.get("free_shipping")),
-                            "individual_use": bool(c.get("individual_use")),
-                            "exclude_sale_items": bool(c.get("exclude_sale_items")),
-                            "product_ids": c.get("product_ids") or [],
-                            "excluded_product_ids": c.get("excluded_product_ids") or [],
-                            "product_categories": c.get("product_categories") or [],
-                            "excluded_product_categories": c.get("excluded_product_categories") or [],
-                            "usage_limit_per_user": c.get("usage_limit_per_user"),
-                            "date_expires": expires,
-                        }
+                c: Optional[dict[str, Any]] = None
+                if clean_cpn_id:
+                    resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/coupons/{clean_cpn_id}",
+                        auth=auth,
+                    )
+                    if resp.status_code == 200 and isinstance(resp.json(), dict):
+                        cand = resp.json()
+                        cand_code = str(cand.get("code") or "").strip().lower()
+                        if allow_admin_lookup or not code_clean or hmac.compare_digest(cand_code, code_clean.lower()):
+                            c = cand
+                else:
+                    resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/coupons",
+                        auth=auth,
+                        params={"code": code_clean},
+                    )
+                    if resp.status_code == 200 and isinstance(resp.json(), list) and resp.json():
+                        if isinstance(resp.json()[0], dict):
+                            c = resp.json()[0]
+
+                if isinstance(c, dict):
+                    expires = c.get("date_expires_gmt") or c.get("date_expires")
+                    is_expired = False
+                    if expires:
+                        try:
+                            exp_dt = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+                            if exp_dt.tzinfo is None:
+                                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                            is_expired = exp_dt < datetime.now(timezone.utc)
+                        except ValueError:
+                            pass
+                    usage_limit = c.get("usage_limit")
+                    usage_count = int(c.get("usage_count") or 0)
+                    limit_reached = bool(usage_limit is not None and usage_count >= int(usage_limit))
+                    is_valid = not is_expired and not limit_reached
+                    return {
+                        "found": True,
+                        "info_type": "coupon",
+                        "id": c.get("id"),
+                        "code": str(c.get("code") or "").upper(),
+                        "valid": is_valid,
+                        "is_expired": is_expired,
+                        "usage_limit_reached": limit_reached,
+                        "discount_type": c.get("discount_type"),
+                        "amount": c.get("amount"),
+                        "description": _clean_html(c.get("description")),
+                        "minimum_amount": c.get("minimum_amount"),
+                        "maximum_amount": c.get("maximum_amount"),
+                        "free_shipping": bool(c.get("free_shipping")),
+                        "individual_use": bool(c.get("individual_use")),
+                        "exclude_sale_items": bool(c.get("exclude_sale_items")),
+                        "product_ids": c.get("product_ids") or [],
+                        "excluded_product_ids": c.get("excluded_product_ids") or [],
+                        "product_categories": c.get("product_categories") or [],
+                        "excluded_product_categories": c.get("excluded_product_categories") or [],
+                        "usage_limit_per_user": c.get("usage_limit_per_user"),
+                        "date_expires": expires,
+                        "checkout_note": "Coupon validation is informational; final discount application occurs during cart/checkout.",
+                    }
                 return {
                     "found": False,
                     "info_type": "coupon",
                     "code": code_clean,
                     "valid": False,
-                    "message": f"Coupon code '{code_clean}' was not found or is not active.",
+                    "message": f"Coupon code '{code_clean or clean_cpn_id}' was not found or is not active.",
                 }
             except Exception as exc:
                 logger.warning("WooCommerce coupon lookup failed (%s)", type(exc).__name__)
                 return {"found": False, "info_type": "coupon", "error": "Unable to verify coupon code right now."}
 
         if clean_type == "reviews":
+            clean_rid = re.sub(r"[^0-9]", "", str(review_id or "").strip())
+            if clean_rid:
+                try:
+                    r_resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/products/reviews/{clean_rid}",
+                        auth=auth,
+                    )
+                    if r_resp.status_code == 200 and isinstance(r_resp.json(), dict):
+                        r = r_resp.json()
+                        rev_obj = {
+                            "id": r.get("id"),
+                            "product_id": r.get("product_id"),
+                            "product_name": _clean_html(r.get("product_name")),
+                            "reviewer": r.get("reviewer"),
+                            "rating": r.get("rating"),
+                            "verified": bool(r.get("verified")),
+                            "review": _clean_html(r.get("review"))[:400],
+                            "date_created": r.get("date_created"),
+                        }
+                        prod_rating_summary = None
+                        if r.get("product_id"):
+                            try:
+                                p_resp = await ssrf.request_async(
+                                    client,
+                                    "GET",
+                                    f"{store_url}/wp-json/wc/v3/products/{r['product_id']}",
+                                    auth=auth,
+                                )
+                                if p_resp.status_code == 200 and isinstance(p_resp.json(), dict):
+                                    p_data = p_resp.json()
+                                    prod_rating_summary = {
+                                        "product_id": p_data.get("id"),
+                                        "product_name": _clean_html(p_data.get("name")),
+                                        "average_rating": p_data.get("average_rating"),
+                                        "rating_count": p_data.get("rating_count"),
+                                    }
+                            except Exception:
+                                pass
+                        out_single_rev: dict[str, Any] = {
+                            "found": True,
+                            "info_type": "reviews",
+                            "count": 1,
+                            "review": rev_obj,
+                            "reviews": [rev_obj],
+                        }
+                        if prod_rating_summary:
+                            out_single_rev["product_rating_summary"] = prod_rating_summary
+                        return out_single_rev
+                    return {"found": False, "info_type": "reviews", "error": f"Review #{clean_rid} not found."}
+                except Exception as exc:
+                    logger.warning("WooCommerce review detail lookup failed (%s)", type(exc).__name__)
+                    return {"found": False, "info_type": "reviews", "error": "Unable to fetch review details right now."}
+
             clean_pid = re.sub(r"[^0-9]", "", str(product_id or "").strip())
             clean_pname = (product_name or "").strip() or (
                 str(product_id).strip() if product_id and not clean_pid else ""
             )
+            product_rating_summary: Optional[dict[str, Any]] = None
             if not clean_pid and clean_pname:
                 try:
                     p_resp = await ssrf.request_async(
@@ -2150,6 +2716,30 @@ async def get_store_info_live(
                         first_p = p_resp.json()[0]
                         if isinstance(first_p, dict) and first_p.get("id"):
                             clean_pid = str(first_p["id"])
+                            product_rating_summary = {
+                                "product_id": first_p.get("id"),
+                                "product_name": _clean_html(first_p.get("name")),
+                                "average_rating": first_p.get("average_rating"),
+                                "rating_count": first_p.get("rating_count"),
+                            }
+                except Exception:
+                    pass
+            elif clean_pid:
+                try:
+                    prod_detail_resp = await ssrf.request_async(
+                        client,
+                        "GET",
+                        f"{store_url}/wp-json/wc/v3/products/{clean_pid}",
+                        auth=auth,
+                    )
+                    if prod_detail_resp.status_code == 200 and isinstance(prod_detail_resp.json(), dict):
+                        p_obj = prod_detail_resp.json()
+                        product_rating_summary = {
+                            "product_id": p_obj.get("id"),
+                            "product_name": _clean_html(p_obj.get("name")),
+                            "average_rating": p_obj.get("average_rating"),
+                            "rating_count": p_obj.get("rating_count"),
+                        }
                 except Exception:
                     pass
 
@@ -2179,61 +2769,82 @@ async def get_store_info_live(
                         for r in resp.json()
                         if isinstance(r, dict)
                     ]
-                    return {"found": True, "info_type": "reviews", "count": len(reviews), "reviews": reviews}
+                    out_rev: dict[str, Any] = {
+                        "found": True,
+                        "info_type": "reviews",
+                        "count": len(reviews),
+                        "reviews": reviews,
+                    }
+                    if product_rating_summary:
+                        out_rev["product_rating_summary"] = product_rating_summary
+                    return out_rev
             except Exception as exc:
                 logger.warning("WooCommerce reviews lookup failed (%s)", type(exc).__name__)
             return {"found": False, "info_type": "reviews", "error": "Unable to fetch product reviews right now."}
 
         if clean_type == "shipping":
+            clean_zid = re.sub(r"[^0-9]", "", str(zone_id or "").strip())
             try:
-                zones_resp = await ssrf.request_async(
-                    client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones", auth=auth
-                )
-                zones_out = []
-                if zones_resp.status_code == 200 and isinstance(zones_resp.json(), list):
-                    for z in zones_resp.json()[:8]:
-                        if not isinstance(z, dict) or z.get("id") is None:
-                            continue
-                        zid = z["id"]
-                        locations_list = []
-                        try:
-                            loc_resp = await ssrf.request_async(
-                                client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones/{zid}/locations", auth=auth
-                            )
-                            if loc_resp.status_code == 200 and isinstance(loc_resp.json(), list):
-                                locations_list = [
-                                    {"code": loc.get("code"), "type": loc.get("type")}
-                                    for loc in loc_resp.json()
-                                    if isinstance(loc, dict) and loc.get("code")
-                                ]
-                        except Exception:
-                            pass
+                raw_zones: list[dict[str, Any]] = []
+                if clean_zid:
+                    z_single = await ssrf.request_async(
+                        client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones/{clean_zid}", auth=auth
+                    )
+                    if z_single.status_code == 200 and isinstance(z_single.json(), dict):
+                        raw_zones = [z_single.json()]
+                else:
+                    zones_resp = await ssrf.request_async(
+                        client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones", auth=auth
+                    )
+                    if zones_resp.status_code == 200 and isinstance(zones_resp.json(), list):
+                        raw_zones = [z for z in zones_resp.json()[:8] if isinstance(z, dict)]
 
-                        methods_resp = await ssrf.request_async(
-                            client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones/{zid}/methods", auth=auth
+                zones_out = []
+                for z in raw_zones:
+                    if z.get("id") is None:
+                        continue
+                    zid = z["id"]
+                    locations_list = []
+                    try:
+                        loc_resp = await ssrf.request_async(
+                            client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones/{zid}/locations", auth=auth
                         )
-                        methods_list = []
-                        if methods_resp.status_code == 200 and isinstance(methods_resp.json(), list):
-                            for m in methods_resp.json():
-                                if not isinstance(m, dict) or not m.get("enabled"):
-                                    continue
-                                settings = m.get("settings") or {}
-                                cost = (settings.get("cost") or {}).get("value") if isinstance(settings.get("cost"), dict) else None
-                                min_amount = (settings.get("min_amount") or {}).get("value") if isinstance(settings.get("min_amount"), dict) else None
-                                requires_val = (settings.get("requires") or {}).get("value") if isinstance(settings.get("requires"), dict) else None
-                                methods_list.append({
-                                    "title": m.get("title") or m.get("method_title"),
-                                    "method_id": m.get("method_id"),
-                                    "cost": cost,
-                                    "requires": requires_val,
-                                    "min_amount_for_free_shipping": min_amount,
-                                })
-                        zones_out.append({
-                            "zone_id": zid,
-                            "zone_name": z.get("name"),
-                            "locations": locations_list,
-                            "methods": methods_list,
-                        })
+                        if loc_resp.status_code == 200 and isinstance(loc_resp.json(), list):
+                            locations_list = [
+                                {"code": loc.get("code"), "type": loc.get("type")}
+                                for loc in loc_resp.json()
+                                if isinstance(loc, dict) and loc.get("code")
+                            ]
+                    except Exception:
+                        pass
+
+                    methods_resp = await ssrf.request_async(
+                        client, "GET", f"{store_url}/wp-json/wc/v3/shipping/zones/{zid}/methods", auth=auth
+                    )
+                    methods_list = []
+                    if methods_resp.status_code == 200 and isinstance(methods_resp.json(), list):
+                        for m in methods_resp.json():
+                            if not isinstance(m, dict) or not m.get("enabled"):
+                                continue
+                            settings = m.get("settings") or {}
+                            cost = (settings.get("cost") or {}).get("value") if isinstance(settings.get("cost"), dict) else None
+                            min_amount = (settings.get("min_amount") or {}).get("value") if isinstance(settings.get("min_amount"), dict) else None
+                            requires_val = (settings.get("requires") or {}).get("value") if isinstance(settings.get("requires"), dict) else None
+                            methods_list.append({
+                                "title": m.get("title") or m.get("method_title"),
+                                "method_id": m.get("method_id"),
+                                "cost": cost,
+                                "requires": requires_val,
+                                "min_amount_for_free_shipping": min_amount,
+                            })
+                    zones_out.append({
+                        "id": zid,
+                        "name": z.get("name"),
+                        "zone_id": zid,
+                        "zone_name": z.get("name"),
+                        "locations": locations_list,
+                        "methods": methods_list,
+                    })
 
                 shipping_classes = []
                 try:
@@ -2250,8 +2861,9 @@ async def get_store_info_live(
                     pass
 
                 return {
-                    "found": True,
+                    "found": len(zones_out) > 0 or len(shipping_classes) > 0,
                     "info_type": "shipping",
+                    "zone": zones_out[0] if (clean_zid and zones_out) else None,
                     "zones": zones_out,
                     "shipping_classes": shipping_classes,
                 }
@@ -2260,7 +2872,37 @@ async def get_store_info_live(
             return {"found": False, "info_type": "shipping", "error": "Unable to fetch live shipping zones right now."}
 
         if clean_type == "payment_methods":
+            clean_gid = re.sub(r"[^a-zA-Z0-9_-]", "", str(gateway_id or "").strip())
             try:
+                if clean_gid:
+                    g_resp = await ssrf.request_async(
+                        client, "GET", f"{store_url}/wp-json/wc/v3/payment_gateways/{clean_gid}", auth=auth
+                    )
+                    if g_resp.status_code == 200 and isinstance(g_resp.json(), dict):
+                        g = g_resp.json()
+                        if not g.get("enabled"):
+                            return {
+                                "found": False,
+                                "info_type": "payment_methods",
+                                "gateway_id": clean_gid,
+                                "message": f"Payment method '{clean_gid}' is not enabled for customer checkout.",
+                            }
+                        gw_obj = {
+                            "id": g.get("id"),
+                            "title": _clean_html(g.get("title") or g.get("method_title")),
+                            "description": _clean_html(g.get("description") or g.get("method_description"))[:280],
+                            "enabled": True,
+                            "supports": [str(s) for s in (g.get("method_supports") or []) if isinstance(s, str)],
+                        }
+                        return {
+                            "found": True,
+                            "info_type": "payment_methods",
+                            "count": 1,
+                            "payment_method": gw_obj,
+                            "payment_methods": [gw_obj],
+                        }
+                    return {"found": False, "info_type": "payment_methods", "error": f"Payment gateway '{clean_gid}' not found."}
+
                 resp = await ssrf.request_async(
                     client, "GET", f"{store_url}/wp-json/wc/v3/payment_gateways", auth=auth
                 )

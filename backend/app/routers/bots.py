@@ -856,9 +856,19 @@ async def update_dashboard_bot(
     if updates.get("calendar_source_bot_id"):
         await get_bot_role_and_permissions(updates["calendar_source_bot_id"], user)
 
-    # SSRF check for webhook_url
+    # SSRF check for webhook_url and slack_escalation_webhook_url
     if updates.get("webhook_url"):
         await assert_safe_url_async(updates["webhook_url"])
+    if updates.get("slack_escalation_webhook_url"):
+        from app.services.slack_escalation import _is_slack_webhook_url
+        slack_url = str(updates["slack_escalation_webhook_url"]).strip()
+        if not _is_slack_webhook_url(slack_url):
+            raise HTTPException(
+                status_code=400,
+                detail="slack_escalation_webhook_url must be a valid https://hooks.slack.com/services/... URL",
+            )
+        await assert_safe_url_async(slack_url)
+        updates["slack_escalation_webhook_url"] = slack_url
 
     from app.services.omnichannel.config_store import update_bot_omnichannel_safe
     updated = await update_bot_omnichannel_safe(supabase, bot_id, updates)

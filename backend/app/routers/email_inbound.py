@@ -23,7 +23,14 @@ from app.core.db import run_db
 from app.core.deps import require_user
 from app.routers.admin import _dispatch_ticket_to_agent, _verify_bot_access
 from app.services.email_service import extract_email, extract_name
-from app.services.slack_escalation import send_slack_escalation_alert
+from app.services.slack_escalation import (
+    _is_slack_webhook_url,
+    handle_slack_event_payload,
+    handle_slack_interaction_payload,
+    send_slack_escalation_alert,
+    send_slack_test_notification,
+    verify_slack_signature,
+)
 from app.adapters.redis_jobs import RedisJobQueue
 
 logger = logging.getLogger("chatty.email_inbound")
@@ -108,6 +115,11 @@ async def update_email_settings(req: EmailSettingsUpdateRequest, user: dict[str,
     if req.slack_escalation_webhook_url is not None:
         url = req.slack_escalation_webhook_url.strip()
         if url:
+            if not _is_slack_webhook_url(url):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Slack Webhook URL must be a valid https://hooks.slack.com/services/... URL.",
+                )
             await ssrf.assert_safe_url_async(url)
         upd["slack_escalation_webhook_url"] = url
 
@@ -115,6 +127,162 @@ async def update_email_settings(req: EmailSettingsUpdateRequest, user: dict[str,
         await run_db(lambda: supabase.table("chatty_bots").update(upd).eq("id", req.bot_id).execute())
 
     return {"success": True, "settings": upd}
+
+
+class SlackIntegrationUpdateRequest(BaseModel):
+    webhook_url: str
+    channel_name: Optional[str] = "#support"
+
+
+class SlackTestNotificationRequest(BaseModel):
+    webhook_url: Optional[str] = None
+    channel_name: Optional[str] = "#support"
+
+
+@router.get("/api/bots/{bot_id}/integrations/slack")
+async def get_slack_integration_status(
+    bot_id: str,
+    request: Request,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Fetch Slack escalation webhook status and inbound Slack App webhook URLs."""
+    await _verify_bot_access(bot_id, user)
+    res = await run_db(
+        lambda: supabase.table("chatty_bots")
+        .select("id, name, slack_escalation_webhook_url")
+        .eq("id", bot_id)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    bot = res.data[0]
+    webhook_url = (bot.get("slack_escalation_webhook_url") or "").strip()
+    base_url = str(request.base_url).rstrip("/")
+    return {
+        "connected": _is_slack_webhook_url(webhook_url),
+        "slack_escalation_webhook_url": webhook_url,
+        "events_webhook_url": f"{base_url}/api/webhooks/slack/{bot_id}/events",
+        "interactions_webhook_url": f"{base_url}/api/webhooks/slack/{bot_id}/interactions",
+    }
+
+
+@router.post("/api/bots/{bot_id}/integrations/slack")
+async def save_slack_integration(
+    bot_id: str,
+    req: SlackIntegrationUpdateRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Validate and save a Slack Incoming Webhook URL for live escalations and alerts."""
+    await _verify_bot_access(bot_id, user)
+    url = (req.webhook_url or "").strip()
+    if url:
+        if not _is_slack_webhook_url(url):
+            raise HTTPException(
+                status_code=400,
+                detail="Slack Webhook URL must be a valid https://hooks.slack.com/services/... URL.",
+            )
+        await ssrf.assert_safe_url_async(url)
+
+    await run_db(
+        lambda: supabase.table("chatty_bots")
+        .update({"slack_escalation_webhook_url": url})
+        .eq("id", bot_id)
+        .execute()
+    )
+    return {
+        "success": True,
+        "connected": bool(url),
+        "slack_escalation_webhook_url": url,
+        "channel_name": (req.channel_name or "#support").strip(),
+    }
+
+
+@router.post("/api/bots/{bot_id}/integrations/slack/test")
+async def test_slack_integration(
+    bot_id: str,
+    req: SlackTestNotificationRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Send a 1-click Block Kit verification message to the bot's Slack webhook."""
+    await _verify_bot_access(bot_id, user)
+    res = await send_slack_test_notification(
+        bot_id,
+        webhook_url=req.webhook_url,
+        channel_name=req.channel_name,
+    )
+    if not res.get("sent"):
+        raise HTTPException(
+            status_code=400,
+            detail=res.get("error") or "Failed to send test alert to Slack.",
+        )
+    return res
+
+
+@router.delete("/api/bots/{bot_id}/integrations/slack")
+async def disconnect_slack_integration(
+    bot_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Disconnect Slack Incoming Webhook from this bot."""
+    await _verify_bot_access(bot_id, user)
+    await run_db(
+        lambda: supabase.table("chatty_bots")
+        .update({"slack_escalation_webhook_url": ""})
+        .eq("id", bot_id)
+        .execute()
+    )
+    return {"success": True, "connected": False, "slack_escalation_webhook_url": ""}
+
+
+@router.post("/api/webhooks/slack/{bot_id}/events")
+async def receive_slack_events_webhook(bot_id: str, request: Request):
+    """Slack Events API endpoint (`url_verification` challenge + inbound `message`/`app_mention`)."""
+    raw_body = await request.body()
+    try:
+        payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    # Slack URL verification handshake
+    if payload.get("type") == "url_verification":
+        return {"challenge": str(payload.get("challenge") or "")}
+
+    signing_secret = os.environ.get("SLACK_SIGNING_SECRET", "").strip()
+    if signing_secret:
+        ts = request.headers.get("x-slack-request-timestamp", "")
+        sig = request.headers.get("x-slack-signature", "")
+        if not verify_slack_signature(signing_secret, ts, raw_body, sig):
+            raise HTTPException(status_code=401, detail="Invalid Slack signature")
+
+    return await handle_slack_event_payload(bot_id, payload)
+
+
+@router.post("/api/webhooks/slack/{bot_id}/interactions")
+async def receive_slack_interactions_webhook(bot_id: str, request: Request):
+    """Slack Interactivity endpoint for Block Kit action buttons (`Take Over`, `Mark Resolved`)."""
+    raw_body = await request.body()
+    signing_secret = os.environ.get("SLACK_SIGNING_SECRET", "").strip()
+    if signing_secret:
+        ts = request.headers.get("x-slack-request-timestamp", "")
+        sig = request.headers.get("x-slack-signature", "")
+        if not verify_slack_signature(signing_secret, ts, raw_body, sig):
+            raise HTTPException(status_code=401, detail="Invalid Slack signature")
+
+    content_type = (request.headers.get("content-type") or "").lower()
+    payload: dict[str, Any] = {}
+    try:
+        if "application/json" in content_type:
+            payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+        else:
+            from urllib.parse import parse_qs
+            parsed_form = parse_qs(raw_body.decode("utf-8"))
+            raw_payload_str = (parsed_form.get("payload") or ["{}"])[0]
+            payload = json.loads(raw_payload_str)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Slack interaction payload")
+
+    return await handle_slack_interaction_payload(payload, default_bot_id=bot_id)
 
 
 def _clean_postgrest_val(val: str) -> str:

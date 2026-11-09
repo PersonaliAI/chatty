@@ -368,8 +368,8 @@ DECLARATIONS: list[dict] = [
             "attribute_filter": {"type": "string", "description": "Size, color, material, or variation option to filter by (e.g. 'XL', 'Black', 'Cotton')."},
             "sort_by": {
                 "type": "string",
-                "enum": ["relevance", "price_asc", "price_desc", "popularity", "rating", "newest"],
-                "description": "Sort order: 'price_asc' (cheapest first), 'price_desc' (most expensive), 'popularity', 'rating', 'newest', or 'relevance'.",
+                "enum": ["relevance", "price_asc", "price_desc", "popularity", "rating", "newest", "date"],
+                "description": "Sort order: 'price_asc' (cheapest first), 'price_desc' (most expensive), 'popularity', 'rating', 'newest'/'date', or 'relevance'.",
             },
             "limit": {"type": "integer", "description": "Maximum number of products to return (1 to 6, default 4)."},
         },
@@ -377,11 +377,12 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "get_woocommerce_store_info",
-        "Inspect live read-only WooCommerce store metadata across all buyer-useful endpoints: product categories, tags, global attributes (sizes/colors/brands), customer reviews, shipping zones/locations/rates, enabled checkout payment methods, store tax/currency/unit settings, or validate a specific coupon/promo code.",
+        "Inspect live read-only WooCommerce store metadata across all buyer-useful endpoints: product variations, categories, tags, global attributes (sizes/colors/brands), customer reviews, shipping zones/locations/rates, enabled checkout payment methods, store tax/currency/unit settings, or validate a specific coupon/promo code.",
         {
             "info_type": {
                 "type": "string",
                 "enum": [
+                    "variations",
                     "categories",
                     "tags",
                     "attributes",
@@ -393,21 +394,42 @@ DECLARATIONS: list[dict] = [
                 ],
                 "description": (
                     "Type of live store info to fetch: "
-                    "'categories' (all product categories & counts), "
-                    "'tags' (all product tags), "
-                    "'attributes' (global store attributes like Size, Color, Brand & their terms), "
-                    "'coupon' (verify a specific coupon_code), "
-                    "'reviews' (approved customer reviews for a product_id or product_name), "
-                    "'shipping' (shipping zones, covered countries/states, shipping methods/rates & free-shipping minimums), "
-                    "'payment_methods' (enabled checkout payment gateways like Stripe, PayPal, COD, Klarna), "
+                    "'variations' (live variations for a product_id and optional variation_id), "
+                    "'categories' (all product categories & counts, or a specific category_id), "
+                    "'tags' (all product tags, or a specific tag_id), "
+                    "'attributes' (global store attributes like Size, Color, Brand & their terms, or specific attribute_id / term_id), "
+                    "'coupon' (verify a specific coupon_code or coupon_id), "
+                    "'reviews' (approved customer reviews for a product_id/product_name or a specific review_id), "
+                    "'shipping' (shipping zones, covered countries/states, shipping methods/rates & shipping classes, or a specific zone_id), "
+                    "'payment_methods' (enabled checkout payment gateways like Stripe, PayPal, COD, Klarna, or a specific gateway_id), "
                     "or 'taxes_and_policies' (store currency, weight/dimension units, and regional tax/VAT rates)."
                 ),
             },
-            "coupon_code": {"type": "string", "description": "Required when info_type='coupon'. The exact promo/coupon code the visitor asked to verify (e.g. 'SAVE20')."},
-            "product_id": {"type": "string", "description": "Optional when info_type='reviews'. Numeric WooCommerce product ID."},
+            "coupon_code": {"type": "string", "description": "Required when info_type='coupon' (unless coupon_id is passed). The exact promo/coupon code the visitor asked to verify (e.g. 'SAVE20')."},
+            "coupon_id": {"type": "string", "description": "Optional numeric coupon ID when info_type='coupon'."},
+            "product_id": {"type": "string", "description": "Numeric WooCommerce product ID (used for info_type='variations' or 'reviews')."},
             "product_name": {"type": "string", "description": "Optional when info_type='reviews'. Product name if numeric product_id is not known."},
+            "variation_id": {"type": "string", "description": "Optional specific variation ID when info_type='variations'."},
+            "category_id": {"type": "string", "description": "Optional specific category ID when info_type='categories'."},
+            "tag_id": {"type": "string", "description": "Optional specific tag ID when info_type='tags'."},
+            "attribute_id": {"type": "string", "description": "Optional specific attribute ID when info_type='attributes'."},
+            "term_id": {"type": "string", "description": "Optional specific attribute term ID when info_type='attributes' and attribute_id is set."},
+            "review_id": {"type": "string", "description": "Optional specific review ID when info_type='reviews'."},
+            "zone_id": {"type": "string", "description": "Optional specific shipping zone ID when info_type='shipping'."},
+            "gateway_id": {"type": "string", "description": "Optional specific payment gateway ID (e.g. 'stripe', 'cod') when info_type='payment_methods'."},
         },
         ["info_type"],
+    ),
+    _tool(
+        "lookup_woocommerce_customer",
+        "Look up a customer's WooCommerce profile (`GET /customers/{id}` or by verified email) in Read-Only mode. "
+        "STRICT SECURITY RULE: Never allow customers to access arbitrary customer IDs. You MUST pass the customer's verified `email` (and/or `phone` alongside `customer_id`) so the server can verify ownership before returning any profile data.",
+        {
+            "customer_id": {"type": "string", "description": "Optional numeric WooCommerce customer ID (`GET /customers/{id}`). Ownership is strictly verified against email/phone."},
+            "email": {"type": "string", "description": "Customer's email address for identity verification and lookup."},
+            "phone": {"type": "string", "description": "Customer's billing phone number for identity verification."},
+        },
+        [],
     ),
     _tool(
         "update_visitor_timezone",
@@ -2449,8 +2471,33 @@ async def execute(
                 str(bot_id_val),
                 info_type=str(args.get("info_type") or "categories").strip(),
                 coupon_code=str(args.get("coupon_code") or "").strip() or None,
+                coupon_id=str(args.get("coupon_id") or "").strip() or None,
                 product_id=str(args.get("product_id") or "").strip() or None,
                 product_name=str(args.get("product_name") or "").strip() or None,
+                variation_id=str(args.get("variation_id") or "").strip() or None,
+                category_id=str(args.get("category_id") or "").strip() or None,
+                tag_id=str(args.get("tag_id") or "").strip() or None,
+                attribute_id=str(args.get("attribute_id") or "").strip() or None,
+                term_id=str(args.get("term_id") or "").strip() or None,
+                review_id=str(args.get("review_id") or "").strip() or None,
+                zone_id=str(args.get("zone_id") or "").strip() or None,
+                gateway_id=str(args.get("gateway_id") or "").strip() or None,
+            )
+        if name == "lookup_woocommerce_customer":
+            from app.services import woocommerce_service
+            bot_id_val = (context or {}).get("bot_id") or args.get("bot_id") or ((context or {}).get("bot") or {}).get("id")
+            if not bot_id_val:
+                return {"error": "Bot ID is missing from context."}
+            v_email = str(args.get("email") or "").strip() or None
+            v_phone = str(args.get("phone") or "").strip() or None
+            sess_id = (context or {}).get("session_id") or ""
+            if not v_phone and sess_id.startswith("wa:"):
+                v_phone = sess_id[3:].strip()
+            return await woocommerce_service.lookup_customer_profile(
+                str(bot_id_val),
+                customer_id=str(args.get("customer_id") or "").strip() or None,
+                email=v_email,
+                phone=v_phone,
             )
         if name == "create_payment_checkout":
             return await _create_payment_checkout(args, user, supabase, context=context)

@@ -576,7 +576,10 @@ def sign_webhook_body(secret: str, body: bytes) -> str:
 
 async def _post_signed_webhook(url: str, secret: str, payload: dict) -> tuple[bool, Optional[str]]:
     """Returns (success, error_message)."""
-    body = json.dumps(payload, default=str).encode()
+    from app.services.slack_escalation import _is_slack_webhook_url, format_slack_webhook_payload
+
+    effective_payload = format_slack_webhook_payload(payload) if _is_slack_webhook_url(url) else payload
+    body = json.dumps(effective_payload, default=str).encode()
     signature = sign_webhook_body(secret, body)
     # Re-checked here, not just at registration - retries can happen up to
     # WEBHOOK_BACKOFF_SCHEDULE's full 8h window after the URL was validated,

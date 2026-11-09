@@ -445,3 +445,515 @@ def test_get_store_info_live_supports_payment_methods_shipping_locations_attribu
     assert taxes["found"] is True
     assert taxes["store_settings"]["woocommerce_weight_unit"] == "kg"
     assert taxes["tax_rates"][0]["rate_percent"] == "8.8750"
+
+
+
+def test_search_products_live_supports_tag_featured_sku_and_date_ordering(monkeypatch):
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+    monkeypatch.setattr(
+        woocommerce_service,
+        "run_db",
+        lambda callback: asyncio.sleep(0, result=SimpleNamespace(data=[])),
+    )
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    captured_calls = []
+
+    async def fake_request(client, method, url, **kwargs):
+        captured_calls.append((method, url, kwargs.get("params") or {}))
+        if url.endswith("/products/tags"):
+            return Response([{"id": 15, "name": "Summer Collection", "slug": "summer-collection", "count": 9}])
+        if url.endswith("/products"):
+            return Response([
+                {
+                    "id": 88,
+                    "type": "simple",
+                    "name": "Linen Resort Shirt",
+                    "sku": "LINEN-88",
+                    "price": "65.00",
+                    "regular_price": "65.00",
+                    "featured": True,
+                    "on_sale": False,
+                    "stock_status": "instock",
+                    "permalink": "https://shop.example/products/linen-shirt",
+                    "images": [{"src": "https://shop.example/images/linen.jpg"}],
+                    "tags": [{"id": 15, "name": "Summer Collection"}],
+                }
+            ])
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    res = asyncio.run(
+        woocommerce_service.search_products_live(
+            "bot-1",
+            tag="summer-collection",
+            featured=True,
+            sku="LINEN-88",
+            sort_by="date",
+            in_stock_only=True,
+        )
+    )
+    assert res["found"] is True
+    assert res["count"] == 1
+    assert res["products"][0]["featured"] is True
+    prod_call = [c for c in captured_calls if c[1].endswith("/products")][0]
+    assert prod_call[0] == "GET"
+    assert prod_call[2]["tag"] == "15"
+    assert prod_call[2]["featured"] == "true"
+    assert prod_call[2]["sku"] == "LINEN-88"
+    assert prod_call[2]["stock_status"] == "instock"
+    assert prod_call[2]["orderby"] == "date"
+    assert prod_call[2]["order"] == "desc"
+
+
+def test_get_product_variations_live_list_and_single_variation(monkeypatch):
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    async def fake_request(client, method, url, **kwargs):
+        assert method == "GET"
+        if url.endswith("/products/42"):
+            return Response({
+                "id": 42,
+                "name": "Trail Runner Pro",
+                "permalink": "https://shop.example/products/trail-runner-pro",
+                "currency": "USD",
+            })
+        if url.endswith("/products/42/variations"):
+            return Response([
+                {
+                    "id": 4201,
+                    "sku": "TRP-42-BLK",
+                    "price": "110.00",
+                    "regular_price": "130.00",
+                    "sale_price": "110.00",
+                    "on_sale": True,
+                    "stock_status": "instock",
+                    "stock_quantity": 7,
+                    "attributes": [{"name": "Size", "option": "42"}, {"name": "Color", "option": "Black"}],
+                },
+                {
+                    "id": 4202,
+                    "sku": "TRP-43-BLU",
+                    "price": "110.00",
+                    "stock_status": "outofstock",
+                    "stock_quantity": 0,
+                    "attributes": [{"name": "Size", "option": "43"}, {"name": "Color", "option": "Blue"}],
+                },
+            ])
+        if url.endswith("/products/42/variations/4201"):
+            return Response({
+                "id": 4201,
+                "sku": "TRP-42-BLK",
+                "price": "110.00",
+                "regular_price": "130.00",
+                "sale_price": "110.00",
+                "on_sale": True,
+                "stock_status": "instock",
+                "stock_quantity": 7,
+                "attributes": [{"name": "Size", "option": "42"}, {"name": "Color", "option": "Black"}],
+            })
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    # 1. All variations: GET /products/{id}/variations
+    all_vars = asyncio.run(woocommerce_service.get_product_variations_live("bot-1", "42"))
+    assert all_vars["found"] is True
+    assert all_vars["count"] == 2
+    assert all_vars["variations"][0]["sku"] == "TRP-42-BLK"
+    assert all_vars["variations"][0]["in_stock"] is True
+
+    # 2. Single variation: GET /products/{id}/variations/{variation_id} via get_store_info_live(info_type="variations")
+    single_var = asyncio.run(
+        woocommerce_service.get_store_info_live("bot-1", info_type="variations", product_id="42", variation_id="4201")
+    )
+    assert single_var["found"] is True
+    assert single_var["variation_id"] == 4201
+    assert single_var["variation"]["sku"] == "TRP-42-BLK"
+    assert single_var["variation"]["price"] == 110.0
+
+
+def test_get_store_info_live_single_resource_endpoints(monkeypatch):
+    """Verify single-ID read-only endpoints for categories/{id}, tags/{id}, attributes/{id}/terms/{term_id},
+    reviews/{id} + product rating summary, shipping/zones/{id}, payment_gateways/{id} (sanitized), and coupons/{id}."""
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    async def fake_request(client, method, url, **kwargs):
+        assert method == "GET"
+        if url.endswith("/products/categories/3"):
+            return Response({"id": 3, "name": "Skincare", "slug": "skincare", "count": 12, "parent": 0, "description": "<p>Clean beauty</p>"})
+        if url.endswith("/products/tags/15"):
+            return Response({"id": 15, "name": "Vegan", "slug": "vegan", "count": 8, "description": "100% plant-based"})
+        if url.endswith("/products/attributes/5"):
+            return Response({"id": 5, "name": "Color", "slug": "pa_color", "type": "select"})
+        if url.endswith("/products/attributes/5/terms/22"):
+            return Response({"id": 22, "name": "Emerald Green", "slug": "emerald-green", "count": 4, "description": "Rich green"})
+        if url.endswith("/products/reviews/501"):
+            return Response({
+                "id": 501,
+                "product_id": 42,
+                "reviewer": "Liam K.",
+                "rating": 5,
+                "review": "<p>Best running shoes I have owned!</p>",
+                "verified": True,
+                "status": "approved",
+                "date_created": "2026-10-01T12:00:00",
+            })
+        if url.endswith("/products/42"):
+            return Response({
+                "id": 42,
+                "name": "Trail Runner Pro",
+                "average_rating": "4.85",
+                "rating_count": 27,
+                "reviews_allowed": True,
+            })
+        if url.endswith("/shipping/zones/2"):
+            return Response({"id": 2, "name": "Europe", "order": 1})
+        if url.endswith("/shipping/zones/2/locations"):
+            return Response([{"code": "DE", "type": "country"}, {"code": "FR", "type": "country"}])
+        if url.endswith("/shipping/zones/2/methods"):
+            return Response([{
+                "id": 21,
+                "title": "DHL Express",
+                "method_id": "flat_rate",
+                "enabled": True,
+                "settings": {"cost": {"value": "14.99"}},
+            }])
+        if url.endswith("/products/shipping_classes"):
+            return Response([{"id": 7, "name": "Standard Parcel", "slug": "standard-parcel", "count": 30}])
+        if url.endswith("/payment_gateways/stripe"):
+            return Response({
+                "id": "stripe",
+                "title": "Credit Card (Stripe)",
+                "description": "Pay with Visa, Mastercard, or Amex",
+                "enabled": True,
+                "method_title": "Stripe",
+                "method_supports": ["products", "refunds"],
+                "settings": {
+                    "secret_key": {"value": "sk_live_SUPER_SECRET_DO_NOT_LEAK"},
+                    "webhook_secret": {"value": "whsec_SUPER_SECRET"},
+                },
+            })
+        if url.endswith("/coupons/10"):
+            return Response({
+                "id": 10,
+                "code": "welcome15",
+                "amount": "15.00",
+                "discount_type": "percent",
+                "description": "15% welcome discount",
+                "minimum_amount": "30.00",
+                "free_shipping": False,
+            })
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    # Category by ID
+    cat = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="categories", category_id="3"))
+    assert cat["found"] is True
+    assert cat["category"]["id"] == 3
+    assert cat["category"]["name"] == "Skincare"
+    assert cat["category"]["description"] == "Clean beauty"
+
+    # Tag by ID
+    tag = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="tags", tag_id="15"))
+    assert tag["found"] is True
+    assert tag["tag"]["id"] == 15
+    assert tag["tag"]["slug"] == "vegan"
+
+    # Attribute + specific term by ID
+    attr = asyncio.run(
+        woocommerce_service.get_store_info_live("bot-1", info_type="attributes", attribute_id="5", term_id="22")
+    )
+    assert attr["found"] is True
+    assert attr["attribute"]["name"] == "Color"
+    assert attr["term"]["id"] == 22
+    assert attr["term"]["name"] == "Emerald Green"
+
+    # Review by ID + product rating summary from GET /products/{id}
+    rev = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="reviews", review_id="501"))
+    assert rev["found"] is True
+    assert rev["review"]["id"] == 501
+    assert rev["review"]["rating"] == 5
+    assert rev["product_rating_summary"]["average_rating"] == "4.85"
+    assert rev["product_rating_summary"]["rating_count"] == 27
+
+    # Shipping zone by ID
+    zone = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="shipping", zone_id="2"))
+    assert zone["found"] is True
+    assert zone["zone"]["id"] == 2
+    assert zone["zone"]["name"] == "Europe"
+    assert zone["zone"]["methods"][0]["cost"] == "14.99"
+
+    # Payment gateway by ID (must strip secret settings!)
+    gw = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="payment_methods", gateway_id="stripe"))
+    assert gw["found"] is True
+    assert gw["payment_method"]["id"] == "stripe"
+    assert "settings" not in gw["payment_method"]
+    assert "sk_live" not in str(gw)
+
+    # Coupon by ID + anti-enumeration guard when neither code nor ID is given
+    cpn = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="coupon", coupon_id="10"))
+    assert cpn["found"] is True
+    assert cpn["code"] == "WELCOME15"
+    assert "checkout_note" in cpn
+
+    no_enum = asyncio.run(woocommerce_service.get_store_info_live("bot-1", info_type="coupon"))
+    assert no_enum["found"] is False
+    assert "ask the visitor for the exact coupon code" in no_enum["message"]
+
+
+def test_lookup_customer_profile_enforces_strict_ownership_verification(monkeypatch):
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    async def fake_request(client, method, url, **kwargs):
+        assert method == "GET"
+        if url.endswith("/customers/55"):
+            return Response({
+                "id": 55,
+                "email": "alice@example.com",
+                "first_name": "Alice",
+                "last_name": "Carter",
+                "username": "alicec",
+                "date_created": "2025-01-10T08:00:00",
+                "is_paying_customer": True,
+                "orders_count": 4,
+                "total_spent": "320.00",
+                "billing": {
+                    "first_name": "Alice",
+                    "last_name": "Carter",
+                    "email": "alice@example.com",
+                    "phone": "+1-555-234-5678",
+                    "city": "Austin",
+                    "state": "TX",
+                    "postcode": "78701",
+                    "country": "US",
+                },
+                "shipping": {
+                    "first_name": "Alice",
+                    "last_name": "Carter",
+                    "city": "Austin",
+                    "state": "TX",
+                    "postcode": "78701",
+                    "country": "US",
+                },
+            })
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    # 1. Missing email/phone -> rejected before calling API
+    unverified = asyncio.run(woocommerce_service.lookup_customer_profile("bot-1", customer_id="55"))
+    assert unverified["found"] is False
+    assert unverified["verification_required"] is True
+
+    # 2. Wrong email for customer_id 55 -> ownership check blocks access
+    wrong_owner = asyncio.run(
+        woocommerce_service.lookup_customer_profile("bot-1", customer_id="55", email="intruder@evil.com")
+    )
+    assert wrong_owner["found"] is False
+    assert wrong_owner["verification_failed"] is True
+
+    # 3. Matching email for customer_id 55 -> returns sanitized customer profile
+    valid_owner = asyncio.run(
+        woocommerce_service.lookup_customer_profile("bot-1", customer_id="55", email="alice@example.com")
+    )
+    assert valid_owner["found"] is True
+    assert valid_owner["verified"] is True
+    assert valid_owner["customer"]["id"] == 55
+    assert valid_owner["customer"]["email"] == "alice@example.com"
+    assert valid_owner["customer"]["orders_count"] == 4
+
+
+def test_order_lookup_fetches_notes_refunds_and_shipping_subendpoint(monkeypatch):
+    monkeypatch.setattr(woocommerce_service, "get_integration", lambda bot_id: asyncio.sleep(0, result={
+        "store_url": "https://shop.example",
+        "consumer_key": "ck_read",
+        "consumer_secret": "cs_read",
+    }))
+
+    class Response:
+        def __init__(self, payload, status_code=200):
+            self.status_code = status_code
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    async def fake_request(client, method, url, **kwargs):
+        assert method == "GET"
+        if url.endswith("/orders/1042"):
+            return Response({
+                "id": 1042,
+                "number": "1042",
+                "status": "completed",
+                "currency": "USD",
+                "total": "120.00",
+                "total_tax": "10.00",
+                "shipping_total": "0.00",
+                "discount_total": "0.00",
+                "date_created": "2026-10-15T10:00:00",
+                "billing": {
+                    "first_name": "Alice",
+                    "last_name": "Carter",
+                    "email": "alice@example.com",
+                    "phone": "+15552345678",
+                },
+                "shipping": {
+                    "first_name": "Alice",
+                    "last_name": "Carter",
+                    "city": "Austin",
+                    "state": "TX",
+                    "country": "US",
+                },
+                "line_items": [{"name": "Trail Runner Pro", "quantity": 1, "total": "110.00", "sku": "TRP-42"}],
+                "meta_data": [],
+            })
+        if url.endswith("/orders/1042/notes"):
+            return Response([
+                {"id": 1, "customer_note": True, "note": "<p>Handed to UPS courier at hub.</p>", "date_created": "2026-10-16T09:00:00"},
+                {"id": 2, "customer_note": False, "note": "Internal staff note - never expose", "date_created": "2026-10-16T08:00:00"},
+            ])
+        if url.endswith("/orders/1042/refunds"):
+            return Response([
+                {"id": 901, "amount": "15.00", "reason": "Courtesy shipping adjustment", "date_created": "2026-10-17T11:00:00"}
+            ])
+        if url.endswith("/orders/1042/shipping"):
+            return Response([
+                {"carrier": "UPS", "tracking_number": "1Z999AA10123456784", "status": "in_transit"}
+            ])
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(woocommerce_service.ssrf, "request_async", fake_request)
+
+    order = asyncio.run(
+        woocommerce_service.lookup_order("bot-1", "1042", email="alice@example.com")
+    )
+    assert order["found"] is True
+    assert order["verified"] is True
+    assert len(order["customer_notes"]) == 1
+    assert "Handed to UPS courier" in order["customer_notes"][0]["note"]
+    assert "Internal staff note" not in str(order)
+    assert len(order["refunds"]) == 1
+    assert order["refunds"][0]["amount"] == "15.00"
+    assert len(order["shipping_details"]["extension_shipments"]) == 1
+    assert order["shipping_details"]["extension_shipments"][0]["carrier"] == "UPS"
+
+
+
+def test_agent_tools_and_router_expose_all_readonly_woocommerce_capabilities(monkeypatch):
+    from plugins import agent_tools
+    from app.routers import woocommerce as wc_router
+
+    tool_names = {d["function"]["name"] for d in agent_tools.DECLARATIONS}
+    assert "lookup_woocommerce_order" in tool_names
+    assert "lookup_woocommerce_customer" in tool_names
+    assert "search_woocommerce_products" in tool_names
+    assert "get_woocommerce_store_info" in tool_names
+
+    store_info_schema = next(
+        d["function"]["parameters"]
+        for d in agent_tools.DECLARATIONS
+        if d["function"]["name"] == "get_woocommerce_store_info"
+    )
+    assert "variations" in store_info_schema["properties"]["info_type"]["enum"]
+    for param in (
+        "variation_id",
+        "category_id",
+        "tag_id",
+        "attribute_id",
+        "term_id",
+        "review_id",
+        "zone_id",
+        "gateway_id",
+        "coupon_id",
+    ):
+        assert param in store_info_schema["properties"]
+
+    async def fake_verify_perm(bot_id, user, perm):
+        return True
+
+    monkeypatch.setattr(wc_router, "verify_bot_permission", fake_verify_perm)
+    monkeypatch.setattr(
+        woocommerce_service,
+        "get_product_variations_live",
+        lambda bot_id, product_id, variation_id=None: asyncio.sleep(
+            0,
+            result={"found": True, "product_id": product_id, "variation_id": variation_id, "variations": [{"id": 4201}]},
+        ),
+    )
+    monkeypatch.setattr(
+        woocommerce_service,
+        "lookup_customer_profile",
+        lambda bot_id, customer_id=None, email=None, phone=None: asyncio.sleep(
+            0,
+            result={"found": True, "verified": True, "customer": {"id": customer_id, "email": email}},
+        ),
+    )
+
+    var_res = asyncio.run(
+        wc_router.get_woocommerce_single_variation_endpoint(
+            "bot-1", "42", "4201", user={"id": "u1"}
+        )
+    )
+    assert var_res["found"] is True
+    assert var_res["variation_id"] == "4201"
+
+    cust_res = asyncio.run(
+        wc_router.lookup_woocommerce_customer_endpoint(
+            "bot-1",
+            wc_router.WooCommerceCustomerLookupRequest(customer_id="55", email="alice@example.com"),
+            user={"id": "u1"},
+        )
+    )
+    assert cust_res["found"] is True
+    assert cust_res["verified"] is True
+    assert cust_res["customer"]["email"] == "alice@example.com"

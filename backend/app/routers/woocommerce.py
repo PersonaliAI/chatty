@@ -518,3 +518,156 @@ async def receive_woocommerce_auth_callback(
         "bot_id": bot_id,
         "store_url": store_url,
     }
+
+
+class WooCommerceOrderLookupRequest(BaseModel):
+    order_number: Optional[str] = Field(None, description="Order number or ID")
+    email: Optional[str] = Field(None, description="Customer billing email for ownership verification")
+    phone: Optional[str] = Field(None, description="Customer billing phone for ownership verification")
+
+
+class WooCommerceCustomerLookupRequest(BaseModel):
+    customer_id: Optional[str] = Field(None, description="Numeric WooCommerce customer ID")
+    email: Optional[str] = Field(None, description="Customer email address for ownership verification")
+    phone: Optional[str] = Field(None, description="Customer phone number for ownership verification")
+
+
+@router.get("/api/bots/{bot_id}/integrations/woocommerce/products")
+async def search_woocommerce_products_endpoint(
+    bot_id: str,
+    query: Optional[str] = None,
+    product_id: Optional[str] = None,
+    sku: Optional[str] = None,
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
+    min_price: Optional[float] = None,
+    max_price: Optional[float] = None,
+    on_sale: Optional[bool] = None,
+    featured: Optional[bool] = None,
+    in_stock_only: bool = True,
+    attribute_filter: Optional[str] = None,
+    sort_by: str = "relevance",
+    limit: int = 5,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Read-only WooCommerce product catalog search & filter endpoint."""
+    await verify_bot_permission(bot_id, user, "sources")
+    return await woocommerce_service.search_products_live(
+        bot_id,
+        query=query,
+        product_id=product_id,
+        sku=sku,
+        category=category,
+        tag=tag,
+        min_price=min_price,
+        max_price=max_price,
+        on_sale=on_sale,
+        featured=featured,
+        in_stock_only=in_stock_only,
+        attribute_filter=attribute_filter,
+        sort_by=sort_by,
+        limit=limit,
+    )
+
+
+@router.get("/api/bots/{bot_id}/integrations/woocommerce/products/{product_id}/variations")
+async def get_woocommerce_product_variations_endpoint(
+    bot_id: str,
+    product_id: str,
+    variation_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Read-only WooCommerce product variations endpoint (`GET /products/{id}/variations`)."""
+    await verify_bot_permission(bot_id, user, "sources")
+    return await woocommerce_service.get_product_variations_live(
+        bot_id,
+        product_id=product_id,
+        variation_id=variation_id,
+    )
+
+
+@router.get("/api/bots/{bot_id}/integrations/woocommerce/products/{product_id}/variations/{variation_id}")
+async def get_woocommerce_single_variation_endpoint(
+    bot_id: str,
+    product_id: str,
+    variation_id: str,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Read-only WooCommerce single variation details endpoint (`GET /products/{id}/variations/{variation_id}`)."""
+    await verify_bot_permission(bot_id, user, "sources")
+    return await woocommerce_service.get_product_variations_live(
+        bot_id,
+        product_id=product_id,
+        variation_id=variation_id,
+    )
+
+
+@router.get("/api/bots/{bot_id}/integrations/woocommerce/store-info")
+async def get_woocommerce_store_info_endpoint(
+    bot_id: str,
+    info_type: str = "categories",
+    coupon_code: Optional[str] = None,
+    coupon_id: Optional[str] = None,
+    product_id: Optional[str] = None,
+    product_name: Optional[str] = None,
+    variation_id: Optional[str] = None,
+    category_id: Optional[str] = None,
+    tag_id: Optional[str] = None,
+    attribute_id: Optional[str] = None,
+    term_id: Optional[str] = None,
+    review_id: Optional[str] = None,
+    zone_id: Optional[str] = None,
+    gateway_id: Optional[str] = None,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Read-only WooCommerce store metadata endpoint (categories, tags, attributes, reviews, shipping, payment gateways, coupons, variations)."""
+    await verify_bot_permission(bot_id, user, "sources")
+    return await woocommerce_service.get_store_info_live(
+        bot_id,
+        info_type=info_type,
+        coupon_code=coupon_code,
+        coupon_id=coupon_id,
+        product_id=product_id,
+        product_name=product_name,
+        variation_id=variation_id,
+        category_id=category_id,
+        tag_id=tag_id,
+        attribute_id=attribute_id,
+        term_id=term_id,
+        review_id=review_id,
+        zone_id=zone_id,
+        gateway_id=gateway_id,
+    )
+
+
+@router.post("/api/bots/{bot_id}/integrations/woocommerce/order-lookup")
+async def lookup_woocommerce_order_endpoint(
+    bot_id: str,
+    req: WooCommerceOrderLookupRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Read-only WooCommerce order lookup with server-side ownership verification."""
+    await verify_bot_permission(bot_id, user, "sources")
+    return await woocommerce_service.lookup_order(
+        bot_id,
+        order_number=str(req.order_number or "").strip(),
+        email=req.email,
+        phone=req.phone,
+    )
+
+
+@router.post("/api/bots/{bot_id}/integrations/woocommerce/customer-lookup")
+async def lookup_woocommerce_customer_endpoint(
+    bot_id: str,
+    req: WooCommerceCustomerLookupRequest,
+    user: dict[str, Any] = Depends(require_user),
+):
+    """Read-only WooCommerce customer profile lookup with server-side ownership verification."""
+    await verify_bot_permission(bot_id, user, "sources")
+    return await woocommerce_service.lookup_customer_profile(
+        bot_id,
+        customer_id=req.customer_id,
+        email=req.email,
+        phone=req.phone,
+    )
+

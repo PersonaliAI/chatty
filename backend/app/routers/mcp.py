@@ -1154,18 +1154,37 @@ async def sync_woocommerce_products(bot_id: str) -> dict:
 @mcp.tool()
 async def configure_slack_escalation(bot_id: str, webhook_url: str, channel_name: str = "#support") -> dict:
     """Configure a Slack incoming webhook to receive real-time notifications for human handoff or negative sentiment."""
+    from app.core.ssrf import UnsafeURLError, assert_safe_url_async
+    from app.services.slack_escalation import _is_slack_webhook_url
+
     principal = await _current_principal()
     _oauth.check_principal_scope(principal, "write")
     await _oauth.require_bot_access(principal, bot_id)
-    row = {
+
+    clean_url = (webhook_url or "").strip()
+    if clean_url:
+        if not _is_slack_webhook_url(clean_url):
+            raise HTTPException(
+                status_code=400,
+                detail="webhook_url must be a valid https://hooks.slack.com/services/... URL",
+            )
+        try:
+            await assert_safe_url_async(clean_url)
+        except UnsafeURLError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid webhook_url: {exc}") from exc
+
+    await run_db(
+        lambda: supabase.table("chatty_bots")
+        .update({"slack_escalation_webhook_url": clean_url})
+        .eq("id", bot_id)
+        .execute()
+    )
+    return {
         "bot_id": bot_id,
-        "slack_webhook_url": webhook_url,
-        "slack_channel": channel_name,
-        "notify_on_escalation": True,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "slack_configured": bool(clean_url),
+        "slack_escalation_webhook_url": clean_url,
+        "channel": channel_name,
     }
-    await run_db(lambda: supabase.table("chatty_bot_notifications").upsert(row, on_conflict="bot_id").execute())
-    return {"bot_id": bot_id, "slack_configured": True, "channel": channel_name}
 
 
 @mcp.tool()
