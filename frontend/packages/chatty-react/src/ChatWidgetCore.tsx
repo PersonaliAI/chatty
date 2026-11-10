@@ -3646,8 +3646,11 @@ const clearChat = async () => {
                               />
                             ) : (
                               <div
-                                className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5"
-                                style={{ background: primaryColor, color: onPrimary }}
+                                className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5 shadow-2xs"
+                                style={{
+                                  backgroundColor: colorScheme?.avatar?.bg || logoBgColor || primaryColor,
+                                  color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || logoBgColor || primaryColor),
+                                }}
                               >
                                 {avatarInner("size-3.5")}
                               </div>
@@ -3937,8 +3940,11 @@ const clearChat = async () => {
                             className="flex gap-2 w-full max-w-[96%] sm:max-w-[88%] mr-auto"
                           >
                             <div
-                              className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5"
-                              style={{ background: primaryColor, color: onPrimary }}
+                              className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5 shadow-2xs"
+                              style={{
+                                backgroundColor: colorScheme?.avatar?.bg || logoBgColor || primaryColor,
+                                color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || logoBgColor || primaryColor),
+                              }}
                             >
                               {avatarInner("size-3.5")}
                             </div>
@@ -3987,7 +3993,13 @@ const clearChat = async () => {
                           className="shrink-0 mt-0.5"
                         />
                       ) : (
-                        <div className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5" style={{ background: primaryColor, color: onPrimary }}>
+                        <div
+                          className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5 shadow-2xs"
+                          style={{
+                            backgroundColor: colorScheme?.avatar?.bg || logoBgColor || primaryColor,
+                            color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || logoBgColor || primaryColor),
+                          }}
+                        >
                           {avatarInner("size-3.5")}
                         </div>
                       )}
