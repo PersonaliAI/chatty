@@ -128,7 +128,7 @@
   // no error, so the widget never appears. Bump this on every release that
   // changes the widget shell or embedded chat surface so customer sites
   // do not keep loading a stale cached UI bundle.
-  var ASSET_VERSION = "2026-11-10.v2-agentic-craft";
+  var ASSET_VERSION = "2026-11-10.v3-launcher-color-fix";
 
   // Preconnect to origin for fast asset loading
   try {

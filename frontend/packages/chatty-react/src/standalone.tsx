@@ -223,56 +223,35 @@ export function ChattyStandaloneApp({
     if (!d) return;
 
     let activeDesign = normalizeWidgetStyle(styleAttr);
-    let activeBg = colorAttr || d.primary_color || LAUNCHER_STYLES[activeDesign]?.bg || "#f97316";
-    let activeRadius = LAUNCHER_STYLES[activeDesign]?.radius || "50%";
-    let activeShadow = LAUNCHER_STYLES[activeDesign]?.shadow || "0 6px 24px rgba(0,0,0,.25)";
-    let activeLogoBg = "";
-    let activeIconOverride: string | null = null;
     let shapeVal: string | undefined = undefined;
+    let activeLogoBg = "";
 
     if (d.widget_style) {
       const parts = String(d.widget_style).split(":");
-      const styleName = parts[0];
-      const logoBg = parts[1];
-      shapeVal = parts[2];
-
-      const norm = normalizeWidgetStyle(styleName);
-      activeDesign = norm;
-      setCurrentDesign(norm);
-      const preset = LAUNCHER_STYLES[norm];
-      if (preset) {
-        activeRadius = getLauncherRadius(shapeVal, preset.radius, side);
-        activeShadow = preset.shadow;
-        // Priority for launcher background: Section color > primary color > preset default
-        activeBg = colorAttr || d.primary_color || preset.bg;
-        setLauncherBg(activeBg);
-        setLauncherRadius(activeRadius);
-        setLauncherShadow(preset.shadow);
-      }
-      if (logoBg) {
-        activeLogoBg = logoBg;
-        setCustomLogoBgColor(logoBg);
-      }
-    } else if (d.primary_color) {
-      activeBg = d.primary_color;
-      setLauncherBg(d.primary_color);
+      activeDesign = normalizeWidgetStyle(parts[0]);
+      if (parts[1]) activeLogoBg = parts[1];
+      if (parts[2]) shapeVal = parts[2];
     }
 
-    if (shapeVal) {
-      activeRadius = getLauncherRadius(shapeVal, activeRadius, side);
-      setLauncherRadius(activeRadius);
-    }
+    setCurrentDesign(activeDesign);
+    const preset = LAUNCHER_STYLES[activeDesign];
 
-    // Section Colors launcher overrides from Customizer take highest precedence
-    if (d.color_scheme?.launcher?.bg) {
-      activeBg = d.color_scheme.launcher.bg;
-      setLauncherBg(d.color_scheme.launcher.bg);
-    } else if ((!d.avatar_icon || d.avatar_icon === "logo") && logoBg) {
-      // When brand logo is used as the launcher icon, default the button background to the logo background
-      // to avoid an awkward contrasting ring around the brand mark.
-      activeBg = logoBg;
-      setLauncherBg(logoBg);
-    }
+    let activeRadius = getLauncherRadius(shapeVal, preset?.radius || "50%", side);
+    let activeShadow = preset?.shadow || "0 6px 24px rgba(0,0,0,.25)";
+    if (activeLogoBg) setCustomLogoBgColor(activeLogoBg);
+
+    const isLogoAvatar = (!d.avatar_icon || d.avatar_icon === "logo");
+    const defaultBg = (isLogoAvatar && activeLogoBg)
+      ? activeLogoBg
+      : (d.primary_color || preset?.bg || "#f97316");
+
+    let activeBg = colorAttr || d.color_scheme?.launcher?.bg || defaultBg;
+    let activeIconOverride: string | null = null;
+
+    setLauncherBg(activeBg);
+    setLauncherRadius(activeRadius);
+    setLauncherShadow(activeShadow);
+
     if (d.color_scheme?.launcher?.text) {
       activeIconOverride = d.color_scheme.launcher.text;
       setLauncherIconOverride(d.color_scheme.launcher.text);
