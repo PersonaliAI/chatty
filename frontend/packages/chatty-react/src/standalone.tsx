@@ -236,8 +236,8 @@ export function ChattyStandaloneApp({
     setCurrentDesign(activeDesign);
     const preset = LAUNCHER_STYLES[activeDesign];
 
-    let activeRadius = getLauncherRadius(shapeVal, preset?.radius || "50%", side);
-    let activeShadow = preset?.shadow || "0 6px 24px rgba(0,0,0,.25)";
+    const activeRadius = getLauncherRadius(shapeVal, preset?.radius || "50%", side);
+    const activeShadow = preset?.shadow || "0 6px 24px rgba(0,0,0,.25)";
     if (activeLogoBg) setCustomLogoBgColor(activeLogoBg);
 
     const isLogoAvatar = (!d.avatar_icon || d.avatar_icon === "logo");
@@ -245,7 +245,7 @@ export function ChattyStandaloneApp({
       ? activeLogoBg
       : (d.primary_color || preset?.bg || "#f97316");
 
-    let activeBg = colorAttr || d.color_scheme?.launcher?.bg || defaultBg;
+    const activeBg = colorAttr || d.color_scheme?.launcher?.bg || defaultBg;
     let activeIconOverride: string | null = null;
 
     setLauncherBg(activeBg);
