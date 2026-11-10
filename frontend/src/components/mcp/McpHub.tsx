@@ -467,15 +467,30 @@ export function McpHub({
   return (
     <div className="w-full space-y-7">
       {/* Top Pill Navigation - Styled with Warm Editorial Colors */}
-      <div className="w-full overflow-x-auto scrollbar-none no-scrollbar py-2 [-webkit-overflow-scrolling:touch] px-2 sm:px-4">
-        <div className="flex w-max min-w-full justify-start 2xl:justify-center">
-          <div
-            className="inline-flex items-center gap-1.5 p-1.5 rounded-full border shadow-sm shrink-0"
-            style={{
-              background: "color-mix(in srgb, #f5ead8 85%, white 15%)",
-              borderColor: BRAND_DIVIDER,
-            }}
-          >
+      <div className="relative w-full group">
+        <div
+          className="pointer-events-none absolute left-0 top-0 bottom-0 w-6 sm:w-10 z-10 transition-opacity duration-200"
+          style={{
+            background: "linear-gradient(to right, var(--color-accent-2-100, #f2e2cb), transparent)",
+          }}
+          aria-hidden="true"
+        />
+        <div
+          className="pointer-events-none absolute right-0 top-0 bottom-0 w-6 sm:w-10 z-10 transition-opacity duration-200"
+          style={{
+            background: "linear-gradient(to left, var(--color-accent-2-100, #f2e2cb), transparent)",
+          }}
+          aria-hidden="true"
+        />
+        <div className="w-full overflow-x-auto scrollbar-none no-scrollbar py-2 [-webkit-overflow-scrolling:touch] px-4 sm:px-8 scroll-px-6">
+          <div className="flex w-max min-w-full justify-start md:justify-center">
+            <div
+              className="inline-flex items-center gap-1.5 p-1.5 rounded-full border shadow-sm shrink-0"
+              style={{
+                background: "color-mix(in srgb, #f5ead8 85%, white 15%)",
+                borderColor: BRAND_DIVIDER,
+              }}
+            >
           {AGENTS.map((agent) => {
             const isSelected = activeTab === agent.id;
             return (
@@ -513,9 +528,10 @@ export function McpHub({
               </button>
             );
           })}
-        </div>
+          </div>
         </div>
       </div>
+    </div>
 
       {/* Main Showcase Hero - Color Matched Warm Sand / Editorial Palette */}
       <div
