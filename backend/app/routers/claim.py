@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
+import json
 import jwt
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Header, Request
 from urllib.parse import urlparse
@@ -77,6 +78,114 @@ class GenerateClaimBotRequest(BaseModel):
 
 
 
+
+def _heuristic_prompts_from_content(clean_name: str, content: str) -> list[str]:
+    """Derive smart, context-appropriate demo questions based on keywords in crawled text."""
+    lower = (content or "").lower()
+
+    # Developer / API / Technical platform
+    if any(k in lower for k in ("api", "sdk", "developer", "documentation", "endpoint", "webhook", "cli", "open-source", "github")):
+        return [
+            f"What core APIs and developer tools does {clean_name} offer?",
+            f"How can I integrate {clean_name} into my application or workflow?",
+            f"What are the pricing plans, SDKs, and documentation details?",
+        ]
+
+    # Search / AI / Cloud / Data platform
+    if any(k in lower for k in ("search", "artificial intelligence", "ai model", "cloud compute", "analytics", "database", "llm", "ernie", "wenxin")):
+        return [
+            f"What products and AI services does {clean_name} provide?",
+            f"What cloud, enterprise, or data solutions are available?",
+            f"How do I access developer tools and APIs at {clean_name}?",
+        ]
+
+    # Healthcare / Clinic / Medical / Dental
+    if any(k in lower for k in ("dental", "doctor", "patient", "clinic", "health", "appointment", "treatment", "medical", "hospital")):
+        return [
+            f"What treatments and healthcare services does {clean_name} provide?",
+            f"How do I schedule an appointment or consultation?",
+            f"What insurance plans or payment options do you accept?",
+        ]
+
+    # E-commerce / Retail with physical catalog/shipping
+    if any(k in lower for k in ("add to cart", "checkout", "shipping policy", "return policy", "hoodie", "clothing", "apparel", "merchandise")):
+        return [
+            f"What products and collections does {clean_name} offer?",
+            f"What are your shipping rates and return policies?",
+            f"How can I track my order or contact customer care?",
+        ]
+
+    # Booking / Scheduling / Calendar
+    if any(k in lower for k in ("booking", "calendar", "schedule", "meeting", "consultation")):
+        return [
+            f"How does scheduling and booking work with {clean_name}?",
+            f"What calendar integrations (Google, Outlook, Zoom) are supported?",
+            f"What are your plan options and core features?",
+        ]
+
+    # Default general B2B / SaaS
+    return [
+        f"What products or solutions does {clean_name} provide?",
+        f"What are your core features, integrations, and plans?",
+        f"How do I get started or contact your team?",
+    ]
+
+
+def _generate_initial_sandbox_prompts(clean_name: str, raw_url: str) -> list[str]:
+    """Clean initial prompts before crawling completes, free of e-commerce assumptions."""
+    return [
+        f"What products or services does {clean_name} offer?",
+        f"What are your core features, solutions, or plans?",
+        f"How do I get started or contact support at {clean_name}?",
+    ]
+
+
+async def _extract_dynamic_prompts_from_content(bot_id: str, target_url: str, content: str) -> list[str]:
+    """Use Gemini / LiteLLM to analyze trained site content and generate 3 sharp, specific questions."""
+    parsed = urlparse(target_url)
+    host = parsed.netloc.split(":")[0].lower().replace("www.", "")
+    clean_name = host.split(".")[0].replace("-", " ").title()
+
+    snippet = content[:4000].strip()
+    if not snippet:
+        return _heuristic_prompts_from_content(clean_name, content)
+
+    try:
+        from plugins import ai_client
+        model = ai_client.resolve_gemini_model("gemini-2.5-flash")
+        prompt = (
+            f"You are analyzing website content for '{clean_name}' ({target_url}).\n"
+            f"Website text excerpt:\n\"\"\"{snippet}\"\"\"\n\n"
+            f"Generate exactly 3 specific, engaging questions a prospective customer or visitor would ask this business.\n"
+            f"Rules:\n"
+            f"1. Strictly grounded in what {clean_name} actually does based on the text.\n"
+            f"2. Never mention shipping or returns unless this site sells physical goods.\n"
+            f"3. Never ask to place an order unless it is an e-commerce shop with a cart.\n"
+            f"4. Under 12 words per question, natural and punchy, ending with '?'.\n"
+            f"5. Return ONLY a valid JSON list of 3 strings: [\"Question 1?\", \"Question 2?\", \"Question 3?\"]"
+        )
+        resp = await ai_client.chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            bot_id=bot_id,
+            call_type="claim_prompts",
+        )
+        raw = resp.choices[0].message.content.strip()
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        parsed_list = json.loads(raw.strip())
+        if isinstance(parsed_list, list) and len(parsed_list) >= 2:
+            cleaned = [str(q).strip() for q in parsed_list if str(q).strip()][:4]
+            if len(cleaned) >= 2:
+                return cleaned
+    except Exception as e:
+        logger.warning("LLM dynamic prompt extraction failed for bot %s: %s", bot_id, e)
+
+    return _heuristic_prompts_from_content(clean_name, content)
+
 async def _crawl_demo_target_site(bot_id: str, target_url: str):
     """Background task to fetch and index the demo startup's site so the claimable
     assistant is pre-trained with real answers when the prospect opens the link."""
@@ -94,6 +203,17 @@ async def _crawl_demo_target_site(bot_id: str, target_url: str):
                 "char_count": len(content[:150000]),
             }).execute())
             logger.info("Successfully pre-trained demo bot %s (%d chars)", bot_id, len(content))
+
+            # Dynamically generate and persist questions grounded in trained content
+            dynamic_prompts = await _extract_dynamic_prompts_from_content(bot_id, target_url, content)
+            if dynamic_prompts and len(dynamic_prompts) >= 2:
+                try:
+                    await run_db(lambda: supabase.table("chatty_bots").update({
+                        "suggested_prompts": dynamic_prompts,
+                    }).eq("id", bot_id).execute())
+                    logger.info("Updated demo bot %s with %d dynamic prompts", bot_id, len(dynamic_prompts))
+                except Exception:
+                    logger.warning("Failed to update bot %s with dynamic prompts", bot_id)
     except Exception:
         logger.exception("Failed to pre-train demo bot %s", bot_id)
 
@@ -266,11 +386,7 @@ async def create_instant_sandbox_bot(
     claim_token = f"clm_{secrets.token_urlsafe(16)}"
     expires_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
 
-    prompts = [
-        f"What products or services does {clean_name} offer?",
-        "What are your pricing, shipping, or return policies?",
-        "How can I contact customer support or place an order?",
-    ]
+    prompts = _generate_initial_sandbox_prompts(clean_name, raw_url)
 
     welcome = (
         f"Hi there! I am the automated customer assistant for {clean_name}. "
@@ -377,11 +493,28 @@ async def get_claim_details(claim_token: str) -> dict[str, Any]:
     # Mint a signed widget origin token so the prospect can chat with 0 restrictions
     widget_token = _mint_demo_widget_token(bot_id)
 
-    suggested = bot.get("suggested_prompts") or [
-        "What are your core features and plans?",
-        "How do I get started?",
-        "How does your product work?",
-    ]
+    suggested = bot.get("suggested_prompts") or []
+    has_stale_generic = any(
+        "shipping, or return policies" in p or "place an order" in p
+        for p in suggested
+    )
+    if has_stale_generic or not suggested:
+        source_text = ""
+        for s in sources:
+            if s.get("content"):
+                source_text = s["content"]
+                break
+        target_name = bot.get("demo_target_name") or bot.get("name") or "Your Startup"
+        if source_text:
+            dynamic = _heuristic_prompts_from_content(target_name, source_text)
+            if dynamic:
+                suggested = dynamic
+                # Cache dynamic prompts to database asynchronously
+                asyncio.create_task(
+                    run_db(lambda: supabase.table("chatty_bots").update({"suggested_prompts": dynamic}).eq("id", bot_id).execute())
+                )
+        else:
+            suggested = _generate_initial_sandbox_prompts(target_name, bot.get("demo_target_url") or "")
 
     return {
         "status": status,

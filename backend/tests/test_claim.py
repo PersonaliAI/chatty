@@ -236,3 +236,73 @@ def test_generate_claimable_bot_allowed_for_admin():
             assert "/claim/" in data["claim_url"]
     finally:
         main.app.dependency_overrides.pop(require_user, None)
+
+
+def test_heuristic_prompts_developer_and_ai_avoid_shipping():
+    from app.routers.claim import _heuristic_prompts_from_content
+
+    # Technical platform
+    dev_content = "Welcome to Acme Dev. Read our API documentation, SDKs, and REST endpoints for developers."
+    dev_prompts = _heuristic_prompts_from_content("Acme Dev", dev_content)
+    assert len(dev_prompts) == 3
+    assert any("api" in p.lower() or "developer" in p.lower() for p in dev_prompts)
+    assert not any("shipping" in p.lower() or "return" in p.lower() or "place an order" in p.lower() for p in dev_prompts)
+
+    # Search & AI Cloud platform (like Baidu)
+    ai_content = "Baidu is an artificial intelligence and internet search engine company providing cloud compute and LLMs."
+    ai_prompts = _heuristic_prompts_from_content("Baidu", ai_content)
+    assert len(ai_prompts) == 3
+    assert any("ai" in p.lower() or "cloud" in p.lower() or "products" in p.lower() for p in ai_prompts)
+    assert not any("shipping" in p.lower() or "return" in p.lower() or "place an order" in p.lower() for p in ai_prompts)
+
+
+def test_heuristic_prompts_ecommerce_allows_shipping():
+    from app.routers.claim import _heuristic_prompts_from_content
+
+    shop_content = "Exclusive streetwear store. Add to cart, fast checkout, 30-day return policy and shipping details."
+    shop_prompts = _heuristic_prompts_from_content("Streetwear Co", shop_content)
+    assert len(shop_prompts) == 3
+    assert any("shipping" in p.lower() or "return" in p.lower() for p in shop_prompts)
+
+
+@pytest.mark.anyio
+async def test_extract_dynamic_prompts_llm_json_parsing():
+    from unittest.mock import AsyncMock, patch
+    from app.routers.claim import _extract_dynamic_prompts_from_content
+
+    mock_resp = MagicMock()
+    mock_choice = MagicMock()
+    mock_choice.message.content = '["What is your core LLM model?", "How can I deploy models on your cloud?", "What are the API pricing tiers?"]'
+    mock_resp.choices = [mock_choice]
+
+    with patch("plugins.ai_client.resolve_gemini_model", return_value="gemini/gemini-2.5-flash"), \
+         patch("plugins.ai_client.chat", new_callable=AsyncMock) as mock_chat:
+        mock_chat.return_value = mock_resp
+
+        prompts = await _extract_dynamic_prompts_from_content(
+            bot_id="bot-test-123",
+            target_url="https://cloud.example.com",
+            content="Enterprise cloud computing and LLM model deployment."
+        )
+
+        assert len(prompts) == 3
+        assert "What is your core LLM model?" in prompts
+        assert "What are the API pricing tiers?" in prompts
+
+
+@pytest.mark.anyio
+async def test_extract_dynamic_prompts_fallback_on_failure():
+    from unittest.mock import AsyncMock, patch
+    from app.routers.claim import _extract_dynamic_prompts_from_content
+
+    with patch("plugins.ai_client.resolve_gemini_model", side_effect=Exception("API Key unavailable")):
+        prompts = await _extract_dynamic_prompts_from_content(
+            bot_id="bot-test-123",
+            target_url="https://dentalcare.example.com",
+            content="Welcome to Dental Care Clinic. We provide patient appointments, dental treatments, and doctor visits."
+        )
+
+        assert len(prompts) == 3
+        assert any("dental" in p.lower() or "healthcare" in p.lower() or "appointment" in p.lower() for p in prompts)
+        assert not any("shipping" in p.lower() for p in prompts)
+

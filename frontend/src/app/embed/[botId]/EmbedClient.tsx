@@ -992,6 +992,9 @@ function IdentifiedEmbedClient({
         const h = typeof data.height === "number" ? data.height : typeof data.top === "number" ? data.top : undefined;
         if (typeof h === "number" && h >= 0) setSafeAreaTop(h);
       }
+      if (data.type === "chatty-send-prompt" && typeof data.text === "string" && data.text.trim()) {
+        sendTextRef.current(data.text.trim());
+      }
     };
     window.addEventListener("message", handleMessage);
 

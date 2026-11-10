@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useRef, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -52,6 +52,7 @@ export default function ClaimClient({ token }: { token: string }) {
   const [bot, setBot] = useState<ClaimBotDetails | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [mobileTab, setMobileTab] = useState<"chat" | "overview">("chat");
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Modals & action states
   const [showClaimModal, setShowClaimModal] = useState(false);
@@ -107,7 +108,7 @@ export default function ClaimClient({ token }: { token: string }) {
     };
   }, [token, autoClaimParam]);
 
-  // Copy suggested prompt to clipboard
+  // Copy suggested prompt to clipboard & dispatch to live sandbox chat
   const handleCopyPrompt = async (promptText: string, index: number) => {
     try {
       await navigator.clipboard.writeText(promptText);
@@ -115,6 +116,18 @@ export default function ClaimClient({ token }: { token: string }) {
       setTimeout(() => setCopiedIndex(null), 2500);
     } catch {
       // fallback
+    }
+
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        JSON.stringify({ type: "chatty-send-prompt", text: promptText }),
+        "*"
+      );
+      if (mobileTab !== "chat") {
+        setMobileTab("chat");
+      }
+    } catch {
+      // Non-fatal if iframe postMessage fails
     }
   };
 
@@ -584,6 +597,7 @@ export default function ClaimClient({ token }: { token: string }) {
               {/* Embedded Live Widget Sandbox */}
               <div className="relative w-full flex-1 min-h-0 bg-slate-50/50">
                 <iframe
+                  ref={iframeRef}
                   src={`/embed/${bot.bot_id}?token=${encodeURIComponent(bot.widget_token || "")}&preview=true`}
                   title={`${bot.name} Interactive Sandbox`}
                   className="w-full h-full border-0"
