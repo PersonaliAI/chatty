@@ -2649,11 +2649,10 @@ function IdentifiedEmbedClient({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Request-ID": clientMsgId,
-          "Idempotency-Key": clientMsgId,
           ...widgetTokenHeader,
         },
         body: JSON.stringify({
+          client_msg_id: clientMsgId,
           bot_id: botId,
           session_id: sessionId,
           text,
@@ -2732,7 +2731,8 @@ function IdentifiedEmbedClient({
           }
         }
       }
-    } catch {
+    } catch (err) {
+      console.error("[ChatWidget] Stream error:", err);
       writeAssistant("Sorry, I can't connect right now.");
     } finally {
       setIsBotResponding(false);

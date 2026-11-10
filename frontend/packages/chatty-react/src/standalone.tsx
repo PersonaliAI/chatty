@@ -267,6 +267,11 @@ export function ChattyStandaloneApp({
     if (d.color_scheme?.launcher?.bg) {
       activeBg = d.color_scheme.launcher.bg;
       setLauncherBg(d.color_scheme.launcher.bg);
+    } else if ((!d.avatar_icon || d.avatar_icon === "logo") && logoBg) {
+      // When brand logo is used as the launcher icon, default the button background to the logo background
+      // to avoid an awkward contrasting ring around the brand mark.
+      activeBg = logoBg;
+      setLauncherBg(logoBg);
     }
     if (d.color_scheme?.launcher?.text) {
       activeIconOverride = d.color_scheme.launcher.text;
@@ -446,11 +451,12 @@ export function ChattyStandaloneApp({
       return <Icon style={{ width: 28, height: 28, stroke: iconColor }} />;
     }
     if (customIconUrl) {
+      const needsInnerBg = customLogoBgColor && launcherBg !== customLogoBgColor;
       return (
         <img
           src={customIconUrl}
           alt=""
-          style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover", backgroundColor: customLogoBgColor || "transparent" }}
+          style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "contain", backgroundColor: needsInnerBg ? customLogoBgColor : "transparent" }}
         />
       );
     }

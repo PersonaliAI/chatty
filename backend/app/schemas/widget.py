@@ -11,6 +11,7 @@ class WidgetChatRequest(BaseModel):
     bot_id: str
     session_id: str
     text: str
+    client_msg_id: Optional[str] = None
     visitor_timezone: Optional[str] = "UTC"
     visitor_country: Optional[str] = None
     visitor_name: Optional[str] = None
