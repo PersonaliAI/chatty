@@ -467,9 +467,9 @@ export function McpHub({
   return (
     <div className="w-full space-y-7">
       {/* Top Pill Navigation - Styled with Warm Editorial Colors */}
-      <div className="w-full overflow-x-auto scrollbar-none no-scrollbar py-1.5 flex items-center justify-start md:justify-center [-webkit-overflow-scrolling:touch] px-2 sm:px-0">
+      <div className="w-full overflow-x-auto scrollbar-none no-scrollbar py-1.5 flex items-center justify-start [-webkit-overflow-scrolling:touch] px-2">
         <div
-          className="inline-flex items-center gap-1.5 p-1.5 rounded-full border shadow-sm shrink-0"
+          className="inline-flex items-center gap-1.5 p-1.5 rounded-full border shadow-sm shrink-0 mx-auto"
           style={{
             background: "color-mix(in srgb, #f5ead8 85%, white 15%)",
             borderColor: BRAND_DIVIDER,
