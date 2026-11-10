@@ -1033,7 +1033,7 @@ export function CustomizerTab({
               }`}</style>
               <div
                 id="customizer-live-preview"
-                className={`w-full max-w-[320px] h-[500px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle}`}
+                className={`w-full max-w-[320px] h-[500px] rounded-2xl flex flex-col overflow-hidden transition-all style-${widgetStyle} ${["dark-sleek", "agentic-craft"].includes(widgetStyle) ? "dark" : ""}`}
                 style={{ ...primaryColorCssVars(primaryColor), zoom: fontSizePercent !== 100 ? `${fontSizePercent}%` : undefined } as React.CSSProperties}
               >
             {/* Header */}

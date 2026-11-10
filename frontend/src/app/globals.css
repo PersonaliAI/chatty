@@ -484,8 +484,15 @@ body {
 .dark .style-luxury-editorial .bot-bubble { background-color: #201c16 !important; color: #efe6d3 !important; }
 .dark .style-luxury-editorial .chat-input-bar { background-color: #14120f !important; color: #efe6d3 !important; border-color: #4a3f2a !important; }
 
-/* 11. Agentic Craft - Median-inspired dark hardware, chamfered specular borders & blur-rise bubbles. */
+/* 11. Agentic Craft - Median-inspired physical dark hardware, specular bevels & optical blur-rise. */
 .style-agentic-craft {
+  --card: #0c0d12 !important;
+  --card-foreground: #f4f4f5 !important;
+  --background: #09090b !important;
+  --foreground: #f4f4f5 !important;
+  --muted: #14151b !important;
+  --muted-foreground: #a1a1aa !important;
+  --border: rgba(255, 255, 255, 0.08) !important;
   background-color: #09090b !important;
   color: #f4f4f5 !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
@@ -509,10 +516,11 @@ body {
 }
 .style-agentic-craft .user-bubble {
   background-color: #0062cc !important;
+  background-image: linear-gradient(135deg, #0080eb 0%, #0062cc 100%) !important;
   color: #ffffff !important;
   border: none !important;
   border-radius: 16px 16px 4px 16px !important;
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.3), 0 4px 14px rgba(0, 98, 204, 0.35) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.35), 0 4px 14px rgba(0, 128, 235, 0.35) !important;
   animation: chatty-blur-rise 0.24s cubic-bezier(0.34, 1.36, 0.64, 1) both !important;
 }
 .style-agentic-craft .starter-chip {
@@ -538,9 +546,10 @@ body {
 }
 .style-agentic-craft .send-btn {
   background-color: #0062cc !important;
+  background-image: linear-gradient(135deg, #0080eb 0%, #0062cc 100%) !important;
   color: #ffffff !important;
   border-radius: 8px !important;
-  box-shadow: 0 2px 8px rgba(0, 98, 204, 0.4) !important;
+  box-shadow: 0 2px 10px rgba(0, 128, 235, 0.45) !important;
   transition: transform 0.15s ease, filter 0.15s ease !important;
 }
 .style-agentic-craft .send-btn:hover {
@@ -723,15 +732,123 @@ body {
 .dark .style-luxury-editorial .widget-search-bar { background-color: #1c1915 !important; border-color: color-mix(in srgb, var(--primary-color, #b08a3e) 55%, #b08a3e) !important; color: #efe6d3 !important; }
 .dark .style-luxury-editorial .chat-bottom-nav { background-color: #14120f !important; border-top-color: color-mix(in srgb, var(--primary-color, #b08a3e) 55%, #b08a3e) !important; }
 
-/* 11. Agentic Craft */
+/* 11. Agentic Craft - Comprehensive hardware surfaces, cards & typography */
 .style-agentic-craft .widget-panel { background-color: #09090b !important; color: #f4f4f5 !important; }
-.style-agentic-craft .widget-card { background-color: #14151b !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 12px !important; box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.14), 0 2px 8px rgba(0, 0, 0, 0.4) !important; color: #f4f4f5 !important; }
-.style-agentic-craft .widget-search-bar { background-color: #101116 !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 12px !important; color: #f4f4f5 !important; }
-.style-agentic-craft .chat-bottom-nav { background-color: rgba(12, 13, 18, 0.9) !important; backdrop-filter: blur(12px) !important; border-top: 1px solid rgba(255, 255, 255, 0.08) !important; color: var(--primary-color, #0080eb) !important; }
+.style-agentic-craft .widget-card {
+  background-color: #14151b !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12), 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  color: #f4f4f5 !important;
+}
+.style-agentic-craft .widget-search-bar {
+  background-color: #101116 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  color: #f4f4f5 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+}
+.style-agentic-craft .chat-bottom-nav {
+  background-color: #0c0d12 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #0080eb !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06) !important;
+}
+.style-agentic-craft .bg-card,
+.style-agentic-craft [class*="bg-card"] {
+  background-color: #0c0d12 !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  color: #a1a1aa !important;
+}
+
+/* Team notification banner ("Our team will reply shortly") */
+.style-agentic-craft .order-last,
+.style-agentic-craft [class*="bg-neutral-50"] {
+  background-color: #121319 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #d4d4d8 !important;
+}
+.style-agentic-craft .order-last span,
+.style-agentic-craft [class*="bg-neutral-50"] span {
+  color: #d4d4d8 !important;
+}
+
+/* Article Reader typography, tables, and escalation */
+.style-agentic-craft .prose,
+.style-agentic-craft .prose * {
+  color: #e4e4e7 !important;
+}
+.style-agentic-craft .prose h1,
+.style-agentic-craft .prose h2,
+.style-agentic-craft .prose h3,
+.style-agentic-craft .prose h4,
+.style-agentic-craft .prose strong {
+  color: #ffffff !important;
+}
+.style-agentic-craft .prose code {
+  background-color: #1a1c24 !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.style-agentic-craft .prose table {
+  background-color: #0c0d12 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+.style-agentic-craft .prose thead {
+  background-color: #14151b !important;
+}
+.style-agentic-craft .prose th {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+.style-agentic-craft .prose td {
+  color: #d4d4d8 !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Feedback / Help actions */
+.style-agentic-craft .widget-card [class*="bg-neutral-50"] button,
+.style-agentic-craft .widget-card button:not([class*="bg-"]) {
+  background-color: #181a22 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f4f4f5 !important;
+}
+.style-agentic-craft .widget-card button:not([class*="bg-"]):hover {
+  background-color: #222530 !important;
+  border-color: #0080eb !important;
+}
+
+/* Conversation list active item */
+.style-agentic-craft [class*="border-\[\#f97316\]"] {
+  border-color: #0080eb !important;
+  background-color: rgba(0, 128, 235, 0.12) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 0 16px rgba(0, 128, 235, 0.25) !important;
+}
+.style-agentic-craft [class*="border-neutral-200"] {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background-color: #121319 !important;
+}
+.style-agentic-craft [class*="border-neutral-200"]:hover {
+  border-color: rgba(0, 128, 235, 0.35) !important;
+  background-color: #161822 !important;
+}
+.style-agentic-craft .text-neutral-900,
+.style-agentic-craft .text-neutral-800 {
+  color: #f4f4f5 !important;
+}
+.style-agentic-craft .text-neutral-700,
+.style-agentic-craft .text-neutral-600 {
+  color: #e4e4e7 !important;
+}
+.style-agentic-craft .text-neutral-500,
+.style-agentic-craft .text-neutral-400 {
+  color: #a1a1aa !important;
+}
+
 .dark .style-agentic-craft .widget-panel { background-color: #09090b !important; color: #f4f4f5 !important; }
 .dark .style-agentic-craft .widget-card { background-color: #14151b !important; border-color: rgba(255, 255, 255, 0.08) !important; color: #f4f4f5 !important; }
 .dark .style-agentic-craft .widget-search-bar { background-color: #101116 !important; border-color: rgba(255, 255, 255, 0.1) !important; color: #f4f4f5 !important; }
-.dark .style-agentic-craft .chat-bottom-nav { background-color: rgba(12, 13, 18, 0.9) !important; border-top-color: rgba(255, 255, 255, 0.08) !important; }
+.dark .style-agentic-craft .chat-bottom-nav { background-color: #0c0d12 !important; border-top-color: rgba(255, 255, 255, 0.08) !important; }
 
 
 /* Voice-message player (AudioBubble in the real widget; the Customizer's

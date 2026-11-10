@@ -750,7 +750,7 @@ function IdentifiedChatWidget({
     if (preset) {
       return getOnColor(preset.inputBg) === "#ffffff";
     }
-    return widgetStyle === "dark-sleek";
+    return widgetStyle === "dark-sleek" || widgetStyle === "agentic-craft";
   }, [colorScheme, widgetStyle]);
   // null = keep the active design preset's own default font (its
   // widget-presets.css `font-family: var(--font-x), sans-serif !important`
@@ -2899,7 +2899,7 @@ const clearChat = async () => {
     <div
       ref={rootRef}
       id="chatty-root"
-      className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? "" : "rounded-2xl"}`}
+      className={`w-full h-full flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isWidgetDark ? "dark" : ""} ${isFullscreen ? "" : "rounded-2xl"}`}
       style={{
         touchAction: "manipulation",
         ...primaryColorCssVars(primaryColor),
@@ -2955,7 +2955,8 @@ const clearChat = async () => {
         .style-ecommerce,
         .style-healthcare-calm,
         .style-neubrutalism,
-        .style-luxury-editorial {
+        .style-luxury-editorial,
+        .style-agentic-craft {
           box-shadow: none !important;
         }
         ${colorSchemeCss}

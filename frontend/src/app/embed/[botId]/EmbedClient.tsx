@@ -3076,7 +3076,7 @@ function IdentifiedEmbedClient({
     <div
       ref={rootRef}
       id="chatty-root"
-      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isFullscreen ? (isDirectDesktop ? "max-w-[500px] w-full mx-auto my-auto h-[calc(100dvh-48px)] max-h-[800px] shadow-2xl border border-neutral-200/80 dark:border-neutral-800" : "rounded-none") : ""}`}
+      className={`w-full h-full min-h-0 flex-1 flex flex-col overflow-hidden text-neutral-900 dark:text-neutral-100 font-sans style-${widgetStyle} ${isWidgetDark ? "dark" : ""} ${isFullscreen ? (isDirectDesktop ? "max-w-[500px] w-full mx-auto my-auto h-[calc(100dvh-48px)] max-h-[800px] shadow-2xl border border-neutral-200/80 dark:border-neutral-800" : "rounded-none") : ""}`}
       style={{
         touchAction: "manipulation",
         height: isDirectDesktop ? "calc(100dvh - 48px)" : (viewportHeight ? `${viewportHeight}px` : "100%"),
@@ -3150,7 +3150,8 @@ function IdentifiedEmbedClient({
         .style-ecommerce,
         .style-healthcare-calm,
         .style-neubrutalism,
-        .style-luxury-editorial {
+        .style-luxury-editorial,
+        .style-agentic-craft {
           box-shadow: none !important;
         }
         #chatty-root, #chatty-root * {
@@ -3760,9 +3761,10 @@ function IdentifiedEmbedClient({
                               switchConversation(conv.sessionId);
                               setChatView("chat");
                             }}
+                            style={isActive ? { borderColor: primaryColor, backgroundColor: `color-mix(in srgb, ${primaryColor} 12%, transparent)` } : undefined}
                             className={`w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all text-left group cursor-pointer shadow-2xs ${
                               isActive
-                                ? "border-[#f97316] bg-[#f97316]/5 dark:bg-[#f97316]/10"
+                                ? "border-primary bg-primary/10"
                                 : "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700"
                             }`}
                           >
@@ -3782,7 +3784,7 @@ function IdentifiedEmbedClient({
                               )}
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-2">
-                                  <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:text-[#f97316] transition-colors truncate">
+                                  <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 group-hover:opacity-85 transition-colors truncate">
                                     {conv.topic || conv.agentName || "General Support"}
                                   </span>
                                   <span className="text-[11px] text-neutral-400 font-medium shrink-0">
