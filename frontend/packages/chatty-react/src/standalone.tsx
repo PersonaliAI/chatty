@@ -47,6 +47,7 @@ const LAUNCHER_STYLES: Record<string, { bg: string; radius: string; shadow: stri
   "healthcare-calm": { bg: "#6f9c7d", radius: "50%", shadow: "0 8px 20px rgba(111,156,125,.35)", dot: "#f4f7f3" },
   neubrutalism: { bg: "#111111", radius: "6px", shadow: "5px 5px 0 0 #111111", dot: "#ffde59" },
   "luxury-editorial": { bg: "#161412", radius: "50%", shadow: "0 8px 22px rgba(0,0,0,.3)", dot: "#b08a3e" },
+  "agentic-craft": { bg: "#09090b", radius: "50%", shadow: "0 8px 24px rgba(0,0,0,.5), 0 0 16px rgba(0,128,235,.35)", dot: "#0080eb" },
 };
 
 // Named presets, not raw pixel props, so a bot owner's saved choice keeps
@@ -65,7 +66,7 @@ const MAX_PANEL_HEIGHT = 860;
 const PANEL_RADIUS: Record<string, string> = {
   minimal: "18px", playful: "28px", corporate: "10px", "dark-sleek": "16px",
   "gradient-glow": "24px", glassmorphism: "20px", ecommerce: "14px",
-  "healthcare-calm": "18px", neubrutalism: "4px", "luxury-editorial": "6px",
+  "healthcare-calm": "18px", neubrutalism: "4px", "luxury-editorial": "6px", "agentic-craft": "16px",
 };
 
 function getLauncherRadius(shape: string | undefined, presetRadius: string | undefined, side: "left" | "right"): string {

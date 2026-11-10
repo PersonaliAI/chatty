@@ -88,5 +88,14 @@
     "botBubbleRadius": "2px",
     "userBubbleBg": "var(--primary-color, #14120f)",
     "userBubbleRadius": "2px"
+  },
+  "agentic-craft": {
+    "containerBg": "#09090b",
+    "containerRadius": "16px",
+    "headerBg": "#0c0d12",
+    "botBubbleBg": "#14151b",
+    "botBubbleRadius": "16px 16px 16px 4px",
+    "userBubbleBg": "#0062cc",
+    "userBubbleRadius": "16px 16px 4px 16px"
   }
 }

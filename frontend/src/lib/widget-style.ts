@@ -40,6 +40,7 @@ const CURRENT_STYLES = new Set([
   "healthcare-calm",
   "neubrutalism",
   "luxury-editorial",
+  "agentic-craft",
 ]);
 
 export function normalizeWidgetStyle(id: string | null | undefined): string {
@@ -64,6 +65,7 @@ export const LAUNCHER_STYLES: Record<string, { bg: string; shadow: string; dot: 
   "healthcare-calm": { bg: "#6f9c7d", shadow: "0 8px 20px rgba(111,156,125,.35)", dot: "#f4f7f3" },
   neubrutalism: { bg: "#111111", shadow: "5px 5px 0 0 #111111", dot: "#ffde59" },
   "luxury-editorial": { bg: "#161412", shadow: "0 8px 22px rgba(0,0,0,.3)", dot: "#b08a3e" },
+  "agentic-craft": { bg: "#09090b", shadow: "0 8px 24px rgba(0,0,0,.5), 0 0 16px rgba(0,128,235,.35)", dot: "#0080eb" },
 };
 
 /**
@@ -85,6 +87,7 @@ export const PANEL_RADIUS: Record<string, string> = {
   "healthcare-calm": "18px",
   neubrutalism: "4px",
   "luxury-editorial": "6px",
+  "agentic-craft": "16px",
 };
 
 import { generateColorScheme, getOnColor, type WidgetColorScheme } from "./color-contrast";
@@ -332,6 +335,28 @@ export const PRESET_SIGNATURES: Record<string, PresetSignature> = {
     bottomNavIndicator: "line",
     fontFamily: "Playfair Display",
     previewPalette: ["#14120f", "#c9a86a", "#fbf9f5"],
+  },
+  "agentic-craft": {
+    id: "agentic-craft",
+    name: "Agentic Craft",
+    desc: "Median inspired · dark hardware & blur-rise",
+    primary: "#0080eb",
+    onPrimary: "#ffffff",
+    headerBg: "#0c0d12",
+    headerText: "#f4f4f5",
+    botBubbleBg: "#14151b",
+    botBubbleText: "#f4f4f5",
+    userBubbleBg: "#0062cc",
+    userBubbleText: "#ffffff",
+    inputBg: "#101116",
+    inputText: "#f4f4f5",
+    bottomNavBg: "#0c0d12",
+    bottomNavText: "#a1a1aa",
+    bottomNavActive: "#0080eb",
+    bottomNavStyle: "pill",
+    bottomNavIndicator: "pill",
+    fontFamily: "Inter",
+    previewPalette: ["#09090b", "#14151b", "#0080eb"],
   },
 };
 

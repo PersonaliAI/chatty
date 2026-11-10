@@ -199,6 +199,7 @@ export function CustomizerTab({
                 { id: "healthcare-calm", name: "Healthcare Calm", desc: "Clinic · soft sage & serif" },
                 { id: "neubrutalism", name: "Neubrutalism", desc: "Bold brand · thick borders" },
                 { id: "luxury-editorial", name: "Luxury Editorial", desc: "Boutique · serif & gold" },
+                { id: "agentic-craft", name: "Agentic Craft", desc: "Median inspired · dark hardware & blur-rise" },
               ].map((style) => {
                 const sig = PRESET_SIGNATURES[style.id];
                 const isSelected = widgetStyle === style.id;

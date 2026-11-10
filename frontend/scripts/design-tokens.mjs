@@ -13,6 +13,7 @@ const CSS_PATH = path.join(__dirname, "..", "src", "app", "globals.css");
 export const DESIGN_IDS = [
   "minimal", "playful", "corporate", "dark-sleek", "gradient-glow",
   "glassmorphism", "ecommerce", "healthcare-calm", "neubrutalism", "luxury-editorial",
+  "agentic-craft",
 ];
 
 function extractBlock(css, selector) {
