@@ -705,7 +705,7 @@ function IdentifiedChatWidget({
     // Use the same treatment as the header logo. The previous implementation
     // let the per-section avatar color override this wrapper, so the recent
     // message showed a different-looking Chatty icon from the header.
-    const bg = logoBgColor || "color-mix(in srgb, currentColor 25%, transparent)";
+    const bg = (avatarIcon === "logo" && logoBgColor) ? logoBgColor : (logoBgColor || colorScheme?.avatar?.bg || "color-mix(in srgb, currentColor 25%, transparent)");
     const fg = logoBgColor ? getOnColor(logoBgColor) : primaryColor;
     return (
       <div
@@ -759,6 +759,12 @@ function IdentifiedChatWidget({
   const [fontSizePercent, setFontSizePercent] = useState(100);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoBgColor, setLogoBgColor] = useState("");
+  const botAvatarBg = (avatarIcon === "logo" && logoBgColor)
+    ? logoBgColor
+    : (colorScheme?.avatar?.bg || logoBgColor || primaryColor);
+  const botAvatarFg = (avatarIcon === "logo" && logoBgColor)
+    ? getOnColor(logoBgColor)
+    : (colorScheme?.avatar?.text || getOnColor(botAvatarBg));
   // What a finished in-chat voice recording turns into - set on
   // chatty_bots.voice_message_mode (Customizer > Voice Messages).
   const [voiceMessageMode, setVoiceMessageMode] = useState<"transcribe" | "audio">("transcribe");
@@ -2101,14 +2107,18 @@ const clearChat = async () => {
           setAvatarIcon(isPreview ? (paramAvatarIcon || bot.avatar_icon || "logo") : (bot.avatar_icon || "logo"));
           setAvatarUrl(isPreview ? (paramAvatarUrl || bot.avatar_url || null) : (bot.avatar_url || null));
           setPrimaryColor(isPreview ? (paramColor || bot.primary_color || "#f97316") : (bot.primary_color || paramColor || "#f97316"));
-          const rawStyle = isPreview ? (paramStyle || bot.widget_style || "minimal") : (bot.widget_style || paramStyle || "minimal");
-          const [styleName, dbLogoBg] = rawStyle.split(":");
-          setWidgetStyle(normalizeWidgetStyle(styleName));
-          if (isPreview) {
-            setLogoBgColor(paramLogoBgColor ?? dbLogoBg ?? "");
-          } else {
-            setLogoBgColor(dbLogoBg || "");
-          }
+          const dbWidgetStyle = String(bot.widget_style || "");
+          const [dbStyleName, dbLogoBg] = dbWidgetStyle.split(":");
+          const paramStyleStr = String(paramStyle || "");
+          const [pStyleName, pLogoBg] = paramStyleStr.split(":");
+
+          const activeStyleName = isPreview ? (pStyleName || dbStyleName || "minimal") : (dbStyleName || pStyleName || "minimal");
+          setWidgetStyle(normalizeWidgetStyle(activeStyleName));
+
+          const activeLogoBg = isPreview
+            ? (paramLogoBgColor || pLogoBg || dbLogoBg || "")
+            : (dbLogoBg || pLogoBg || paramLogoBgColor || "");
+          setLogoBgColor(activeLogoBg);
           setLogoUrl(isPreview ? (paramLogoUrl || bot.logo_url || null) : (bot.logo_url || null));
           setHideBranding(!!bot.hide_branding);
           setShowSenderTag(isPreview && paramShowSenderTag !== null ? paramShowSenderTag === "true" : !!bot.show_sender_tag);
@@ -3030,7 +3040,7 @@ const clearChat = async () => {
           ) : (
             <div
               className="size-9 sm:size-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base overflow-hidden shrink-0 transition-colors"
-              style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
+              style={logoBgColor ? { backgroundColor: logoBgColor, color: getOnColor(logoBgColor) } : colorScheme?.avatar?.bg ? { backgroundColor: colorScheme.avatar.bg, color: colorScheme.avatar.text || getOnColor(colorScheme.avatar.bg) } : { backgroundColor: "color-mix(in srgb, currentColor 25%, transparent)" }}
             >
               {headerLogoInner("size-5 sm:size-6")}
             </div>
@@ -3648,8 +3658,8 @@ const clearChat = async () => {
                               <div
                                 className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5 shadow-2xs"
                                 style={{
-                                  backgroundColor: colorScheme?.avatar?.bg || logoBgColor || primaryColor,
-                                  color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || logoBgColor || primaryColor),
+                                  backgroundColor: botAvatarBg,
+                                  color: botAvatarFg,
                                 }}
                               >
                                 {avatarInner("size-3.5")}
@@ -3942,9 +3952,9 @@ const clearChat = async () => {
                             <div
                               className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5 shadow-2xs"
                               style={{
-                                backgroundColor: colorScheme?.avatar?.bg || logoBgColor || primaryColor,
-                                color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || logoBgColor || primaryColor),
-                              }}
+                                  backgroundColor: botAvatarBg,
+                                  color: botAvatarFg,
+                                }}
                             >
                               {avatarInner("size-3.5")}
                             </div>
@@ -3996,9 +4006,9 @@ const clearChat = async () => {
                         <div
                           className="size-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 overflow-hidden mt-0.5 shadow-2xs"
                           style={{
-                            backgroundColor: colorScheme?.avatar?.bg || logoBgColor || primaryColor,
-                            color: colorScheme?.avatar?.text || getOnColor(colorScheme?.avatar?.bg || logoBgColor || primaryColor),
-                          }}
+                                  backgroundColor: botAvatarBg,
+                                  color: botAvatarFg,
+                                }}
                         >
                           {avatarInner("size-3.5")}
                         </div>
