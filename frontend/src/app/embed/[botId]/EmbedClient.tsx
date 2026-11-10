@@ -2642,9 +2642,17 @@ function IdentifiedEmbedClient({
     };
 
     try {
+      const clientMsgId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
       const res = await fetch(`${BACKEND_URL}/api/widget/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...widgetTokenHeader },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Request-ID": clientMsgId,
+          "Idempotency-Key": clientMsgId,
+          ...widgetTokenHeader,
+        },
         body: JSON.stringify({
           bot_id: botId,
           session_id: sessionId,

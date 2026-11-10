@@ -84,20 +84,37 @@ app = create_app()
 
 
 @app.get("/health", tags=["Operations"])
+@app.get("/health/live", tags=["Operations"])
 async def healthcheck() -> dict[str, str]:
     """Liveness probe: confirms the HTTP process is accepting requests."""
     return {"status": "ok", "service": "chatty-api"}
 
 
 @app.get("/ready", tags=["Operations"])
+@app.get("/health/ready", tags=["Operations"])
 async def readinesscheck() -> dict[str, Any]:
-    """Deployment readiness contract without leaking connection details."""
+    """Enterprise readiness contract verifying DB connectivity and circuit breakers."""
+    from app.core.health_probes import check_database_health
+    from app.core.circuit_breaker import CircuitBreakerRegistry
+    
     configured = bool(str(SUPABASE_URL or "").strip())
+    db_res = await check_database_health(timeout_sec=2.0)
+    breakers = CircuitBreakerRegistry.get_instance().summary()
+    is_ready = configured and db_res.get("status") in ("healthy", "unconfigured")
     return {
-        "status": "ready" if configured else "not_ready",
+        "status": "ready" if is_ready else "not_ready",
         "service": "chatty-api",
+        "database": db_res.get("status", "unknown"),
+        "circuits": breakers.get("status", "healthy"),
         "dependencies": {"supabase_configured": configured},
     }
+
+
+@app.get("/health/deep", tags=["Operations"])
+async def deep_healthcheck() -> dict[str, Any]:
+    """Deep enterprise diagnostics probe for APM / PagerDuty / Datadog synthetic monitors."""
+    from app.core.health_probes import get_deep_health_report
+    return await get_deep_health_report()
 
 
 # ---------------------------------------------------------------------------

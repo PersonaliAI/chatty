@@ -14,6 +14,8 @@ from starlette.responses import Response as _StarletteResponse
 
 from app.core import security as _sec
 from app.core.config import ALLOWED_ORIGINS, SENTRY_DSN, SENTRY_ENV, SENTRY_TRACES_SAMPLE_RATE
+from app.core.idempotency import IdempotencyMiddleware
+from app.core.logging_config import EnterpriseLoggingMiddleware, redact_sensitive_text
 
 logger = logging.getLogger("chatty")
 
@@ -166,13 +168,15 @@ def create_app() -> FastAPI:
     # then SecurityHeaders, then CORS.
     app.add_middleware(_sec.SecurityHeadersMiddleware)
     app.add_middleware(_sec.RequestIDMiddleware)
+    app.add_middleware(EnterpriseLoggingMiddleware)
+    app.add_middleware(IdempotencyMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=ALLOWED_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=["X-Request-ID"],
+        expose_headers=["X-Request-ID", "Idempotent-Replayed"],
     )
 
     @app.middleware("http")
@@ -191,7 +195,7 @@ def create_app() -> FastAPI:
                     # The signed visitor capability is required by the shared
                     # widget transport, including public theme reads. Keep an
                     # explicit allowlist rather than reflecting arbitrary headers.
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Widget-Token, X-Chatty-Visitor",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Widget-Token, X-Chatty-Visitor, X-Request-ID, Idempotency-Key",
                     "Access-Control-Max-Age": "86400",
                     "Vary": "Origin",
                 })
