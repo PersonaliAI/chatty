@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -53,7 +54,12 @@ async def upsert_session(
                 upd["visitor_email"] = visitor_email
             if row.get("channel") != session_channel:
                 upd["channel"] = session_channel
+            if row.get("status") in ("resolved", "closed"):
+                upd["status"] = "open"
+                upd["resolved_at"] = None
+                upd["sla_status"] = "on_track"
             await run_db(lambda: supabase.table("chatty_sessions").update(upd).eq("id", row["id"]).execute())
+            row.update(upd)
             return row, False
 
         now_dt = datetime.now(timezone.utc)

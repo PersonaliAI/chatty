@@ -77,3 +77,21 @@ def test_dedupe_doubled_ignores_odd_length_and_coincidental_halves():
 def test_dedupe_doubled_passes_through_non_strings():
     assert _dedupe_doubled(42) == 42
     assert _dedupe_doubled(None) is None
+
+
+def test_detect_sentiment_escalation_with_handoff_context():
+    from app.services.widget_session_service import detect_sentiment_escalation
+
+    prev = (
+        "Hi there! Thanks for reaching out to our support team.\n\n"
+        "I'm here to help with anything related to Chatty. Could you please let me know what you need?"
+    )
+
+    # Saying "hi" or general greetings should not crash or escalate
+    assert detect_sentiment_escalation("hi", prev) is None
+    assert detect_sentiment_escalation("hello there", prev) is None
+
+    # Saying "yes" or affirmative replies should escalate to accept handoff
+    assert detect_sentiment_escalation("yes", prev) == "Customer accepted human handoff offer"
+    assert detect_sentiment_escalation("sure please", prev) == "Customer accepted human handoff offer"
+
