@@ -94,6 +94,31 @@ def _resolve_max_duration_minutes(value: object) -> int:
     return max(1, min(duration, 60))
 
 
+def load_vad() -> Any:
+    """Load the local Silero VAD model for in-process voice activity detection."""
+    from livekit.plugins import silero
+
+    return silero.VAD.load()
+
+
+def build_turn_handling_options(*, realtime: bool = False) -> TurnHandlingOptions:
+    """Build turn handling options optimized for responsive speech interruption.
+
+    Setting min_words to 0 and min_duration to 0.25 ensures the agent halts
+    speech immediately when the user cuts in, even with single words or non-English
+    phrases, without waiting for the speech-to-text pipeline to buffer tokens.
+    """
+    return TurnHandlingOptions(
+        interruption={
+            "enabled": True,
+            "min_duration": 0.25,
+            "min_words": 0,
+            "resume_false_interruption": False,
+        },
+        preemptive_generation={"enabled": realtime},
+    )
+
+
 async def _close_session_after_timeout(
     session: Any, room: Any, max_duration_minutes: int
 ) -> None:
@@ -162,19 +187,24 @@ async def entrypoint(ctx: JobContext) -> None:
     bot_config = organization.bot
     mode = str(bot_config.get("voice_mode") or "pipeline").lower()
     expression_enabled = bool(bot_config.get("voice_expression_enabled", True))
+    vad = load_vad()
+    turn_handling = build_turn_handling_options(realtime=mode == "realtime")
     if mode == "realtime":
         session = AgentSession(
+            vad=vad,
             llm=await _build_realtime_component(
                 organization,
                 settings,
                 expression_enabled=expression_enabled,
             ),
-            preemptive_generation=True,
+            turn_handling=turn_handling,
+            aec_warmup_duration=None,
         )
     else:
         stt, llm, tts = await _build_pipeline_components(organization, settings)
         session = AgentSession(
             stt=stt,
+            vad=vad,
             llm=llm,
             tts=tts,
             use_tts_aligned_transcript=True,
@@ -184,15 +214,8 @@ async def entrypoint(ctx: JobContext) -> None:
                 ),
             ),
             expressive=False,
-            turn_handling=TurnHandlingOptions(
-                interruption={
-                    "enabled": True,
-                    "min_duration": 0.5,
-                    "min_words": 2,
-                    "resume_false_interruption": False,
-                },
-                preemptive_generation={"enabled": False},
-            ),
+            turn_handling=turn_handling,
+            aec_warmup_duration=None,
             tts_text_transforms=["filter_emoji", "filter_markdown"],
         )
     recorder = ConversationRecorder(organization, session_id)

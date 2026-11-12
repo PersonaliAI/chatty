@@ -77,6 +77,13 @@ def warm_voice_dependencies() -> None:
     except Exception:
         pass
 
+    try:
+        from livekit.plugins import silero  # noqa: PLC0415
+
+        silero.VAD.load()
+    except Exception:
+        pass
+
 
 def load_chatty_modules(settings: VoiceSettings) -> ChattyModules:
     """Import Chatty modules after environment setup has completed."""

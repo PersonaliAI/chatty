@@ -292,3 +292,42 @@ def test_deepgram_and_openai_stt_enable_detect_language_in_auto_mode(monkeypatch
     providers.build_components(org_openai, settings)
     assert captured_openai.get("detect_language") is True
     assert "language" not in captured_openai
+
+
+def test_turn_handling_options_enables_immediate_interruption():
+    pipeline_opts = runtime.build_turn_handling_options(realtime=False)
+    interruption = pipeline_opts["interruption"]
+    assert interruption["enabled"] is True
+    assert interruption["min_words"] == 0
+    assert interruption["min_duration"] <= 0.3
+    assert interruption["resume_false_interruption"] is False
+    assert pipeline_opts["preemptive_generation"] == {"enabled": False}
+
+    realtime_opts = runtime.build_turn_handling_options(realtime=True)
+    assert realtime_opts["interruption"]["min_words"] == 0
+    assert realtime_opts["interruption"]["enabled"] is True
+    assert realtime_opts["preemptive_generation"] == {"enabled": True}
+
+
+def test_load_vad_returns_local_silero_vad(monkeypatch):
+    class FakeSileroVAD:
+        pass
+
+    monkeypatch.setattr("livekit.plugins.silero.VAD.load", lambda: FakeSileroVAD())
+
+    vad = runtime.load_vad()
+    assert isinstance(vad, FakeSileroVAD)
+
+
+def test_warm_voice_dependencies_prewarms_silero(monkeypatch):
+    from voice_agent_cli import bootstrap
+
+    calls = []
+    class FakeSpeechClient:
+        def close(self): pass
+
+    monkeypatch.setattr("google.cloud.speech_v2.SpeechClient", FakeSpeechClient)
+    monkeypatch.setattr("livekit.plugins.silero.VAD.load", lambda: calls.append("silero"))
+
+    bootstrap.warm_voice_dependencies()
+    assert "silero" in calls
