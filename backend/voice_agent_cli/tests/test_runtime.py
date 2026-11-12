@@ -232,3 +232,63 @@ def test_runtime_closes_session_when_max_duration_is_reached(monkeypatch):
 
     assert session.closed is True
     assert room.disconnected is True
+
+
+def test_deepgram_and_openai_stt_enable_detect_language_in_auto_mode(monkeypatch):
+    import sys
+
+    captured_deepgram = {}
+    captured_openai = {}
+
+    class FakeDeepgramSTT:
+        def __init__(self, **kwargs):
+            captured_deepgram.update(kwargs)
+
+    class FakeOpenAISTT:
+        def __init__(self, **kwargs):
+            captured_openai.update(kwargs)
+
+    class FakeDeepgramModule:
+        STT = FakeDeepgramSTT
+
+    class FakeOpenAIModule:
+        STT = FakeOpenAISTT
+
+    monkeypatch.setitem(sys.modules, "livekit.plugins.deepgram", FakeDeepgramModule)
+    monkeypatch.setitem(sys.modules, "livekit.plugins.openai", FakeOpenAIModule)
+
+    settings = SimpleNamespace(
+        google_cloud_location="global",
+        google_cloud_project="project",
+        stt_language="en-US",
+        llm_model="gemini-2.5-flash",
+        tts_model="gemini-3.1-flash-tts-preview",
+        tts_voice="Kore",
+        tts_location="global",
+        livekit_api_key="fake-key",
+        livekit_api_secret="fake-secret",
+    )
+
+    org_deepgram = SimpleNamespace(
+        bot={
+            "voice_llm_provider": "google",
+            "voice_stt_provider": "deepgram",
+            "voice_tts_provider": "google",
+            "voice_stt_language": "auto",
+        }
+    )
+    providers.build_components(org_deepgram, settings)
+    assert captured_deepgram.get("detect_language") is True
+    assert "language" not in captured_deepgram
+
+    org_openai = SimpleNamespace(
+        bot={
+            "voice_llm_provider": "google",
+            "voice_stt_provider": "openai",
+            "voice_tts_provider": "google",
+            "voice_stt_language": "auto",
+        }
+    )
+    providers.build_components(org_openai, settings)
+    assert captured_openai.get("detect_language") is True
+    assert "language" not in captured_openai

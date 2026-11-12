@@ -137,6 +137,7 @@ const fieldClass =
 // union here prevents the dashboard from hiding a language supported by one
 // of the selected models while still allowing the searchable custom value.
 const VOICE_LANGUAGE_OPTIONS: ModernSelectOption[] = [
+  ["auto", "Auto-Detect Language"],
   ["en-US", "English (US)"], ["en-GB", "English (UK)"], ["en-AU", "English (Australia)"],
   ["en-CA", "English (Canada)"], ["en-IN", "English (India)"], ["en-IE", "English (Ireland)"],
   ["en-NZ", "English (New Zealand)"], ["af", "Afrikaans"], ["am", "Amharic"],
@@ -186,6 +187,7 @@ function languageOptionsFor(
   if (!limits) return VOICE_LANGUAGE_OPTIONS;
   const supported = new Set(limits);
   const options = VOICE_LANGUAGE_OPTIONS.filter((option) => {
+    if (option.value === "auto") return true;
     const base = option.value.split("-")[0];
     return supported.has(option.value) || supported.has(base);
   });

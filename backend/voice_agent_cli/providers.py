@@ -7,6 +7,7 @@ environment variables or returned to a client.
 
 from __future__ import annotations
 
+import logging
 import os
 from importlib import import_module
 from typing import Any
@@ -17,6 +18,8 @@ from livekit.plugins import google
 
 from .config import VoiceSettings
 from .organization import OrganizationContext
+
+logger = logging.getLogger("chatty.voice.providers")
 
 
 def _value(bot: dict[str, Any], key: str, default: str) -> str:
@@ -120,61 +123,86 @@ def build_components(
     else:
         raise RuntimeError(f"Unsupported voice LLM provider: {llm_provider}")
 
+    raw_stt_lang = _value(bot, "voice_stt_language", settings.stt_language).strip()
+    is_auto_stt = not raw_stt_lang or raw_stt_lang.lower() in {
+        "auto",
+        "auto-detect",
+        "detect",
+        "multi",
+    }
+
     if stt_provider == "livekit-inference":
-        stt = inference.STT(
-            model=_value(bot, "voice_stt_model", "deepgram/nova-3"),
-            language=_value(bot, "voice_stt_language", settings.stt_language),
-            api_key=settings.livekit_api_key,
-            api_secret=settings.livekit_api_secret,
-        )
+        inference_stt_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_stt_model", "deepgram/nova-3"),
+            "api_key": settings.livekit_api_key,
+            "api_secret": settings.livekit_api_secret,
+        }
+        if not is_auto_stt:
+            inference_stt_kwargs["language"] = raw_stt_lang
+        stt = inference.STT(**inference_stt_kwargs)
     elif stt_provider == "google":
         try:
             stt = google.STT(
                 model=_value(bot, "voice_stt_model", settings.stt_model),
                 languages=_value(bot, "voice_stt_language", settings.stt_language),
+                detect_language=True,
                 project=settings.google_cloud_project,
                 location=settings.stt_location,
             )
         except Exception as exc:
             logger.warning("Google STT initialization failed (%s); falling back to LiveKit Inference STT", exc)
-            stt = inference.STT(
-                model="deepgram/nova-3",
-                language=_value(bot, "voice_stt_language", settings.stt_language),
-                api_key=settings.livekit_api_key,
-                api_secret=settings.livekit_api_secret,
-            )
+            fallback_stt_kwargs: dict[str, Any] = {
+                "model": "deepgram/nova-3",
+                "api_key": getattr(settings, "livekit_api_key", ""),
+                "api_secret": getattr(settings, "livekit_api_secret", ""),
+            }
+            if not is_auto_stt:
+                fallback_stt_kwargs["language"] = raw_stt_lang
+            stt = inference.STT(**fallback_stt_kwargs)
     elif stt_provider == "openai":
         from livekit.plugins import openai  # type: ignore[import-not-found]
 
-        stt = openai.STT(
-            model=_value(bot, "voice_stt_model", "gpt-4o-mini-transcribe"),
-            language=_value(bot, "voice_stt_language", "en"),
-            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
-        )
+        openai_stt_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_stt_model", "gpt-4o-mini-transcribe"),
+            "api_key": _secret(bot, "voice_stt_byok_key_encrypted"),
+            "detect_language": True if is_auto_stt else False,
+        }
+        if not is_auto_stt:
+            openai_stt_kwargs["language"] = raw_stt_lang
+        stt = openai.STT(**openai_stt_kwargs)
     elif stt_provider == "deepgram":
         from livekit.plugins import deepgram  # type: ignore[import-not-found]
 
-        stt = deepgram.STT(
-            model=_value(bot, "voice_stt_model", "nova-3"),
-            language=_value(bot, "voice_stt_language", "en-US"),
-            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
-        )
+        deepgram_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_stt_model", "nova-3"),
+            "api_key": _secret(bot, "voice_stt_byok_key_encrypted"),
+            "detect_language": True if is_auto_stt else False,
+        }
+        if not is_auto_stt:
+            deepgram_kwargs["language"] = raw_stt_lang
+        stt = deepgram.STT(**deepgram_kwargs)
     elif stt_provider == "cartesia":
         from livekit.plugins import cartesia  # type: ignore[import-not-found]
 
-        stt = cartesia.STT(
-            model=_value(bot, "voice_stt_model", "ink-2"),
-            language=_value(bot, "voice_stt_language", "en"),
-            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
-        )
+        cartesia_stt_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_stt_model", "ink-2"),
+            "api_key": _secret(bot, "voice_stt_byok_key_encrypted"),
+        }
+        if not is_auto_stt:
+            cartesia_stt_kwargs["language"] = raw_stt_lang
+        stt = cartesia.STT(**cartesia_stt_kwargs)
     elif stt_provider == "assemblyai":
         from livekit.plugins import assemblyai  # type: ignore[import-not-found]
 
-        stt = assemblyai.STT(
-            model=_value(bot, "voice_stt_model", "universal-3-6-pro"),
-            language_code=_value(bot, "voice_stt_language", "en"),
-            api_key=_secret(bot, "voice_stt_byok_key_encrypted"),
-        )
+        assembly_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_stt_model", "universal-3-6-pro"),
+            "api_key": _secret(bot, "voice_stt_byok_key_encrypted"),
+        }
+        if is_auto_stt:
+            assembly_kwargs["language_detection"] = True
+        else:
+            assembly_kwargs["language_code"] = raw_stt_lang
+        stt = assemblyai.STT(**assembly_kwargs)
     elif stt_provider == "soniox":
         from livekit.plugins import soniox  # type: ignore[import-not-found]
 
@@ -183,13 +211,15 @@ def build_components(
         raise RuntimeError(f"Unsupported voice STT provider: {stt_provider}")
 
     if tts_provider == "livekit-inference":
-        tts = inference.TTS(
-            model=_value(bot, "voice_tts_model", "cartesia/sonic-3"),
-            voice=_value(bot, "voice_tts_voice", ""),
-            language=_value(bot, "voice_stt_language", settings.stt_language),
-            api_key=settings.livekit_api_key,
-            api_secret=settings.livekit_api_secret,
-        )
+        inference_tts_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_tts_model", "cartesia/sonic-3"),
+            "voice": _value(bot, "voice_tts_voice", ""),
+            "api_key": settings.livekit_api_key,
+            "api_secret": settings.livekit_api_secret,
+        }
+        if not is_auto_stt:
+            inference_tts_kwargs["language"] = raw_stt_lang
+        tts = inference.TTS(**inference_tts_kwargs)
     elif tts_provider == "google":
         try:
             tts = google.beta.GeminiTTS(
@@ -201,13 +231,15 @@ def build_components(
             )
         except Exception as exc:
             logger.warning("Google GeminiTTS initialization failed (%s); falling back to LiveKit Inference TTS", exc)
-            tts = inference.TTS(
-                model="cartesia/sonic-3",
-                voice=_value(bot, "voice_tts_voice", ""),
-                language=_value(bot, "voice_stt_language", settings.stt_language),
-                api_key=settings.livekit_api_key,
-                api_secret=settings.livekit_api_secret,
-            )
+            fallback_tts_kwargs: dict[str, Any] = {
+                "model": "cartesia/sonic-3",
+                "voice": _value(bot, "voice_tts_voice", ""),
+                "api_key": getattr(settings, "livekit_api_key", ""),
+                "api_secret": getattr(settings, "livekit_api_secret", ""),
+            }
+            if not is_auto_stt:
+                fallback_tts_kwargs["language"] = raw_stt_lang
+            tts = inference.TTS(**fallback_tts_kwargs)
     elif tts_provider == "openai":
         from livekit.plugins import openai  # type: ignore[import-not-found]
 
@@ -219,11 +251,14 @@ def build_components(
     elif tts_provider == "cartesia":
         from livekit.plugins import cartesia  # type: ignore[import-not-found]
 
-        tts = cartesia.TTS(
-            model=_value(bot, "voice_tts_model", "sonic-3"),
-            voice=_value(bot, "voice_tts_voice", "f786b574-daa5-4673-aa0c-cbe3e8534c02"),
-            api_key=_secret(bot, "voice_tts_byok_key_encrypted"),
-        )
+        cartesia_tts_kwargs: dict[str, Any] = {
+            "model": _value(bot, "voice_tts_model", "sonic-3"),
+            "voice": _value(bot, "voice_tts_voice", "f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+            "api_key": _secret(bot, "voice_tts_byok_key_encrypted"),
+        }
+        if is_auto_stt:
+            cartesia_tts_kwargs["language"] = None
+        tts = cartesia.TTS(**cartesia_tts_kwargs)
     elif tts_provider == "deepgram":
         from livekit.plugins import deepgram  # type: ignore[import-not-found]
 

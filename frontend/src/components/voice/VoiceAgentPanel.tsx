@@ -64,6 +64,7 @@ type VoiceLanguageOption = { value: string; label: string; flag: string };
 // STT model narrows it at runtime so the browser cannot advertise a locale
 // the configured provider does not support.
 const VOICE_LANGUAGE_OPTIONS: VoiceLanguageOption[] = ([
+  ['auto', 'Auto-Detect', '🌐'],
   ['en-US', 'English (US)', '🇺🇸'], ['en-GB', 'English (UK)', '🇬🇧'], ['en-AU', 'English (Australia)', '🇦🇺'],
   ['en-IN', 'English (India)', '🇮🇳'], ['es-ES', 'Spanish (Spain)', '🇪🇸'], ['es-MX', 'Spanish (Mexico)', '🇲🇽'],
   ['fr-FR', 'French', '🇫🇷'], ['de-DE', 'German', '🇩🇪'], ['it-IT', 'Italian', '🇮🇹'], ['pt-BR', 'Portuguese (Brazil)', '🇧🇷'],
@@ -112,7 +113,7 @@ function profileLanguageOptions(config?: VoiceModelConfig, current: string = 'en
   const explicitLimits = MODEL_LANGUAGE_LIMITS[config.stt_model || ''];
   if (explicitLimits) {
     const supported = new Set(explicitLimits);
-    const filtered = VOICE_LANGUAGE_OPTIONS.filter((option) => supported.has(option.value) || supported.has(option.value.split('-')[0]));
+    const filtered = VOICE_LANGUAGE_OPTIONS.filter((option) => option.value === 'auto' || supported.has(option.value) || supported.has(option.value.split('-')[0]));
     return filtered.some((option) => option.value === current)
       ? filtered
       : [{ value: current, label: current, flag: '🌐' }, ...filtered];

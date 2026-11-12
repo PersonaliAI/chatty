@@ -130,7 +130,12 @@ async def entrypoint(ctx: JobContext) -> None:
         else None
     )
     requested_language = str(dispatch_metadata.get("voice_language") or "").strip()
-    if requested_language and re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?", requested_language):
+    if requested_language.lower() in {"auto", "auto-detect", "detect", "multi"}:
+        session_bot = dict(organization.bot)
+        session_bot["voice_stt_language"] = "auto"
+        session_bot["response_language"] = "auto"
+        organization = replace(organization, bot=session_bot)
+    elif requested_language and re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?", requested_language):
         # Apply the visitor's choice to this session only. The persisted Voice
         # Studio STT/TTS configuration remains unchanged for the next caller.
         session_bot = dict(organization.bot)

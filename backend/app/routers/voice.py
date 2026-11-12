@@ -300,8 +300,11 @@ async def create_widget_voice_token(body: VoiceTokenRequest, request: Request):
                 raise HTTPException(status_code=402, detail="Voice assistant is currently offline because account subscription is inactive.")
     server_url, api_key, api_secret, default_agent_name = _livekit_settings()
     requested_language = (body.voice_language or "").strip()
-    if requested_language and not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?", requested_language):
-        raise HTTPException(status_code=422, detail="Invalid voice language")
+    if requested_language:
+        if requested_language.lower() in {"auto", "auto-detect", "detect", "multi"}:
+            requested_language = "auto"
+        elif not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?", requested_language):
+            raise HTTPException(status_code=422, detail="Invalid voice language")
     room_name = _safe_room_name(body.bot_id, body.session_id, body.room_nonce)
     identity = f"chatty-visitor-{uuid.uuid4().hex}"
     participant_name = (body.participant_name or "Visitor").strip()[:120]

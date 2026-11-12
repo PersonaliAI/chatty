@@ -348,3 +348,96 @@ async def _async_false(*_args, **_kwargs):
 
 async def _async_empty(*_args, **_kwargs):
     return ""
+
+
+def test_agent_instructs_language_detection_when_response_language_unconfigured():
+    modules = SimpleNamespace(
+        agent_tools=SimpleNamespace(DECLARATIONS=[]),
+        widget_brain=SimpleNamespace(scheduling_tool_names=lambda _bot, _owner: []),
+        supabase=None,
+        run_db=None,
+        doc_rag=None,
+    )
+    organization = OrganizationContext(
+        owner_user={"email": "personaliai.com@gmail.com"},
+        bot={
+            "id": "bot-1",
+            "name": "Auto bot",
+            "response_language": "",
+        },
+        modules=modules,
+    )
+
+    agent = ChattyVoiceAgent(
+        organization, VoiceSettings.from_env(env_file=""), "session-1"
+    )
+
+    assert "LANGUAGE DETECTION AND MIRRORING (CRITICAL)" in agent.instructions
+    assert "Always detect the language the user is speaking and reply fluently" in agent.instructions
+    assert "reply in Spanish" in agent.instructions
+
+
+def test_agent_instructs_language_detection_when_response_language_auto():
+    modules = SimpleNamespace(
+        agent_tools=SimpleNamespace(DECLARATIONS=[]),
+        widget_brain=SimpleNamespace(scheduling_tool_names=lambda _bot, _owner: []),
+        supabase=None,
+        run_db=None,
+        doc_rag=None,
+    )
+    organization = OrganizationContext(
+        owner_user={"email": "personaliai.com@gmail.com"},
+        bot={
+            "id": "bot-1",
+            "name": "Auto bot",
+            "response_language": "auto",
+        },
+        modules=modules,
+    )
+
+    agent = ChattyVoiceAgent(
+        organization, VoiceSettings.from_env(env_file=""), "session-1"
+    )
+
+    assert "LANGUAGE DETECTION AND MIRRORING (CRITICAL)" in agent.instructions
+    assert "seamlessly detect the switch and respond in the newly spoken language" in agent.instructions
+
+
+def test_agent_injects_multilingual_translation_note_into_rag_context(monkeypatch):
+    modules = SimpleNamespace(
+        agent_tools=SimpleNamespace(DECLARATIONS=[]),
+        widget_brain=SimpleNamespace(scheduling_tool_names=lambda _bot, _owner: []),
+        supabase=None,
+        run_db=None,
+        doc_rag=None,
+    )
+    organization = OrganizationContext(
+        owner_user={"email": "personaliai.com@gmail.com"},
+        bot={
+            "id": "bot-1",
+            "name": "Multilingual bot",
+            "response_language": "auto",
+        },
+        modules=modules,
+    )
+    monkeypatch.setattr("voice_agent_cli.agent.maybe_escalate", _async_false)
+    monkeypatch.setattr("voice_agent_cli.flows.PublishedFlowService.reply_for", _async_empty)
+
+    agent = ChattyVoiceAgent(
+        organization, VoiceSettings.from_env(env_file=""), "session-1"
+    )
+
+    async def fake_search(_query):
+        return {
+            "context": "Return policy: 30 days.",
+            "sources": ["returns.pdf"],
+        }
+
+    agent.knowledge.search = fake_search
+    turn_ctx = llm.ChatContext()
+    message = llm.ChatMessage(role="user", content=["¿Cuál es la política de devoluciones?"])
+    asyncio.run(agent.on_user_turn_completed(turn_ctx, message))
+
+    system_msgs = [msg for msg in turn_ctx.messages() if msg.role == "system"]
+    assert len(system_msgs) == 1
+    assert "Translate facts from these sources directly into the user's spoken language" in system_msgs[0].text_content

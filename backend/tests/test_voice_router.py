@@ -88,6 +88,38 @@ async def test_widget_voice_token_separates_room_nonce_from_chat_session(monkeyp
 
 
 @pytest.mark.anyio
+async def test_widget_voice_token_accepts_auto_language_and_passes_to_dispatch_metadata(monkeypatch):
+    async def fake_db(_fn):
+        return type("Result", (), {"data": [{"id": "bot-1", "voice_enabled": True}]})()
+
+    async def no_rate_limit(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(voice, "run_db", fake_db)
+    monkeypatch.setattr(voice, "_widget_rate_limit_or_429", no_rate_limit)
+    monkeypatch.setattr(
+        voice,
+        "_livekit_settings",
+        lambda: ("wss://livekit.example", "APIkey", "secret", "chatty-voice-agent"),
+    )
+
+    response = await voice.create_widget_voice_token(
+        VoiceTokenRequest(
+            bot_id="bot-1",
+            session_id="session-1",
+            voice_language="auto",
+        ),
+        _request(),
+    )
+
+    payload = response["participantToken"].split(".")[1]
+    padded = payload + "=" * (-len(payload) % 4)
+    claims = json.loads(__import__("base64").urlsafe_b64decode(padded))
+    metadata = json.loads(claims["roomConfig"]["agents"][0]["metadata"])
+    assert metadata["voice_language"] == "auto"
+
+
+@pytest.mark.anyio
 async def test_widget_voice_token_carries_browser_timezone_in_signed_dispatch_metadata(monkeypatch):
     async def fake_db(_fn):
         return type("Result", (), {"data": [{"id": "bot-1", "voice_enabled": True}]})()
