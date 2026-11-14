@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # --- Builder stage: compiles native extensions (psycopg2, cryptography, livekit) ---
-FROM python:3.11-slim AS builder
+FROM python:3.15-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir --prefix=/install -r voice_agent_cli/requirements-deploy.txt
 
 # --- Runtime stage ---
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
