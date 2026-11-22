@@ -20,7 +20,7 @@ from fastapi.responses import PlainTextResponse
 
 from app.core.clients import supabase
 from app.core import ssrf
-from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
+from app.core.config import LEMON_VARIANT_TO_PLAN, LEMON_WEBHOOK_SECRET, POLAR_PRODUCT_TO_PLAN, POLAR_WEBHOOK_SECRET, RESEND_INBOUND_WEBHOOK_SECRET
 from app.core.db import run_db
 from app.core.crypto import decrypt_secret
 from app.adapters.redis_jobs import RedisJobQueue
@@ -63,7 +63,7 @@ router = APIRouter()
 
 AFFILIATE_DEFAULT_COMMISSION_RATE_BPS = 3000
 AFFILIATE_DEFAULT_PAYOUT_HOLD_DAYS = 30
-AFFILIATE_IP_HASH_SALT = os.environ.get("AFFILIATE_IP_HASH_SALT") or LEMON_WEBHOOK_SECRET or ""
+AFFILIATE_IP_HASH_SALT = os.environ.get("AFFILIATE_IP_HASH_SALT") or POLAR_WEBHOOK_SECRET or LEMON_WEBHOOK_SECRET or ""
 
 
 
@@ -88,7 +88,7 @@ def _lemon_event_id(data: dict, event_name: str) -> str:
 
 
 def _amount_cents(attributes: dict) -> int:
-    for key in ("total", "subtotal", "amount", "total_usd"):
+    for key in ("total_amount", "amount", "total", "subtotal", "total_usd"):
         value = attributes.get(key)
         if isinstance(value, int):
             return max(value, 0)
@@ -100,12 +100,13 @@ def _amount_cents(attributes: dict) -> int:
 
 
 async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str | None, event_id: str) -> None:
-    custom_data = (data.get("meta") or {}).get("custom_data") or {}
+    data_obj = data.get("data") or {}
+    custom_data = (data.get("meta") or {}).get("custom_data") or data_obj.get("metadata") or {}
     referral_code = _clean_referral_code(custom_data.get("affiliate_ref") or custom_data.get("ref"))
     if not (referral_code and user_id):
         return
 
-    attributes = (data.get("data") or {}).get("attributes") or {}
+    attributes = data_obj.get("attributes") or data_obj
     gross_amount_cents = _amount_cents(attributes)
     if gross_amount_cents <= 0:
         return
@@ -123,7 +124,7 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
         return
 
     # 1. Multi-factor Anti-Self-Referral Checks
-    buyer_email = (attributes.get("user_email") or "").strip().lower()
+    buyer_email = (attributes.get("user_email") or attributes.get("customer_email") or (attributes.get("customer") or {}).get("email") or (attributes.get("user") or {}).get("email") or "").strip().lower()
     payout_email = (affiliate.get("payout_email") or "").strip().lower()
 
     is_self_referral = (
@@ -204,9 +205,10 @@ async def _record_affiliate_conversion(data: dict, event_name: str, user_id: str
 
 
 async def _handle_affiliate_refund(data: dict, event_id: str) -> None:
-    """Claw back and void commissions if an order is refunded via Lemon Squeezy."""
-    attributes = (data.get("data") or {}).get("attributes") or {}
-    order_id = str(attributes.get("order_id") or (data.get("data") or {}).get("id") or "")
+    """Claw back and void commissions if an order is refunded via Polar.sh or Lemon Squeezy."""
+    data_obj = data.get("data") or {}
+    attributes = data_obj.get("attributes") or data_obj
+    order_id = str(attributes.get("order_id") or data_obj.get("id") or "")
     if not order_id:
         return
 
@@ -928,6 +930,304 @@ async def whatsapp_receive(request: Request):
 
     return {"ok": True}
 
+
+
+
+def _verify_polar_signature(headers: Any, raw_body: bytes, secret: str) -> bool:
+    """Cryptographically verify Polar.sh webhook signatures.
+
+    Supports both Standard Webhooks (webhook-id / webhook-timestamp / webhook-signature)
+    with raw UTF-8 or base64-encoded secret keys, as well as direct HMAC-SHA256 hex digest.
+    """
+    if not secret:
+        return False
+    clean_secret = secret.strip()
+    wh_id = headers.get("webhook-id") or headers.get("svix-id") or ""
+    wh_ts = headers.get("webhook-timestamp") or headers.get("svix-timestamp") or ""
+    wh_sig = headers.get("webhook-signature") or headers.get("svix-signature") or ""
+
+    if wh_id and wh_ts and wh_sig:
+        signed_content = f"{wh_id}.{wh_ts}.".encode("utf-8") + raw_body
+        key_candidates: list[bytes] = [clean_secret.encode("utf-8")]
+        stripped = clean_secret.removeprefix("whsec_").removeprefix("polar_whs_")
+        if stripped != clean_secret:
+            key_candidates.append(stripped.encode("utf-8"))
+        try:
+            key_candidates.append(base64.b64decode(stripped))
+        except Exception:
+            pass
+
+        for key_bytes in key_candidates:
+            expected = base64.b64encode(hmac.new(key_bytes, signed_content, hashlib.sha256).digest()).decode("utf-8")
+            for part in wh_sig.split():
+                if "," not in part:
+                    continue
+                version, sig = part.split(",", 1)
+                if version == "v1" and hmac.compare_digest(sig, expected):
+                    return True
+
+    hex_sig = headers.get("x-polar-signature") or headers.get("x-signature") or ""
+    if hex_sig:
+        expected_hex = hmac.new(clean_secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(expected_hex, hex_sig.removeprefix("sha256=")):
+            return True
+
+    return False
+
+
+def _resolve_polar_plan(product_id: str, product_name: str) -> tuple[str, str]:
+    """Return (short_plan, full_plan) such as ('hobby', 'chatty_hobby')."""
+    mapped = POLAR_PRODUCT_TO_PLAN.get(product_id) or LEMON_VARIANT_TO_PLAN.get(product_id)
+    if not mapped:
+        lower_name = (product_name or "").lower()
+        if "business" in lower_name:
+            mapped = "chatty_business"
+        elif "standard" in lower_name:
+            mapped = "chatty_standard"
+        elif "hobby" in lower_name:
+            mapped = "chatty_hobby"
+        else:
+            mapped = "chatty_hobby"
+    short_plan = mapped.removeprefix("chatty_")
+    full_plan = mapped if mapped.startswith("chatty_") else f"chatty_{mapped}"
+    return short_plan, full_plan
+
+
+@router.post("/webhook/polar")
+async def webhook_polar(request: Request):
+    """Polar.sh main SaaS subscription billing webhook receiver."""
+    raw_body = await request.body()
+    secret = POLAR_WEBHOOK_SECRET or LEMON_WEBHOOK_SECRET
+    if not secret:
+        logger.error("POLAR_WEBHOOK_SECRET is not configured; rejecting incoming Polar webhook")
+        raise HTTPException(status_code=503, detail="Billing webhook unconfigured")
+    if not _verify_polar_signature(request.headers, raw_body, secret):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    try:
+        data = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event_name = str(data.get("type") or "")
+    obj = data.get("data") or {}
+    metadata = obj.get("metadata") or {}
+    user_id = metadata.get("user_id") or metadata.get("auth_user_id")
+
+    customer_obj = obj.get("customer") or obj.get("user") or {}
+    resolved_email = str(
+        obj.get("customer_email")
+        or customer_obj.get("email")
+        or metadata.get("email")
+        or ""
+    ).strip().lower()
+    resolved_name = str(
+        obj.get("customer_name")
+        or customer_obj.get("name")
+        or metadata.get("name")
+        or ""
+    ).strip()
+
+    # Fallback: resolve user_id by customer email if checkout metadata did not carry user_id
+    if not user_id and resolved_email and "@" in resolved_email:
+        try:
+            u_lookup = await run_db(
+                lambda: supabase.table("users")
+                .select("auth_user_id,id,display_name")
+                .eq("email", resolved_email)
+                .limit(1)
+                .execute()
+            )
+            if u_lookup.data:
+                user_id = u_lookup.data[0].get("auth_user_id") or u_lookup.data[0].get("id")
+                if not resolved_name:
+                    resolved_name = str(u_lookup.data[0].get("display_name") or "").strip()
+        except Exception:
+            logger.warning("Could not look up user by email on Polar webhook")
+
+    wh_id_header = request.headers.get("webhook-id") or request.headers.get("svix-id")
+    event_id = str(wh_id_header) if wh_id_header else _lemon_event_id(data, event_name)
+
+    product_obj = obj.get("product") or {}
+    product_id = str(obj.get("product_id") or product_obj.get("id") or "")
+    product_name = str(product_obj.get("name") or obj.get("product_name") or "")
+    short_plan, full_plan = _resolve_polar_plan(product_id, product_name)
+
+    logger.info("Polar.sh billing webhook event received: %s", event_name)
+
+    try:
+        await run_db(lambda: supabase.table("lemon_events").upsert({
+            "event_id": event_id,
+            "event_name": event_name,
+            "raw": data,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+        }, on_conflict="event_id").execute())
+    except Exception:
+        logger.exception("Failed to record Polar billing event")
+
+    if user_id and event_name in (
+        "order.created",
+        "order.paid",
+        "subscription.created",
+        "subscription.updated",
+        "subscription.active",
+        "subscription.uncanceled",
+    ):
+        try:
+            await run_db(lambda: supabase.table("user_subscriptions").upsert({
+                "user_id": user_id,
+                "plan": short_plan,
+                "variant_id": product_id,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).execute())
+        except Exception:
+            logger.exception("Failed to record Polar user_subscriptions update")
+
+    # Sync users table subscription status, plan, and renewal timestamps
+    if user_id:
+        try:
+            polar_status = str(obj.get("status") or "").strip().lower()
+            cancel_at_end = bool(obj.get("cancel_at_period_end"))
+            status_attr = ""
+
+            if event_name in ("subscription.canceled", "subscription.revoked") or polar_status in ("canceled", "cancelled", "incomplete_expired"):
+                status_attr = "cancelled"
+            elif cancel_at_end and event_name == "subscription.updated":
+                status_attr = "cancelled"
+            elif polar_status == "trialing":
+                status_attr = "on_trial"
+            elif polar_status in ("past_due", "unpaid") or event_name == "subscription.past_due":
+                status_attr = "past_due"
+            elif polar_status == "paused" or event_name == "subscription.paused":
+                status_attr = "paused"
+            elif polar_status in ("active", "succeeded", "paid", "confirmed") or event_name in (
+                "order.created",
+                "order.paid",
+                "subscription.created",
+                "subscription.active",
+                "subscription.uncanceled",
+                "subscription.resumed",
+                "subscription.cycled",
+            ):
+                status_attr = "active"
+
+            user_updates: dict[str, Any] = {
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if status_attr:
+                user_updates["subscription_status"] = status_attr
+                if status_attr == "on_trial":
+                    user_updates["trial_started_at"] = obj.get("trial_start") or datetime.now(timezone.utc).isoformat()
+            if product_id:
+                user_updates["subscription_variant_id"] = product_id
+                user_updates["plan"] = full_plan
+            renews = obj.get("current_period_end") or obj.get("ends_at") or obj.get("trial_end")
+            if renews:
+                user_updates["subscription_renews_at"] = renews
+            cust_id = str(obj.get("customer_id") or customer_obj.get("id") or "")
+            if cust_id:
+                user_updates["lemon_customer_id"] = cust_id
+            sub_id = str(
+                obj.get("subscription_id")
+                or (obj.get("id") if event_name.startswith("subscription.") else "")
+                or ""
+            )
+            if sub_id:
+                user_updates["lemon_subscription_id"] = sub_id
+
+            await run_db(lambda: supabase.table("users").update(user_updates).eq("auth_user_id", user_id).execute())
+        except Exception:
+            logger.exception("Failed to sync users table on Polar.sh event")
+
+    # Affiliate conversion, refund clawback, and subscription end tracking
+    if user_id and event_name in ("order.created", "order.paid", "subscription.created"):
+        try:
+            await _record_affiliate_conversion(data, event_name, user_id, event_id)
+        except Exception:
+            logger.exception("Failed to record Polar affiliate conversion")
+
+    if event_name in ("order.refunded", "refund.created"):
+        try:
+            await _handle_affiliate_refund(data, event_id)
+        except Exception:
+            logger.exception("Failed to process Polar affiliate refund")
+
+    if user_id and event_name in ("subscription.canceled", "subscription.revoked"):
+        try:
+            await _handle_affiliate_subscription_ended(user_id, event_name)
+        except Exception:
+            logger.exception("Failed to update Polar affiliate subscription state")
+
+    # Dispatch transactional billing emails
+    if user_id:
+        try:
+            if not resolved_email:
+                u_res = await run_db(lambda: supabase.table("users").select("email,display_name").eq("auth_user_id", user_id).limit(1).execute())
+                if u_res.data:
+                    resolved_email = str(u_res.data[0].get("email") or "").strip().lower()
+                    if not resolved_name:
+                        resolved_name = str(u_res.data[0].get("display_name") or "").strip()
+
+            if resolved_email and "@" in resolved_email:
+                renews_str = str(obj.get("current_period_end") or obj.get("ends_at") or obj.get("trial_end") or "")
+                ends_str = str(obj.get("ends_at") or obj.get("current_period_end") or "")
+                amt_cents = _amount_cents(obj)
+                curr = str(obj.get("currency") or "USD").upper()
+                amount_str = f"${(amt_cents / 100):.2f} {curr}" if amt_cents > 0 else ""
+
+                if event_name in ("subscription.created", "subscription.active"):
+                    asyncio.create_task(billing_email_service.send_subscription_activated_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=short_plan,
+                        renews_at=renews_str,
+                    ))
+                elif event_name in ("order.paid", "order.created"):
+                    asyncio.create_task(billing_email_service.send_payment_success_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=short_plan,
+                        amount_formatted=amount_str,
+                        renews_at=renews_str,
+                        receipt_url="https://polar.sh/purchases",
+                    ))
+                elif event_name in ("subscription.canceled", "subscription.revoked"):
+                    asyncio.create_task(billing_email_service.send_subscription_cancelled_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=short_plan,
+                        ends_at=ends_str,
+                    ))
+                elif event_name == "subscription.past_due":
+                    asyncio.create_task(billing_email_service.send_payment_failed_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=short_plan,
+                        update_url="https://polar.sh/personaliai/portal",
+                    ))
+                elif event_name == "subscription.paused":
+                    asyncio.create_task(billing_email_service.send_subscription_paused_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=short_plan,
+                    ))
+                elif event_name in ("subscription.uncanceled", "subscription.resumed"):
+                    asyncio.create_task(billing_email_service.send_subscription_resumed_email(
+                        user_id=user_id,
+                        email=resolved_email,
+                        name=resolved_name,
+                        plan_name=short_plan,
+                    ))
+        except Exception:
+            clean_event = str(event_name or "").replace("\r", "").replace("\n", "")[:64]
+            logger.exception("Failed to dispatch Polar billing transactional email on %s", clean_event)
+
+    return {"status": "success"}
 
 
 @router.post("/webhook/lemonsqueezy")

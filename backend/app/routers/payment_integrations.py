@@ -85,7 +85,7 @@ async def get_bot_payment_integrations(
 
     backend_base = os.environ.get("CHATTY_BACKEND_URL", "https://api.chatty.personaliai.com").rstrip("/")
     providers_status = {}
-    for p in ["stripe", "lemonsqueezy", "polar", "paypal"]:
+    for p in ["stripe", "polar", "paypal"]:
         wh_url = f"{backend_base}/api/bots/{bot_id}/webhooks/payments/{p}"
         row = rows.get(p)
         if row:
@@ -152,7 +152,7 @@ async def get_bot_payment_integrations(
 @router.get("/api/bots/{bot_id}/integrations/payments/products")
 async def list_gateway_products(
     bot_id: str,
-    provider: Optional[str] = Query(None, description="stripe, lemonsqueezy, or polar"),
+    provider: Optional[str] = Query(None, description="stripe, polar, or paypal"),
     user: dict[str, Any] = Depends(require_user),
 ):
     """Fetch active products and price plans from connected payment gateway platforms."""
@@ -511,7 +511,7 @@ async def inbox_send_checkout_link(
     if not res.data:
         raise HTTPException(
             status_code=400,
-            detail="No active payment gateway connected. Please connect Stripe, PayPal, Lemon Squeezy, or Polar in Integrations.",
+            detail="No active payment gateway connected. Please connect Stripe, Polar.sh, or PayPal in Integrations.",
         )
 
     integration = res.data[0]
@@ -1002,6 +1002,14 @@ async def receive_payment_gateway_webhook(
                 expected = hmac.new(wh_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
                 if v1 and not hmac.compare_digest(expected, v1):
                     raise HTTPException(status_code=401, detail="Invalid Stripe webhook signature")
+        elif prov == "polar":
+            from app.routers.webhooks import _verify_polar_signature
+            has_sig = any(
+                request.headers.get(h)
+                for h in ("webhook-signature", "svix-signature", "x-polar-signature", "x-signature")
+            )
+            if has_sig and not _verify_polar_signature(request.headers, raw_body, wh_secret):
+                raise HTTPException(status_code=401, detail="Invalid Polar.sh webhook signature")
 
     # Normalize event across Stripe, Polar.sh, Lemon Squeezy, PayPal
     event_type = ""

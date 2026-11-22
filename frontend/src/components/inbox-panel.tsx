@@ -724,7 +724,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
   const [loadingGatewayProducts, setLoadingGatewayProducts] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [productSearch, setProductSearch] = useState("");
-  type PaymentProviderId = "stripe" | "paypal" | "lemonsqueezy" | "polar";
+  type PaymentProviderId = "stripe" | "polar" | "paypal";
   const [paymentProvider, setPaymentProvider] = useState<PaymentProviderId | "">("");
   const [connectedGateways, setConnectedGateways] = useState<PaymentProviderId[]>([]);
   const [gatewaysLoaded, setGatewaysLoaded] = useState(false);
@@ -1613,7 +1613,7 @@ export function InboxPanel({ botId, fetchBackend, formatDateTime, color = "#f973
       if (!res.ok) return;
       const data = await res.json();
       const providers = (data.providers || {}) as Record<string, { connected?: boolean; is_active?: boolean }>;
-      const connected = (["stripe", "paypal", "lemonsqueezy", "polar"] as const).filter(
+      const connected = (["stripe", "polar", "paypal"] as const).filter(
         (id) => providers[id]?.connected && providers[id]?.is_active !== false
       );
       setConnectedGateways(connected);

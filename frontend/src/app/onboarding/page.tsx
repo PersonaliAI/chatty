@@ -248,7 +248,7 @@ function OnboardingPageInner() {
       });
 
       // Seamless redirect to dashboard
-      // Seamless redirect to LemonSqueezy checkout to authorize card for 14-day trial ($0.00 charged today)
+      // Seamless redirect to Polar.sh checkout to authorize card for 14-day trial ($0.00 charged today)
       const planKey = selectedPlan.replace("chatty_", "");
       window.location.href = `/checkout?plan=${encodeURIComponent(planKey)}`;
     } catch (err: unknown) {

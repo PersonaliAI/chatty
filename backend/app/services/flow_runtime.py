@@ -609,7 +609,7 @@ async def _execute_graph(
                                 session_id=str(inputs.get("session_id") or ""),
                             )
                         except Exception:
-                            logger.debug("Non-fatal: flow action.slack delivery skipped for bot %s", bot_id_for_slack)
+                            logger.debug("Non-fatal: flow action.slack delivery skipped")
             elif not url:
                 status = "failed"
                 failed = f"{title} has no adapter endpoint configured"

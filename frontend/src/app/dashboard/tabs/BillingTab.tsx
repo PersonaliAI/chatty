@@ -613,7 +613,7 @@ export function BillingTab({
   const liveStorageUsed = summaryData?.usage?.storage_mb?.used ?? 0;
   const liveStorageLimit = isAdmin ? null : (summaryData?.usage?.storage_mb?.limit ?? activeTierConfig.mediaStorageMb);
 
-  const portalUrl = summaryData?.portal_url || process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
+  const portalUrl = summaryData?.portal_url || process.env.NEXT_PUBLIC_POLAR_PORTAL_URL || process.env.NEXT_PUBLIC_LEMON_PORTAL_URL || "";
   const isCancelled = Boolean(billingInfo?.status === "cancelled" || billingInfo?.status === "canceled" || summaryData?.status === "cancelled");
   const canCancel = Boolean(!isAdmin && !isCancelled && (isPaidActive || (billingInfo?.status && ["active", "on_trial", "trial"].includes(billingInfo.status)) || summaryData?.has_active_subscription));
 

@@ -27,40 +27,41 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: NEXT_PUBLIC_LEMON_PORTAL_URL
-    value: "https://priceshield.lemonsqueezy.com/billing"
+  - variable: NEXT_PUBLIC_POLAR_PORTAL_URL
+    value: "https://polar.sh/personaliai/portal"
     availability:
       - BUILD
       - RUNTIME
-  # Server-only — used by src/app/api/billing/checkout/route.ts. Same store
-  # (161795) and API key as kin-frontend; only the variant IDs are Chatty's own.
-  # Backed by Google Secret Manager (firebase apphosting:secrets:set), not a
-  # literal value — this file is otherwise safe to make public.
-  - variable: LEMONSQUEEZY_API_KEY
-    secret: chatty-lemonsqueezy-api-key
+  # Server-only — used by src/app/api/billing/checkout/route.ts for Polar.sh checkouts.
+  - variable: POLAR_ACCESS_TOKEN
+    secret: chatty-polar-access-token
     availability:
       - RUNTIME
-  - variable: LEMONSQUEEZY_VARIANT_CHATTY_HOBBY
-    value: "1925005"
+  - variable: POLAR_ORGANIZATION_ID
+    value: "22133329-35ee-475b-8a04-d53917f172f0"
     availability:
       - RUNTIME
-  - variable: LEMONSQUEEZY_VARIANT_CHATTY_STANDARD
-    value: "1925006"
+  - variable: POLAR_PRODUCT_CHATTY_HOBBY
+    value: "979dfddc-ba2d-4034-8a4a-a2d7be837df0"
     availability:
       - RUNTIME
-  - variable: LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS
-    value: "1925009"
+  - variable: POLAR_PRODUCT_CHATTY_STANDARD
+    value: "44a3e476-d17e-47ad-abb7-34b36d6fb398"
     availability:
       - RUNTIME
-  - variable: LEMONSQUEEZY_VARIANT_CHATTY_HOBBY_YEARLY
-    value: "1925015"
+  - variable: POLAR_PRODUCT_CHATTY_BUSINESS
+    value: "65c1d174-3c79-4c5c-89fb-c22776c246e7"
     availability:
       - RUNTIME
-  - variable: LEMONSQUEEZY_VARIANT_CHATTY_STANDARD_YEARLY
-    value: "1925018"
+  - variable: POLAR_PRODUCT_CHATTY_HOBBY_YEARLY
+    value: "63deceb8-4708-41f7-bdd0-4f9c477777b2"
     availability:
       - RUNTIME
-  - variable: LEMONSQUEEZY_VARIANT_CHATTY_BUSINESS_YEARLY
-    value: "1925020"
+  - variable: POLAR_PRODUCT_CHATTY_STANDARD_YEARLY
+    value: "2bf68bd0-1ca3-489d-ad2f-62015bcb4bab"
+    availability:
+      - RUNTIME
+  - variable: POLAR_PRODUCT_CHATTY_BUSINESS_YEARLY
+    value: "bfbcb1bc-a50c-4806-b187-9e427032a6ca"
     availability:
       - RUNTIME

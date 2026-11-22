@@ -1654,11 +1654,13 @@ async def get_billing_summary(user: dict[str, Any] = Depends(require_user)) -> d
 
     portal_url = None
     if not is_admin:
-        lemon_cust_id = user.get("lemon_customer_id")
-        from app.core.config import LEMON_API_KEY
-        if LEMON_API_KEY and lemon_cust_id:
-            from app.services.booking.payment_gateways import PaymentGatewaysService
-            portal_url = await PaymentGatewaysService.get_lemonsqueezy_customer_portal(LEMON_API_KEY, lemon_cust_id)
+        cust_id = user.get("lemon_customer_id")
+        from app.core.config import LEMON_API_KEY, POLAR_ACCESS_TOKEN
+        from app.services.booking.payment_gateways import PaymentGatewaysService
+        if POLAR_ACCESS_TOKEN and cust_id:
+            portal_url = await PaymentGatewaysService.get_polar_customer_portal(POLAR_ACCESS_TOKEN, cust_id)
+        if not portal_url and LEMON_API_KEY and cust_id:
+            portal_url = await PaymentGatewaysService.get_lemonsqueezy_customer_portal(LEMON_API_KEY, cust_id)
 
     return {
         "is_admin": is_admin,
@@ -1718,7 +1720,7 @@ async def cancel_user_subscription(
     user: dict[str, Any] = Depends(require_user)
 ) -> dict[str, Any]:
     """1-Click direct cancellation of active subscription / trial."""
-    from app.core.config import ADMIN_BYPASS_EMAILS, LEMON_API_KEY
+    from app.core.config import ADMIN_BYPASS_EMAILS, LEMON_API_KEY, POLAR_ACCESS_TOKEN
     from app.services.booking.payment_gateways import PaymentGatewaysService
     from app.services import billing_email_service
 
@@ -1732,7 +1734,14 @@ async def cancel_user_subscription(
     cancelled_in_gateway = False
     ends_at: str | None = None
 
-    if LEMON_API_KEY and sub_id:
+    if POLAR_ACCESS_TOKEN and sub_id:
+        res = await PaymentGatewaysService.cancel_polar_subscription(POLAR_ACCESS_TOKEN, sub_id)
+        if res.get("success"):
+            cancelled_in_gateway = True
+            ends_at = res.get("ends_at")
+        else:
+            logger.warning("Polar.sh cancel API call returned error: %s", res.get("error"))
+    if not cancelled_in_gateway and LEMON_API_KEY and sub_id:
         res = await PaymentGatewaysService.cancel_lemonsqueezy_subscription(LEMON_API_KEY, sub_id)
         if res.get("success"):
             cancelled_in_gateway = True

@@ -317,7 +317,7 @@ async def send_trial_welcome_email(
         title="Welcome to Chatty! Let's get your AI agent live",
         body_paragraphs=[
             f"{display_greeting}",
-            "Welcome aboard! You have full, unrestricted access to <strong>Chatty</strong> for the next 14 days. Your card was authorized for $0.00 today via our billing partner Lemon Squeezy, and your trial is officially active.",
+            "Welcome aboard! You have full, unrestricted access to <strong>Chatty</strong> for the next 14 days. Your card was authorized for $0.00 today via our billing partner Polar.sh, and your trial is officially active.",
             "Your AI agent can crawl your entire website, ingest PDFs/docs, answer complex customer questions, and capture qualified leads 24/7.",
             "Here are the 3 quick steps to launch your first assistant in under 2 minutes:",
             "<strong>1. Add Knowledge:</strong> Point Chatty to your website URL or upload your product FAQs and manuals.",

@@ -57,9 +57,9 @@ const SUBPROCESSORS: Subprocessor[] = [
     certifications: "SOC 2 Type II",
   },
   {
-    name: "Lemon Squeezy LLC & Stripe Inc.",
+    name: "Polar Software Inc. & Stripe Inc.",
     purpose: "Merchant of Record, billing orchestration, payment processing, and VAT/sales tax compliance.",
-    entity: "Lemon Squeezy LLC / Stripe Inc.",
+    entity: "Polar Software Inc. / Stripe Inc.",
     location: "United States / United Kingdom",
     mechanism: "EU-U.S. Data Privacy Framework (DPF) & SCCs",
     certifications: "PCI-DSS Level 1, SOC 1 & 2",

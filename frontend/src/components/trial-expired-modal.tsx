@@ -451,7 +451,7 @@ export function TrialExpiredModal({
         <div className="mt-4 pt-3.5 border-t border-neutral-200 dark:border-neutral-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-neutral-500 dark:text-neutral-400">
           <div className="flex items-center gap-2 text-center sm:text-left">
             <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-            <span>Encrypted checkout powered by Lemon Squeezy. Switch plans or cancel anytime.</span>
+            <span>Encrypted checkout powered by Polar.sh. Switch plans or cancel anytime.</span>
           </div>
 
           <div className="flex items-center flex-wrap gap-3">

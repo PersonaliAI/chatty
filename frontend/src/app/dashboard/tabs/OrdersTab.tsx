@@ -516,7 +516,6 @@ export function OrdersTab({ botId, fetchWithFallback, authToken, onOpenConversat
                 { value: "all", label: "All Gateways" },
                 { value: "stripe", label: "Stripe" },
                 { value: "paypal", label: "PayPal" },
-                { value: "lemonsqueezy", label: "Lemon Squeezy" },
                 { value: "polar", label: "Polar.sh" },
               ]}
             />

@@ -1003,3 +1003,76 @@ class PaymentGatewaysService:
             logger.warning("Failed to fetch Lemon customer portal URL: %s", exc)
         return None
 
+    @staticmethod
+    async def cancel_polar_subscription(access_token: str, subscription_id: str) -> dict[str, Any]:
+        """Cancel an active subscription via Polar.sh API (supports both live and sandbox)."""
+        clean_key = access_token.strip()
+        sub_id = safe_gateway_id(subscription_id, "subscription ID")
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {clean_key}",
+        }
+        env_pref = os.environ.get("POLAR_ENVIRONMENT", "live").strip().lower()
+        base_urls = (
+            ["https://sandbox-api.polar.sh", "https://api.polar.sh"]
+            if env_pref == "sandbox"
+            else ["https://api.polar.sh", "https://sandbox-api.polar.sh"]
+        )
+        last_err = "Failed to cancel Polar subscription"
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            for base_url in base_urls:
+                url = f"{base_url}/v1/subscriptions/{sub_id}"
+                res = await client.patch(url, headers=headers, json={"cancel_at_period_end": True})
+                if res.status_code in (404, 401):
+                    last_err = f"HTTP {res.status_code}"
+                    continue
+                if res.status_code in (405, 422):
+                    res = await client.delete(url, headers=headers)
+                if res.status_code in (200, 204):
+                    data = res.json() if res.content else {}
+                    return {
+                        "success": True,
+                        "status": data.get("status", "cancelled"),
+                        "ends_at": data.get("ends_at") or data.get("current_period_end"),
+                    }
+                try:
+                    last_err = str(res.json().get("detail", f"HTTP {res.status_code}"))
+                except Exception:
+                    last_err = f"HTTP {res.status_code}"
+        return {"success": False, "error": last_err}
+
+    @staticmethod
+    async def get_polar_customer_portal(access_token: str, customer_id: str) -> Optional[str]:
+        """Create a pre-authenticated Polar.sh customer portal session URL."""
+        clean_key = access_token.strip()
+        cust_id = safe_gateway_id(customer_id, "customer ID")
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {clean_key}",
+        }
+        env_pref = os.environ.get("POLAR_ENVIRONMENT", "live").strip().lower()
+        base_urls = (
+            ["https://sandbox-api.polar.sh", "https://api.polar.sh"]
+            if env_pref == "sandbox"
+            else ["https://api.polar.sh", "https://sandbox-api.polar.sh"]
+        )
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                for base_url in base_urls:
+                    res = await client.post(
+                        f"{base_url}/v1/customer-sessions/",
+                        headers=headers,
+                        json={"customer_id": cust_id},
+                    )
+                    if res.status_code in (200, 201):
+                        data = res.json()
+                        portal_url = data.get("customer_portal_url")
+                        if portal_url:
+                            return str(portal_url)
+                    elif res.status_code not in (401, 404, 422):
+                        break
+        except Exception as exc:
+            logger.warning("Failed to fetch Polar customer portal URL: %s", exc)
+        return None

@@ -317,3 +317,133 @@ def test_whatsapp_verify_handshake_rejects_invalid_token(monkeypatch):
         asyncio.run(webhooks.whatsapp_verify(req))
     assert exc_info.value.status_code == 403
 
+
+# ---------------------------------------------------------------------------
+# Polar.sh Platform Subscription Webhook Tests
+# ---------------------------------------------------------------------------
+
+
+def _polar_sign(wh_id: str, wh_ts: str, body: bytes, secret: str) -> str:
+    signed_content = f"{wh_id}.{wh_ts}.".encode("utf-8") + body
+    sig = base64.b64encode(hmac.new(secret.encode("utf-8"), signed_content, hashlib.sha256).digest()).decode("utf-8")
+    return f"v1,{sig}"
+
+
+def test_verify_polar_signature_standard_webhooks():
+    secret = "polar_whs_test_secret_key_12345"
+    body = b'{"type":"subscription.created","data":{"id":"sub_polar_1"}}'
+    wh_id, wh_ts = "msg_polar_1", "1700000000"
+    sig = _polar_sign(wh_id, wh_ts, body, secret)
+    headers = {"webhook-id": wh_id, "webhook-timestamp": wh_ts, "webhook-signature": sig}
+    assert webhooks._verify_polar_signature(headers, body, secret) is True
+    assert webhooks._verify_polar_signature(headers, b'{"tampered":true}', secret) is False
+    assert webhooks._verify_polar_signature(headers, body, "wrong_secret") is False
+
+
+def test_webhook_polar_subscription_created_syncs_user_and_subscription(monkeypatch):
+    secret = "polar_whs_secret_abc"
+    monkeypatch.setattr(webhooks, "POLAR_WEBHOOK_SECRET", secret)
+    monkeypatch.setattr(webhooks, "POLAR_PRODUCT_TO_PLAN", {"prod_std_123": "chatty_standard"})
+
+    user_updates_captured = {}
+    sub_upserts_captured = {}
+
+    fake_supabase = MagicMock()
+
+    def table(name):
+        t = MagicMock()
+        if name == "users":
+            def do_update(payload):
+                user_updates_captured.update(payload)
+                m = MagicMock()
+                m.eq.return_value.execute.return_value = SimpleNamespace(data=[{"auth_user_id": "u-123"}])
+                return m
+            t.update.side_effect = do_update
+            t.select.return_value.eq.return_value.limit.return_value.execute.return_value = SimpleNamespace(
+                data=[{"email": "founder@acme.io", "display_name": "Founder"}]
+            )
+        elif name == "user_subscriptions":
+            def do_upsert(payload, **kw):
+                sub_upserts_captured.update(payload)
+                m = MagicMock()
+                m.execute.return_value = SimpleNamespace(data=[payload])
+                return m
+            t.upsert.side_effect = do_upsert
+        else:
+            t.upsert.return_value.execute.return_value = SimpleNamespace(data=[])
+        return t
+
+    fake_supabase.table.side_effect = table
+    monkeypatch.setattr(webhooks, "supabase", fake_supabase)
+
+    payload = {
+        "type": "subscription.created",
+        "data": {
+            "id": "sub_polar_999",
+            "status": "active",
+            "product_id": "prod_std_123",
+            "customer_id": "cust_polar_888",
+            "current_period_end": "2026-12-22T00:00:00Z",
+            "customer": {"id": "cust_polar_888", "email": "founder@acme.io", "name": "Founder"},
+            "metadata": {"user_id": "u-123"},
+        },
+    }
+    raw_body = json.dumps(payload).encode("utf-8")
+    wh_id, wh_ts = "wh_evt_100", "1700000100"
+    sig = _polar_sign(wh_id, wh_ts, raw_body, secret)
+    req = _FakeRequest(raw_body, {"webhook-id": wh_id, "webhook-timestamp": wh_ts, "webhook-signature": sig})
+
+    res = asyncio.run(webhooks.webhook_polar(req))
+    assert res == {"status": "success"}
+    assert user_updates_captured["plan"] == "chatty_standard"
+    assert user_updates_captured["subscription_status"] == "active"
+    assert user_updates_captured["lemon_customer_id"] == "cust_polar_888"
+    assert user_updates_captured["lemon_subscription_id"] == "sub_polar_999"
+    assert sub_upserts_captured["plan"] == "standard"
+    assert sub_upserts_captured["variant_id"] == "prod_std_123"
+
+
+def test_webhook_polar_subscription_canceled_updates_status(monkeypatch):
+    secret = "polar_whs_secret_abc"
+    monkeypatch.setattr(webhooks, "POLAR_WEBHOOK_SECRET", secret)
+
+    user_updates_captured = {}
+    fake_supabase = MagicMock()
+
+    def table(name):
+        t = MagicMock()
+        if name == "users":
+            def do_update(payload):
+                user_updates_captured.update(payload)
+                m = MagicMock()
+                m.eq.return_value.execute.return_value = SimpleNamespace(data=[{"auth_user_id": "u-123"}])
+                return m
+            t.update.side_effect = do_update
+            t.select.return_value.eq.return_value.limit.return_value.execute.return_value = SimpleNamespace(data=[])
+        else:
+            t.upsert.return_value.execute.return_value = SimpleNamespace(data=[])
+            t.update.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[])
+        return t
+
+    fake_supabase.table.side_effect = table
+    monkeypatch.setattr(webhooks, "supabase", fake_supabase)
+
+    payload = {
+        "type": "subscription.canceled",
+        "data": {
+            "id": "sub_polar_999",
+            "status": "canceled",
+            "product": {"id": "prod_hobby_1", "name": "Chatty Hobby"},
+            "ends_at": "2026-12-22T00:00:00Z",
+            "metadata": {"user_id": "u-123"},
+        },
+    }
+    raw_body = json.dumps(payload).encode("utf-8")
+    wh_id, wh_ts = "wh_evt_101", "1700000200"
+    sig = _polar_sign(wh_id, wh_ts, raw_body, secret)
+    req = _FakeRequest(raw_body, {"webhook-id": wh_id, "webhook-timestamp": wh_ts, "webhook-signature": sig})
+
+    res = asyncio.run(webhooks.webhook_polar(req))
+    assert res == {"status": "success"}
+    assert user_updates_captured["subscription_status"] == "cancelled"
+    assert user_updates_captured["subscription_renews_at"] == "2026-12-22T00:00:00Z"

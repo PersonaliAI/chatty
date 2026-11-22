@@ -939,7 +939,7 @@ async def run_widget_assistant(
                     "AUTONOMOUS CHECKOUT PERMISSION: PERMITTED.",
                     "- You are authorized to assist with pricing, generate checkout links, and facilitate payments.",
                     "- Whenever a visitor asks to purchase, subscribe, or pay for a plan, product, or service (or asks for a payment/checkout link), call the `create_payment_checkout` tool with `title` and `amount_dollars` (plus `customer_email` and `customer_name` if known) to generate an interactive payment checkout card in the chat.",
-                    "- Never fabricate or guess a checkout URL yourself; ALWAYS call `create_payment_checkout` so a real Stripe, Polar.sh, Lemon Squeezy, or PayPal session is created and recorded.",
+                    "- Never fabricate or guess a checkout URL yourself; ALWAYS call `create_payment_checkout` so a real Stripe, Polar.sh, or PayPal session is created and recorded.",
                 ])
                 if max_cents:
                     max_dollars = max_cents / 100

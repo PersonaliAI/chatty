@@ -452,7 +452,7 @@ DECLARATIONS: list[dict] = [
     ),
     _tool(
         "create_payment_checkout",
-        "Generate a secure, hosted payment checkout link (Stripe, Polar.sh, Lemon Squeezy, or PayPal) so the visitor can purchase a product, subscription plan, service, or custom quote directly in the chat. "
+        "Generate a secure, hosted payment checkout link (Stripe, Polar.sh, or PayPal) so the visitor can purchase a product, subscription plan, service, or custom quote directly in the chat. "
         "Call this tool whenever the visitor asks to buy, subscribe, pay, or receive a checkout link and autonomous checkout is permitted. "
         "Returns a `checkout_card_token` (`[CHECKOUT_LINK:...]`) which automatically renders an interactive payment card in the chat widget.",
         {

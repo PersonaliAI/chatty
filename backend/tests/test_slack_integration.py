@@ -155,7 +155,7 @@ def test_send_slack_test_notification_verifies_webhook(monkeypatch):
         )
     )
     assert bad["sent"] is False
-    assert "hooks.slack.com" in bad["error"]
+    assert bad["error"] == "Slack Webhook URL must be a valid https://hooks.slack.com/services/... URL."
 
 
 def test_handle_slack_interaction_payload_takeover_and_resolve(monkeypatch):

@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 
-type PaymentProviderId = "stripe" | "paypal" | "lemonsqueezy" | "polar";
+type PaymentProviderId = "stripe" | "polar" | "paypal";
 
 export interface GatewayCatalogProduct {
   id: string;
@@ -101,7 +101,7 @@ export const SendCheckoutModal = memo(function SendCheckoutModal({
         string,
         { connected?: boolean; is_active?: boolean }
       >;
-      const connected = (["stripe", "paypal", "lemonsqueezy", "polar"] as const).filter(
+      const connected = (["stripe", "polar", "paypal"] as const).filter(
         (id) => providers[id]?.connected && providers[id]?.is_active !== false
       );
       setConnectedGateways(connected);
@@ -379,7 +379,7 @@ export const SendCheckoutModal = memo(function SendCheckoutModal({
                   </div>
                 ) : connectedGateways.length === 0 ? (
                   <p className="mt-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
-                    No payment gateway is connected. Connect Stripe, PayPal, Lemon Squeezy, or Polar in
+                    No payment gateway is connected. Connect Stripe, Polar.sh, or PayPal in
                     Dashboard &rarr; Integrations first.
                   </p>
                 ) : (
@@ -395,9 +395,7 @@ export const SendCheckoutModal = memo(function SendCheckoutModal({
                             : "border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:border-neutral-300"
                         }`}
                       >
-                        {prov === "lemonsqueezy"
-                          ? "Lemon Squeezy"
-                          : prov === "polar"
+                        {prov === "polar"
                           ? "Polar.sh"
                           : prov === "paypal"
                           ? "PayPal"
@@ -406,12 +404,7 @@ export const SendCheckoutModal = memo(function SendCheckoutModal({
                     ))}
                   </div>
                 )}
-                {paymentProvider === "lemonsqueezy" && (
-                  <p className="mt-2 text-[11px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-                    Lemon Squeezy re-prices your store&apos;s primary variant to generate this custom
-                    one-time checkout link.
-                  </p>
-                )}
+
               </div>
 
               <div>

@@ -56,7 +56,13 @@ FUNCTION_SECRET = os.environ.get("FUNCTION_SECRET", "")
 CHATTY_ENFORCE_AI_QUOTAS = os.environ.get("CHATTY_ENFORCE_AI_QUOTAS", "true").strip().lower() in {
     "1", "true", "yes", "on"
 }
-# Lemon Squeezy - accept either naming convention.
+# Polar.sh Platform Billing (Primary SaaS Subscription Gateway)
+POLAR_ACCESS_TOKEN = os.environ.get("POLAR_ACCESS_TOKEN", "").strip()
+POLAR_WEBHOOK_SECRET = os.environ.get("POLAR_WEBHOOK_SECRET", "").strip()
+POLAR_ORGANIZATION_ID = os.environ.get("POLAR_ORGANIZATION_ID", "").strip()
+POLAR_ENVIRONMENT = os.environ.get("POLAR_ENVIRONMENT", "live").strip().lower()
+
+# Legacy Lemon Squeezy aliases (deprecated, kept for backwards compatibility)
 LEMON_WEBHOOK_SECRET = (
     os.environ.get("LEMONSQUEEZY_WEBHOOK_SECRET")
     or os.environ.get("LEMON_SQUEEZY_WEBHOOK_SECRET", "")
@@ -128,6 +134,34 @@ for _v in os.environ.get("LEMON_VARIANT_PLANS", "").split(","):
     if ":" in _v:
         _k, _p = _v.strip().split(":", 1)
         LEMON_VARIANT_TO_PLAN[_k] = _p
+
+# Polar.sh product_id → plan name mapping (pre-seeded with live PersonaliAI Polar product IDs).
+POLAR_PRODUCT_TO_PLAN: dict[str, str] = {
+    "979dfddc-ba2d-4034-8a4a-a2d7be837df0": "chatty_hobby",
+    "63deceb8-4708-41f7-bdd0-4f9c477777b2": "chatty_hobby",
+    "44a3e476-d17e-47ad-abb7-34b36d6fb398": "chatty_standard",
+    "2bf68bd0-1ca3-489d-ad2f-62015bcb4bab": "chatty_standard",
+    "65c1d174-3c79-4c5c-89fb-c22776c246e7": "chatty_business",
+    "bfbcb1bc-a50c-4806-b187-9e427032a6ca": "chatty_business",
+}
+for _env_key, _plan in (
+    ("POLAR_PRODUCT_BASIC", "basic"),
+    ("POLAR_PRODUCT_PRO", "pro"),
+    ("POLAR_PRODUCT_EXECUTIVE", "executive"),
+    ("POLAR_PRODUCT_CHATTY_HOBBY", "chatty_hobby"),
+    ("POLAR_PRODUCT_CHATTY_STANDARD", "chatty_standard"),
+    ("POLAR_PRODUCT_CHATTY_BUSINESS", "chatty_business"),
+    ("POLAR_PRODUCT_CHATTY_HOBBY_YEARLY", "chatty_hobby"),
+    ("POLAR_PRODUCT_CHATTY_STANDARD_YEARLY", "chatty_standard"),
+    ("POLAR_PRODUCT_CHATTY_BUSINESS_YEARLY", "chatty_business"),
+):
+    _val = os.environ.get(_env_key)
+    if _val:
+        POLAR_PRODUCT_TO_PLAN[_val.strip()] = _plan
+for _v in os.environ.get("POLAR_PRODUCT_PLANS", "").split(","):
+    if ":" in _v:
+        _k, _p = _v.strip().split(":", 1)
+        POLAR_PRODUCT_TO_PLAN[_k] = _p
 
 def _normalized_api_key(name: str) -> str:
     """Accept pasted trailing whitespace, reject embedded header controls."""

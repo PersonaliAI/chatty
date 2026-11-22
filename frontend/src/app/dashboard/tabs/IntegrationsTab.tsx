@@ -1307,30 +1307,17 @@ export function IntegrationsTab({
         tags: ["paypal", "payments", "checkout", "pay later", "wallet"],
       },
       {
-        id: "lemonsqueezy",
-        name: "Lemon Squeezy",
-        category: "ecommerce" as IntegrationCategory,
-        categoryLabel: "Payments",
-        icon: <PlatformIcon domain="lemonsqueezy.com" label="Lemon Squeezy" />,
-        iconBg: "bg-[#ffc233]/10 text-[#ffc233]",
-        description: "Merchant of record checkout with global tax and EU VAT compliance for services and digital downloads.",
-        statsHighlight: paymentProviders.lemonsqueezy?.connected ? "Merchant of Record" : "Global MoR",
-        isConnected: Boolean(paymentProviders.lemonsqueezy?.connected),
-        isConfigured: Boolean(paymentProviders.lemonsqueezy?.connected),
-        tags: ["lemonsqueezy", "lemon", "squeezy", "mor", "vat", "tax", "payments"],
-      },
-      {
         id: "polar",
         name: "Polar.sh",
         category: "ecommerce" as IntegrationCategory,
         categoryLabel: "Payments",
         icon: <PlatformIcon domain="polar.sh" label="Polar" />,
         iconBg: "bg-[#0062ff]/10 text-[#0062ff]",
-        description: "Developer-first monetization platform with in-chat checkouts, digital products, and usage billing.",
-        statsHighlight: paymentProviders.polar?.connected ? "Polar Connected" : "Open Source MoR",
+        description: "Merchant of Record checkout with global tax & EU VAT compliance, in-chat digital products, and subscriptions.",
+        statsHighlight: paymentProviders.polar?.connected ? "Polar Connected" : "Merchant of Record",
         isConnected: Boolean(paymentProviders.polar?.connected),
         isConfigured: Boolean(paymentProviders.polar?.connected),
-        tags: ["polar", "polar.sh", "github", "developer", "subscriptions", "payments"],
+        tags: ["polar", "polar.sh", "mor", "vat", "tax", "github", "developer", "subscriptions", "payments"],
       },
       {
         id: "woocommerce",
@@ -6696,10 +6683,6 @@ export function IntegrationsTab({
       {/* SECTION PAYPAL */}
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "paypal")) &&
         renderPaymentGatewaySection("paypal")}
-
-      {/* SECTION LEMON SQUEEZY */}
-      {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "lemonsqueezy")) &&
-        renderPaymentGatewaySection("lemonsqueezy")}
 
       {/* SECTION POLAR.SH */}
       {(viewMode === "expanded" || (viewMode === "catalog" && selectedIntegrationId === "polar")) &&
