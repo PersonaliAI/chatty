@@ -1053,7 +1053,7 @@ async def webhook_polar(request: Request):
     product_name = str(product_obj.get("name") or obj.get("product_name") or "")
     short_plan, full_plan = _resolve_polar_plan(product_id, product_name)
 
-    logger.info("Polar.sh billing webhook event received: %s", event_name)
+    logger.info("Polar.sh billing webhook event received")
 
     try:
         await run_db(lambda: supabase.table("lemon_events").upsert({
@@ -1224,8 +1224,7 @@ async def webhook_polar(request: Request):
                         plan_name=short_plan,
                     ))
         except Exception:
-            clean_event = str(event_name or "").replace("\r", "").replace("\n", "")[:64]
-            logger.exception("Failed to dispatch Polar billing transactional email on %s", clean_event)
+            logger.exception("Failed to dispatch Polar billing transactional email")
 
     return {"status": "success"}
 
